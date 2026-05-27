@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { PenLine, FolderOpen, MessageCircle } from 'lucide-react';
+import { PenLine, FolderOpen, MessageCircle, Sparkles } from 'lucide-react';
 
 const actions = [
   {
@@ -22,6 +22,13 @@ const actions = [
     href: '/inbox',
     icon: MessageCircle,
     accent: 'bg-bg-tertiary text-text-secondary',
+  },
+  {
+    title: 'Research & Intelligence',
+    description: 'Live high-converting hooks + lead categorization from real data.',
+    href: '/analytics#intelligence',
+    icon: Sparkles, // reuse from lucide, or import if needed — actually add import
+    accent: 'bg-amber-100 text-amber-700',
   },
 ];
 
