@@ -242,8 +242,14 @@ export default function AnalyticsPage() {
 
           {researchResult && (
             <div className="mt-4 rounded-lg border border-accent-primary/30 bg-accent-primary/5 p-4 text-sm">
-              <div className="font-medium mb-1">Research complete — intelligence updated</div>
-              <pre className="text-xs overflow-auto max-h-40 text-text-secondary">{JSON.stringify(researchResult, null, 2)}</pre>
+              <div className="font-medium mb-2 flex items-center gap-2">Research complete — intelligence updated <span className="text-xs opacity-70">(RAG + RL applied)</span></div>
+              {researchResult.intelligence?.hooks && (
+                <div className="mb-2">
+                  <div className="text-xs font-semibold mb-1">Top hooks surfaced:</div>
+                  <div className="text-xs bg-bg/50 p-2 rounded max-h-24 overflow-auto">{researchResult.intelligence.hooks.substring(0, 300)}...</div>
+                </div>
+              )}
+              <div className="text-[10px] text-text-tertiary">Run more research or let crons + engagement sync keep training the model. Your future generations will be stronger.</div>
             </div>
           )}
         </div>
