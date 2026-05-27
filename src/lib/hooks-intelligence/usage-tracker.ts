@@ -39,13 +39,24 @@ export class UsageTracker {
       // === Stripe metered usage (for overage billing on Pro plans) ===
       try {
         const { recordUsageEvent } = await import('@/lib/stripe');
-        // In real flow we would look up stripe_customer_id from subscriptions table
-        // For now this is ready — the infrastructure exists
         if (process.env.STRIPE_SECRET_KEY) {
-          // recordUsageEvent({ customerId: '...', metric: action === 'research' ? 'research_calls' : 'ai_generations', value: 1 })
-          console.log(`[Usage] Meter event ready for ${action} (wire customer lookup to activate)`);
+          // Lookup customer for real metering (best effort)
+          const client = getServerClient();
+          const { data: sub } = await client.database
+            .from('subscriptions')
+            .select('stripe_customer_id')
+            .eq('user_id', userId)
+            .limit(1);
+          const customerId = sub?.[0]?.stripe_customer_id as string | undefined;
+          if (customerId) {
+            const metric = action === 'research' ? 'research_calls' : action === 'generate' ? 'ai_generations' : 'intelligence_usage';
+            await recordUsageEvent({ customerId, metric, value: 1 });
+            console.log(`[Usage] Metered ${metric} for customer ${customerId}`);
+          }
         }
-      } catch {}
+      } catch (e) {
+        console.warn('[Usage] Meter emission skipped:', e);
+      }
 
       return { allowed: true };
     } catch (e) {
