@@ -42,6 +42,8 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+The default git branch is **main** (GitHub: [FluentFlier/dispatch](https://github.com/FluentFlier/dispatch)).
+
 ## Scripts
 
 | Command | Description |
