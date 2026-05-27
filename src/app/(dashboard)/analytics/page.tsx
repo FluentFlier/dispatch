@@ -293,7 +293,7 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="mt-4 text-xs text-text-tertiary">
-            Populated automatically after every engagement sync. Full data appears once you have published posts with comments.
+            Populated automatically after every engagement sync. Full data appears once you have published posts with comments. (Current view uses illustrative sample + our categorize util; real DB lead_categories persistence coming next.)
           </div>
         </div>
       </section>
