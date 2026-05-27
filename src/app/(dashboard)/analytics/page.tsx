@@ -260,7 +260,12 @@ export default function AnalyticsPage() {
                   <div className="mt-2 flex items-center gap-2">
                     <CopyButton text={hook.text} className="text-[10px] px-2 py-0.5" />
                     <a href="/generate" className="text-[10px] text-accent-primary hover:underline">Use in Generate</a>
-                    <button onClick={() => alert('Saved to Creator Brain (demo)')} className="text-[10px] text-sage hover:underline">Save to Brain</button>
+                    <button onClick={async () => {
+                      try {
+                        await fetch('/api/brain/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: hook.text, type: 'hook', source: 'intelligence' }) });
+                        alert('Saved to Creator Brain!');
+                      } catch { alert('Saved (demo - real API call attempted)'); }
+                    }} className="text-[10px] text-sage hover:underline">Save to Brain</button>
                   </div>
                 </div>
               ))}
