@@ -12,6 +12,7 @@ import PublishPanel from '@/components/library/PublishPanel';
 import GenerateVariantsSection from '@/components/library/GenerateVariantsSection';
 import BulkPublishPanel from '@/components/library/BulkPublishPanel';
 import dynamic from 'next/dynamic';
+import { logEditFeedback } from '@/lib/hooks-intelligence/edit-feedback';
 
 const EngagementInbox = dynamic(() => import('@/components/engagement/EngagementInbox'), {
   ssr: false,
@@ -123,11 +124,29 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
       if (res.ok) {
         toast('Saved');
         onSave();
+
+        // Replicate useful "continuous learning from edits" pattern (inspired by Imagine trial)
+        // Log significant human edits vs original AI version to improve Hook Intelligence / voice over time
+        logEditFeedback({
+          postId: post.id,
+          originalContent: {
+            hook: post.hook || '',
+            script: post.script || '',
+            caption: post.caption || '',
+          },
+          editedContent: {
+            hook: form.hook,
+            script: form.script,
+            caption: form.caption,
+          },
+          pillar: form.pillar,
+          platform: form.platform,
+        });
       }
     } catch {
       toast('Save failed', 'error');
     }
-  }, [form, post.id, onSave, toast]);
+  }, [form, post.id, onSave, toast, post]);
 
   const handleStatusChange = async (status: Status) => {
     if (status === 'posted' && form.status !== 'posted') {

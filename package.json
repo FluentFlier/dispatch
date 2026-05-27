@@ -7,12 +7,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "hooks:research": "npx tsx scripts/research-hooks.ts",
+    "hooks:listen": "npx tsx scripts/research-hooks.ts --all"
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
     "@insforge/sdk": "^1.2.2",
     "@remotion/player": "^4.0.443",
+    "apify-client": "^2.23.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.468.0",

@@ -2,6 +2,7 @@ import { generateContent, buildSystemPrompt, type CreatorProfileForPrompt } from
 import { humanize } from '@/lib/humanizer';
 import { evaluateDraft, evaluationPasses, type VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 import { buildVoiceComposeHints } from '@/lib/voice-prompts';
+import { getBestHooksForContext } from '@/lib/hooks-intelligence';
 
 export interface VoicePipelineInput {
   userPrompt: string;
@@ -39,10 +40,29 @@ export async function generateWithVoicePipeline(
 ): Promise<VoicePipelineResult> {
   const contentType = input.contentType ?? 'post';
   const composeHints = buildVoiceComposeHints(input.platform, contentType);
+
+  // Track every intelligence-powered generation for usage billing / limits
+  // (profile/user context tells us who to charge)
+  const userIdForUsage = (input.profile as any)?.userId;
+  if (userIdForUsage) {
+    try {
+      const { usage } = await import('@/lib/hooks-intelligence/usage-tracker');
+      await usage.track(userIdForUsage, 'generate', { contentType, platform: input.platform });
+    } catch {}
+  }
   const taskHint = input.platform
     ? `Platform: ${input.platform}. Match native format and length.`
     : undefined;
-  const mergedContext = [composeHints, taskHint, input.contextAdditions]
+
+  // === PHENOMENAL HOOK INTELLIGENCE INJECTION ===
+  // Pull real, ranked, high-conversion hooks mined via gstack from the best creators.
+  // This is how we make posts *actually* amazing instead of generic.
+  const topHooks = getBestHooksForContext(undefined as any, 6); // can be made vertical-aware later
+  const hookExamples = topHooks.length > 0 
+    ? `\n\nREAL HIGH-CONVERTING HOOK EXAMPLES (use these structures + adapt to voice):\n${topHooks.map((h, i) => `${i+1}. "${h.text}" — @${h.author}`).join('\n')}`
+    : '';
+
+  const mergedContext = [composeHints, taskHint, input.contextAdditions, hookExamples]
     .filter(Boolean)
     .join('\n\n');
 

@@ -5,6 +5,7 @@ import {
   type VoicePlatform,
   type VoiceContentType,
 } from './platforms';
+import { ALL_TOP_HOOKS, HOOK_PATTERNS, getHookPattern, type HookVertical } from './hooks';
 
 const VALID_PLATFORMS = new Set<string>(['twitter', 'linkedin', 'instagram', 'threads']);
 
@@ -23,6 +24,10 @@ export function buildVoiceComposeHints(
 
   parts.push(`CONTENT TYPE: ${CONTENT_TYPE_HINTS[contentType]}`);
 
+  // High-converting hook patterns (extracted via gstack from top performers)
+  parts.push(`HIGH-CONVERTING HOOK PATTERNS (use these structures):
+${ALL_TOP_HOOKS.map((h, i) => `${i + 1}. ${h}`).join('\n')}`);
+
   return parts.join('\n\n');
 }
 
@@ -33,3 +38,10 @@ export {
   type VoicePlatform,
   type VoiceContentType,
 } from './platforms';
+
+export {
+  ALL_TOP_HOOKS,
+  HOOK_PATTERNS,
+  getHookPattern,
+  type HookVertical,
+} from './hooks';
