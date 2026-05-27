@@ -36,6 +36,17 @@ export class UsageTracker {
         created_at: new Date().toISOString(),
       });
 
+      // === Stripe metered usage (for overage billing on Pro plans) ===
+      try {
+        const { recordUsageEvent } = await import('@/lib/stripe');
+        // In real flow we would look up stripe_customer_id from subscriptions table
+        // For now this is ready — the infrastructure exists
+        if (process.env.STRIPE_SECRET_KEY) {
+          // recordUsageEvent({ customerId: '...', metric: action === 'research' ? 'research_calls' : 'ai_generations', value: 1 })
+          console.log(`[Usage] Meter event ready for ${action} (wire customer lookup to activate)`);
+        }
+      } catch {}
+
       return { allowed: true };
     } catch (e) {
       console.warn('[UsageTracker] increment failed (dev fallback allowed):', e);
