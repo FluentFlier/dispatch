@@ -28,6 +28,6 @@
       "evidence": "db/schema.sql:14 has 'bio text'; src/lib/schema.sql creator_profile section (lines 7-15) has no bio column."
     }
   ],
-  "addressesFailureFrom": "/Users/anirudhmanjesh/hackathons/content-os/.factory/validation/bug-fixes/scrutiny/synthesis.json",
+  "addressesFailureFrom": "/Users/anirudhmanjesh/hackathons/.factory/validation/bug-fixes/scrutiny/synthesis.json",
   "summary": "Pass. The rerun fix fully resolves the three prior blocking issues from scrutiny (creator_profile.bio in db/schema.sql, PATCH-response validation in Story Bank convert flow, and teleprompter inline fontFamily cleanup). One non-blocking concern remains about schema drift in src/lib/schema.sql."
 }

@@ -6,7 +6,7 @@
 
 ## Executive Summary
 
-There are **three tiers** of viable video editing integration for Content OS:
+There are **three tiers** of viable video editing integration for Dispatch:
 
 1. **Client-side (browser)**: FFmpeg.wasm for basic operations; limited but free
 2. **React-native programmatic**: Remotion for building video compositions in React code
@@ -53,7 +53,7 @@ There are **three tiers** of viable video editing integration for Content OS:
 | **Limitations** | Rendering is compute-intensive. Cannot edit pre-existing video files in-place (it *creates* new videos from compositions). Needs headless browser + FFmpeg for rendering. |
 | **Best for** | Creating branded video content from templates, text-to-video, data-driven videos, social media clips with custom overlays/captions |
 
-**Verdict**: ⭐ **Strongest recommendation for Content OS**. Native React integration, great for creating branded content videos. Combine with Claude AI to auto-generate compositions from user prompts. The `<Player>` component provides in-app preview.
+**Verdict**: ⭐ **Strongest recommendation for Dispatch**. Native React integration, great for creating branded content videos. Combine with Claude AI to auto-generate compositions from user prompts. The `<Player>` component provides in-app preview.
 
 ---
 
@@ -148,7 +148,7 @@ There are **three tiers** of viable video editing integration for Content OS:
 | **Limitations** | Requires After Effects templates (design dependency), higher price point, no AI features |
 | **Best for** | Teams with existing After Effects workflows who want to automate rendering |
 
-**Verdict**: 🟡 Only relevant if the team already uses After Effects. Not recommended as primary integration for Content OS.
+**Verdict**: 🟡 Only relevant if the team already uses After Effects. Not recommended as primary integration for Dispatch.
 
 ---
 
@@ -204,11 +204,11 @@ Remotion provides a **complete React-based video creation framework**:
 
 ---
 
-## Recommended Integration Architecture for Content OS
+## Recommended Integration Architecture for Dispatch
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                 Content OS (Next.js)             │
+│                 Dispatch (Next.js)              │
 ├─────────────────────────────────────────────────┤
 │                                                  │
 │  ┌──────────────┐  ┌────────────────────────┐   │

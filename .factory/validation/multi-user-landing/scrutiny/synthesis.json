@@ -5,18 +5,18 @@
   "validatorsRun": {
     "test": {
       "passed": true,
-      "command": "npm --prefix /Users/anirudhmanjesh/hackathons/content-os run build",
+      "command": "npm run build",
       "exitCode": 0,
       "note": "No dedicated test command is defined in .factory/services.yaml; build was used as the available full-suite validator."
     },
     "typecheck": {
       "passed": true,
-      "command": "npx tsc --noEmit -p /Users/anirudhmanjesh/hackathons/content-os/tsconfig.json",
+      "command": "npx tsc --noEmit -p tsconfig.json",
       "exitCode": 0
     },
     "lint": {
       "passed": true,
-      "command": "npm --prefix /Users/anirudhmanjesh/hackathons/content-os run lint",
+      "command": "npm run lint",
       "exitCode": 0
     }
   },

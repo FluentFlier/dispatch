@@ -9,13 +9,13 @@
     "summary": "Feature behavior is largely implemented: empty states and CTAs are present on the targeted dashboard pages, loading skeletons were added for the requested surfaces, and a route-level App Router error boundary was added for the dashboard segment. I found only non-blocking implementation gaps.",
     "issues": [
       {
-        "file": "content-os/src/app/(dashboard)/analytics/page.tsx",
+        "file": "src/app/(dashboard)/analytics/page.tsx",
         "line": 121,
         "severity": "non_blocking",
         "description": "The feature description explicitly called for using the shared `Skeleton` component from `components/ui`, but the analytics loading UI uses page-local `div` blocks with `animate-pulse` instead of `Skeleton`."
       },
       {
-        "file": "content-os/src/components/ui/ErrorBoundary.tsx",
+        "file": "src/components/ui/ErrorBoundary.tsx",
         "line": 16,
         "severity": "non_blocking",
         "description": "The new class-based `ErrorBoundary` is created and exported, but there are no usages in `src/`; runtime fallback currently relies on `(dashboard)/error.tsx` only. This leaves the class boundary as unused code."

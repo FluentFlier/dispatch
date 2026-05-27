@@ -9,13 +9,13 @@
     "summary": "The feature covers most required surfaces (dynamic prompt builder, 4-step onboarding UI, profile-aware /api/generate), but onboarding redirect logic is broken by a request/response header mismatch, which can trap new users in repeated redirects to /onboarding.",
     "issues": [
       {
-        "file": "content-os/src/app/(dashboard)/layout.tsx",
+        "file": "src/app/(dashboard)/layout.tsx",
         "line": 19,
         "severity": "blocking",
-        "description": "Dashboard layout reads `x-pathname` from `headers()` (request headers), but middleware writes `x-pathname` on `response.headers` (`content-os/src/middleware.ts:30`). As a result `pathname` can be empty, `skipOnboarding` stays false even on `/onboarding`, and users without `creator_profile` are redirected to `/onboarding` while already on `/onboarding`."
+        "description": "Dashboard layout reads `x-pathname` from `headers()` (request headers), but middleware writes `x-pathname` on `response.headers` (`src/middleware.ts:30`). As a result `pathname` can be empty, `skipOnboarding` stays false even on `/onboarding`, and users without `creator_profile` are redirected to `/onboarding` while already on `/onboarding`."
       },
       {
-        "file": "content-os/src/app/(dashboard)/onboarding/page.tsx",
+        "file": "src/app/(dashboard)/onboarding/page.tsx",
         "line": 138,
         "severity": "non_blocking",
         "description": "Onboarding performs direct client-side DB mutations (`creator_profile` and `user_settings` upserts). Mission conventions require mutations through API routes, so this implementation diverges from documented data-access boundaries."
@@ -31,7 +31,7 @@
     {
       "area": "conventions",
       "observation": "Mutation boundary documentation and implementation are out of sync; client-side writes are still being introduced.",
-      "evidence": "Mission AGENTS says mutations must go through API routes (`/Users/anirudhmanjesh/.factory/missions/fbcce583-7257-4bc1-9707-8c0ee4dcc7ec/AGENTS.md:44-47`) and architecture repeats this invariant (`/Users/anirudhmanjesh/hackathons/content-os/.factory/library/architecture.md:109`), but onboarding writes via client SDK upserts (`content-os/src/app/(dashboard)/onboarding/page.tsx:138-168`)."
+      "evidence": "Mission AGENTS says mutations must go through API routes (`/Users/anirudhmanjesh/.factory/missions/fbcce583-7257-4bc1-9707-8c0ee4dcc7ec/AGENTS.md:44-47`) and architecture repeats this invariant (`/Users/anirudhmanjesh/hackathons/.factory/library/architecture.md:109`), but onboarding writes via client SDK upserts (`src/app/(dashboard)/onboarding/page.tsx:138-168`)."
     }
   ],
   "addressesFailureFrom": null,

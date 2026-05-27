@@ -9,7 +9,7 @@
     "summary": "The commit implements BYOK fallback publishing in POST /api/publish, adds Twitter OAuth 1.0a BYOK support, preserves OAuth publish flow, and returns a clear 400 error for Instagram requests without imageUrl. The feature behavior in the mission description is covered end-to-end.",
     "issues": [
       {
-        "file": "content-os/src/app/api/publish/route.ts",
+        "file": "src/app/api/publish/route.ts",
         "line": 207,
         "severity": "non_blocking",
         "description": "OAuth lookup uses `.neq('connection_method', 'byok')`, but SQL/PostgREST `neq` does not match NULL values. The comment says OAuth should include rows where connection_method is null or non-byok. Legacy rows with NULL connection_method would be skipped and could incorrectly fall through to BYOK/no-account handling."

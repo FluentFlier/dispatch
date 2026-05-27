@@ -9,19 +9,19 @@
     "summary": "The publish/security checks are present in code (publish route enum validation, generate route rate limiting, no dangerous HTML rendering, and generic system prompt). However, this feature commit is not isolated: it bundles large unrelated UI/theme and artifact changes, so the feature-level review fails on scope and traceability.",
     "issues": [
       {
-        "file": "content-os/.factory/validation/multi-user-landing/user-testing/flows/auth-browser-flows.json",
+        "file": ".factory/validation/multi-user-landing/user-testing/flows/auth-browser-flows.json",
         "line": 1,
         "severity": "blocking",
         "description": "Feature commit e18c8c1 includes multi-user-landing validation artifacts from a different mission (`missionDir` points to fbcce583-... in this file). This is out of scope for publish-route/security work and makes the feature diff non-reviewable as an isolated unit."
       },
       {
-        "file": "content-os/src/components/ui/Tabs.tsx",
+        "file": "src/components/ui/Tabs.tsx",
         "line": 39,
         "severity": "blocking",
         "description": "The commit includes broad UI restyling changes unrelated to publish route/security validation (Tabs plus many dashboard/component files). Mixing unrelated functional surface area into this feature commit breaks change isolation and increases regression risk."
       },
       {
-        "file": "content-os/tsconfig.tsbuildinfo",
+        "file": "tsconfig.tsbuildinfo",
         "line": 1,
         "severity": "non_blocking",
         "description": "Generated TypeScript build output was committed. This should be excluded to reduce churn and avoid noisy diffs."
@@ -37,12 +37,12 @@
     {
       "area": "conventions",
       "observation": "Conventions exist for path-scoped staging, but there is no shared enforcement mechanism to block unrelated/generated files.",
-      "evidence": "Mission AGENTS.md requires scoped staging and excluding generated artifacts, yet commit e18c8c1 still includes `content-os/tsconfig.tsbuildinfo` and unrelated `.factory/validation/multi-user-landing/*` artifacts."
+      "evidence": "Mission AGENTS.md requires scoped staging and excluding generated artifacts, yet commit e18c8c1 still includes `tsconfig.tsbuildinfo` and unrelated `.factory/validation/multi-user-landing/*` artifacts."
     },
     {
       "area": "knowledge",
       "observation": "Monorepo git-root/pathspec context is still easy to miss during feature work.",
-      "evidence": "Transcript shows worker discovery step `git rev-parse --show-toplevel` => `/Users/anirudhmanjesh/hackathons` after staging confusion, indicating this operational context was not effectively surfaced early."
+      "evidence": "Transcript shows worker discovery step `git rev-parse --show-toplevel` pointed at a parent multi-project folder after staging confusion, indicating repo-root context was not effectively surfaced early."
     }
   ],
   "addressesFailureFrom": null,

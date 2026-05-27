@@ -10,12 +10,12 @@
     },
     "typecheck": {
       "passed": true,
-      "command": "npm --prefix \"/Users/anirudhmanjesh/hackathons/content-os\" run build",
+      "command": "npm --prefix \".\" run build",
       "exitCode": 0
     },
     "lint": {
       "passed": true,
-      "command": "npm --prefix \"/Users/anirudhmanjesh/hackathons/content-os\" run lint",
+      "command": "npm --prefix \".\" run lint",
       "exitCode": 0
     }
   },

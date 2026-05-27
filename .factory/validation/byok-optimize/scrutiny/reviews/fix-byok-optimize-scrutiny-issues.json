@@ -29,6 +29,6 @@
       "evidence": ".factory/skills/fullstack-worker/SKILL.md step 5 requires `PORT=3000 npm run dev`, `agent-browser` for UI features, and curl API checks; transcript skeleton for workerSessionId 3edf516a-6d0d-4e33-a5ad-505c9819394f contains no agent-browser invocation and no dev-server/curl steps."
     }
   ],
-  "addressesFailureFrom": "/Users/anirudhmanjesh/hackathons/content-os/.factory/validation/byok-optimize/scrutiny/synthesis.json",
+  "addressesFailureFrom": "/Users/anirudhmanjesh/hackathons/.factory/validation/byok-optimize/scrutiny/synthesis.json",
   "summary": "Pass. The fix feature resolves every previously synthesized blocking issue for byok-optimize. Two prior non-blocking cleanup items remain (unused platform config code in settings and per-save variant_group_id generation in OptimizePanel)."
 }

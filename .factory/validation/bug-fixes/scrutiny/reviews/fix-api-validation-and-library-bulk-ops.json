@@ -9,7 +9,7 @@
     "summary": "Feature requirements are implemented: POST/PATCH routes now use strict Zod schemas and Library bulk delete/status issue per-item /api/posts/[id] requests. One non-blocking robustness issue remains in bulk mutation response handling.",
     "issues": [
       {
-        "file": "content-os/src/app/(dashboard)/library/page.tsx",
+        "file": "src/app/(dashboard)/library/page.tsx",
         "line": 105,
         "severity": "non_blocking",
         "description": "Bulk mutations do not check `response.ok` for DELETE/PATCH requests. HTTP 4xx/5xx responses are treated as success, so the UI clears selection and refetches without surfacing partial failures."
@@ -20,7 +20,7 @@
     {
       "area": "conventions",
       "observation": "Mission conventions are ambiguous between 'mutations via API routes' and 'all client operations via API routes'. This feature keeps direct client DB reads for series while moving post operations to API routes, which can lead to inconsistent implementations across workers.",
-      "evidence": "Mission AGENTS.md lines 44 and 46; content-os/src/app/(dashboard)/library/page.tsx:51 uses client.database.from('series') in a client component."
+      "evidence": "Mission AGENTS.md lines 44 and 46; src/app/(dashboard)/library/page.tsx:51 uses client.database.from('series') in a client component."
     },
     {
       "area": "skills",

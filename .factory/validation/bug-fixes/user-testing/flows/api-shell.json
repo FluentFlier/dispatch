@@ -3,7 +3,7 @@
   "testedAt": "2026-03-30T07:23:40Z",
   "isolation": {
     "missionDir": "/Users/anirudhmanjesh/.factory/missions/fbcce583-7257-4bc1-9707-8c0ee4dcc7ec",
-    "repoRoot": "/Users/anirudhmanjesh/hackathons/content-os",
+    "repoRoot": ".",
     "appUrl": "http://localhost:3000",
     "assertionIds": [
       "VAL-FIX-008",
@@ -132,14 +132,14 @@
       ],
       "evidence": {
         "build": {
-          "command": "cd /Users/anirudhmanjesh/hackathons/content-os && npm run build",
+          "command": "cd . && npm run build",
           "exitCode": 0,
           "logPath": "bug-fixes/api-shell/VAL-FIX-012-build.log",
           "exitCodePath": "bug-fixes/api-shell/VAL-FIX-012-build.exitcode.txt",
           "keyOutputSnippet": "✓ Compiled successfully"
         },
         "importScan": {
-          "command": "rg -n '@anthropic-ai/sdk|@insforge/nextjs' /Users/anirudhmanjesh/hackathons/content-os/src",
+          "command": "rg -n '@anthropic-ai/sdk|@insforge/nextjs' src",
           "exitCode": 1,
           "outputPath": "bug-fixes/api-shell/VAL-FIX-012-import-scan.txt",
           "exitCodePath": "bug-fixes/api-shell/VAL-FIX-012-import-scan.exitcode.txt",

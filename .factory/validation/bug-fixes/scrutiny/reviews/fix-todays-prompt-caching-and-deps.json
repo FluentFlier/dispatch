@@ -9,7 +9,7 @@
     "summary": "The feature adds localStorage-backed caching to TodaysPrompt and keeps refresh behavior fetching a new prompt. Dependency state also matches the expected end state (no @anthropic-ai/sdk or @insforge/nextjs in package.json), with one non-blocking implementation mismatch in cache-key strategy.",
     "issues": [
       {
-        "file": "content-os/src/components/dashboard/TodaysPrompt.tsx",
+        "file": "src/components/dashboard/TodaysPrompt.tsx",
         "line": 6,
         "severity": "non_blocking",
         "description": "Requirement asked to store the cached prompt using today's date as the key. Implementation uses a fixed key (`dispatch_todays_prompt`) and stores date inside the value (lines 6, 33-34), which still works functionally but does not follow the requested keying strategy exactly."

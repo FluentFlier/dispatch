@@ -9,7 +9,7 @@
     "summary": "StoryMine's Convert to Post flow is implemented and wired correctly, but Story Bank conversion does not verify the story-used PATCH result and can report success even when the story is not marked used.",
     "issues": [
       {
-        "file": "content-os/src/app/(dashboard)/story-bank/page.tsx",
+        "file": "src/app/(dashboard)/story-bank/page.tsx",
         "line": 99,
         "severity": "blocking",
         "description": "After creating the post, the code sends PATCH /api/story-bank/{id} but does not check response status. If PATCH fails, the function still toasts \"Post created\" (line 106) and exits as success, violating the required behavior that conversion marks the story as used."
@@ -25,7 +25,7 @@
     {
       "area": "conventions",
       "observation": "Mission guidance says all DB mutations should go through API routes, but Story Bank still performs direct client-side InsForge update/delete mutations in non-convert paths, indicating convention drift in this area.",
-      "evidence": "Rule in mission AGENTS.md:44; direct mutations in content-os/src/app/(dashboard)/story-bank/page.tsx:147-148 (.update) and :179-180 (.delete)."
+      "evidence": "Rule in mission AGENTS.md:44; direct mutations in src/app/(dashboard)/story-bank/page.tsx:147-148 (.update) and :179-180 (.delete)."
     }
   ],
   "addressesFailureFrom": null,

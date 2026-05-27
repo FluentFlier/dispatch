@@ -4,11 +4,11 @@
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 
-**Goal:** Build a full-stack personal content OS for planning, generating, tracking, and optimizing Instagram content with cross-posting support.
+**Goal:** Build Dispatch: a full-stack personal content command center for planning, generating, tracking, and publishing across Instagram, X, LinkedIn, and Threads.
 
-**Architecture:** Next.js 14 App Router with Supabase (auth + Postgres), Anthropic Claude API for AI generation, Tailwind CSS for styling. Single-user app behind auth. All AI calls proxied through Next.js API routes. Charts via Recharts, drag-and-drop via @hello-pangea/dnd.
+**Architecture:** Next.js 14 App Router with InsForge (auth + Postgres + AI), Tailwind CSS. Auth-protected app. AI calls through Next.js API routes. Charts via Recharts, drag-and-drop via @hello-pangea/dnd.
 
-**Tech Stack:** Next.js 14, TypeScript, Supabase (auth + DB), Anthropic SDK, Tailwind CSS, Recharts, @hello-pangea/dnd, Google Fonts (Syne + Space Grotesk)
+**Tech Stack:** Next.js 14, TypeScript, InsForge SDK, Tailwind CSS, Recharts, @hello-pangea/dnd, Google Fonts (Syne + Space Grotesk)
 
 ---
 
@@ -26,7 +26,7 @@
 **Step 1: Scaffold Next.js 14 with TypeScript + Tailwind**
 
 ```bash
-cd /Users/anirudhmanjesh/hackathons/content-os
+# From repository root
 npx create-next-app@14 . --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --use-npm
 ```
 

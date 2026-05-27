@@ -9,13 +9,13 @@
     "summary": "The mobile More menu and heading font alias were implemented, but the feature does not fully satisfy the expected behavior because inline fontFamily styles remain in Teleprompter files.",
     "issues": [
       {
-        "file": "content-os/src/app/(dashboard)/teleprompter/page.tsx",
+        "file": "src/app/(dashboard)/teleprompter/page.tsx",
         "line": 49,
         "severity": "blocking",
         "description": "Inline fontFamily styling still exists (`style={{ fontFamily: \"'Space Grotesk', sans-serif\" }}`), violating the feature expectedBehavior requirement that no inline fontFamily styles remain."
       },
       {
-        "file": "content-os/src/components/teleprompter/TeleprompterReader.tsx",
+        "file": "src/components/teleprompter/TeleprompterReader.tsx",
         "line": 186,
         "severity": "blocking",
         "description": "Multiple inline fontFamily styles remain in this file (e.g. line 186 and nearby lines 205/212/221/231/240 in commit 887ac29), so the feature is incomplete versus expectedBehavior."
