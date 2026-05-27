@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { SkeletonLines } from '@/components/ui/Skeleton';
@@ -24,6 +24,17 @@ export function HookGenerator() {
   const [hooks, setHooks] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Live RAG + RL hooks from the intelligence engine (GStack mined + trained)
+  const [intelHooks, setIntelHooks] = useState<any[]>([]);
+  const [intelLoading, setIntelLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/hooks/intelligence?limit=6')
+      .then(r => r.ok ? r.json() : { hooks: [] })
+      .then(d => setIntelHooks(d.hooks || []))
+      .finally(() => setIntelLoading(false));
+  }, []);
 
   const generate = async () => {
     setLoading(true);
@@ -100,6 +111,26 @@ Numbered 1-8. One per line. No explanation. No em dashes.`;
           ))}
         </div>
       )}
+
+      {/* Live Intelligence Hooks (RAG + RL from GStack mined data) - makes research -> generate working */}
+      <div className="mt-4">
+        <div className="text-[12px] font-medium text-text-secondary mb-2 flex items-center gap-2">
+          Or use live high-converting hooks from your Intelligence (RAG + RL trained)
+          {intelLoading && <span className="text-[10px]">(loading...)</span>}
+        </div>
+        {intelHooks.length > 0 ? (
+          <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-2 text-sm">
+            {intelHooks.slice(0, 5).map((h, i) => (
+              <div key={i} className="flex items-start justify-between gap-2 py-1 border-b border-border last:border-0">
+                <p className="flex-1 text-text-primary">“{h.text}” — <span className="text-text-secondary">@{h.author}</span></p>
+                <CopyButton text={h.text} />
+              </div>
+            ))}
+          </div>
+        ) : !intelLoading && (
+          <div className="text-xs text-text-tertiary">Run more GStack mining or research to populate your personal high-converting hook library.</div>
+        )}
+      </div>
     </div>
   );
 }
