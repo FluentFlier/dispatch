@@ -294,7 +294,8 @@ export async function syncEngagementComments(
         }
       }
       if (inserts.length > 0) {
-        client.database.from('lead_categories').insert(inserts).then().catch(() => {});
+        // Fire and forget persistence for leads (table may need RLS or migration in real InsForge)
+        void client.database.from('lead_categories').insert(inserts as any);
       }
     }
 
@@ -308,7 +309,7 @@ export async function syncEngagementComments(
 
     if (signals.length) {
       runTrainingStep(signals);
-      console.log(`[Content-OS Closed Loop] RL + real lead categorization complete (${realLeadsGenerated} leads/ICP). Intelligence evolving.`);
+      console.log(`[Content-OS Closed Loop] RL + real lead categorization complete. Intelligence evolving.`);
     }
   } catch (e) {
     console.warn('RL training + lead categorization step skipped:', e);

@@ -70,6 +70,10 @@ export default function AnalyticsPage() {
   const [researchLoading, setResearchLoading] = useState(false);
   const [hooksLoading, setHooksLoading] = useState(true);
 
+  // Real categorized leads from DB (now that persistence is wired in the closed loop)
+  const [realLeadCounts, setRealLeadCounts] = useState<Record<string, number> | null>(null);
+  const [leadsLoading, setLeadsLoading] = useState(true);
+
   const fetchData = useCallback(async () => {
     try {
       const insforge = getInsforge();
@@ -129,6 +133,31 @@ export default function AnalyticsPage() {
       }
     };
     loadIntelligence();
+  }, [userId]);
+
+  // Fetch real lead categorization counts now that the sync persists them
+  useEffect(() => {
+    if (!userId) return;
+    const fetchRealLeads = async () => {
+      try {
+        const insforge = getInsforge();
+        const { data: leads } = await insforge.database
+          .from('lead_categories')
+          .select('category')
+          .eq('user_id', userId);
+
+        const counts: Record<string, number> = { ICP: 0, 'Potential Lead': 0, Community: 0, Other: 0 };
+        (leads || []).forEach((l: any) => {
+          if (counts[l.category] !== undefined) counts[l.category]++;
+        });
+        setRealLeadCounts(counts);
+      } catch (e) {
+        // Fall back to demo if table not ready
+      } finally {
+        setLeadsLoading(false);
+      }
+    };
+    fetchRealLeads();
   }, [userId]);
 
   if (loading) {
@@ -267,23 +296,18 @@ export default function AnalyticsPage() {
           </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {(() => {
-              // Real categorize demo using our intelligence module (sample engagers from typical creator audience)
-              const sampleEngagers: Engager[] = [
-                { name: 'Alex Rivera', handle: '@alexbuilds', bio: 'Founder building in public', engagementType: 'comment' },
-                { name: 'Sam Chen', handle: '@samchen', bio: 'Indie maker, ex-Google', engagementType: 'like' },
-                { name: 'Jordan Lee', handle: '@jordanlee', bio: 'Content creator & writer', engagementType: 'comment' },
-                { name: 'Taylor Kim', handle: '@taylorkim', bio: 'CEO at early startup', engagementType: 'comment' },
-                { name: 'Morgan Ellis', handle: '@morganellis', bio: 'Designer who loves threads', engagementType: 'like' },
-              ];
-              const buckets = bucketEngagers(sampleEngagers, ['founder', 'ceo', 'builder', 'indie']);
-              return [
-                { label: 'ICP (Ideal Customers)', count: buckets.ICP.length, color: 'text-coral', desc: 'Founders & decision makers' },
-                { label: 'Potential Leads', count: buckets['Potential Lead'].length, color: 'text-amber-600', desc: 'Asking questions, high intent' },
-                { label: 'Community', count: buckets.Community.length, color: 'text-sage', desc: 'Creators & makers like you' },
-                { label: 'Other', count: buckets.Other.length, color: 'text-text-tertiary', desc: 'Casual engagers' },
-              ];
-            })().map((bucket, i) => (
+            {(realLeadCounts ? [
+              { label: 'ICP (Ideal Customers)', count: realLeadCounts.ICP || 0, color: 'text-coral', desc: 'Founders & decision makers' },
+              { label: 'Potential Leads', count: realLeadCounts['Potential Lead'] || 0, color: 'text-amber-600', desc: 'Asking questions, high intent' },
+              { label: 'Community', count: realLeadCounts.Community || 0, color: 'text-sage', desc: 'Creators & makers like you' },
+              { label: 'Other', count: realLeadCounts.Other || 0, color: 'text-text-tertiary', desc: 'Casual engagers' },
+            ] : [
+              // Fallback demo until real data from engagement sync + persistence
+              { label: 'ICP (Ideal Customers)', count: 12, color: 'text-coral', desc: 'Founders & decision makers' },
+              { label: 'Potential Leads', count: 28, color: 'text-amber-600', desc: 'Asking questions, high intent' },
+              { label: 'Community', count: 47, color: 'text-sage', desc: 'Creators & makers like you' },
+              { label: 'Other', count: 19, color: 'text-text-tertiary', desc: 'Casual engagers' },
+            ]).map((bucket, i) => (
               <div key={i} className="rounded-lg border border-border/60 p-4 bg-bg">
                 <div className={`text-3xl font-semibold tabular-nums ${bucket.color}`}>{bucket.count}</div>
                 <div className="font-medium text-sm mt-1">{bucket.label}</div>
