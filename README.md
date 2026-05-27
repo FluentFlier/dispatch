@@ -35,8 +35,9 @@ Private content command center for creators who ship. Generate, organize, schedu
 git clone https://github.com/FluentFlier/dispatch.git
 cd dispatch
 npm install
+npx @insforge/cli link   # link to your InsForge "dispatch" project
 cp .env.example .env.local
-# Fill NEXT_PUBLIC_INSFORGE_URL, NEXT_PUBLIC_INSFORGE_ANON_KEY, TOKEN_ENCRYPTION_KEY, etc.
+# Or pull keys: npx @insforge/cli secrets get ANON_KEY --json
 npm run dev
 ```
 
@@ -62,7 +63,9 @@ See [`.env.example`](.env.example). Required for core functionality:
 - `TOKEN_ENCRYPTION_KEY` — `openssl rand -hex 32`
 - `NEXT_PUBLIC_APP_URL` — OAuth callbacks
 
-Optional: platform OAuth keys, `CRON_SECRET` for scheduled publish routes.
+Optional: `AYRSHARE_API_KEY`, Stripe keys, platform OAuth keys (direct mode), `CRON_SECRET`.
+
+Apply schema changes: `npx @insforge/cli db query "$(cat db/production-delta.sql)"` or run statements from `db/production-delta.sql` individually.
 
 ## Project layout
 
