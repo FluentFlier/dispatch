@@ -1,40 +1,14 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import Link from "next/link";
 import { getInsforgeClient } from "@/lib/insforge/client";
-
-function getAccessToken(): string | null {
-  const client = getInsforgeClient();
-  // Try multiple paths to find the tokenManager at runtime
-  // The SDK declares tokenManager as private in TypeScript but it's a regular
-  // property at runtime (not a # private field), so we can access it.
-  const candidates = [
-    (client as unknown as Record<string, unknown>).tokenManager,
-    (client.auth as unknown as Record<string, unknown>).tokenManager,
-  ];
-  for (const tm of candidates) {
-    if (tm && typeof tm === "object") {
-      const mgr = tm as { getAccessToken?: () => string | null; getSession?: () => { accessToken?: string } | null };
-      // Try getAccessToken first
-      if (typeof mgr.getAccessToken === "function") {
-        const token = mgr.getAccessToken();
-        if (token) return token;
-      }
-      // Fallback: try getSession().accessToken
-      if (typeof mgr.getSession === "function") {
-        const session = mgr.getSession();
-        if (session?.accessToken) return session.accessToken;
-      }
-    }
-  }
-  return null;
-}
+import { getClientAccessToken } from "@/lib/auth-client";
 
 async function syncTokenToCookie(): Promise<boolean> {
-  // Try up to 3 times with increasing delay, since the SDK may still be
-  // saving the session after OAuth code exchange
   for (let attempt = 0; attempt < 3; attempt++) {
-    const token = getAccessToken();
+    const client = getInsforgeClient();
+    const token = getClientAccessToken(client);
     if (token) {
       try {
         const res = await fetch("/api/auth", {
@@ -44,10 +18,9 @@ async function syncTokenToCookie(): Promise<boolean> {
         });
         if (res.ok) return true;
       } catch {
-        // network error, retry
+        // retry
       }
     }
-    // Wait before retrying (200ms, 500ms, 1000ms)
     await new Promise((r) => setTimeout(r, (attempt + 1) * 300));
   }
   return false;
@@ -80,17 +53,16 @@ export default function LoginPage() {
     const client = getInsforgeClient();
     const params = new URLSearchParams(window.location.search);
 
-    // --- OAuth callback ---
     if (params.has("insforge_code")) {
       setStatus("Completing sign-in...");
-
-      // Wait for SDK's detectAuthCallback (runs in constructor) to finish
       const authReady = (client.auth as unknown as { authCallbackHandled?: Promise<void> }).authCallbackHandled;
       if (authReady) {
-        try { await authReady; } catch { /* handled below */ }
+        try {
+          await authReady;
+        } catch {
+          /* handled below */
+        }
       }
-
-      // Give a small extra buffer then check once
       await new Promise((r) => setTimeout(r, 600));
 
       try {
@@ -98,11 +70,12 @@ export default function LoginPage() {
         if (data?.user) {
           setStatus("Syncing session...");
           await syncTokenToCookie();
-          setStatus("Redirecting...");
           window.location.replace("/dashboard");
           return;
         }
-      } catch { /* fall through */ }
+      } catch {
+        /* fall through */
+      }
 
       setError("Sign-in failed. Please try again.");
       window.history.replaceState(null, "", "/login");
@@ -110,7 +83,6 @@ export default function LoginPage() {
       return;
     }
 
-    // --- Existing session check ---
     try {
       const { data } = await client.auth.getCurrentUser();
       if (data?.user) {
@@ -124,7 +96,9 @@ export default function LoginPage() {
         window.location.replace("/dashboard");
         return;
       }
-    } catch { /* no session */ }
+    } catch {
+      /* no session */
+    }
 
     if (params.has("error")) {
       setError("Sign-in failed. Please try again.");
@@ -134,12 +108,12 @@ export default function LoginPage() {
     setReady(true);
   }
 
-  async function handleGoogle() {
+  async function signInWith(provider: "google" | "github") {
     setError("");
     try {
       const client = getInsforgeClient();
       const { error: err } = await client.auth.signInWithOAuth({
-        provider: "google",
+        provider,
         redirectTo: `${window.location.origin}/login`,
       });
       if (err) setError(err.message);
@@ -151,102 +125,103 @@ export default function LoginPage() {
   return (
     <div
       ref={spotRef}
-      className="relative min-h-screen overflow-hidden flex items-center justify-center"
+      className="relative min-h-screen overflow-hidden flex"
       style={{ background: "#050507", fontFamily: "'DM Sans', sans-serif" }}
     >
       <style>{`
-        @keyframes float1{from{transform:translate(0,0) scale(1)}to{transform:translate(40px,30px) scale(1.1)}}
-        @keyframes float2{from{transform:translate(0,0) scale(1)}to{transform:translate(-30px,50px) scale(1.05)}}
-        @keyframes shimmer{from{background-position:-200% center}to{background-position:200% center}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
-        @keyframes glow-pulse{0%,100%{box-shadow:0 0 20px rgba(129,140,248,0.08)}50%{box-shadow:0 0 30px rgba(129,140,248,0.14)}}
       `}</style>
 
-      {/* Dot grid */}
-      <div className="fixed inset-0 pointer-events-none" style={{ backgroundImage: "radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)", backgroundSize: "24px 24px" }} />
-
-      {/* Ambient blobs */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute -top-[200px] -left-[100px] w-[500px] h-[500px] rounded-full opacity-[0.08]" style={{ background: "radial-gradient(circle, #6366F1, transparent 70%)", filter: "blur(100px)", animation: "float1 12s ease-in-out infinite alternate" }} />
-        <div className="absolute -bottom-[150px] -right-[100px] w-[400px] h-[400px] rounded-full opacity-[0.06]" style={{ background: "radial-gradient(circle, #8B5CF6, transparent 70%)", filter: "blur(120px)", animation: "float2 15s ease-in-out infinite alternate" }} />
+      {/* Left: brand panel */}
+      <div className="hidden lg:flex lg:w-[45%] flex-col justify-between p-12 border-r border-[#FAFAFA]/06 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-[0.07]" style={{ background: "radial-gradient(circle at 30% 20%, #6366F1, transparent 55%)" }} />
+        <div className="relative">
+          <p className="text-[11px] uppercase tracking-[0.14em] text-[#818CF8] mb-4">Dispatch</p>
+          <h1 className="text-[32px] text-[#FAFAFA] leading-[1.15] tracking-[-0.02em]" style={{ fontFamily: "'Instrument Serif', serif" }}>
+            One place to publish everywhere.
+          </h1>
+          <p className="text-[14px] text-[#71717A] mt-4 max-w-sm">
+            Connect your accounts once. Schedule with confidence. See delivery status and retries in a single timeline.
+          </p>
+        </div>
+        <blockquote className="relative border-l-2 border-[#818CF8]/40 pl-4">
+          <p className="text-[14px] text-[#A1A1AA] italic">
+            &ldquo;I stopped copy-pasting into four apps. Dispatch is my command center now.&rdquo;
+          </p>
+          <footer className="text-[12px] text-[#52525B] mt-2">— Beta creator</footer>
+        </blockquote>
       </div>
 
-      {/* Noise texture */}
-      <div className="fixed inset-0 pointer-events-none opacity-[0.03]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")` }} />
-
-      {/* Spotlight */}
-      <div className="fixed inset-0 pointer-events-none" style={{ background: "radial-gradient(600px circle at var(--mx, 50%) var(--my, 50%), rgba(99,102,241,0.06), transparent 50%)" }} />
-
-      {/* Content */}
-      <div className="relative z-10 w-full max-w-[400px] px-5">
-        {!ready ? (
-          <div className="text-center" style={{ animation: "fadeUp 0.5s ease-out" }}>
-            <div className="w-7 h-7 border-2 border-[#818CF8] border-t-transparent rounded-full animate-spin mx-auto" />
-            <p className="text-[13px] text-[#71717A] mt-3">{status}</p>
-          </div>
-        ) : (
-          <div style={{ animation: "fadeUp 0.6s ease-out" }}>
-            {/* Header */}
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center justify-center w-11 h-11 rounded-xl mb-4" style={{ background: "rgba(129,140,248,0.1)", border: "1px solid rgba(129,140,248,0.15)" }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#818CF8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" /></svg>
-              </div>
-              <h1 className="text-[26px] text-[#FAFAFA] font-normal tracking-[-0.02em] leading-tight" style={{ fontFamily: "'Instrument Serif', serif" }}>
-                Welcome to Dispatch
-              </h1>
-              <p className="text-[14px] text-[#71717A] mt-2">Sign in to your content command center</p>
+      {/* Right: sign-in */}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-[400px]" style={{ animation: ready ? "fadeUp 0.5s ease-out" : undefined }}>
+          {!ready ? (
+            <div className="text-center">
+              <div className="w-7 h-7 border-2 border-[#818CF8] border-t-transparent rounded-full animate-spin mx-auto" />
+              <p className="text-[13px] text-[#71717A] mt-3">{status}</p>
             </div>
+          ) : (
+            <>
+              <div className="text-center mb-8 lg:text-left">
+                <h2 className="text-[24px] text-[#FAFAFA] font-normal tracking-[-0.02em]" style={{ fontFamily: "'Instrument Serif', serif" }}>
+                  Welcome back
+                </h2>
+                <p className="text-[14px] text-[#71717A] mt-2">Sign in to your command center</p>
+              </div>
 
-            {/* Card */}
-            <div className="rounded-2xl p-6" style={{ background: "rgba(255,255,255,0.025)", border: "1px solid rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", animation: "glow-pulse 3s ease-in-out infinite" }}>
-              <button
-                onClick={handleGoogle}
-                className="group relative w-full flex items-center justify-center gap-3 rounded-xl py-3.5 text-[14px] font-medium text-[#FAFAFA] transition-all duration-300 overflow-hidden cursor-pointer"
-                style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.1)" }}
-              >
-                <span className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: "linear-gradient(110deg, transparent 30%, rgba(129,140,248,0.08) 50%, transparent 70%)", backgroundSize: "200% 100%", animation: "shimmer 2s infinite" }} />
-                <svg className="relative" width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-                </svg>
-                <span className="relative">Continue with Google</span>
-                <svg className="relative w-3.5 h-3.5 text-[#71717A] group-hover:text-[#818CF8] group-hover:translate-x-0.5 transition-all" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-              </button>
+              <div className="space-y-3">
+                <OAuthButton label="Continue with Google" onClick={() => signInWith("google")} icon="google" />
+                <OAuthButton label="Continue with GitHub" onClick={() => signInWith("github")} icon="github" />
+              </div>
 
               {error && (
-                <div className="mt-4 px-3 py-2.5 rounded-lg text-[13px] text-[#FCA5A5]" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.15)" }}>
+                <div className="mt-4 px-3 py-2.5 rounded-lg text-[13px] text-[#FCA5A5] bg-red-500/10 border border-red-500/20">
                   {error}
                 </div>
               )}
 
-              <div className="flex items-center gap-3 my-5">
-                <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
-                <span className="text-[10px] text-[#52525B] uppercase tracking-[0.12em]" style={{ fontFamily: "'JetBrains Mono', monospace" }}>Secure</span>
-                <div className="flex-1 h-px" style={{ background: "rgba(255,255,255,0.06)" }} />
-              </div>
-
-              <div className="space-y-2.5">
-                {[
-                  { icon: "M9 12l2 2 4-4", label: "No password to remember" },
-                  { icon: "M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z", label: "Encrypted and private" },
-                  { icon: "M13 10V3L4 14h7v7l9-11h-7z", label: "Instant setup, under 1 minute" },
-                ].map((item, i) => (
-                  <div key={i} className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0" style={{ background: "rgba(129,140,248,0.08)" }}>
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#818CF8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d={item.icon} /></svg>
-                    </div>
-                    <span className="text-[13px] text-[#A1A1AA]">{item.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <p className="text-center text-[11px] text-[#52525B] mt-5">By continuing, you agree to our terms of service.</p>
-          </div>
-        )}
+              <p className="text-center text-[11px] text-[#52525B] mt-6">
+                By continuing, you agree to our terms.{" "}
+                <Link href="/pricing" className="text-[#818CF8] hover:underline">
+                  View plans
+                </Link>
+              </p>
+            </>
+          )}
+        </div>
       </div>
     </div>
+  );
+}
+
+function OAuthButton({
+  label,
+  onClick,
+  icon,
+}: {
+  label: string;
+  onClick: () => void;
+  icon: "google" | "github";
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-center justify-center gap-3 rounded-xl py-3.5 text-[14px] font-medium text-[#FAFAFA] bg-[#18181B] border border-[#FAFAFA]/10 hover:border-[#FAFAFA]/20 transition-colors"
+    >
+      {icon === "google" ? (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+          <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+          <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+          <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+        </svg>
+      ) : (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="#FAFAFA">
+          <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+        </svg>
+      )}
+      {label}
+    </button>
   );
 }

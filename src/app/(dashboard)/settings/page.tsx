@@ -66,6 +66,7 @@ function Section({
 
 const TABS = [
   { id: 'connections', label: 'Connections' },
+  { id: 'billing', label: 'Billing' },
   { id: 'profile', label: 'Profile' },
   { id: 'content', label: 'Content' },
   { id: 'tools', label: 'Tools' },
@@ -152,6 +153,14 @@ export default function SettingsPage() {
   // Connected Accounts (OAuth)
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [entitlements, setEntitlements] = useState<{
+    plan: string;
+    isPaid: boolean;
+    usage: { publishes: number; scheduled: number };
+    limits: { publishesPerMonth: number };
+  } | null>(null);
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [useAyrshare, setUseAyrshare] = useState(false);
 
   /* ---- Helpers ---- */
 
@@ -264,6 +273,37 @@ export default function SettingsPage() {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (searchParams.get('ayrshare') === '1') {
+      fetch('/api/social-accounts/ayrshare/sync', { method: 'POST' })
+        .then(() => refreshAccounts())
+        .catch(() => undefined);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  useEffect(() => {
+    fetch('/api/entitlements')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => data && setEntitlements(data))
+      .catch(() => undefined);
+    fetch('/api/health')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => setUseAyrshare(data?.provider === 'ayrshare'))
+      .catch(() => undefined);
+  }, []);
+
+  async function openBillingPortal() {
+    setBillingLoading(true);
+    try {
+      const res = await fetch('/api/billing/portal', { method: 'POST' });
+      const data = await res.json();
+      if (data.url) window.location.href = data.url;
+    } finally {
+      setBillingLoading(false);
+    }
+  }
 
   /* ---- Save handlers ---- */
 
@@ -473,6 +513,7 @@ export default function SettingsPage() {
               onDisconnect={disconnectAccount}
               disconnecting={disconnecting}
               onAccountsRefresh={refreshAccounts}
+              useAyrshare={useAyrshare}
             />
           </Section>
 
@@ -488,6 +529,52 @@ export default function SettingsPage() {
             />
           </Section>
         </>
+      )}
+
+      {activeTab === 'billing' && (
+        <Section title="Plan & billing">
+          {entitlements ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 rounded-[10px] bg-[#18181B] border border-[#FAFAFA]/10">
+                <div>
+                  <p className="text-[13px] text-[#FAFAFA] font-medium capitalize">{entitlements.plan} plan</p>
+                  <p className="text-[11px] text-[#71717A] mt-1">
+                    {entitlements.usage.publishes} / {entitlements.limits.publishesPerMonth} publishes this month
+                  </p>
+                </div>
+                <span
+                  className={`text-[10px] px-2 py-0.5 rounded-[3px] ${
+                    entitlements.isPaid
+                      ? 'bg-[rgba(16,185,129,0.15)] text-[#10B981]'
+                      : 'bg-[#27272A] text-[#71717A]'
+                  }`}
+                >
+                  {entitlements.isPaid ? 'Active' : 'Free'}
+                </span>
+              </div>
+              {!entitlements.isPaid && (
+                <a
+                  href="/pricing"
+                  className="inline-block px-4 py-2 text-[12px] text-white bg-[#6366F1] rounded-[7px] hover:bg-[#6366F1]/90"
+                >
+                  Upgrade to publish
+                </a>
+              )}
+              {entitlements.isPaid && (
+                <button
+                  type="button"
+                  disabled={billingLoading}
+                  onClick={openBillingPortal}
+                  className="px-4 py-2 text-[12px] text-[#FAFAFA] border border-[#FAFAFA]/12 rounded-[7px] hover:border-[#FAFAFA]/25 disabled:opacity-60"
+                >
+                  {billingLoading ? 'Opening…' : 'Manage subscription'}
+                </button>
+              )}
+            </div>
+          ) : (
+            <p className="text-[13px] text-[#71717A]">Loading billing…</p>
+          )}
+        </Section>
       )}
 
       {activeTab === 'profile' && (

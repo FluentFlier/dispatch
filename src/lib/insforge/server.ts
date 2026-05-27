@@ -1,6 +1,23 @@
 import { createClient } from '@insforge/sdk';
 import { cookies } from 'next/headers';
 
+/** Service-role client for cron/background jobs (no user cookie). */
+export function getServiceClient(): ReturnType<typeof createClient> {
+  const url = process.env.NEXT_PUBLIC_INSFORGE_URL;
+  const serviceKey =
+    process.env.INSFORGE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY;
+
+  if (!url || !serviceKey) {
+    throw new Error('Missing InsForge env vars for service client');
+  }
+
+  return createClient({
+    baseUrl: url,
+    anonKey: serviceKey,
+    isServerMode: true,
+  });
+}
+
 export function getServerClient(): ReturnType<typeof createClient> {
   const url = process.env.NEXT_PUBLIC_INSFORGE_URL;
   const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY;

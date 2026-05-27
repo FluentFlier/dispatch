@@ -21,7 +21,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
   // Rate limit: 50 requests per hour per user
-  const rl = checkRateLimit(user.id);
+  const rl = await checkRateLimit(user.id);
   if (!rl.allowed) {
     const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
     return NextResponse.json(

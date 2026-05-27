@@ -1,61 +1,28 @@
+import { checkUsageLimit, incrementUsage, type UsageMetric } from '@/lib/usage';
+
 interface RateLimitEntry {
   count: number;
   resetAt: number;
 }
 
-const store = new Map<string, RateLimitEntry>();
-
+const memoryStore = new Map<string, RateLimitEntry>();
 const DEFAULT_LIMIT = 50;
-const DEFAULT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
-const CLEANUP_INTERVAL_MS = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_WINDOW_MS = 60 * 60 * 1000;
 
-// Periodic cleanup of expired entries
-let cleanupTimer: ReturnType<typeof setInterval> | null = null;
-
-function ensureCleanup(): void {
-  if (cleanupTimer) return;
-  cleanupTimer = setInterval(() => {
-    const now = Date.now();
-    store.forEach((entry, key) => {
-      if (entry.resetAt <= now) {
-        store.delete(key);
-      }
-    });
-    // Stop the timer if the store is empty
-    if (store.size === 0 && cleanupTimer) {
-      clearInterval(cleanupTimer);
-      cleanupTimer = null;
-    }
-  }, CLEANUP_INTERVAL_MS);
-  // Allow the Node process to exit even if the timer is running
-  if (cleanupTimer && typeof cleanupTimer === 'object' && 'unref' in cleanupTimer) {
-    cleanupTimer.unref();
-  }
-}
-
-/**
- * Checks whether a request from the given userId is within the rate limit.
- * Returns the current state: whether the request is allowed, how many
- * requests remain, and when the window resets (epoch ms).
- */
-export function checkRateLimit(
+function memoryCheck(
   userId: string,
-  limit: number = DEFAULT_LIMIT,
-  windowMs: number = DEFAULT_WINDOW_MS,
+  limit: number,
+  windowMs: number
 ): { allowed: boolean; remaining: number; resetAt: number } {
-  ensureCleanup();
-
   const now = Date.now();
-  const existing = store.get(userId);
+  const existing = memoryStore.get(userId);
 
-  // If no entry or window has expired, start a fresh window
   if (!existing || existing.resetAt <= now) {
     const resetAt = now + windowMs;
-    store.set(userId, { count: 1, resetAt });
+    memoryStore.set(userId, { count: 1, resetAt });
     return { allowed: true, remaining: limit - 1, resetAt };
   }
 
-  // Window still active
   if (existing.count < limit) {
     existing.count += 1;
     return {
@@ -65,10 +32,32 @@ export function checkRateLimit(
     };
   }
 
-  // Limit exceeded
-  return {
-    allowed: false,
-    remaining: 0,
-    resetAt: existing.resetAt,
-  };
+  return { allowed: false, remaining: 0, resetAt: existing.resetAt };
 }
+
+/**
+ * DB-backed rate limit for AI generation. Falls back to in-memory if DB unavailable.
+ */
+export async function checkRateLimit(
+  userId: string,
+  limit: number = DEFAULT_LIMIT,
+  windowMs: number = DEFAULT_WINDOW_MS
+): Promise<{ allowed: boolean; remaining: number; resetAt: number }> {
+  try {
+    const { allowed, remaining } = await checkUsageLimit(userId, 'ai_generate', limit);
+    const resetAt = Date.now() + windowMs;
+    return { allowed, remaining, resetAt };
+  } catch {
+    return memoryCheck(userId, limit, windowMs);
+  }
+}
+
+export async function recordRateLimitHit(userId: string): Promise<void> {
+  try {
+    await incrementUsage(userId, 'ai_generate', 1);
+  } catch {
+    memoryCheck(userId, DEFAULT_LIMIT, DEFAULT_WINDOW_MS);
+  }
+}
+
+export { type UsageMetric };

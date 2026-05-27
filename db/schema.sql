@@ -66,6 +66,7 @@ create table if not exists posts (
   source_platform text,
   scheduled_publish_at timestamptz,
   image_url text,
+  publish_job_id uuid,
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
 );
@@ -162,17 +163,6 @@ create table if not exists user_settings (
 );
 
 -- ============================================================
--- INDEXES
--- ============================================================
-
-create index if not exists posts_user_status on posts (user_id, status);
-create index if not exists posts_user_pillar on posts (user_id, pillar);
-create index if not exists posts_scheduled_date on posts (user_id, scheduled_date);
-create index if not exists story_bank_user_used on story_bank (user_id, used);
-create index if not exists content_ideas_user_priority on content_ideas (user_id, priority, created_at desc);
-create index if not exists user_settings_lookup on user_settings (user_id, key);
-
--- ============================================================
 -- SOCIAL ACCOUNTS (OAuth-connected platform accounts)
 -- ============================================================
 
@@ -186,8 +176,100 @@ create table if not exists social_accounts (
   refresh_token text,
   token_expires_at timestamptz,
   connection_method text not null default 'oauth',
+  provider text not null default 'direct',
+  provider_profile_key text,
+  provider_meta jsonb not null default '{}'::jsonb,
+  health_status text not null default 'unknown',
   connected_at timestamptz default now() not null,
   unique(user_id, platform)
 );
 
+-- ============================================================
+-- SUBSCRIPTIONS (Stripe billing)
+-- ============================================================
+
+create table if not exists subscriptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique,
+  plan text not null default 'free' check (plan in ('free','starter','growth','pro')),
+  status text not null default 'inactive' check (status in ('inactive','trialing','active','past_due','canceled')),
+  stripe_customer_id text,
+  stripe_subscription_id text,
+  current_period_start timestamptz,
+  current_period_end timestamptz,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
+
+create trigger subscriptions_updated_at
+  before update on subscriptions
+  for each row execute function update_updated_at();
+
+-- ============================================================
+-- USAGE COUNTERS (rate limits + plan metering)
+-- ============================================================
+
+create table if not exists usage_counters (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  metric text not null,
+  period_key text not null,
+  count int not null default 0,
+  updated_at timestamptz default now() not null,
+  unique(user_id, metric, period_key)
+);
+
+-- ============================================================
+-- PUBLISH JOBS (durable queue)
+-- ============================================================
+
+create table if not exists publish_jobs (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  post_id uuid not null references posts(id) on delete cascade,
+  platform text not null,
+  status text not null default 'queued' check (status in ('queued','processing','published','failed','dead')),
+  idempotency_key text not null,
+  scheduled_for timestamptz,
+  attempts int not null default 0,
+  max_attempts int not null default 3,
+  last_error text,
+  provider text not null default 'direct',
+  provider_post_id text,
+  provider_url text,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null,
+  unique(idempotency_key)
+);
+
+create trigger publish_jobs_updated_at
+  before update on publish_jobs
+  for each row execute function update_updated_at();
+
+-- ============================================================
+-- AYRSHARE PROFILES (one profile key per Dispatch user)
+-- ============================================================
+
+create table if not exists ayrshare_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique,
+  profile_key text not null,
+  title text,
+  created_at timestamptz default now() not null
+);
+
+-- ============================================================
+-- INDEXES
+-- ============================================================
+
+create index if not exists posts_user_status on posts (user_id, status);
+create index if not exists posts_user_pillar on posts (user_id, pillar);
+create index if not exists posts_scheduled_date on posts (user_id, scheduled_date);
+create index if not exists posts_scheduled_publish on posts (scheduled_publish_at) where status != 'posted';
+create index if not exists story_bank_user_used on story_bank (user_id, used);
+create index if not exists content_ideas_user_priority on content_ideas (user_id, priority, created_at desc);
+create index if not exists user_settings_lookup on user_settings (user_id, key);
 create index if not exists social_accounts_user on social_accounts (user_id);
+create index if not exists publish_jobs_status_scheduled on publish_jobs (status, scheduled_for);
+create index if not exists publish_jobs_user on publish_jobs (user_id, created_at desc);
+create index if not exists usage_counters_lookup on usage_counters (user_id, metric, period_key);

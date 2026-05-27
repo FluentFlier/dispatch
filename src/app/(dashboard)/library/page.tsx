@@ -10,6 +10,7 @@ import { usePillars } from '@/hooks/usePillars';
 import PostGrid from '@/components/library/PostGrid';
 import PostTable from '@/components/library/PostTable';
 import PostEditorDrawer from '@/components/library/PostEditorDrawer';
+import PublishTimeline from '@/components/library/PublishTimeline';
 
 export default function LibraryPage() {
   const { pillars: pillarList, getLabel } = usePillars();
@@ -353,6 +354,14 @@ export default function LibraryPage() {
           </button>
         </div>
       )}
+
+      {/* Publish timeline */}
+      <section className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-4 mt-6">
+        <h2 className="text-[12px] font-medium uppercase tracking-[0.1em] text-[#71717A] mb-3">
+          Publish activity
+        </h2>
+        <PublishTimeline limit={10} />
+      </section>
 
       {/* Post Editor Drawer */}
       {editorOpen && editorPost && (

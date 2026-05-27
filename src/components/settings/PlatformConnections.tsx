@@ -27,6 +27,8 @@ interface PlatformConnectionsProps {
   onDisconnect: (platform: string) => void;
   disconnecting: string | null;
   onAccountsRefresh: () => void;
+  /** When true, show unified Ayrshare connect (all platforms at once) */
+  useAyrshare?: boolean;
 }
 
 const PLATFORM_META: Record<
@@ -59,7 +61,9 @@ export default function PlatformConnections({
   onDisconnect,
   disconnecting,
   onAccountsRefresh,
+  useAyrshare = false,
 }: PlatformConnectionsProps) {
+  const [ayrshareLoading, setAyrshareLoading] = useState(false);
   const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
   const [byokValues, setByokValues] = useState<ByokState>({});
   const [savingPlatform, setSavingPlatform] = useState<string | null>(null);
@@ -164,14 +168,63 @@ export default function PlatformConnections({
     }
   }
 
+  async function connectAllViaAyrshare() {
+    setAyrshareLoading(true);
+    try {
+      window.location.href = '/api/social-accounts/ayrshare/connect';
+    } finally {
+      setAyrshareLoading(false);
+    }
+  }
+
+  async function syncAyrshareAccounts() {
+    setAyrshareLoading(true);
+    try {
+      const res = await fetch('/api/social-accounts/ayrshare/sync', { method: 'POST' });
+      if (res.ok) onAccountsRefresh();
+    } finally {
+      setAyrshareLoading(false);
+    }
+  }
+
   return (
     <>
+      {useAyrshare && (
+        <div className="mb-6 p-4 rounded-[12px] border border-[#818CF8]/25 bg-[rgba(129,140,248,0.06)]">
+          <p className="text-[13px] text-[#FAFAFA] font-medium mb-1">Connect all platforms at once</p>
+          <p className="text-[11px] text-[#71717A] mb-3">
+            Powered by Ayrshare — link X, LinkedIn, Instagram, and Threads in one secure flow.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={ayrshareLoading}
+              onClick={connectAllViaAyrshare}
+              className="px-4 py-2 text-[12px] text-white bg-[#6366F1] rounded-[7px] hover:bg-[#6366F1]/90 disabled:opacity-60 flex items-center gap-2"
+            >
+              {ayrshareLoading && <Loader2 size={12} className="animate-spin" />}
+              Connect accounts
+            </button>
+            <button
+              type="button"
+              disabled={ayrshareLoading}
+              onClick={syncAyrshareAccounts}
+              className="px-4 py-2 text-[12px] text-[#FAFAFA] border border-[#FAFAFA]/12 rounded-[7px] hover:border-[#FAFAFA]/25"
+            >
+              Sync status
+            </button>
+          </div>
+        </div>
+      )}
+
       <p className="text-sm text-[#71717A] mb-2">
-        Connect accounts via OAuth or enter API keys manually.
+        {useAyrshare ? 'Per-platform status and manual API key fallback.' : 'Connect accounts via OAuth or enter API keys manually.'}
       </p>
-      <p className="text-[11px] text-[#52525B] mb-4">
-        OAuth requires platform developer app credentials. If OAuth fails, use the API Keys option below each platform instead.
-      </p>
+      {!useAyrshare && (
+        <p className="text-[11px] text-[#52525B] mb-4">
+          OAuth requires platform developer app credentials. If OAuth fails, use the API Keys option below each platform instead.
+        </p>
+      )}
       <div className="space-y-3">
         {(["twitter", "linkedin", "instagram", "threads"] as const).map(
           (platform) => {

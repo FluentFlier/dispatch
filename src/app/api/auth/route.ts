@@ -1,46 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { validateAccessToken } from '@/lib/auth';
+import { logInfo, logWarn } from '@/lib/logger';
 
 const AuthTokenSchema = z.object({
   token: z.string().min(1, 'Token is required'),
 });
 
-// POST: Set auth cookie after login
+const COOKIE_OPTS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',
+  sameSite: 'lax' as const,
+  path: '/',
+  maxAge: 60 * 60 * 24 * 7,
+};
+
+/** POST: Validate token and set httpOnly session cookie */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     let body: unknown;
-    try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
 
     const parsed = AuthTokenSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.message }, { status: 400 });
     }
 
-    const { token } = parsed.data;
+    const validation = await validateAccessToken(parsed.data.token);
+    if (!validation.valid) {
+      logWarn('auth.token_rejected', { reason: validation.error });
+      return NextResponse.json({ error: 'Invalid session token' }, { status: 401 });
+    }
 
-    const response = NextResponse.json({ ok: true });
-    response.cookies.set('dispatch-token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 7 days
-    });
+    const response = NextResponse.json({ ok: true, userId: validation.userId });
+    response.cookies.set('dispatch-token', parsed.data.token, COOKIE_OPTS);
+    logInfo('auth.session_created', { userId: validation.userId });
     return response;
   } catch {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   }
 }
 
-// DELETE: Clear auth cookie on sign out
+/** DELETE: Clear auth cookie */
 export async function DELETE(): Promise<NextResponse> {
   const response = NextResponse.json({ ok: true });
-  response.cookies.set('dispatch-token', '', {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 0,
-  });
+  response.cookies.set('dispatch-token', '', { ...COOKIE_OPTS, maxAge: 0 });
   return response;
 }

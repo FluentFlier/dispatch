@@ -24,6 +24,8 @@ function getPillarColor(pillar: string): string {
 }
 import { formatDateShort, formatRelative } from '@/lib/utils';
 import TodaysPrompt from '@/components/dashboard/TodaysPrompt';
+import NeedsAttention, { type AttentionItem } from '@/components/dashboard/NeedsAttention';
+import { getUserEntitlements } from '@/lib/entitlements';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -94,7 +96,7 @@ export default async function DashboardPage() {
   const today = new Date().toISOString().slice(0, 10);
 
   // Fire all queries in parallel
-  const [weekPostsRes, pipelineRes, postedRes, streakRes, upNextRes, recentRes, ideasRes, weekScheduleRes, profileRes, socialRes] =
+  const [weekPostsRes, pipelineRes, postedRes, streakRes, upNextRes, recentRes, ideasRes, weekScheduleRes, profileRes, socialRes, failedJobsRes, entitlements] =
     await Promise.all([
       client.database.from('posts').select('id').eq('user_id', uid).eq('status', 'posted').gte('posted_date', start).lte('posted_date', end),
       client.database.from('posts').select('id').eq('user_id', uid).neq('status', 'posted').neq('status', 'idea'),
@@ -105,7 +107,15 @@ export default async function DashboardPage() {
       client.database.from('content_ideas').select('*').eq('user_id', uid).eq('converted', false).order('priority', { ascending: true }).limit(3),
       client.database.from('posts').select('title, pillar, status').eq('user_id', uid).gte('scheduled_date', start).lte('scheduled_date', end),
       client.database.from('creator_profile').select('display_name, content_pillars, voice_description, onboarding_complete').eq('user_id', uid).maybeSingle(),
-      client.database.from('social_accounts').select('platform, connection_method').eq('user_id', uid),
+      client.database.from('social_accounts').select('platform, connection_method, health_status').eq('user_id', uid),
+      client.database
+        .from('publish_jobs')
+        .select('id, platform, last_error, status')
+        .eq('user_id', uid)
+        .in('status', ['failed', 'dead'])
+        .order('updated_at', { ascending: false })
+        .limit(5),
+      getUserEntitlements(uid),
     ]);
 
   const postsThisWeek = weekPostsRes.data?.length ?? 0;
@@ -139,12 +149,53 @@ export default async function DashboardPage() {
           .join(', ')
       : 'No posts this week yet.';
 
+  const attentionItems: AttentionItem[] = [];
+
+  for (const job of failedJobsRes.data ?? []) {
+    const row = job as { id: string; platform: string; last_error: string | null };
+    attentionItems.push({
+      id: `job-${row.id}`,
+      type: 'publish_failed',
+      title: `Publish failed on ${row.platform}`,
+      detail: row.last_error ?? 'Unknown error',
+      href: '/library',
+      actionLabel: 'Review',
+    });
+  }
+
+  if (!entitlements.isPaid) {
+    attentionItems.push({
+      id: 'billing-upgrade',
+      type: 'billing',
+      title: 'Upgrade to publish and schedule',
+      detail: 'Publishing requires Starter or above.',
+      href: '/pricing',
+      actionLabel: 'View plans',
+    });
+  }
+
+  for (const acct of socialRes.data ?? []) {
+    const row = acct as { platform: string; health_status?: string };
+    if (row.health_status === 'error' || row.health_status === 'disconnected') {
+      attentionItems.push({
+        id: `auth-${row.platform}`,
+        type: 'auth_expired',
+        title: `${row.platform} connection needs attention`,
+        detail: 'Reconnect to resume publishing.',
+        href: '/settings?tab=connections',
+        actionLabel: 'Reconnect',
+      });
+    }
+  }
+
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       {/* Greeting */}
       <h1 className="font-display font-[800] text-[21px] text-[#FAFAFA] tracking-[-0.02em] leading-[1.2] pt-2">
         {creatorProfile?.display_name ? `Hey ${creatorProfile.display_name.split(' ')[0]}, what are we shipping?` : 'What are we building today?'}
       </h1>
+
+      <NeedsAttention items={attentionItems} />
 
       {/* Setup checklist -- only show if setup is incomplete */}
       {!setupComplete && (

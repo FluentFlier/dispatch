@@ -1,5 +1,12 @@
+import { randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { assertCanPublish } from '@/lib/entitlements';
+import { getSocialProviderMode } from '@/lib/env';
+import { getSocialProvider } from '@/lib/social';
+import { enqueuePublishJob, processPublishJob } from '@/lib/publish-queue';
+import { incrementUsage } from '@/lib/usage';
+import { trackEvent } from '@/lib/analytics';
 import * as twitterClient from '@/lib/platforms/twitter';
 import * as linkedinClient from '@/lib/platforms/linkedin';
 import * as instagramClient from '@/lib/platforms/instagram';
@@ -178,6 +185,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     content: z.string().min(1).max(25000),
     caption: z.string().max(25000).optional(),
     imageUrl: z.string().url().optional(),
+    scheduledAt: z.string().datetime().optional(),
   });
 
   const parsed = PublishSchema.safeParse(body);
@@ -185,7 +193,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
-  const { postId, platform, content, caption, imageUrl } = parsed.data;
+  const { postId, platform, content, caption, imageUrl, scheduledAt } = parsed.data;
+
+  const entitlementCheck = await assertCanPublish(user.id);
+  if (!entitlementCheck.ok) {
+    return NextResponse.json(
+      { error: entitlementCheck.error, entitlements: entitlementCheck.entitlements },
+      { status: 402 }
+    );
+  }
 
   // Instagram requires an image URL for publishing
   if (platform === 'instagram' && !imageUrl) {
@@ -197,6 +213,86 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const client = getServerClient();
   const publishContent = caption || content;
+
+  // Ayrshare path: durable queue + aggregator publish
+  if (getSocialProviderMode() === 'ayrshare') {
+    const resolvedPostId = postId ?? randomUUID();
+
+    if (!postId) {
+      await client.database.from('posts').insert([
+        {
+          id: resolvedPostId,
+          user_id: user.id,
+          title: publishContent.slice(0, 80),
+          pillar: 'general',
+          platform,
+          status: scheduledAt ? 'edited' : 'edited',
+          caption: publishContent,
+          image_url: imageUrl ?? null,
+          scheduled_publish_at: scheduledAt ?? null,
+        },
+      ]);
+    } else if (scheduledAt) {
+      await client.database
+        .from('posts')
+        .update({ scheduled_publish_at: scheduledAt })
+        .eq('id', postId)
+        .eq('user_id', user.id);
+    }
+
+    const { job, duplicate, error: enqueueError } = await enqueuePublishJob({
+      userId: user.id,
+      postId: resolvedPostId,
+      platform,
+      scheduledFor: scheduledAt ?? null,
+      provider: 'ayrshare',
+    });
+
+    if (!job) {
+      return NextResponse.json({ error: enqueueError ?? 'Failed to enqueue' }, { status: 500 });
+    }
+
+    if (scheduledAt) {
+      await incrementUsage(user.id, 'scheduled_post', 1);
+      return NextResponse.json({
+        success: true,
+        queued: true,
+        jobId: job.id,
+        duplicate,
+        status: 'queued',
+        message: 'Post scheduled for publishing',
+      });
+    }
+
+    const { data: postRows } = await client.database
+      .from('posts')
+      .select('*')
+      .eq('id', resolvedPostId)
+      .limit(1);
+
+    const post = postRows?.[0] as Record<string, unknown> | undefined;
+    if (!post) {
+      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+    }
+
+    const updated = await processPublishJob(job, post);
+    if (updated.status !== 'published') {
+      await trackEvent('publish_failed', { platform, userId: user.id, jobId: job.id });
+      return NextResponse.json(
+        { error: updated.last_error ?? 'Publishing failed', jobId: job.id, status: updated.status },
+        { status: 500 }
+      );
+    }
+
+    await trackEvent('first_publish_success', { platform, userId: user.id });
+    return NextResponse.json({
+      success: true,
+      jobId: job.id,
+      platformPostId: updated.provider_post_id,
+      url: updated.provider_url,
+      provider: getSocialProvider().name,
+    });
+  }
 
   // Step 1: Check for OAuth account (connection_method is null or 'oauth')
   const { data: oauthRows } = await client.database
@@ -311,9 +407,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .eq('user_id', user.id);
   }
 
+  await incrementUsage(user.id, 'publish_post', 1);
+  await trackEvent('first_publish_success', { platform, userId: user.id, provider: 'direct' });
+
   return NextResponse.json({
     success: true,
     platformPostId: result.platformPostId,
     url: result.url,
+    provider: 'direct',
   });
 }

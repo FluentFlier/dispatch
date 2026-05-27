@@ -24,6 +24,11 @@ export function middleware(request: NextRequest): NextResponse {
 
   const token = request.cookies.get('dispatch-token')?.value;
 
+  // Public marketing routes
+  if (pathname === '/pricing') {
+    return NextResponse.next({ request: { headers: requestHeaders } });
+  }
+
   // Authenticated user hitting /login -> redirect to /dashboard
   if (pathname === '/login' && token) {
     const dashboardUrl = new URL('/dashboard', request.url);
