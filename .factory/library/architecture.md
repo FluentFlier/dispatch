@@ -1,4 +1,4 @@
-# Architecture - Dispatch Content OS
+# Architecture - Dispatch
 
 ## Overview
 Dispatch is a Next.js 14 App Router application (TypeScript, Tailwind CSS 3.4) that serves as a content command center for creators. It uses InsForge as BaaS (database, auth, AI, storage).

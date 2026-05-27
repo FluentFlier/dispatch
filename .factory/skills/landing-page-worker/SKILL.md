@@ -21,7 +21,7 @@ Features that involve:
 
 ## Work Procedure
 
-1. **Read the Brand Guide** at `/Users/anirudhmanjesh/hackathons/content-os/Dispatch Brand Guide.md`. This is the authoritative source for colors, typography, spacing, and copy guidelines.
+1. **Read the Brand Guide** at `Dispatch Brand Guide.md` (repo root). This is the authoritative source for colors, typography, spacing, and copy guidelines.
 
 2. **Read the current landing page** at `src/app/page.tsx` and `src/app/globals.css` and `tailwind.config.ts` to understand existing styles.
 

@@ -1,4 +1,6 @@
-# Content OS Implementation Plan
+# Dispatch Implementation Plan
+
+> Formerly Content OS (`content-os`).
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
 

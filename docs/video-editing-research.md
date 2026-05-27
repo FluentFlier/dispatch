@@ -1,6 +1,6 @@
 # AI Video Editing Integration Research
 
-> Research compiled March 2026 for Content OS / Dispatch (Next.js 14 + Tailwind CSS)
+> Research compiled March 2026 for Dispatch (Next.js 14 + Tailwind CSS)
 
 ---
 

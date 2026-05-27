@@ -40,5 +40,6 @@ Environment variables, external dependencies, and setup notes.
 - `lucide-react` - Icons
 
 ## Repository Topology
-- Git root is `/Users/anirudhmanjesh/hackathons` (the `content-os` project is a subdirectory).
-- For scoped commits from this project, prefer path-scoped staging (for example `git add content-os/<path>`) and review staged scope with `git diff --cached -- content-os/` before commit.
+- Git remote: `https://github.com/FluentFlier/dispatch` (renamed from `content-os`).
+- App lives at the repository root (`package.json`, `src/`).
+- Commit from the repo root; review with `git diff --cached` before push.

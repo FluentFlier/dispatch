@@ -1,4 +1,6 @@
-# Content OS -- Design Document
+# Dispatch -- Design Document
+
+> Formerly Content OS (`content-os`).
 
 **Date:** 2026-03-27
 **Status:** Approved

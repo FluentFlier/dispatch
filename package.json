@@ -1,6 +1,7 @@
 {
-  "name": "content-os",
+  "name": "dispatch",
   "version": "0.1.0",
+  "description": "Dispatch — private content command center for creators",
   "private": true,
   "scripts": {
     "dev": "next dev",

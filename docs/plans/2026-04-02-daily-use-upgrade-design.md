@@ -1,6 +1,6 @@
 # Daily-Use Upgrade Design
 **Date**: 2026-04-02
-**Goal**: Make Content OS usable every day -- image uploads, platform constraints, quick publish, better comment replies, performance tracking.
+**Goal**: Make Dispatch usable every day -- image uploads, platform constraints, quick publish, better comment replies, performance tracking.
 
 ## 1. Image Upload System
 - **Storage**: InsForge Storage bucket `post-media`
