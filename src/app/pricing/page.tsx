@@ -10,7 +10,7 @@ const PLANS = [
     name: 'Starter',
     price: '$19',
     description: 'Solo creators shipping consistently',
-    features: ['3 connected accounts', '60 publishes / month', 'Reliable scheduling', 'Publish status timeline'],
+    features: ['3 connected accounts', '60 publishes / month', 'Reliable scheduling', 'Publish status timeline', 'Basic Hook Intelligence (limited)'],
   },
   {
     id: 'growth' as const,
@@ -18,14 +18,14 @@ const PLANS = [
     price: '$49',
     description: 'Growing creators across platforms',
     popular: true,
-    features: ['10 connected accounts', '300 publishes / month', 'Priority retries', 'Usage dashboard'],
+    features: ['10 connected accounts', '300 publishes / month', 'Priority retries', 'Usage dashboard', 'Full Research Lab + Hook Lab', 'Lead categorization insights'],
   },
   {
     id: 'pro' as const,
     name: 'Pro',
     price: '$99',
     description: 'Agencies and power users',
-    features: ['30 connected accounts', '1,500 publishes / month', 'Team-ready limits', 'Concierge onboarding'],
+    features: ['30 connected accounts', '1,500 publishes / month', 'Team-ready limits', 'Concierge onboarding', 'Unlimited intelligence runs', 'Custom watchlists + Apify mining', 'Advanced RL + analytics snapshots'],
   },
 ];
 
