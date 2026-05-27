@@ -9,6 +9,7 @@ import { usePillars } from "@/hooks/usePillars";
 import { Lightbulb } from "lucide-react";
 import IdeaForm from "@/components/ideas/IdeaForm";
 import IdeaRow from "@/components/ideas/IdeaRow";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 type FilterMode = "all" | "unconverted" | "converted";
 
@@ -114,12 +115,12 @@ export default function IdeasPage() {
 
     try {
       const insforge = getInsforge();
-      await insforge.database.from("content_ideas").insert({
+      await insforge.database.from("content_ideas").insert([{
         user_id: userId,
         idea: text,
         pillar: newPillar,
         priority: newPriority,
-      });
+      }]);
       await fetchIdeas();
     } catch (err) {
       console.error("Failed to add idea", err);
@@ -228,18 +229,15 @@ export default function IdeasPage() {
   // --- Render ---
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
-      {/* Header */}
-      <div className="flex items-baseline justify-between">
-        <h1 className="font-heading text-[22px] font-[800] text-[#FAFAFA] leading-[1.2] tracking-[-0.02em]">
-          Ideas
-        </h1>
-        {!loading && ideas.length > 0 && (
-          <span className="text-[13px] text-[#71717A]">
-            {ideas.length} idea{ideas.length !== 1 ? "s" : ""} ({unconvertedCount} unconverted)
-          </span>
-        )}
-      </div>
+    <div className="page-shell space-y-6">
+      <PageHeader
+        title="Ideas"
+        subtitle={
+          !loading && ideas.length > 0
+            ? `${ideas.length} saved — ${unconvertedCount} ready to turn into posts`
+            : 'Save ideas before you forget them. Turn any idea into a post in one tap.'
+        }
+      />
 
       {/* Quick add form */}
       <IdeaForm
@@ -256,7 +254,7 @@ export default function IdeasPage() {
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] overflow-hidden">
+        <div className="flex bg-bg-tertiary border border-border rounded-md overflow-hidden">
           {(
             [
               ["all", "All"],
@@ -269,8 +267,8 @@ export default function IdeasPage() {
               onClick={() => setFilterMode(mode)}
               className={`px-3 py-2 min-h-[44px] text-[11px] font-medium transition-colors ${
                 filterMode === mode
-                  ? "bg-[rgba(99,102,241,0.12)] text-[#6366F1]"
-                  : "text-[#71717A] hover:text-[#FAFAFA]"
+                  ? "bg-coral-light text-accent-primary"
+                  : "text-text-secondary hover:text-text-primary"
               }`}
             >
               {label}
@@ -281,7 +279,7 @@ export default function IdeasPage() {
         <select
           value={filterPillar}
           onChange={(e) => setFilterPillar(e.target.value)}
-          className="bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-2.5 py-2 min-h-[44px] text-[11px] text-[#FAFAFA] focus:outline-none focus:border-[#FAFAFA]/40 transition-colors"
+          className="bg-bg-tertiary border border-border rounded-md px-2.5 py-2 min-h-[44px] text-[11px] text-text-primary focus:outline-none focus:border-border-hover transition-colors"
         >
           <option value="all">All pillars</option>
           {pillarList.map((p) => (
@@ -296,22 +294,22 @@ export default function IdeasPage() {
       {loading ? (
         <div className="space-y-2">
           {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3 px-3 py-3 bg-[#18181B] rounded-[7px] animate-pulse">
-              <div className="w-4 h-4 rounded bg-[#27272A] shrink-0" />
-              <div className="flex-1 h-4 bg-[#27272A] rounded" />
-              <div className="w-16 h-5 bg-[#27272A] rounded shrink-0" />
+            <div key={i} className="flex items-center gap-3 px-3 py-3 bg-bg-tertiary rounded-md animate-pulse">
+              <div className="w-4 h-4 rounded bg-bg-elevated shrink-0" />
+              <div className="flex-1 h-4 bg-bg-elevated rounded" />
+              <div className="w-16 h-5 bg-bg-elevated rounded shrink-0" />
             </div>
           ))}
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           {ideas.length === 0 && (
-            <Lightbulb className="w-12 h-12 text-[#71717A] mb-4" />
+            <Lightbulb className="w-12 h-12 text-text-secondary mb-4" />
           )}
-          <h2 className="font-heading text-[16px] font-[700] text-[#FAFAFA] mb-1">
+          <h2 className="font-heading text-[16px] font-semibold text-text-primary mb-1">
             {ideas.length === 0 ? "Nothing queued" : "No ideas match your filters"}
           </h2>
-          <p className="text-[#71717A] text-[13px]">
+          <p className="text-text-secondary text-[13px]">
             {ideas.length === 0
               ? "Add an idea before you forget it."
               : "Try adjusting your filters."}

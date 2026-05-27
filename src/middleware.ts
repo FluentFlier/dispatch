@@ -5,11 +5,13 @@ const PROTECTED_ROUTES = [
   '/generate',
   '/library',
   '/calendar',
+  '/inbox',
   '/story-bank',
   '/ideas',
   '/series',
   '/analytics',
   '/settings',
+  '/voice-lab',
   '/teleprompter',
   '/video-studio',
   '/onboarding',
@@ -30,6 +32,18 @@ export function middleware(request: NextRequest): NextResponse {
   }
 
   // Authenticated user hitting /login -> redirect to /dashboard
+  if (pathname === '/login' && token && request.nextUrl.searchParams.get('expired') === '1') {
+    const response = NextResponse.next({ request: { headers: requestHeaders } });
+    response.cookies.set('dispatch-token', '', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 0,
+    });
+    return response;
+  }
+
   if (pathname === '/login' && token) {
     const dashboardUrl = new URL('/dashboard', request.url);
     return NextResponse.redirect(dashboardUrl, 307);

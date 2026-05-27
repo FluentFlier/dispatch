@@ -200,12 +200,12 @@ export default function SeriesPage() {
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <h1 className="font-heading text-[22px] font-[800] text-[#FAFAFA] leading-[1.2] tracking-[-0.02em]">
+        <h1 className="font-heading text-[22px] font-semibold text-text-primary leading-[1.2] tracking-[-0.02em]">
           Series
         </h1>
         <button
           onClick={() => router.push("/generate?tab=series")}
-          className="flex items-center gap-1.5 bg-[#6366F1] hover:opacity-90 text-white text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-[7px] transition-opacity"
+          className="flex items-center gap-1.5 bg-accent-primary hover:opacity-90 text-white text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-md transition-opacity"
         >
           <Plus size={16} />
           Create Series
@@ -216,28 +216,28 @@ export default function SeriesPage() {
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-[10px]">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="bg-[#18181B] rounded-[12px] p-4 animate-pulse space-y-3">
-              <div className="h-5 w-2/3 bg-[#27272A] rounded" />
-              <div className="h-4 w-1/2 bg-[#27272A] rounded" />
+            <div key={i} className="bg-bg-tertiary rounded-lg p-4 animate-pulse space-y-3">
+              <div className="h-5 w-2/3 bg-bg-tertiary rounded" />
+              <div className="h-4 w-1/2 bg-bg-tertiary rounded" />
               <div className="flex gap-2">
-                <div className="h-6 w-16 bg-[#27272A] rounded" />
-                <div className="h-6 w-16 bg-[#27272A] rounded" />
+                <div className="h-6 w-16 bg-bg-tertiary rounded" />
+                <div className="h-6 w-16 bg-bg-tertiary rounded" />
               </div>
             </div>
           ))}
         </div>
       ) : seriesList.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <Layers className="w-12 h-12 text-[#71717A] mb-4" />
-          <h2 className="font-heading text-[16px] font-[700] text-[#FAFAFA] mb-1">
+          <Layers className="w-12 h-12 text-text-secondary mb-4" />
+          <h2 className="font-heading text-[16px] font-semibold text-text-primary mb-1">
             No series yet
           </h2>
-          <p className="text-[#71717A] text-[13px] mb-4">
+          <p className="text-text-secondary text-[13px] mb-4">
             Organize your content into multi-part series.
           </p>
           <button
             onClick={() => router.push("/generate?tab=series")}
-            className="flex items-center gap-1.5 bg-[#6366F1] hover:opacity-90 text-white text-[13px] font-medium px-5 py-[10px] rounded-[7px] transition-opacity"
+            className="flex items-center gap-1.5 bg-accent-primary hover:opacity-90 text-white text-[13px] font-medium px-5 py-[10px] rounded-md transition-opacity"
           >
             <Plus size={16} />
             Plan a New Series

@@ -95,7 +95,7 @@ Use every specific detail from the memory. Never genericize. No em dashes.`;
 
       const { data: storyData, error: dbError } = await insforge.database
         .from('story_bank')
-        .insert({
+        .insert([{
           user_id: userData.user.id,
           raw_memory: memory.trim(),
           mined_angle: angleMatch?.[1]?.trim() || null,
@@ -104,7 +104,7 @@ Use every specific detail from the memory. Never genericize. No em dashes.`;
           mined_caption_line: captionMatch?.[1]?.trim() || null,
           pillar: validPillar,
           used: false,
-        })
+        }])
         .select()
         .single();
       if (dbError) throw dbError;
@@ -179,7 +179,7 @@ Use every specific detail from the memory. Never genericize. No em dashes.`;
   return (
     <div className="space-y-5">
       <div>
-        <label className="block font-body text-[13px] text-[#A1A1AA] mb-2">
+        <label className="block font-body text-[13px] text-text-tertiary mb-2">
           Describe any memory or experience.
         </label>
         <textarea
@@ -187,9 +187,9 @@ Use every specific detail from the memory. Never genericize. No em dashes.`;
           onChange={(e) => setMemory(e.target.value)}
           rows={6}
           placeholder="A pivotal moment from your work. Something that happened while building your product. The day you almost quit. A real experience that shaped how you think. Anything that felt real."
-          className="w-full bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-4 py-3 font-body text-[13px] text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[rgba(255,255,255,0.40)] resize-none transition-colors duration-100"
+          className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover resize-none transition-colors duration-100"
         />
-        <p className="font-body text-[11px] text-[#71717A] mt-1">
+        <p className="font-body text-[11px] text-text-secondary mt-1">
           A pivotal moment from your work. Something that happened while building your product.
           The day you almost quit. A real experience that shaped how you think. Anything that felt real.
         </p>
@@ -198,13 +198,13 @@ Use every specific detail from the memory. Never genericize. No em dashes.`;
       <button
         onClick={generate}
         disabled={loading || !memory.trim()}
-        className="inline-flex items-center justify-center gap-2 rounded-[7px] font-body font-medium text-[13px] px-5 py-[10px] bg-[#F59E0B] text-[#09090B] hover:opacity-90 transition-all duration-100 disabled:opacity-50 disabled:pointer-events-none"
+        className="inline-flex items-center justify-center gap-2 rounded-md font-body font-medium text-[13px] px-5 py-[10px] bg-[#F59E0B] text-text-inverse hover:opacity-90 transition-all duration-100 disabled:opacity-50 disabled:pointer-events-none"
       >
-        {loading && <span className="h-4 w-4 rounded bg-[#27272A] animate-pulse" />}
+        {loading && <span className="h-4 w-4 rounded bg-bg-tertiary animate-pulse" />}
         Mine It
       </button>
 
-      {error && <p className="font-body text-[13px] text-[#6366F1]">{error}</p>}
+      {error && <p className="font-body text-[13px] text-accent-primary">{error}</p>}
 
       <GenerateOutput text={output} loading={loading}>
         <Button

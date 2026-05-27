@@ -11,7 +11,7 @@ export const HookContent: React.FC<HookContentProps> = ({
   hookText,
   videoSrc,
   hookDurationFrames = 90,
-  accentColor = '#6366F1',
+  accentColor = '#E07A5F',
 }) => {
   const frame = useCurrentFrame();
   const { fps, width, height } = useVideoConfig();

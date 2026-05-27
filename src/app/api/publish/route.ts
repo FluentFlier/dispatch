@@ -405,6 +405,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       })
       .eq('id', postId)
       .eq('user_id', user.id);
+
+    try {
+      const { syncBrainPublishedPost } = await import('@/lib/brain/sync');
+      await syncBrainPublishedPost(client, user.id, postId);
+    } catch (err) {
+      console.warn('Brain post sync failed (non-critical):', err);
+    }
   }
 
   await incrementUsage(user.id, 'publish_post', 1);

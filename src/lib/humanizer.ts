@@ -75,7 +75,7 @@ export async function humanize(
   profile?: CreatorProfileForPrompt | null
 ): Promise<string> {
   const voiceContext = profile
-    ? `\n\nVOICE TO MATCH:\nName: ${profile.display_name}\n${profile.voice_description ? `Voice: ${profile.voice_description}` : ''}${profile.voice_rules ? `\nRules: ${profile.voice_rules}` : ''}`
+    ? `\n\nVOICE TO MATCH:\nName: ${profile.display_name}\n${profile.bio_facts ? `Background: ${profile.bio_facts}\n` : ''}${profile.voice_description ? `Voice: ${profile.voice_description}\n` : ''}${profile.voice_rules ? `Rules: ${profile.voice_rules}` : ''}`
     : '';
 
   const result = await generateContent(

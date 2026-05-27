@@ -20,7 +20,7 @@ export function CharCount({ text, platform }: CharCountProps) {
   const limit = config.caption;
   const pct = count / limit;
 
-  let color = 'text-[#52525B]';
+  let color = 'text-text-tertiary';
   if (pct >= 1) color = 'text-red-400';
   else if (pct >= 0.8) color = 'text-amber-400';
 

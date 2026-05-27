@@ -3,11 +3,11 @@
 import type { ContentPillarConfig } from "@/types/database";
 
 const PRESET_COLORS = [
-  "#6366F1",
+  "#E07A5F",
   "#F59E0B",
   "#10B981",
   "#8B5CF6",
-  "#6366F1",
+  "#3D8B7A",
   "#5A5047",
 ];
 
@@ -69,7 +69,7 @@ export default function ProfileEditor({
     <>
       <div className="space-y-5 mb-4">
         <div>
-          <label className="block text-sm text-[#71717A] mb-1.5">
+          <label className="block text-sm text-text-secondary mb-1.5">
             Display name
           </label>
           <input
@@ -77,12 +77,12 @@ export default function ProfileEditor({
             value={displayName}
             onChange={(e) => onDisplayNameChange(e.target.value)}
             placeholder="Your name or brand"
-            className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-4 py-2.5 text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[#FAFAFA]/40 transition-colors"
+            className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-2.5 text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors"
           />
         </div>
 
         <div>
-          <label className="block text-sm text-[#71717A] mb-1.5">
+          <label className="block text-sm text-text-secondary mb-1.5">
             Bio facts
           </label>
           <textarea
@@ -90,12 +90,12 @@ export default function ProfileEditor({
             onChange={(e) => onBioFactsChange(e.target.value)}
             placeholder="Key facts about you..."
             rows={4}
-            className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-4 py-2.5 text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[#FAFAFA]/40 transition-colors resize-none"
+            className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-2.5 text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors resize-none"
           />
         </div>
 
         <div>
-          <label className="block text-sm text-[#71717A] mb-1.5">
+          <label className="block text-sm text-text-secondary mb-1.5">
             Voice description
           </label>
           <textarea
@@ -103,12 +103,12 @@ export default function ProfileEditor({
             onChange={(e) => onVoiceDescriptionChange(e.target.value)}
             placeholder="How your content should sound..."
             rows={4}
-            className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-4 py-2.5 text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[#FAFAFA]/40 transition-colors resize-none"
+            className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-2.5 text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors resize-none"
           />
         </div>
 
         <div>
-          <label className="block text-sm text-[#71717A] mb-1.5">
+          <label className="block text-sm text-text-secondary mb-1.5">
             Voice rules
           </label>
           <textarea
@@ -116,34 +116,34 @@ export default function ProfileEditor({
             onChange={(e) => onVoiceRulesChange(e.target.value)}
             placeholder="Hard rules for the AI..."
             rows={3}
-            className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-4 py-2.5 text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[#FAFAFA]/40 transition-colors resize-none"
+            className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-2.5 text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors resize-none"
           />
         </div>
 
         {/* Content Pillars */}
         <div>
-          <label className="block text-sm text-[#71717A] mb-3">
+          <label className="block text-sm text-text-secondary mb-3">
             Content pillars
           </label>
           <div className="space-y-4">
             {pillars.map((pillar, i) => (
               <div
                 key={i}
-                className="border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-5 space-y-4"
+                className="border border-border rounded-lg p-5 space-y-4"
                 style={{
                   borderLeftColor: pillar.color,
                   borderLeftWidth: 3,
                 }}
               >
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-[#71717A]">
+                  <span className="text-sm font-medium text-text-secondary">
                     Pillar {i + 1}
                   </span>
                   {pillars.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removePillar(i)}
-                      className="text-xs text-[#71717A] hover:text-[#6366F1] transition-colors"
+                      className="text-xs text-text-secondary hover:text-accent-primary transition-colors"
                     >
                       Remove
                     </button>
@@ -156,7 +156,7 @@ export default function ProfileEditor({
                     value={pillar.name}
                     onChange={(e) => updatePillar(i, "name", e.target.value)}
                     placeholder="Pillar name"
-                    className="flex-1 bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-4 py-2.5 text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[#FAFAFA]/40 transition-colors"
+                    className="flex-1 bg-bg-tertiary border border-border rounded-md px-4 py-2.5 text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors"
                   />
                   <div className="flex gap-1.5 items-center">
                     {PRESET_COLORS.map((color) => (
@@ -166,7 +166,7 @@ export default function ProfileEditor({
                         onClick={() => updatePillar(i, "color", color)}
                         className={`w-7 h-7 rounded-full transition-transform ${
                           pillar.color === color
-                            ? "ring-2 ring-[#FAFAFA] ring-offset-2 ring-offset-[#09090B] scale-110"
+                            ? "ring-2 ring-accent-primary ring-offset-2 ring-offset-bg-secondary scale-110"
                             : "hover:scale-110"
                         }`}
                         style={{ backgroundColor: color }}
@@ -182,7 +182,7 @@ export default function ProfileEditor({
                   }
                   placeholder="What this pillar covers..."
                   rows={2}
-                  className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-4 py-2.5 text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[#FAFAFA]/40 transition-colors resize-none"
+                  className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-2.5 text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors resize-none"
                 />
 
                 <textarea
@@ -192,7 +192,7 @@ export default function ProfileEditor({
                   }
                   placeholder="AI prompt template for this pillar..."
                   rows={3}
-                  className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-4 py-2.5 text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[#FAFAFA]/40 transition-colors resize-none"
+                  className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-2.5 text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors resize-none"
                 />
               </div>
             ))}
@@ -201,7 +201,7 @@ export default function ProfileEditor({
               <button
                 type="button"
                 onClick={addPillar}
-                className="w-full border-[0.5px] border-dashed border-[#FAFAFA]/12 rounded-[12px] py-3 text-sm text-[#71717A] hover:border-[#6366F1] hover:text-[#6366F1] transition-colors"
+                className="w-full border border-dashed border-border rounded-lg py-3 text-sm text-text-secondary hover:border-accent-primary hover:text-accent-primary transition-colors"
               >
                 + Add Pillar
               </button>
@@ -230,7 +230,7 @@ function SaveButton({
         type="button"
         disabled={loading}
         onClick={onClick}
-        className="px-5 py-2 rounded-lg bg-[#6366F1] text-white font-medium text-sm hover:bg-[#6366F1]/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+        className="px-5 py-2 rounded-lg bg-accent-primary text-white font-medium text-sm hover:bg-accent-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
       >
         {loading ? "Saving..." : "Save"}
       </button>

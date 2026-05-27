@@ -16,16 +16,16 @@ export default function DashboardError({
 
   return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-      <AlertTriangle className="w-12 h-12 text-[#6366F1] mb-4" />
-      <h2 className="font-heading text-[22px] font-[800] text-[#FAFAFA] mb-2">
+      <AlertTriangle className="w-12 h-12 text-accent-primary mb-4" />
+      <h2 className="font-heading text-[22px] font-semibold text-text-primary mb-2">
         Something went wrong
       </h2>
-      <p className="text-[#71717A] text-[13px] mb-6 max-w-md">
+      <p className="text-text-secondary text-[13px] mb-6 max-w-md">
         An unexpected error occurred while loading this page. Please try again.
       </p>
       <button
         onClick={reset}
-        className="flex items-center gap-1.5 bg-[#6366F1] text-white text-[13px] font-medium px-5 py-[10px] rounded-[7px] hover:opacity-90 transition-opacity"
+        className="flex items-center gap-1.5 bg-accent-primary text-text-inverse text-[13px] font-medium px-5 py-[10px] rounded-md hover:bg-accent-dark transition-colors"
       >
         <RefreshCw className="w-4 h-4" />
         Try Again

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { syncBrainVoiceLab } from '@/lib/brain/sync';
 import { storePersona } from '@/lib/supermemory';
 import { z } from 'zod';
 
@@ -67,7 +68,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }, { onConflict: 'user_id,key' });
   }
 
-  // Store persona in Supermemory for semantic search during generation
+  try {
+    await syncBrainVoiceLab(client, user.id, {
+      voice_description: parsed.data.voice_description,
+      voice_rules: parsed.data.voice_rules,
+      vocabulary_fingerprint: parsed.data.vocabulary_fingerprint,
+      structural_patterns: parsed.data.structural_patterns,
+    });
+  } catch (err) {
+    console.warn('Brain voice sync failed (non-critical):', err);
+  }
+
+  // Optional: Supermemory semantic layer when API key is set
   try {
     const personaContent = [
       `Voice: ${parsed.data.voice_description}`,

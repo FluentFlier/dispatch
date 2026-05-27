@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getSocialProviderMode } from '@/lib/env';
 
+export const dynamic = 'force-dynamic';
+
 /**
  * GET /api/health — deployment + dependency probe for beta monitoring.
  */
@@ -22,8 +24,9 @@ export async function GET(): Promise<NextResponse> {
     stripe: process.env.STRIPE_SECRET_KEY ? 'ok' : 'degraded',
   };
 
-  const unhealthy = Object.values(checks).includes('missing');
-  const status = unhealthy ? 'degraded' : 'ok';
+  const requiredChecks = ['insforge', 'encryption'] as const;
+  const requiredMissing = requiredChecks.some((key) => checks[key] === 'missing');
+  const status = requiredMissing ? 'degraded' : 'ok';
 
   return NextResponse.json(
     {
@@ -34,6 +37,6 @@ export async function GET(): Promise<NextResponse> {
       checks,
       provider: getSocialProviderMode(),
     },
-    { status: unhealthy ? 503 : 200 }
+    { status: requiredMissing ? 503 : 200 }
   );
 }

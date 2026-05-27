@@ -200,12 +200,12 @@ export default function StoryBankPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div className="h-8 w-40 bg-[#18181B] rounded-[7px] animate-pulse" />
-          <div className="h-9 w-48 bg-[#18181B] rounded-[7px] animate-pulse" />
+          <div className="h-8 w-40 bg-bg-tertiary rounded-md animate-pulse" />
+          <div className="h-9 w-48 bg-bg-tertiary rounded-md animate-pulse" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[10px]">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-44 bg-[#18181B] rounded-[12px] animate-pulse" />
+            <div key={i} className="h-44 bg-bg-tertiary rounded-lg animate-pulse" />
           ))}
         </div>
       </div>
@@ -216,12 +216,12 @@ export default function StoryBankPage() {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="font-heading text-[22px] font-[800] text-[#FAFAFA] leading-[1.2] tracking-[-0.02em]">
+        <h1 className="font-heading text-[22px] font-semibold text-text-primary leading-[1.2] tracking-[-0.02em]">
           Story Bank
         </h1>
         <a
           href="/generate?tab=story-mine"
-          className="flex items-center gap-1.5 bg-[#6366F1] text-white text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-[7px] hover:opacity-90 transition-opacity"
+          className="flex items-center gap-1.5 bg-accent-primary text-white text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-md hover:opacity-90 transition-opacity"
         >
           <Pickaxe className="w-4 h-4" />
           Mine a Story
@@ -230,15 +230,15 @@ export default function StoryBankPage() {
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] overflow-hidden">
+        <div className="flex items-center bg-bg-tertiary border border-border rounded-md overflow-hidden">
           {(["all", "unused", "used"] as UsedFilter[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setUsedFilter(tab)}
               className={`px-3 py-2 min-h-[44px] text-[13px] font-medium capitalize transition-colors ${
                 usedFilter === tab
-                  ? "bg-[#09090B] text-[#FAFAFA]"
-                  : "text-[#71717A] hover:text-[#FAFAFA]"
+                  ? "bg-bg-secondary text-text-primary"
+                  : "text-text-secondary hover:text-text-primary"
               }`}
             >
               {tab}
@@ -250,7 +250,7 @@ export default function StoryBankPage() {
           <select
             value={pillarFilter}
             onChange={(e) => setPillarFilter(e.target.value)}
-            className="appearance-none bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] pl-3 pr-7 py-2 min-h-[44px] text-[13px] text-[#FAFAFA] focus:outline-none focus:border-[#FAFAFA]/40 cursor-pointer transition-colors"
+            className="appearance-none bg-bg-tertiary border border-border rounded-md pl-3 pr-7 py-2 min-h-[44px] text-[13px] text-text-primary focus:outline-none focus:border-border-hover cursor-pointer transition-colors"
           >
             <option value="all">Pillar: All</option>
             {pillarList.map((p) => (
@@ -259,10 +259,10 @@ export default function StoryBankPage() {
               </option>
             ))}
           </select>
-          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#71717A] pointer-events-none" />
+          <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-secondary pointer-events-none" />
         </div>
 
-        <span className="text-[13px] text-[#71717A] ml-auto">
+        <span className="text-[13px] text-text-secondary ml-auto">
           {filtered.length} {filtered.length === 1 ? "story" : "stories"}
         </span>
       </div>
@@ -270,11 +270,11 @@ export default function StoryBankPage() {
       {/* Content */}
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
-          <Pickaxe className="w-12 h-12 text-[#71717A] mb-4" />
-          <h2 className="font-heading text-[16px] font-[700] text-[#FAFAFA] mb-1">
+          <Pickaxe className="w-12 h-12 text-text-secondary mb-4" />
+          <h2 className="font-heading text-[16px] font-semibold text-text-primary mb-1">
             {stories.length === 0 ? "Mine your first memory" : "No stories match your filters"}
           </h2>
-          <p className="text-[#71717A] text-[13px] mb-2">
+          <p className="text-text-secondary text-[13px] mb-2">
             {stories.length === 0
               ? "The best content comes from real moments."
               : "Try adjusting your filters."}
@@ -282,7 +282,7 @@ export default function StoryBankPage() {
           {stories.length === 0 && (
             <a
               href="/generate?tab=story-mine"
-              className="mt-3 flex items-center gap-1.5 bg-[#6366F1] text-white text-[13px] font-medium px-5 py-[10px] rounded-[7px] hover:opacity-90 transition-opacity"
+              className="mt-3 flex items-center gap-1.5 bg-accent-primary text-white text-[13px] font-medium px-5 py-[10px] rounded-md hover:opacity-90 transition-opacity"
             >
               <Pickaxe className="w-4 h-4" />
               Mine a Story

@@ -17,19 +17,19 @@ const DEMO_CAPTIONS: CaptionWord[] = [
   { text: 'Let me show you', startFrame: 100, endFrame: 145 },
 ];
 
-const containerClass = 'rounded-lg overflow-hidden border-[0.5px] border-[#FAFAFA]/12';
+const containerClass = 'rounded-lg overflow-hidden border border-border';
 
 // Lazy load the Player to avoid SSR issues with Remotion
 const LazyPlayer = dynamic(
   () => import('./RemotionPlayerWrapper'),
-  { ssr: false, loading: () => <div className="aspect-video bg-[#18181B] animate-pulse rounded-lg" /> }
+  { ssr: false, loading: () => <div className="aspect-video bg-bg-tertiary animate-pulse rounded-lg" /> }
 );
 
 export default function RemotionPreview({ videoSrc, templateId, captions, hookText }: RemotionPreviewProps) {
   if (!['talking-head-captions', 'hook-content', 'stats-overlay'].includes(templateId)) {
     return (
-      <div className="bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-lg p-6 flex items-center justify-center aspect-video">
-        <p className="font-body text-[13px] text-[#71717A]">
+      <div className="bg-bg-tertiary border border-border rounded-lg p-6 flex items-center justify-center aspect-video">
+        <p className="font-body text-[13px] text-text-secondary">
           Preview not available for this template. Use export to render.
         </p>
       </div>

@@ -228,9 +228,9 @@ export function OptimizePanel({ content, sourcePlatform = 'instagram' }: Optimiz
 
       {/* Loading state */}
       {optimizing && (
-        <div className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-6 flex flex-col items-center gap-3">
-          <Loader2 size={24} className="animate-spin text-[#6366F1]" />
-          <p className="font-body text-[13px] text-[#A1A1AA]">
+        <div className="bg-bg-tertiary border border-border rounded-lg p-6 flex flex-col items-center gap-3">
+          <Loader2 size={24} className="animate-spin text-accent-primary" />
+          <p className="font-body text-[13px] text-text-tertiary">
             Optimizing content for your platforms...
           </p>
         </div>
@@ -238,7 +238,7 @@ export function OptimizePanel({ content, sourcePlatform = 'instagram' }: Optimiz
 
       {/* Tabbed variant view */}
       {variants.length > 0 && !optimizing && (
-        <div className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] overflow-hidden">
+        <div className="bg-bg-tertiary border border-border rounded-lg overflow-hidden">
           {/* Tabs header */}
           <div className="px-3 pt-3">
             <Tabs
@@ -297,11 +297,11 @@ function VariantCard({
         <div className="flex items-center gap-2">
           <span
             className="w-5 h-5 rounded-[4px] flex items-center justify-center text-[9px] font-bold text-white shrink-0"
-            style={{ backgroundColor: config?.color ?? '#71717A' }}
+            style={{ backgroundColor: config?.color ?? '#78716C' }}
           >
             {config?.icon ?? '?'}
           </span>
-          <span className="font-body text-[13px] font-medium text-[#FAFAFA]">
+          <span className="font-body text-[13px] font-medium text-text-primary">
             {config?.label ?? variant.platform}
           </span>
         </div>
@@ -316,7 +316,7 @@ function VariantCard({
 
       {/* Thread indicator */}
       {variant.isThread && variant.threadParts && (
-        <p className="font-body text-[11px] text-[#A1A1AA]">
+        <p className="font-body text-[11px] text-text-tertiary">
           Thread: {variant.threadParts.length} parts
         </p>
       )}
@@ -325,16 +325,16 @@ function VariantCard({
       {variant.isThread && variant.threadParts ? (
         <div className="space-y-2">
           {variant.threadParts.map((part, i) => (
-            <div key={i} className="bg-[#09090B] rounded-[8px] p-3">
-              <p className="font-body text-[11px] text-[#71717A] mb-1">
+            <div key={i} className="bg-bg-secondary rounded-[8px] p-3">
+              <p className="font-body text-[11px] text-text-secondary mb-1">
                 Part {i + 1}
               </p>
-              <pre className="whitespace-pre-wrap font-body text-[13px] text-[#FAFAFA] leading-[1.55]">
+              <pre className="whitespace-pre-wrap font-body text-[13px] text-text-primary leading-[1.55]">
                 {part}
               </pre>
               <p
                 className={`font-body text-[10px] mt-1 ${
-                  part.length > 280 ? 'text-[#F87171]' : 'text-[#71717A]'
+                  part.length > 280 ? 'text-[#F87171]' : 'text-text-secondary'
                 }`}
               >
                 {part.length}/280
@@ -343,7 +343,7 @@ function VariantCard({
           ))}
         </div>
       ) : (
-        <pre className="whitespace-pre-wrap font-body text-[13px] text-[#FAFAFA] leading-[1.55] bg-[#09090B] rounded-[8px] p-3">
+        <pre className="whitespace-pre-wrap font-body text-[13px] text-text-primary leading-[1.55] bg-bg-secondary rounded-[8px] p-3">
           {displayContent}
         </pre>
       )}

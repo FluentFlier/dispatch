@@ -132,7 +132,7 @@ export default function VideoPlayer({ src, title }: VideoPlayerProps) {
       </div>
 
       {/* Controls */}
-      <div className="bg-[#09090B] px-3 py-2 space-y-1.5">
+      <div className="bg-bg-secondary px-3 py-2 space-y-1.5">
         {title && (
           <p className="font-body text-[12px] text-white/70 truncate">
             {title}
@@ -147,7 +147,7 @@ export default function VideoPlayer({ src, title }: VideoPlayerProps) {
           step={0.1}
           value={currentTime}
           onChange={handleSeek}
-          className="w-full h-1 appearance-none bg-white/20 rounded-full cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[#6366F1]"
+          className="w-full h-1 appearance-none bg-white/20 rounded-full cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent-primary"
         />
 
         <div className="flex items-center justify-between gap-3">

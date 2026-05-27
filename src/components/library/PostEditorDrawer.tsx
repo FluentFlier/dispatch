@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { X, Wand2, Copy, MonitorPlay, Trash2, Clock } from 'lucide-react';
+import { X, Wand2, Copy, MonitorPlay, Trash2, Clock, BarChart3 } from 'lucide-react';
 import type { Post, Series } from '@/lib/types';
 import type { Status, Platform } from '@/lib/constants';
 import { PLATFORMS, STATUSES, STATUS_LABELS } from '@/lib/constants';
@@ -11,11 +11,29 @@ import PerformanceModal from '@/components/library/PerformanceModal';
 import PublishPanel from '@/components/library/PublishPanel';
 import GenerateVariantsSection from '@/components/library/GenerateVariantsSection';
 import BulkPublishPanel from '@/components/library/BulkPublishPanel';
+import dynamic from 'next/dynamic';
+
+const EngagementInbox = dynamic(() => import('@/components/engagement/EngagementInbox'), {
+  ssr: false,
+  loading: () => (
+    <div className="rounded-lg border border-border bg-bg-secondary p-4 animate-pulse h-24" />
+  ),
+});
 import { useToast } from '@/components/ui/Toast';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { CharCount } from '@/components/ui/CharCount';
 import { PlatformConstraints } from '@/components/ui/PlatformConstraints';
+import { Tabs } from '@/components/ui/Tabs';
 import Link from 'next/link';
+
+const DRAWER_TABS = [
+  { id: 'write', label: 'Write' },
+  { id: 'schedule', label: 'Schedule' },
+  { id: 'comments', label: 'Comments' },
+  { id: 'stats', label: 'Stats' },
+] as const;
+
+type DrawerTab = (typeof DRAWER_TABS)[number]['id'];
 
 interface PostEditorDrawerProps {
   post: Post;
@@ -28,6 +46,7 @@ interface PostEditorDrawerProps {
 export default function PostEditorDrawer({ post, series, onClose, onSave, onDelete }: PostEditorDrawerProps) {
   const { toast } = useToast();
   const { pillars: pillarList } = usePillars();
+  const [activeTab, setActiveTab] = useState<DrawerTab>('write');
   const [form, setForm] = useState({
     title: post.title,
     pillar: post.pillar,
@@ -43,11 +62,47 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
     series_id: post.series_id ?? '',
     series_position: post.series_position ?? 1,
     image_url: post.image_url ?? '',
+    posted_date: post.posted_date ?? '',
+    views: post.views ?? 0,
+    likes: post.likes ?? 0,
+    saves: post.saves ?? 0,
+    comments: post.comments ?? 0,
+    shares: post.shares ?? 0,
+    follows_gained: post.follows_gained ?? 0,
+    voice_match_score: post.voice_match_score ?? null,
+    ai_score: post.ai_score ?? null,
   });
   const [showPerfModal, setShowPerfModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Auto-save on blur
+  useEffect(() => {
+    setForm({
+      title: post.title,
+      pillar: post.pillar,
+      platform: post.platform,
+      status: post.status,
+      scheduled_date: post.scheduled_date ?? '',
+      scheduled_publish_at: post.scheduled_publish_at ?? '',
+      hook: post.hook ?? '',
+      script: post.script ?? '',
+      caption: post.caption ?? '',
+      hashtags: post.hashtags ?? '',
+      notes: post.notes ?? '',
+      series_id: post.series_id ?? '',
+      series_position: post.series_position ?? 1,
+      image_url: post.image_url ?? '',
+      posted_date: post.posted_date ?? '',
+      views: post.views ?? 0,
+      likes: post.likes ?? 0,
+      saves: post.saves ?? 0,
+      comments: post.comments ?? 0,
+      shares: post.shares ?? 0,
+      follows_gained: post.follows_gained ?? 0,
+      voice_match_score: post.voice_match_score ?? null,
+      ai_score: post.ai_score ?? null,
+    });
+  }, [post]);
+
   const autoSave = useCallback(async () => {
     try {
       const res = await fetch(`/api/posts/${post.id}`, {
@@ -59,6 +114,9 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
           scheduled_date: form.scheduled_date || null,
           scheduled_publish_at: form.scheduled_publish_at || null,
           image_url: form.image_url || null,
+          posted_date: form.posted_date || null,
+          voice_match_score: form.voice_match_score ?? null,
+          ai_score: form.ai_score ?? null,
           updated_at: new Date().toISOString(),
         }),
       });
@@ -103,6 +161,11 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
       if (res.ok) {
         toast('Performance logged');
         setShowPerfModal(false);
+        setForm((f) => ({
+          ...f,
+          ...data,
+          status: 'posted' as Status,
+        }));
         onSave();
       }
     } catch {
@@ -147,342 +210,475 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
     setForm((f) => ({ ...f, [key]: value }));
   }
 
-  const inputClass = "w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-3 py-2 text-[13px] text-[#FAFAFA] focus:outline-none focus:border-[#FAFAFA]/40 transition-colors";
-  const labelClass = "text-[11px] text-[#71717A] mb-1 block font-medium tracking-[0.05em]";
+  const inputClass =
+    'w-full bg-bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors min-h-[44px]';
+  const labelClass = 'text-[11px] text-text-secondary mb-1 block font-medium tracking-wide';
+
+  const isPosted = form.status === 'posted';
 
   return (
     <>
-      {/* Backdrop */}
       <div className="fixed inset-0 z-[60] bg-black/30" onClick={onClose} />
 
-      {/* Drawer */}
-      <div className="fixed inset-0 sm:inset-auto sm:top-0 sm:right-0 sm:bottom-0 z-[65] w-full sm:w-[480px] bg-[#09090B] sm:border-l-[0.5px] border-[#FAFAFA]/12 overflow-y-auto flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b-[0.5px] border-[#FAFAFA]/12 shrink-0">
-          <h2 className="font-heading text-[18px] font-[700] text-[#FAFAFA]">Edit Post</h2>
-          <button onClick={onClose} className="text-[#71717A] hover:text-[#FAFAFA] transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center">
+      <div className="fixed inset-0 sm:inset-auto sm:top-0 sm:right-0 sm:bottom-0 z-[65] w-full sm:w-[480px] bg-bg-primary sm:border-l border-border overflow-y-auto flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-border shrink-0 bg-bg-secondary">
+          <h2 className="font-heading text-lg font-bold text-text-primary truncate pr-2">
+            {form.title || 'Edit post'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="text-text-secondary hover:text-text-primary transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0"
+            aria-label="Close"
+          >
             <X size={18} />
           </button>
         </div>
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Title */}
-          <label className="block">
-            <span className={labelClass}>Title</span>
-            <input
-              type="text"
-              value={form.title}
-              onChange={(e) => update('title', e.target.value)}
-              onBlur={autoSave}
-              className={inputClass}
-            />
-          </label>
+        <div className="shrink-0 px-4 pt-3 bg-bg-secondary border-b border-border">
+          <Tabs tabs={[...DRAWER_TABS]} activeTab={activeTab} onChange={(id) => setActiveTab(id as DrawerTab)} />
+        </div>
 
-          {/* Selects row */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <label className="block">
-              <span className={labelClass}>Pillar</span>
-              <select
-                value={form.pillar}
-                onChange={(e) => { update('pillar', e.target.value); }}
-                onBlur={autoSave}
-                className={inputClass}
-              >
-                {pillarList.map((p) => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className={labelClass}>Platform</span>
-              <select
-                value={form.platform}
-                onChange={(e) => { update('platform', e.target.value); }}
-                onBlur={autoSave}
-                className={inputClass}
-              >
-                {PLATFORMS.map((p) => (
-                  <option key={p} value={p} className="capitalize">{p.charAt(0).toUpperCase() + p.slice(1)}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className={labelClass}>Status</span>
-              <select
-                value={form.status}
-                onChange={(e) => handleStatusChange(e.target.value as Status)}
-                className={inputClass}
-              >
-                {STATUSES.map((s) => (
-                  <option key={s} value={s}>{STATUS_LABELS[s]}</option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          {/* Scheduled date */}
-          <label className="block">
-            <span className={labelClass}>Scheduled Date</span>
-            <input
-              type="date"
-              value={form.scheduled_date}
-              onChange={(e) => update('scheduled_date', e.target.value)}
-              onBlur={autoSave}
-              className={inputClass}
-            />
-          </label>
-
-          {/* Scheduled publish time */}
-          <label className="block">
-            <span className={labelClass}>
-              <span className="flex items-center gap-1">
-                <Clock size={12} />
-                Auto-Publish At
-              </span>
-            </span>
-            <input
-              type="datetime-local"
-              value={form.scheduled_publish_at ? form.scheduled_publish_at.slice(0, 16) : ''}
-              onChange={(e) => {
-                const val = e.target.value;
-                update('scheduled_publish_at', val ? new Date(val).toISOString() : '');
-              }}
-              onBlur={autoSave}
-              className={inputClass}
-            />
-            <span className="text-[10px] text-[#71717A] mt-1 block">
-              Set a date and time to auto-publish this post via cron
-            </span>
-          </label>
-
-          {/* Image */}
-          <div>
-            <span className={labelClass}>Image</span>
-            <ImageUpload
-              imageUrl={form.image_url || null}
-              onUpload={(url) => {
-                update('image_url', url);
-                setTimeout(autoSave, 100);
-              }}
-              onRemove={() => {
-                update('image_url', '');
-                setTimeout(autoSave, 100);
-              }}
-            />
-          </div>
-
-          {/* Platform constraints */}
-          <PlatformConstraints
-            platform={form.platform}
-            hasImage={Boolean(form.image_url)}
-            compact
-          />
-
-          {/* Hook */}
-          <label className="block">
-            <span className={labelClass}>Hook</span>
-            <textarea
-              rows={3}
-              value={form.hook}
-              onChange={(e) => update('hook', e.target.value)}
-              onBlur={autoSave}
-              className={`${inputClass} resize-none`}
-            />
-          </label>
-
-          {/* Script */}
-          <label className="block">
-            <span className={labelClass}>Script</span>
-            <textarea
-              rows={10}
-              value={form.script}
-              onChange={(e) => update('script', e.target.value)}
-              onBlur={autoSave}
-              className={`${inputClass} resize-none`}
-            />
-          </label>
-
-          {/* Caption */}
-          <label className="block">
-            <div className="flex items-center justify-between">
-              <span className={labelClass}>Caption</span>
-              <CharCount text={form.caption} platform={form.platform} />
-            </div>
-            <textarea
-              rows={5}
-              value={form.caption}
-              onChange={(e) => update('caption', e.target.value)}
-              onBlur={autoSave}
-              className={`${inputClass} resize-none`}
-            />
-          </label>
-
-          {/* Hashtags */}
-          <label className="block">
-            <span className={labelClass}>Hashtags</span>
-            <textarea
-              rows={3}
-              value={form.hashtags}
-              onChange={(e) => update('hashtags', e.target.value)}
-              onBlur={autoSave}
-              className={`${inputClass} resize-none`}
-            />
-          </label>
-
-          {/* Notes */}
-          <label className="block">
-            <span className={labelClass}>Notes</span>
-            <textarea
-              rows={3}
-              value={form.notes}
-              onChange={(e) => update('notes', e.target.value)}
-              onBlur={autoSave}
-              className={`${inputClass} resize-none`}
-            />
-          </label>
-
-          {/* Series */}
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block">
-              <span className={labelClass}>Series</span>
-              <select
-                value={form.series_id}
-                onChange={(e) => update('series_id', e.target.value)}
-                onBlur={autoSave}
-                className={inputClass}
-              >
-                <option value="">None</option>
-                {series.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </label>
-            {form.series_id && (
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-bg-primary">
+          {activeTab === 'write' && (
+            <>
               <label className="block">
-                <span className={labelClass}>Position</span>
+                <span className={labelClass}>Title</span>
                 <input
-                  type="number"
-                  min={1}
-                  value={form.series_position}
-                  onChange={(e) => update('series_position', parseInt(e.target.value) || 1)}
+                  type="text"
+                  value={form.title}
+                  onChange={(e) => update('title', e.target.value)}
                   onBlur={autoSave}
                   className={inputClass}
                 />
               </label>
-            )}
-          </div>
 
-          {/* Action buttons */}
-          <div className="grid grid-cols-2 gap-2 pt-2">
-            <button
-              type="button"
-              onClick={() => handleRegenerate('caption')}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[11px] text-[#FAFAFA] bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] hover:border-[#FAFAFA]/25 transition-colors"
-            >
-              <Wand2 size={14} /> Regenerate Caption
-            </button>
-            <button
-              type="button"
-              onClick={() => handleRegenerate('hook')}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[11px] text-[#FAFAFA] bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] hover:border-[#FAFAFA]/25 transition-colors"
-            >
-              <Wand2 size={14} /> Regenerate Hook
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (form.script) {
-                  navigator.clipboard.writeText(form.script);
-                  toast('Script copied for repurpose');
-                }
-              }}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[11px] text-[#FAFAFA] bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] hover:border-[#FAFAFA]/25 transition-colors"
-            >
-              <Copy size={14} /> Repurpose
-            </button>
-            <Link
-              href={`/teleprompter?postId=${post.id}`}
-              className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[11px] text-[#FAFAFA] bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] hover:border-[#FAFAFA]/25 transition-colors"
-            >
-              <MonitorPlay size={14} /> Open Teleprompter
-            </Link>
-          </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <label className="block">
+                  <span className={labelClass}>Pillar</span>
+                  <select
+                    value={form.pillar}
+                    onChange={(e) => update('pillar', e.target.value)}
+                    onBlur={autoSave}
+                    className={inputClass}
+                  >
+                    {pillarList.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className={labelClass}>Platform</span>
+                  <select
+                    value={form.platform}
+                    onChange={(e) => update('platform', e.target.value)}
+                    onBlur={autoSave}
+                    className={inputClass}
+                  >
+                    {PLATFORMS.map((p) => (
+                      <option key={p} value={p} className="capitalize">
+                        {p.charAt(0).toUpperCase() + p.slice(1)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className={labelClass}>Status</span>
+                  <select
+                    value={form.status}
+                    onChange={(e) => handleStatusChange(e.target.value as Status)}
+                    className={inputClass}
+                  >
+                    {STATUSES.map((s) => (
+                      <option key={s} value={s}>
+                        {STATUS_LABELS[s]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
 
-          {/* Publish section divider */}
-          <div className="pt-3">
-            <span className="text-[10px] font-medium tracking-[0.10em] uppercase text-[#71717A]">
-              PUBLISH
-            </span>
-          </div>
+              <div>
+                <span className={labelClass}>Image</span>
+                <ImageUpload
+                  imageUrl={form.image_url || null}
+                  onUpload={(url) => {
+                    update('image_url', url);
+                    setTimeout(autoSave, 100);
+                  }}
+                  onRemove={() => {
+                    update('image_url', '');
+                    setTimeout(autoSave, 100);
+                  }}
+                />
+              </div>
 
-          {/* Publish Panel */}
-          <PublishPanel
-            postId={post.id}
-            content={form.script || form.hook || form.title}
-            caption={form.caption}
-            onPublishSuccess={() => {
-              setForm((f) => ({ ...f, status: 'posted' }));
-              toast('Published! Post status updated.');
-              onSave();
-            }}
-          />
+              <PlatformConstraints platform={form.platform} hasImage={Boolean(form.image_url)} compact />
 
-          {/* Generate Variants section */}
-          <GenerateVariantsSection
-            content={form.script || form.caption || form.hook || form.title}
-            sourcePlatform={form.platform as Platform}
-            postId={post.id}
-            onReplaceCaption={(newCaption: string) => {
-              setForm((f) => ({ ...f, caption: newCaption }));
-              autoSave();
-            }}
-          />
+              {(form.voice_match_score != null || form.ai_score != null) && (
+                <div className="rounded-md border border-border bg-bg-secondary p-3 text-[13px]">
+                  <div className="text-[11px] font-medium text-text-tertiary mb-1.5">Voice QA (from generation)</div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1">
+                    {form.voice_match_score != null && (
+                      <span className={form.voice_match_score >= 80 ? 'text-accent-secondary' : 'text-accent-primary'}>
+                        Voice match: <span className="font-semibold">{form.voice_match_score}</span>%
+                      </span>
+                    )}
+                    {form.ai_score != null && (
+                      <span className={form.ai_score <= 30 ? 'text-accent-secondary' : 'text-text-secondary'}>
+                        AI tells: <span className="font-semibold">{form.ai_score}</span>/100
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[10px] text-text-tertiary">Scores captured at generation time via voice pipeline + evaluator.</p>
+                </div>
+              )}
 
-          {/* Bulk Publish section divider */}
-          <div className="pt-3">
-            <span className="text-[10px] font-medium tracking-[0.10em] uppercase text-[#71717A]">
-              BULK PUBLISH
-            </span>
-          </div>
+              <label className="block">
+                <span className={labelClass}>Hook</span>
+                <textarea
+                  rows={3}
+                  value={form.hook}
+                  onChange={(e) => update('hook', e.target.value)}
+                  onBlur={autoSave}
+                  className={`${inputClass} resize-none min-h-[88px]`}
+                />
+              </label>
 
-          {/* Bulk Publish Panel */}
-          <BulkPublishPanel
-            postId={post.id}
-            content={form.script || form.hook || form.title}
-            caption={form.caption}
-            onPublishSuccess={() => {
-              setForm((f) => ({ ...f, status: 'posted' }));
-              toast('Published! Post status updated.');
-              onSave();
-            }}
-          />
+              <label className="block">
+                <span className={labelClass}>Script</span>
+                <textarea
+                  rows={10}
+                  value={form.script}
+                  onChange={(e) => update('script', e.target.value)}
+                  onBlur={autoSave}
+                  className={`${inputClass} resize-none`}
+                />
+              </label>
 
-          {/* Delete */}
-          <button
-            type="button"
-            onClick={handleDelete}
-            disabled={deleting}
-            className="flex items-center gap-1.5 text-[11px] text-[#6366F1] hover:opacity-80 transition-opacity mt-2"
-          >
-            <Trash2 size={14} /> Delete Post
-          </button>
+              <label className="block">
+                <div className="flex items-center justify-between">
+                  <span className={labelClass}>Caption</span>
+                  <CharCount text={form.caption} platform={form.platform} />
+                </div>
+                <textarea
+                  rows={5}
+                  value={form.caption}
+                  onChange={(e) => update('caption', e.target.value)}
+                  onBlur={autoSave}
+                  className={`${inputClass} resize-none`}
+                />
+              </label>
+
+              <label className="block">
+                <span className={labelClass}>Hashtags</span>
+                <textarea
+                  rows={3}
+                  value={form.hashtags}
+                  onChange={(e) => update('hashtags', e.target.value)}
+                  onBlur={autoSave}
+                  className={`${inputClass} resize-none`}
+                />
+              </label>
+
+              <label className="block">
+                <span className={labelClass}>Notes</span>
+                <textarea
+                  rows={3}
+                  value={form.notes}
+                  onChange={(e) => update('notes', e.target.value)}
+                  onBlur={autoSave}
+                  className={`${inputClass} resize-none`}
+                />
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className={labelClass}>Series</span>
+                  <select
+                    value={form.series_id}
+                    onChange={(e) => update('series_id', e.target.value)}
+                    onBlur={autoSave}
+                    className={inputClass}
+                  >
+                    <option value="">None</option>
+                    {series.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {form.series_id && (
+                  <label className="block">
+                    <span className={labelClass}>Position</span>
+                    <input
+                      type="number"
+                      min={1}
+                      value={form.series_position}
+                      onChange={(e) => update('series_position', parseInt(e.target.value) || 1)}
+                      onBlur={autoSave}
+                      className={inputClass}
+                    />
+                  </label>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => handleRegenerate('caption')}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
+                >
+                  <Wand2 size={14} /> Regenerate Caption
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRegenerate('hook')}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
+                >
+                  <Wand2 size={14} /> Regenerate Hook
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (form.script) {
+                      navigator.clipboard.writeText(form.script);
+                      toast('Script copied for repurpose');
+                    }
+                  }}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
+                >
+                  <Copy size={14} /> Repurpose
+                </button>
+                <Link
+                  href={`/teleprompter?postId=${post.id}`}
+                  className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
+                >
+                  <MonitorPlay size={14} /> Teleprompter
+                </Link>
+              </div>
+
+              <GenerateVariantsSection
+                content={form.script || form.caption || form.hook || form.title}
+                sourcePlatform={form.platform as Platform}
+                postId={post.id}
+                onReplaceCaption={(newCaption: string) => {
+                  setForm((f) => ({ ...f, caption: newCaption }));
+                  autoSave();
+                }}
+              />
+
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-1.5 text-[13px] text-accent-primary hover:text-accent-dark transition-colors mt-2 min-h-[44px]"
+              >
+                <Trash2 size={14} /> Delete Post
+              </button>
+            </>
+          )}
+
+          {activeTab === 'schedule' && (
+            <>
+              <label className="block">
+                <span className={labelClass}>Scheduled date</span>
+                <input
+                  type="date"
+                  value={form.scheduled_date}
+                  onChange={(e) => update('scheduled_date', e.target.value)}
+                  onBlur={autoSave}
+                  className={inputClass}
+                />
+              </label>
+
+              <label className="block">
+                <span className={`${labelClass} flex items-center gap-1`}>
+                  <Clock size={12} />
+                  Auto-publish at
+                </span>
+                <input
+                  type="datetime-local"
+                  value={form.scheduled_publish_at ? form.scheduled_publish_at.slice(0, 16) : ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    update('scheduled_publish_at', val ? new Date(val).toISOString() : '');
+                  }}
+                  onBlur={autoSave}
+                  className={inputClass}
+                />
+                <span className="text-xs text-text-tertiary mt-1 block">
+                  Cron will publish this post at the date and time you set.
+                </span>
+              </label>
+
+              <div className="pt-2">
+                <span className="text-[10px] font-medium tracking-widest uppercase text-text-tertiary">
+                  Publish
+                </span>
+              </div>
+
+              <PublishPanel
+                postId={post.id}
+                content={form.script || form.hook || form.title}
+                caption={form.caption}
+                onPublishSuccess={() => {
+                  setForm((f) => ({ ...f, status: 'posted' }));
+                  toast('Published! Post status updated.');
+                  onSave();
+                }}
+              />
+
+              <div className="pt-2">
+                <span className="text-[10px] font-medium tracking-widest uppercase text-text-tertiary">
+                  Bulk publish
+                </span>
+              </div>
+
+              <BulkPublishPanel
+                postId={post.id}
+                content={form.script || form.hook || form.title}
+                caption={form.caption}
+                onPublishSuccess={() => {
+                  setForm((f) => ({ ...f, status: 'posted' }));
+                  toast('Published! Post status updated.');
+                  onSave();
+                }}
+              />
+            </>
+          )}
+
+          {activeTab === 'comments' && <EngagementInbox postId={post.id} compact />}
+
+          {activeTab === 'stats' && (
+            <>
+              {!isPosted ? (
+                <div className="rounded-lg border border-dashed border-border bg-bg-secondary p-6 text-center">
+                  <BarChart3 className="h-8 w-8 text-text-tertiary mx-auto mb-3" />
+                  <p className="text-sm font-medium text-text-primary">Not published yet</p>
+                  <p className="mt-2 text-sm text-text-secondary leading-relaxed">
+                    Mark this post as posted or publish from the Schedule tab to log views, likes,
+                    and other performance numbers.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setShowPerfModal(true)}
+                    className="mt-4 inline-flex items-center justify-center min-h-[44px] px-5 rounded-md text-[15px] font-medium bg-accent-primary text-text-inverse hover:bg-accent-dark transition-colors"
+                  >
+                    Log performance anyway
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <p className="text-sm text-text-secondary">
+                    How this post performed after you published it.
+                  </p>
+                  <label className="block">
+                    <span className={labelClass}>Posted date</span>
+                    <input
+                      type="date"
+                      value={form.posted_date}
+                      onChange={(e) => update('posted_date', e.target.value)}
+                      onBlur={autoSave}
+                      className={inputClass}
+                    />
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <StatField
+                      label="Views"
+                      value={form.views}
+                      onChange={(v) => update('views', v)}
+                      onBlur={autoSave}
+                      inputClass={inputClass}
+                      labelClass={labelClass}
+                    />
+                    <StatField
+                      label="Likes"
+                      value={form.likes}
+                      onChange={(v) => update('likes', v)}
+                      onBlur={autoSave}
+                      inputClass={inputClass}
+                      labelClass={labelClass}
+                    />
+                    <StatField
+                      label="Saves"
+                      value={form.saves}
+                      onChange={(v) => update('saves', v)}
+                      onBlur={autoSave}
+                      inputClass={inputClass}
+                      labelClass={labelClass}
+                    />
+                    <StatField
+                      label="Comments"
+                      value={form.comments}
+                      onChange={(v) => update('comments', v)}
+                      onBlur={autoSave}
+                      inputClass={inputClass}
+                      labelClass={labelClass}
+                    />
+                    <StatField
+                      label="Shares"
+                      value={form.shares}
+                      onChange={(v) => update('shares', v)}
+                      onBlur={autoSave}
+                      inputClass={inputClass}
+                      labelClass={labelClass}
+                    />
+                    <StatField
+                      label="Follows gained"
+                      value={form.follows_gained}
+                      onChange={(v) => update('follows_gained', v)}
+                      onBlur={autoSave}
+                      inputClass={inputClass}
+                      labelClass={labelClass}
+                    />
+                  </div>
+                </div>
+              )}
+            </>
+          )}
         </div>
 
-        {/* Status pipeline bar at bottom */}
-        <div className="shrink-0 border-t-[0.5px] border-[#FAFAFA]/12 p-4">
+        <div className="shrink-0 border-t border-border p-4 bg-bg-secondary">
           <StatusPipeline current={form.status} onChange={handleStatusChange} />
         </div>
       </div>
 
-      {/* Performance Modal */}
       {showPerfModal && (
-        <PerformanceModal
-          post={post}
-          onSave={handlePerfSave}
-          onClose={() => setShowPerfModal(false)}
-        />
+        <PerformanceModal post={post} onSave={handlePerfSave} onClose={() => setShowPerfModal(false)} />
       )}
     </>
+  );
+}
+
+function StatField({
+  label,
+  value,
+  onChange,
+  onBlur,
+  inputClass,
+  labelClass,
+}: {
+  label: string;
+  value: number;
+  onChange: (v: number) => void;
+  onBlur: () => void;
+  inputClass: string;
+  labelClass: string;
+}) {
+  return (
+    <label className="block">
+      <span className={labelClass}>{label}</span>
+      <input
+        type="number"
+        min={0}
+        value={value}
+        onChange={(e) => onChange(parseInt(e.target.value) || 0)}
+        onBlur={onBlur}
+        className={inputClass}
+      />
+    </label>
   );
 }

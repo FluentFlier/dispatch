@@ -66,23 +66,23 @@ Match the voice, keep every specific detail, adapt only the format and length. N
   return (
     <div className="space-y-5">
       <div>
-        <label className="block font-body text-[13px] text-[#A1A1AA] mb-2">Paste script</label>
+        <label className="block font-body text-[13px] text-text-tertiary mb-2">Paste script</label>
         <textarea
           value={script}
           onChange={(e) => setScript(e.target.value)}
           rows={6}
           placeholder="Paste the script you want to repurpose..."
-          className="w-full bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-4 py-3 font-body text-[13px] text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[rgba(255,255,255,0.40)] resize-none transition-colors duration-100"
+          className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover resize-none transition-colors duration-100"
         />
       </div>
 
       <div className="flex gap-4 flex-wrap">
         <div>
-          <label className="block font-body text-[11px] text-[#71717A] mb-1">From</label>
+          <label className="block font-body text-[11px] text-text-secondary mb-1">From</label>
           <select
             value={fromPlatform}
             onChange={(e) => setFromPlatform(e.target.value as Platform)}
-            className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-3 py-2 font-body text-[13px] text-[#FAFAFA] focus:outline-none focus:border-[rgba(255,255,255,0.40)] transition-colors duration-100"
+            className="bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors duration-100"
           >
             {ALL_PLATFORMS.map((p) => (
               <option key={p} value={p}>
@@ -92,11 +92,11 @@ Match the voice, keep every specific detail, adapt only the format and length. N
           </select>
         </div>
         <div>
-          <label className="block font-body text-[11px] text-[#71717A] mb-1">To</label>
+          <label className="block font-body text-[11px] text-text-secondary mb-1">To</label>
           <select
             value={toPlatform}
             onChange={(e) => setToPlatform(e.target.value as Platform)}
-            className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-3 py-2 font-body text-[13px] text-[#FAFAFA] focus:outline-none focus:border-[rgba(255,255,255,0.40)] transition-colors duration-100"
+            className="bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors duration-100"
           >
             {ALL_PLATFORMS.map((p) => (
               <option key={p} value={p}>
@@ -115,7 +115,7 @@ Match the voice, keep every specific detail, adapt only the format and length. N
         Repurpose
       </Button>
 
-      {error && <p className="font-body text-[13px] text-[#6366F1]">{error}</p>}
+      {error && <p className="font-body text-[13px] text-accent-primary">{error}</p>}
 
       <GenerateOutput text={output} loading={loading} />
     </div>

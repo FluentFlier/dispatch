@@ -27,13 +27,13 @@ export function Drawer({ open, onClose, children }: DrawerProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/40"
+      className="fixed inset-0 z-50 bg-text-primary/40"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div
-        className="absolute right-0 top-0 h-full w-full max-w-[480px] bg-[#09090B] border-l-[0.5px] border-[rgba(255,255,255,0.12)] overflow-y-auto p-6"
+        className="absolute right-0 top-0 h-full w-full max-w-[min(560px,100vw)] bg-bg-primary border-l border-border overflow-y-auto p-5 md:p-6 shadow-card"
         style={{ animation: 'slideIn 0.15s ease-out' }}
       >
         {children}

@@ -1,13 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { generateContent } from '@/lib/claude';
-import type { CreatorProfileForPrompt } from '@/lib/claude';
+import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
+import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { z } from 'zod';
 import { checkRateLimit } from '@/lib/rate-limit';
 
 const RequestSchema = z.object({
   prompt: z.string().min(1).max(10000),
   systemOverride: z.string().max(5000).optional(),
+  /** Optional topic for semantic memory retrieval (Supermemory) */
+  topic: z.string().max(500).optional(),
+  platform: z.enum(['twitter', 'linkedin', 'instagram', 'threads']).optional(),
+  contentType: z.enum(['post', 'reply', 'comment']).optional(),
+  /** Skip voice critique/revise (faster) */
+  fast: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -20,7 +26,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const parsed = RequestSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
-  // Rate limit: 50 requests per hour per user
   const rl = await checkRateLimit(user.id);
   if (!rl.allowed) {
     const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
@@ -34,57 +39,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const client = getServerClient();
-
-  // Load user's creator profile for personalized prompt
-  let profile: CreatorProfileForPrompt | null = null;
-  try {
-    const { data: profileRow } = await client.database
-      .from('creator_profile')
-      .select('display_name, bio, content_pillars, voice_description, voice_rules')
-      .eq('user_id', user.id)
-      .single();
-
-    if (profileRow) {
-      const contentPillars = typeof profileRow.content_pillars === 'string'
-        ? JSON.parse(profileRow.content_pillars)
-        : profileRow.content_pillars;
-
-      profile = {
-        display_name: profileRow.display_name,
-        bio: profileRow.bio ?? undefined,
-        content_pillars: contentPillars,
-        voice_description: profileRow.voice_description ?? undefined,
-        voice_rules: profileRow.voice_rules ?? undefined,
-      };
-    }
-  } catch {
-    // No profile found - will use default prompt
-  }
-
-  // Load context_additions from user_settings
-  let contextAdditions: string | undefined;
-  try {
-    const { data: settingRow } = await client.database
-      .from('user_settings')
-      .select('value')
-      .eq('user_id', user.id)
-      .eq('key', 'context_additions')
-      .single();
-    contextAdditions = settingRow?.value ?? undefined;
-  } catch {
-    // No context additions found
-  }
+  const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {
+    memoryQuery: parsed.data.topic ?? parsed.data.prompt.slice(0, 200),
+  });
 
   try {
-    const text = await generateContent(
-      parsed.data.prompt,
-      contextAdditions,
-      parsed.data.systemOverride,
-      profile
-    );
-    // Strip em dashes from AI output
-    const cleaned = text.replace(/\u2014/g, ' - ').replace(/\u2013/g, '-');
-    return NextResponse.json({ text: cleaned });
+    const result = await generateWithVoicePipeline({
+      userPrompt: parsed.data.prompt,
+      profile,
+      contextAdditions: contextAdditions || undefined,
+      systemOverride: parsed.data.systemOverride,
+      platform: parsed.data.platform,
+      contentType: parsed.data.contentType,
+      fast: parsed.data.fast ?? false,
+    });
+
+    return NextResponse.json({
+      text: result.text,
+      voice_match_score: result.voice_match_score,
+      ai_score: result.ai_score,
+      revised: result.revised,
+      flags: result.flags,
+      iterations: result.iterations,
+      evaluation: result.evaluation,
+    });
   } catch (err) {
     console.error('Claude API error:', err);
     return NextResponse.json({ error: 'Generation failed' }, { status: 500 });

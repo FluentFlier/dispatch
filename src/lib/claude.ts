@@ -17,6 +17,7 @@ RULES:
 export interface CreatorProfileForPrompt {
   display_name: string;
   bio?: string;
+  bio_facts?: string;
   content_pillars?: Array<{ name: string; description?: string; promptTemplate?: string }>;
   voice_description?: string;
   voice_rules?: string;
@@ -54,6 +55,10 @@ export function buildSystemPrompt(
 
   if (profile.bio) {
     parts.push(`\nCREATOR BIO:\n${profile.bio}`);
+  }
+
+  if (profile.bio_facts?.trim()) {
+    parts.push(`\nBACKGROUND FACTS:\n${profile.bio_facts.trim()}`);
   }
 
   if (profile.voice_description) {

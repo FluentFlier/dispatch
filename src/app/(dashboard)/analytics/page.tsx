@@ -17,6 +17,7 @@ import { getInsforge } from "@/lib/insforge/client";
 import type { Post, HashtagSet, WeeklyReview } from "@/lib/types";
 import { usePillars } from "@/hooks/usePillars";
 import PillarDot from "@/components/PillarDot";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 /* ------------------------------------------------------------------ */
 /*  Dynamic recharts imports (prevent SSR issues)                     */
@@ -29,8 +30,8 @@ const ChartsSection = dynamic(() => import("@/components/analytics/ChartsSection
   ssr: false,
   loading: () => (
     <div className="space-y-8">
-      <div className="h-[300px] bg-[#18181B] rounded-[12px] animate-pulse" />
-      <div className="h-[300px] bg-[#18181B] rounded-[12px] animate-pulse" />
+      <div className="h-[300px] bg-bg-tertiary rounded-lg animate-pulse" />
+      <div className="h-[300px] bg-bg-tertiary rounded-lg animate-pulse" />
     </div>
   ),
 });
@@ -100,21 +101,21 @@ export default function AnalyticsPage() {
   if (loading) {
     return (
       <div className="space-y-10 pb-20">
-        <div className="h-7 w-32 bg-[#18181B] rounded-[7px] animate-pulse" />
+        <div className="h-7 w-32 bg-bg-tertiary rounded-md animate-pulse" />
         {/* Log Performance skeleton */}
-        <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6 space-y-4">
-          <div className="h-5 w-40 bg-[#27272A] rounded animate-pulse" />
-          <div className="h-10 w-full bg-[#27272A] rounded-[7px] animate-pulse" />
+        <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
+          <div className="h-5 w-40 bg-bg-tertiary rounded animate-pulse" />
+          <div className="h-10 w-full bg-bg-tertiary rounded-md animate-pulse" />
         </div>
         {/* Performance Overview skeleton */}
-        <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6 space-y-4">
-          <div className="h-5 w-48 bg-[#27272A] rounded animate-pulse" />
-          <div className="h-[300px] bg-[#27272A] rounded-[12px] animate-pulse" />
+        <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
+          <div className="h-5 w-48 bg-bg-tertiary rounded animate-pulse" />
+          <div className="h-[300px] bg-bg-tertiary rounded-lg animate-pulse" />
         </div>
         {/* Weekly Review skeleton */}
-        <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6 space-y-4">
-          <div className="h-5 w-36 bg-[#27272A] rounded animate-pulse" />
-          <div className="h-20 bg-[#27272A] rounded-[12px] animate-pulse" />
+        <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
+          <div className="h-5 w-36 bg-bg-tertiary rounded animate-pulse" />
+          <div className="h-20 bg-bg-tertiary rounded-lg animate-pulse" />
         </div>
       </div>
     );
@@ -122,7 +123,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-10 pb-20">
-      <h1 className="font-heading text-[22px] font-[800] text-[#FAFAFA] leading-[1.2] tracking-[-0.02em]">Analytics</h1>
+      <PageHeader title="Stats" subtitle="See what’s working and log performance on your posts." />
 
       {/* Section 1 */}
       <LogPerformanceSection posts={posts} userId={userId} onSaved={fetchData} />
@@ -215,15 +216,15 @@ function LogPerformanceSection({
   }
 
   return (
-    <section className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6">
-      <h2 className="font-heading text-[18px] font-[700] text-[#FAFAFA] mb-4 flex items-center gap-2">
+    <section className="bg-bg-secondary border border-border rounded-lg p-6">
+      <h2 className="font-heading text-[18px] font-semibold text-text-primary mb-4 flex items-center gap-2">
         <BarChart3 size={20} /> Log Performance
       </h2>
 
       <div className="mb-4">
-        <label className="block text-sm text-[#71717A] mb-1">Select a posted post</label>
+        <label className="block text-sm text-text-secondary mb-1">Select a posted post</label>
         <select
-          className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-3 py-2 text-[#FAFAFA]"
+          className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-text-primary"
           value={selectedPostId}
           onChange={(e) => setSelectedPostId(e.target.value)}
         >
@@ -248,13 +249,13 @@ function LogPerformanceSection({
               { label: "Follows", value: followsGained, set: setFollowsGained },
             ].map((field) => (
               <div key={field.label}>
-                <label className="block text-xs text-[#71717A] mb-1">
+                <label className="block text-xs text-text-secondary mb-1">
                   {field.label}
                 </label>
                 <input
                   type="number"
                   min={0}
-                  className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-2 py-2 min-h-[44px] text-[#FAFAFA]"
+                  className="w-full bg-bg-tertiary border border-border rounded-md px-2 py-2 min-h-[44px] text-text-primary"
                   value={field.value}
                   onChange={(e) => field.set(Number(e.target.value) || 0)}
                 />
@@ -265,7 +266,7 @@ function LogPerformanceSection({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="bg-[#6366F1] text-white px-4 py-2 min-h-[44px] rounded hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+            className="bg-accent-primary text-white px-4 py-2 min-h-[44px] rounded hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
           >
             <Save size={16} /> {saving ? "Saving..." : "Save"}
           </button>
@@ -351,7 +352,7 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
       const insforge = getInsforge();
       const { error } = await insforge.database
         .from("weekly_reviews")
-        .insert({
+        .insert([{
           user_id: userId,
           week_start: weekStart,
           posts_published: postsPublished,
@@ -362,7 +363,7 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
           what_to_double_down: doublDown || null,
           what_to_cut: whatToCut || null,
           next_week_focus: nextWeek || null,
-        });
+        }]);
       if (error) throw error;
       setMessage("Review saved!");
       setShowForm(false);
@@ -390,15 +391,15 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
   }
 
   return (
-    <section className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6 space-y-6">
+    <section className="bg-bg-secondary border border-border rounded-lg p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-heading text-[18px] font-[700] text-[#FAFAFA] flex items-center gap-2">
+        <h2 className="font-heading text-[18px] font-semibold text-text-primary flex items-center gap-2">
           <Sparkles size={20} /> Weekly Review
         </h2>
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="bg-[#6366F1] text-white px-4 py-2 rounded hover:opacity-90 flex items-center gap-2 text-sm"
+            className="bg-accent-primary text-white px-4 py-2 rounded hover:opacity-90 flex items-center gap-2 text-sm"
           >
             <Plus size={16} /> New Weekly Review
           </button>
@@ -406,43 +407,43 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
       </div>
 
       {showForm && (
-        <div className="space-y-4 bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-4">
+        <div className="space-y-4 bg-bg-tertiary border border-border rounded-lg p-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs text-[#71717A] mb-1">Week Start</label>
+              <label className="block text-xs text-text-secondary mb-1">Week Start</label>
               <input
                 type="date"
-                className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-3 py-2 text-[#FAFAFA]"
+                className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-text-primary"
                 value={weekStart}
                 onChange={(e) => setWeekStart(e.target.value)}
               />
             </div>
             <div>
-              <label className="block text-xs text-[#71717A] mb-1">Posts Published</label>
+              <label className="block text-xs text-text-secondary mb-1">Posts Published</label>
               <input
                 type="number"
                 min={0}
-                className="w-24 bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-2 py-1 text-[#FAFAFA]"
+                className="w-24 bg-bg-tertiary border border-border rounded-md px-2 py-1 text-text-primary"
                 value={postsPublished}
                 onChange={(e) => setPostsPublished(Number(e.target.value) || 0)}
               />
             </div>
             <div>
-              <label className="block text-xs text-[#71717A] mb-1">Total Views</label>
+              <label className="block text-xs text-text-secondary mb-1">Total Views</label>
               <input
                 type="number"
                 min={0}
-                className="w-24 bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-2 py-1 text-[#FAFAFA]"
+                className="w-24 bg-bg-tertiary border border-border rounded-md px-2 py-1 text-text-primary"
                 value={totalViews}
                 onChange={(e) => setTotalViews(Number(e.target.value) || 0)}
               />
             </div>
             <div>
-              <label className="block text-xs text-[#71717A] mb-1">Total Followers Gained</label>
+              <label className="block text-xs text-text-secondary mb-1">Total Followers Gained</label>
               <input
                 type="number"
                 min={0}
-                className="w-24 bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-2 py-1 text-[#FAFAFA]"
+                className="w-24 bg-bg-tertiary border border-border rounded-md px-2 py-1 text-text-primary"
                 value={totalFollowers}
                 onChange={(e) => setTotalFollowers(Number(e.target.value) || 0)}
               />
@@ -450,9 +451,9 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
           </div>
 
           <div>
-            <label className="block text-xs text-[#71717A] mb-1">Top Post</label>
+            <label className="block text-xs text-text-secondary mb-1">Top Post</label>
             <select
-              className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-3 py-2 text-[#FAFAFA]"
+              className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-text-primary"
               value={topPostId}
               onChange={(e) => setTopPostId(e.target.value)}
             >
@@ -472,9 +473,9 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
             { label: "Next Week Focus", value: nextWeek, set: setNextWeek },
           ].map((field) => (
             <div key={field.label}>
-              <label className="block text-xs text-[#71717A] mb-1">{field.label}</label>
+              <label className="block text-xs text-text-secondary mb-1">{field.label}</label>
               <textarea
-                className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-3 py-2 text-[#FAFAFA] text-sm min-h-[60px]"
+                className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-text-primary text-sm min-h-[60px]"
                 value={field.value}
                 onChange={(e) => field.set(e.target.value)}
               />
@@ -485,7 +486,7 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
             <button
               onClick={handleAnalyze}
               disabled={analyzing}
-              className="bg-[#F59E0B] text-[#FAFAFA] px-4 py-2 rounded hover:opacity-90 disabled:opacity-50 flex items-center gap-2 text-sm font-medium"
+              className="bg-[#F59E0B] text-text-primary px-4 py-2 rounded hover:opacity-90 disabled:opacity-50 flex items-center gap-2 text-sm font-medium"
             >
               <Sparkles size={16} />{" "}
               {analyzing ? "Analyzing..." : "Analyze My Week"}
@@ -493,7 +494,7 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
             <button
               onClick={handleSaveReview}
               disabled={saving || !weekStart}
-              className="bg-[#6366F1] text-white px-4 py-2 rounded hover:opacity-90 disabled:opacity-50 flex items-center gap-2 text-sm"
+              className="bg-accent-primary text-white px-4 py-2 rounded hover:opacity-90 disabled:opacity-50 flex items-center gap-2 text-sm"
             >
               <Save size={16} /> {saving ? "Saving..." : "Save Review"}
             </button>
@@ -502,18 +503,18 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
                 setShowForm(false);
                 resetForm();
               }}
-              className="text-[#71717A] hover:text-[#FAFAFA] px-4 py-2 text-sm"
+              className="text-text-secondary hover:text-text-primary px-4 py-2 text-sm"
             >
               Cancel
             </button>
           </div>
 
           {aiOutput && (
-            <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-4 mt-2">
+            <div className="bg-bg-secondary border border-border rounded-lg p-4 mt-2">
               <h4 className="text-sm font-heading text-[#854F0B] mb-2">
                 AI Recommendations
               </h4>
-              <p className="text-[#FAFAFA] text-sm whitespace-pre-wrap">
+              <p className="text-text-primary text-sm whitespace-pre-wrap">
                 {aiOutput}
               </p>
             </div>
@@ -528,16 +529,16 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
       {/* Past reviews */}
       {reviews.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm text-[#71717A] font-heading">Past Reviews</h3>
+          <h3 className="text-sm text-text-secondary font-heading">Past Reviews</h3>
           {reviews.map((r) => {
             const expanded = expandedReview === r.id;
             return (
-              <div key={r.id} className="bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px]">
+              <div key={r.id} className="bg-bg-tertiary border border-border rounded-lg">
                 <button
                   onClick={() => setExpandedReview(expanded ? null : r.id)}
                   className="w-full flex items-center justify-between px-4 py-3 text-left"
                 >
-                  <span className="text-[#FAFAFA] text-sm">
+                  <span className="text-text-primary text-sm">
                     Week of{" "}
                     {new Date(r.week_start).toLocaleDateString("en-US", {
                       month: "short",
@@ -545,39 +546,39 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
                       year: "numeric",
                     })}
                   </span>
-                  <span className="text-[#71717A] flex items-center gap-2 text-xs">
+                  <span className="text-text-secondary flex items-center gap-2 text-xs">
                     {r.posts_published} posts / {r.total_views} views
                     {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </span>
                 </button>
                 {expanded && (
                   <div className="px-4 pb-4 space-y-2 text-sm">
-                    <p className="text-[#71717A]">
+                    <p className="text-text-secondary">
                       Followers gained:{" "}
-                      <span className="text-[#FAFAFA]">{r.total_followers_gained}</span>
+                      <span className="text-text-primary">{r.total_followers_gained}</span>
                     </p>
                     {r.what_worked && (
                       <div>
-                        <span className="text-[#71717A]">What worked: </span>
-                        <span className="text-[#FAFAFA]">{r.what_worked}</span>
+                        <span className="text-text-secondary">What worked: </span>
+                        <span className="text-text-primary">{r.what_worked}</span>
                       </div>
                     )}
                     {r.what_to_double_down && (
                       <div>
-                        <span className="text-[#71717A]">Double down: </span>
-                        <span className="text-[#FAFAFA]">{r.what_to_double_down}</span>
+                        <span className="text-text-secondary">Double down: </span>
+                        <span className="text-text-primary">{r.what_to_double_down}</span>
                       </div>
                     )}
                     {r.what_to_cut && (
                       <div>
-                        <span className="text-[#71717A]">Cut: </span>
-                        <span className="text-[#FAFAFA]">{r.what_to_cut}</span>
+                        <span className="text-text-secondary">Cut: </span>
+                        <span className="text-text-primary">{r.what_to_cut}</span>
                       </div>
                     )}
                     {r.next_week_focus && (
                       <div>
-                        <span className="text-[#71717A]">Next week focus: </span>
-                        <span className="text-[#FAFAFA]">{r.next_week_focus}</span>
+                        <span className="text-text-secondary">Next week focus: </span>
+                        <span className="text-text-primary">{r.next_week_focus}</span>
                       </div>
                     )}
                   </div>
@@ -656,7 +657,7 @@ function HashtagVaultSection({
       } else {
         const { error } = await insforge.database
           .from("hashtag_sets")
-          .insert({ ...payload, user_id: userId, use_count: 0 });
+          .insert([{ ...payload, user_id: userId, use_count: 0 }]);
         if (error) throw error;
       }
 
@@ -721,15 +722,15 @@ Which tags should I keep and which should I cut? Be specific and blunt. Suggest 
   }
 
   return (
-    <section className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6 space-y-6">
+    <section className="bg-bg-secondary border border-border rounded-lg p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-heading text-[18px] font-[700] text-[#FAFAFA] flex items-center gap-2">
+        <h2 className="font-heading text-[18px] font-semibold text-text-primary flex items-center gap-2">
           <Hash size={20} /> Hashtag Vault
         </h2>
         {!showCreate && !editingId && (
           <button
             onClick={() => setShowCreate(true)}
-            className="bg-[#6366F1] text-white px-4 py-2 rounded hover:opacity-90 flex items-center gap-2 text-sm"
+            className="bg-accent-primary text-white px-4 py-2 rounded hover:opacity-90 flex items-center gap-2 text-sm"
           >
             <Plus size={16} /> Create Set
           </button>
@@ -738,31 +739,31 @@ Which tags should I keep and which should I cut? Be specific and blunt. Suggest 
 
       {/* Create / Edit form */}
       {(showCreate || editingId) && (
-        <div className="bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-4 space-y-3">
+        <div className="bg-bg-tertiary border border-border rounded-lg p-4 space-y-3">
           <div>
-            <label className="block text-xs text-[#71717A] mb-1">Name</label>
+            <label className="block text-xs text-text-secondary mb-1">Name</label>
             <input
-              className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-3 py-2 text-[#FAFAFA] text-sm"
+              className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-text-primary text-sm"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Founder hashtags"
             />
           </div>
           <div>
-            <label className="block text-xs text-[#71717A] mb-1">
+            <label className="block text-xs text-text-secondary mb-1">
               Tags (space or comma separated)
             </label>
             <textarea
-              className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-3 py-2 text-[#FAFAFA] text-sm min-h-[60px]"
+              className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-text-primary text-sm min-h-[60px]"
               value={tags}
               onChange={(e) => setTags(e.target.value)}
               placeholder="#founder #startup #buildinpublic"
             />
           </div>
           <div>
-            <label className="block text-xs text-[#71717A] mb-1">Pillar (optional)</label>
+            <label className="block text-xs text-text-secondary mb-1">Pillar (optional)</label>
             <select
-              className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-3 py-2 text-[#FAFAFA] text-sm"
+              className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-text-primary text-sm"
               value={pillar}
               onChange={(e) => setPillar(e.target.value)}
             >
@@ -778,14 +779,14 @@ Which tags should I keep and which should I cut? Be specific and blunt. Suggest 
             <button
               onClick={handleSave}
               disabled={saving || !name.trim() || !tags.trim()}
-              className="bg-[#6366F1] text-white px-4 py-2 rounded hover:opacity-90 disabled:opacity-50 flex items-center gap-2 text-sm"
+              className="bg-accent-primary text-white px-4 py-2 rounded hover:opacity-90 disabled:opacity-50 flex items-center gap-2 text-sm"
             >
               <Save size={16} />{" "}
               {saving ? "Saving..." : editingId ? "Update Set" : "Create Set"}
             </button>
             <button
               onClick={resetForm}
-              className="text-[#71717A] hover:text-[#FAFAFA] px-4 py-2 text-sm"
+              className="text-text-secondary hover:text-text-primary px-4 py-2 text-sm"
             >
               Cancel
             </button>
@@ -796,28 +797,28 @@ Which tags should I keep and which should I cut? Be specific and blunt. Suggest 
 
       {/* List */}
       {sets.length === 0 && !showCreate && (
-        <p className="text-[#71717A] text-sm">
+        <p className="text-text-secondary text-sm">
           No hashtag sets yet. Create one to get started.
         </p>
       )}
 
       <div className="space-y-3">
         {sets.map((s) => (
-          <div key={s.id} className="bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-4 space-y-2">
+          <div key={s.id} className="bg-bg-tertiary border border-border rounded-lg p-4 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="text-[#FAFAFA] text-sm font-medium truncate">
+                <span className="text-text-primary text-sm font-medium truncate">
                   {s.name}
                 </span>
                 {s.pillar && <PillarDot pillar={s.pillar} showLabel />}
-                <span className="text-[#71717A] text-xs shrink-0">
+                <span className="text-text-secondary text-xs shrink-0">
                   Used {s.use_count}x
                 </span>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button
                   onClick={() => handleCopy(s.tags, s.id)}
-                  className="text-[#71717A] hover:text-[#FAFAFA] p-1.5 rounded-[7px]"
+                  className="text-text-secondary hover:text-text-primary p-1.5 rounded-md"
                   title="Copy tags"
                 >
                   <ClipboardCopy size={14} />
@@ -825,35 +826,35 @@ Which tags should I keep and which should I cut? Be specific and blunt. Suggest 
                 <button
                   onClick={() => handleAnalyze(s)}
                   disabled={analyzingId === s.id}
-                  className="text-[#71717A] hover:text-[#854F0B] p-1.5 rounded-[7px] disabled:opacity-50"
+                  className="text-text-secondary hover:text-[#854F0B] p-1.5 rounded-md disabled:opacity-50"
                   title="Analyze"
                 >
                   <Sparkles size={14} />
                 </button>
                 <button
                   onClick={() => startEdit(s)}
-                  className="text-[#71717A] hover:text-[#FAFAFA] p-1.5 rounded-[7px]"
+                  className="text-text-secondary hover:text-text-primary p-1.5 rounded-md"
                   title="Edit"
                 >
                   <Pencil size={14} />
                 </button>
                 <button
                   onClick={() => handleDelete(s.id)}
-                  className="text-[#71717A] hover:text-[#6366F1] p-1.5 rounded-[7px]"
+                  className="text-text-secondary hover:text-accent-primary p-1.5 rounded-md"
                   title="Delete"
                 >
                   <Trash2 size={14} />
                 </button>
               </div>
             </div>
-            <p className="text-[#71717A] text-xs truncate">{s.tags}</p>
+            <p className="text-text-secondary text-xs truncate">{s.tags}</p>
             {copiedId === s.id && (
               <p className="text-xs text-[#3B6D11]">Copied!</p>
             )}
             {analyzeOutput[s.id] && (
-              <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-3 mt-2">
+              <div className="bg-bg-secondary border border-border rounded-lg p-3 mt-2">
                 <h4 className="text-xs font-heading text-[#854F0B] mb-1">Analysis</h4>
-                <p className="text-[#FAFAFA] text-xs whitespace-pre-wrap">
+                <p className="text-text-primary text-xs whitespace-pre-wrap">
                   {analyzeOutput[s.id]}
                 </p>
               </div>

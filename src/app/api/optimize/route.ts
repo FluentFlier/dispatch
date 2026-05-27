@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { generateContent } from '@/lib/claude';
-import type { CreatorProfileForPrompt } from '@/lib/claude';
+import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { z } from 'zod';
 
 const PLATFORM_ENUM = z.enum(['twitter', 'linkedin', 'instagram', 'threads']);
@@ -260,33 +260,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const { content, targetPlatforms, optimizationLevel } = parsed.data;
 
-  // Load user's creator profile for personalized prompts
   const client = getServerClient();
-  let profile: CreatorProfileForPrompt | null = null;
-  try {
-    const { data: profileRow } = await client.database
-      .from('creator_profile')
-      .select('display_name, bio, content_pillars, voice_description, voice_rules')
-      .eq('user_id', user.id)
-      .single();
-
-    if (profileRow) {
-      const contentPillars =
-        typeof profileRow.content_pillars === 'string'
-          ? JSON.parse(profileRow.content_pillars)
-          : profileRow.content_pillars;
-
-      profile = {
-        display_name: profileRow.display_name,
-        bio: profileRow.bio ?? undefined,
-        content_pillars: contentPillars,
-        voice_description: profileRow.voice_description ?? undefined,
-        voice_rules: profileRow.voice_rules ?? undefined,
-      };
-    }
-  } catch {
-    // No profile found - will use default prompt
-  }
+  const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {
+    memoryQuery: content.slice(0, 200),
+  });
 
   // Generate optimized content for each target platform
   const variants: Variant[] = [];
@@ -296,7 +273,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
       const prompt = buildOptimizationPrompt(platform, content, optimizationLevel);
       const systemOverride = undefined; // Use profile-based prompt
-      const generated = await generateContent(prompt, undefined, systemOverride, profile);
+      const generated = await generateContent(
+        prompt,
+        contextAdditions || undefined,
+        systemOverride,
+        profile,
+      );
 
       // Strip em dashes from AI output
       const cleaned = generated.replace(/\u2014/g, ' - ').replace(/\u2013/g, '-');

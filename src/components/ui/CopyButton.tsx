@@ -19,12 +19,12 @@ export function CopyButton({ text, className = '' }: CopyButtonProps) {
   return (
     <button
       onClick={copy}
-      className={`px-[14px] py-[7px] text-[13px] font-body font-medium rounded-[7px] bg-transparent border-[0.5px] border-[rgba(255,255,255,0.12)] text-[#71717A] hover:bg-[#27272A] transition-all duration-100 ${className}`}
+      className={`px-[14px] py-[7px] text-[13px] font-body font-medium rounded-md bg-transparent border border-border text-text-secondary hover:bg-bg-tertiary hover:text-text-primary transition-all duration-100 ${className}`}
     >
       {copied ? (
         <span className="inline-flex items-center gap-1">
           <svg
-            className="w-3.5 h-3.5 text-[#3B6D11]"
+            className="w-3.5 h-3.5 text-accent-secondary"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"

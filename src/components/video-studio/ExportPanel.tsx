@@ -75,14 +75,14 @@ export default function ExportPanel({ videoSrc, templateId }: ExportPanelProps) 
   };
 
   return (
-    <div className="rounded-lg bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 p-4 space-y-4">
-      <h3 className="font-heading text-[15px] font-[700] text-[#FAFAFA]">
+    <div className="rounded-lg bg-bg-tertiary border border-border p-4 space-y-4">
+      <h3 className="font-heading text-[15px] font-semibold text-text-primary">
         Export
       </h3>
 
       {/* Format selector */}
       <div className="space-y-1.5">
-        <label className="font-body text-[12px] text-[#71717A]">Format</label>
+        <label className="font-body text-[12px] text-text-secondary">Format</label>
         <div className="flex gap-2">
           {(['mp4', 'webm'] as Format[]).map((f) => (
             <button
@@ -90,8 +90,8 @@ export default function ExportPanel({ videoSrc, templateId }: ExportPanelProps) 
               onClick={() => setFormat(f)}
               className={`px-4 py-1.5 rounded-md font-body text-[13px] font-medium uppercase transition-all duration-100 ${
                 format === f
-                  ? 'bg-[#6366F1] text-white'
-                  : 'bg-[#27272A] text-[#A1A1AA] hover:bg-[#27272A]/80'
+                  ? 'bg-accent-primary text-white'
+                  : 'bg-bg-tertiary text-text-tertiary hover:bg-bg-tertiary/80'
               }`}
             >
               {f}
@@ -102,7 +102,7 @@ export default function ExportPanel({ videoSrc, templateId }: ExportPanelProps) 
 
       {/* Quality selector */}
       <div className="space-y-1.5">
-        <label className="font-body text-[12px] text-[#71717A]">Quality</label>
+        <label className="font-body text-[12px] text-text-secondary">Quality</label>
         <div className="flex gap-2">
           {(['720p', '1080p'] as Quality[]).map((q) => (
             <button
@@ -110,8 +110,8 @@ export default function ExportPanel({ videoSrc, templateId }: ExportPanelProps) 
               onClick={() => setQuality(q)}
               className={`px-4 py-1.5 rounded-md font-body text-[13px] font-medium transition-all duration-100 ${
                 quality === q
-                  ? 'bg-[#6366F1] text-white'
-                  : 'bg-[#27272A] text-[#A1A1AA] hover:bg-[#27272A]/80'
+                  ? 'bg-accent-primary text-white'
+                  : 'bg-bg-tertiary text-text-tertiary hover:bg-bg-tertiary/80'
               }`}
             >
               {q}
@@ -123,20 +123,20 @@ export default function ExportPanel({ videoSrc, templateId }: ExportPanelProps) 
       {/* Progress bar */}
       {exporting && (
         <div className="space-y-1">
-          <div className="w-full h-1.5 bg-[#27272A] rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
             <div
-              className="h-full bg-[#6366F1] rounded-full transition-all duration-300"
+              className="h-full bg-accent-primary rounded-full transition-all duration-300"
               style={{ width: `${progress}%` }}
             />
           </div>
-          <p className="font-body text-[11px] text-[#71717A]">
+          <p className="font-body text-[11px] text-text-secondary">
             {progress < 100 ? `Processing... ${progress}%` : 'Complete!'}
           </p>
         </div>
       )}
 
       {error && (
-        <p className="font-body text-[11px] text-[#6366F1]">{error}</p>
+        <p className="font-body text-[11px] text-accent-primary">{error}</p>
       )}
 
       {/* Export button */}
@@ -145,8 +145,8 @@ export default function ExportPanel({ videoSrc, templateId }: ExportPanelProps) 
         disabled={!canExport || exporting}
         className={`flex items-center justify-center gap-2 w-full py-2.5 rounded-md font-body text-[13px] font-medium transition-all ${
           canExport && !exporting
-            ? 'bg-[#6366F1] text-white hover:opacity-90'
-            : 'bg-[#27272A] text-[#71717A] cursor-not-allowed'
+            ? 'bg-accent-primary text-white hover:opacity-90'
+            : 'bg-bg-tertiary text-text-secondary cursor-not-allowed'
         }`}
       >
         {exporting ? (

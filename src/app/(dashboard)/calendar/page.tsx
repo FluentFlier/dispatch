@@ -18,6 +18,8 @@ import { usePillars } from "@/hooks/usePillars";
 import CalendarGrid from "@/components/calendar/CalendarGrid";
 import CalendarBacklog from "@/components/calendar/CalendarBacklog";
 import { ScheduleModal, FillWeekModal } from "@/components/calendar/CalendarModals";
+import { PageHeader } from "@/components/layout/PageHeader";
+import { ClientOnly } from "@/components/ClientOnly";
 
 type ViewMode = "month" | "week";
 
@@ -304,12 +306,12 @@ Respond ONLY with a JSON array of objects: [{"postId":"...","date":"YYYY-MM-DD"}
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div className="h-8 w-40 bg-[#18181B] rounded-[7px] animate-pulse" />
-          <div className="h-9 w-28 bg-[#18181B] rounded-[7px] animate-pulse" />
+          <div className="h-8 w-40 bg-bg-tertiary rounded-md animate-pulse" />
+          <div className="h-9 w-28 bg-bg-tertiary rounded-md animate-pulse" />
         </div>
         <div className="grid grid-cols-7 gap-px">
           {Array.from({ length: 35 }).map((_, i) => (
-            <div key={i} className="h-20 bg-[#18181B] rounded animate-pulse" />
+            <div key={i} className="h-20 bg-bg-tertiary rounded animate-pulse" />
           ))}
         </div>
       </div>
@@ -318,44 +320,51 @@ Respond ONLY with a JSON array of objects: [{"postId":"...","date":"YYYY-MM-DD"}
 
   const weekDaysForLabel = getWeekDays(weekBase);
 
+  const calendarSkeleton = (
+    <div className="space-y-4">
+      <div className="h-10 w-64 bg-bg-tertiary rounded-md animate-pulse" />
+      <div className="h-[420px] bg-bg-tertiary rounded-lg animate-pulse" />
+    </div>
+  );
+
   return (
+    <ClientOnly fallback={calendarSkeleton}>
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className="flex flex-col lg:flex-row gap-4 min-h-0">
         {/* Main calendar area */}
         <div className="flex-1 space-y-4 min-w-0">
-          {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <h1 className="font-heading text-[22px] font-[800] text-[#FAFAFA] leading-[1.2] tracking-[-0.02em]">
-              Calendar
-            </h1>
+          <PageHeader
+            title="Schedule"
+            subtitle="Drag posts onto days. Tap a post to edit or publish."
+            action={
             <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-1">
                 <button
                   onClick={viewMode === "month" ? goToPrevMonth : goToPrevWeek}
-                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-[7px] border-[0.5px] border-[#FAFAFA]/12 text-[#71717A] hover:text-[#FAFAFA] hover:border-[#FAFAFA]/25 transition-colors"
+                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md border border-border text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <span className="text-[13px] text-[#FAFAFA] font-medium min-w-[140px] text-center">
+                <span className="text-[13px] text-text-primary font-medium min-w-[140px] text-center">
                   {viewMode === "month"
                     ? `${MONTH_NAMES[currentMonth]} ${currentYear}`
                     : `Week of ${weekDaysForLabel[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
                 </span>
                 <button
                   onClick={viewMode === "month" ? goToNextMonth : goToNextWeek}
-                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-[7px] border-[0.5px] border-[#FAFAFA]/12 text-[#71717A] hover:text-[#FAFAFA] hover:border-[#FAFAFA]/25 transition-colors"
+                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md border border-border text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="flex border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] overflow-hidden">
+              <div className="flex border border-border rounded-md overflow-hidden">
                 <button
                   onClick={() => setViewMode("month")}
                   className={`px-3 py-2 min-h-[44px] text-[11px] font-medium transition-colors ${
                     viewMode === "month"
-                      ? "bg-[#6366F1] text-white"
-                      : "text-[#71717A] hover:text-[#FAFAFA]"
+                      ? "bg-accent-primary text-text-inverse"
+                      : "text-text-secondary hover:text-text-primary"
                   }`}
                 >
                   Month
@@ -364,23 +373,24 @@ Respond ONLY with a JSON array of objects: [{"postId":"...","date":"YYYY-MM-DD"}
                   onClick={() => setViewMode("week")}
                   className={`px-3 py-2 min-h-[44px] text-[11px] font-medium transition-colors ${
                     viewMode === "week"
-                      ? "bg-[#6366F1] text-white"
-                      : "text-[#71717A] hover:text-[#FAFAFA]"
+                      ? "bg-accent-primary text-text-inverse"
+                      : "text-text-secondary hover:text-text-primary"
                   }`}
                 >
                   Week
                 </button>
               </div>
             </div>
-          </div>
+            }
+          />
 
           {/* Empty state guidance */}
           {!hasScheduledPosts && !backlogPickPost && (
-            <div className="flex items-center gap-3 bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] px-4 py-3 text-[13px]">
-              <CalendarDays className="w-5 h-5 text-[#6366F1] shrink-0" />
+            <div className="flex items-center gap-3 bg-bg-secondary border border-border rounded-lg px-4 py-3 text-[13px] shadow-card">
+              <CalendarDays className="w-5 h-5 text-accent-primary shrink-0" />
               <div>
-                <p className="text-[#FAFAFA] font-medium">No content scheduled yet</p>
-                <p className="text-[#71717A] text-[12px]">
+                <p className="text-text-primary font-medium">No content scheduled yet</p>
+                <p className="text-text-secondary text-[12px]">
                   Drag posts from the backlog onto a day, or click a day to schedule content.
                 </p>
               </div>
@@ -389,15 +399,15 @@ Respond ONLY with a JSON array of objects: [{"postId":"...","date":"YYYY-MM-DD"}
 
           {/* Backlog pick banner */}
           {backlogPickPost && (
-            <div className="flex items-center gap-2 bg-[#09090B] border-[0.5px] border-[#6366F1]/40 rounded-[12px] px-4 py-2 text-[13px] text-[#FAFAFA]">
-              <CalendarIcon className="w-4 h-4 text-[#6366F1] shrink-0" />
+            <div className="flex items-center gap-2 bg-bg-secondary border border-accent-primary/40 rounded-lg px-4 py-2 text-[13px] text-text-primary">
+              <CalendarIcon className="w-4 h-4 text-accent-primary shrink-0" />
               Click a day to schedule{" "}
               <span className="font-medium">
                 &quot;{truncate(backlogPickPost.title, 30)}&quot;
               </span>
               <button
                 onClick={() => setBacklogPickPost(null)}
-                className="ml-auto text-[#71717A] hover:text-[#FAFAFA]"
+                className="ml-auto text-text-secondary hover:text-text-primary"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -448,5 +458,6 @@ Respond ONLY with a JSON array of objects: [{"postId":"...","date":"YYYY-MM-DD"}
         )}
       </div>
     </DragDropContext>
+    </ClientOnly>
   );
 }

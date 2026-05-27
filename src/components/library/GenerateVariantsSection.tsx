@@ -214,7 +214,7 @@ export default function GenerateVariantsSection({
     <div className="space-y-3">
       {/* Section header */}
       <div className="pt-3">
-        <span className="text-[10px] font-medium tracking-[0.10em] uppercase text-[#71717A]">
+        <span className="text-[10px] font-medium tracking-[0.10em] uppercase text-text-secondary">
           GENERATE VARIANTS
         </span>
       </div>
@@ -242,9 +242,9 @@ export default function GenerateVariantsSection({
 
       {/* Loading state */}
       {optimizing && (
-        <div className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[8px] p-4 flex items-center gap-3">
-          <Loader2 size={16} className="animate-spin text-[#6366F1]" />
-          <span className="text-[12px] text-[#A1A1AA]">
+        <div className="bg-bg-tertiary border border-border rounded-[8px] p-4 flex items-center gap-3">
+          <Loader2 size={16} className="animate-spin text-accent-primary" />
+          <span className="text-[12px] text-text-tertiary">
             Optimizing for{' '}
             {accountsLoading
               ? 'all platforms'
@@ -258,7 +258,7 @@ export default function GenerateVariantsSection({
 
       {/* Variant tabs + cards */}
       {variants.length > 0 && !optimizing && (
-        <div className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[8px] overflow-hidden">
+        <div className="bg-bg-tertiary border border-border rounded-[8px] overflow-hidden">
           {/* Tabs */}
           <div className="px-3 pt-3">
             <Tabs
@@ -323,11 +323,11 @@ function VariantCard({
         <div className="flex items-center gap-2">
           <span
             className="w-5 h-5 rounded-[4px] flex items-center justify-center text-[9px] font-bold text-white shrink-0"
-            style={{ backgroundColor: config?.color ?? '#71717A' }}
+            style={{ backgroundColor: config?.color ?? '#78716C' }}
           >
             {config?.icon ?? '?'}
           </span>
-          <span className="text-[12px] font-medium text-[#FAFAFA]">
+          <span className="text-[12px] font-medium text-text-primary">
             {config?.label ?? variant.platform}
           </span>
         </div>
@@ -342,7 +342,7 @@ function VariantCard({
 
       {/* Thread indicator */}
       {variant.isThread && variant.threadParts && (
-        <p className="text-[10px] text-[#A1A1AA]">
+        <p className="text-[10px] text-text-tertiary">
           Thread: {variant.threadParts.length} parts
         </p>
       )}
@@ -351,14 +351,14 @@ function VariantCard({
       {variant.isThread && variant.threadParts ? (
         <div className="space-y-1.5">
           {variant.threadParts.map((part, i) => (
-            <div key={i} className="bg-[#09090B] rounded-[6px] p-2.5">
-              <p className="text-[10px] text-[#71717A] mb-0.5">Part {i + 1}</p>
-              <pre className="whitespace-pre-wrap text-[12px] text-[#FAFAFA] leading-[1.5]">
+            <div key={i} className="bg-bg-secondary rounded-[6px] p-2.5">
+              <p className="text-[10px] text-text-secondary mb-0.5">Part {i + 1}</p>
+              <pre className="whitespace-pre-wrap text-[12px] text-text-primary leading-[1.5]">
                 {part}
               </pre>
               <p
                 className={`text-[9px] mt-0.5 ${
-                  part.length > 280 ? 'text-[#F87171]' : 'text-[#71717A]'
+                  part.length > 280 ? 'text-[#F87171]' : 'text-text-secondary'
                 }`}
               >
                 {part.length}/280
@@ -367,7 +367,7 @@ function VariantCard({
           ))}
         </div>
       ) : (
-        <pre className="whitespace-pre-wrap text-[12px] text-[#FAFAFA] leading-[1.5] bg-[#09090B] rounded-[6px] p-2.5">
+        <pre className="whitespace-pre-wrap text-[12px] text-text-primary leading-[1.5] bg-bg-secondary rounded-[6px] p-2.5">
           {displayContent}
         </pre>
       )}

@@ -1,12 +1,15 @@
 interface CardProps {
   children: React.ReactNode;
   className?: string;
+  elevated?: boolean;
 }
 
-export function Card({ children, className = '' }: CardProps) {
+export function Card({ children, className = '', elevated = true }: CardProps) {
   return (
     <div
-      className={`bg-[#09090B] rounded-[12px] border-[0.5px] border-[rgba(255,255,255,0.12)] px-[14px] py-[13px] transition-colors duration-100 hover:border-[rgba(255,255,255,0.25)] ${className}`}
+      className={`bg-bg-secondary rounded-lg border border-border px-4 py-4 transition-colors duration-150 ${
+        elevated ? 'shadow-card' : ''
+      } ${className}`}
     >
       {children}
     </div>

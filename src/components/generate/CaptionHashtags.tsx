@@ -100,12 +100,12 @@ No labels. Just caption, blank line, hashtags.`;
 
       const { error: dbError } = await insforge.database
         .from('hashtag_sets')
-        .insert({
+        .insert([{
           user_id: userData.user.id,
           name: saveSetName.trim(),
           tags: hashtags.trim(),
           use_count: 0,
-        })
+        }])
         .select()
         .single();
       if (dbError) throw dbError;
@@ -120,7 +120,7 @@ No labels. Just caption, blank line, hashtags.`;
   return (
     <div className="space-y-5">
       <div>
-        <label className="block font-body text-[13px] text-[#A1A1AA] mb-2">
+        <label className="block font-body text-[13px] text-text-tertiary mb-2">
           Script or video idea
         </label>
         <textarea
@@ -128,17 +128,17 @@ No labels. Just caption, blank line, hashtags.`;
           onChange={(e) => setScript(e.target.value)}
           rows={5}
           placeholder="Paste your script or describe the video idea..."
-          className="w-full bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-4 py-3 font-body text-[13px] text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[rgba(255,255,255,0.40)] resize-none transition-colors duration-100"
+          className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover resize-none transition-colors duration-100"
         />
       </div>
 
       <div className="flex items-center gap-4">
-        <label className="flex items-center gap-2 font-body text-[13px] text-[#FAFAFA] cursor-pointer">
+        <label className="flex items-center gap-2 font-body text-[13px] text-text-primary cursor-pointer">
           <input
             type="checkbox"
             checked={useSaved}
             onChange={(e) => setUseSaved(e.target.checked)}
-            className="accent-[#6366F1]"
+            className="accent-accent-primary"
           />
           Use saved hashtag set
         </label>
@@ -146,7 +146,7 @@ No labels. Just caption, blank line, hashtags.`;
           <select
             value={selectedSet}
             onChange={(e) => setSelectedSet(e.target.value)}
-            className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-3 py-2 font-body text-[13px] text-[#FAFAFA] focus:outline-none focus:border-[rgba(255,255,255,0.40)] transition-colors duration-100"
+            className="bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors duration-100"
           >
             <option value="">Select a set</option>
             {savedSets.map((s) => (
@@ -162,7 +162,7 @@ No labels. Just caption, blank line, hashtags.`;
         Generate
       </Button>
 
-      {error && <p className="font-body text-[13px] text-[#6366F1]">{error}</p>}
+      {error && <p className="font-body text-[13px] text-accent-primary">{error}</p>}
 
       <GenerateOutput text={output} loading={loading} />
 
@@ -172,7 +172,7 @@ No labels. Just caption, blank line, hashtags.`;
             value={saveSetName}
             onChange={(e) => setSaveSetName(e.target.value)}
             placeholder="Set name"
-            className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-3 py-2 font-body text-[13px] text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[rgba(255,255,255,0.40)] transition-colors duration-100"
+            className="bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors duration-100"
           />
           <Button
             variant="secondary"

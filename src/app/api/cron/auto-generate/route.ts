@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/insforge/server';
 import { generateContent, buildSystemPrompt } from '@/lib/claude';
-import type { CreatorProfileForPrompt } from '@/lib/claude';
+import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { createClient } from '@insforge/sdk';
 
 /**
@@ -52,28 +52,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const userId = userSetting.user_id;
 
     try {
-      // Load profile
-      const { data: profileRow } = await adminClient.database
-        .from('creator_profile')
-        .select('display_name, bio, content_pillars, voice_description, voice_rules')
-        .eq('user_id', userId)
-        .single();
-
-      if (!profileRow) {
-        results.push({ userId, status: 'skipped_no_profile', postsGenerated: 0 });
-        continue;
-      }
-
-      const profile: CreatorProfileForPrompt = {
-        display_name: profileRow.display_name,
-        bio: profileRow.bio ?? undefined,
-        content_pillars: typeof profileRow.content_pillars === 'string'
-          ? JSON.parse(profileRow.content_pillars)
-          : profileRow.content_pillars,
-        voice_description: profileRow.voice_description ?? undefined,
-        voice_rules: profileRow.voice_rules ?? undefined,
-      };
-
       // Load weekly schedule
       const { data: scheduleSetting } = await adminClient.database
         .from('user_settings')
@@ -94,6 +72,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
       if (todaysPillar === 'Rest') {
         results.push({ userId, status: 'rest_day', postsGenerated: 0 });
+        continue;
+      }
+
+      const { profile, contextAdditions } = await loadCreatorVoiceContext(adminClient, userId, {
+        memoryQuery: todaysPillar,
+      });
+
+      if (!profile) {
+        results.push({ userId, status: 'skipped_no_profile', postsGenerated: 0 });
         continue;
       }
 
@@ -128,7 +115,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
 
       // Generate one scheduled post
-      const systemPrompt = buildSystemPrompt(profile, `Generate a scheduled post for ${todaysPillar} pillar on ${defaultPlatform}.`);
+      const taskContext = [
+        `Generate a scheduled post for ${todaysPillar} pillar on ${defaultPlatform}.`,
+        contextAdditions,
+      ]
+        .filter(Boolean)
+        .join('\n\n');
+      const systemPrompt = buildSystemPrompt(profile, taskContext);
       const prompt = `Write a ${defaultPlatform} post for the "${todaysPillar}" content pillar.
 Today is ${dayOfWeek}. Write something fresh, timely, and on-brand.
 Return ONLY the post text, no JSON, no formatting.`;
@@ -136,7 +129,7 @@ Return ONLY the post text, no JSON, no formatting.`;
       const content = await generateContent(prompt, undefined, systemPrompt, profile);
       const cleaned = content.replace(/\u2014/g, ' - ').replace(/\u2013/g, '-');
 
-      await adminClient.database.from('posts').insert({
+      await adminClient.database.from('posts').insert([{
         user_id: userId,
         title: cleaned.split('\n')[0].slice(0, 80),
         pillar: todaysPillar,
@@ -148,7 +141,7 @@ Return ONLY the post text, no JSON, no formatting.`;
         notes: JSON.stringify({ auto_generated: true, type: 'scheduled', cron: true }),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      });
+      }]);
 
       results.push({ userId, status: 'generated', postsGenerated: 1 });
     } catch (err) {

@@ -80,28 +80,29 @@ export default function TodaysPrompt({ postsSummary }: TodaysPromptProps) {
   }, [fetchSuggestion]);
 
   return (
-    <section className="bg-[#09090B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-[13px_14px]">
+    <section className="rounded-lg border border-border bg-bg-secondary p-4 shadow-card">
       <div className="flex items-center justify-between mb-3">
-        <p className="font-body font-medium text-[10px] uppercase tracking-[0.10em] text-[#71717A]">
-          TODAY&apos;S PROMPT
+        <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+          Idea for today
         </p>
         <button
+          type="button"
           onClick={fetchSuggestion}
           disabled={loading}
-          className="text-[#71717A] hover:text-[#6366F1] transition-colors duration-100 disabled:opacity-50"
-          aria-label="Refresh suggestion"
+          className="text-text-tertiary hover:text-accent-primary transition-colors disabled:opacity-50 min-h-[44px] min-w-[44px] flex items-center justify-center"
+          aria-label="Get another idea"
         >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
         </button>
       </div>
       {loading ? (
         <div className="space-y-2">
-          <div className="h-3 w-full bg-[#27272A] rounded animate-pulse" />
-          <div className="h-3 w-3/4 bg-[#27272A] rounded animate-pulse" />
-          <div className="h-3 w-5/6 bg-[#27272A] rounded animate-pulse" />
+          <div className="h-3 w-full bg-bg-tertiary rounded animate-pulse" />
+          <div className="h-3 w-3/4 bg-bg-tertiary rounded animate-pulse" />
+          <div className="h-3 w-5/6 bg-bg-tertiary rounded animate-pulse" />
         </div>
       ) : (
-        <p className="font-body text-[13px] text-[#FAFAFA] leading-[1.55]">
+        <p className="text-sm text-text-primary leading-relaxed">
           {suggestion}
         </p>
       )}

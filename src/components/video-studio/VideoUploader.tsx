@@ -111,8 +111,8 @@ export default function VideoUploader({ onUploadComplete }: VideoUploaderProps) 
         onClick={() => !uploading && fileInputRef.current?.click()}
         className={`relative flex flex-col items-center justify-center gap-3 rounded-lg border-[1.5px] border-dashed p-10 cursor-pointer transition-all duration-150 ${
           dragOver
-            ? 'border-[#6366F1] bg-[rgba(99,102,241,0.12)]'
-            : 'border-[#FAFAFA]/12 bg-[#18181B] hover:border-[#FAFAFA]/25'
+            ? 'border-accent-primary bg-coral-light'
+            : 'border-border bg-bg-tertiary hover:border-border-hover'
         } ${uploading ? 'pointer-events-none opacity-70' : ''}`}
       >
         <input
@@ -125,24 +125,24 @@ export default function VideoUploader({ onUploadComplete }: VideoUploaderProps) 
 
         {uploading ? (
           <>
-            <div className="w-12 h-12 rounded-full border-[3px] border-[#18181B] border-t-[#6366F1] animate-spin" />
-            <p className="font-body text-[13px] text-[#A1A1AA]">
+            <div className="w-12 h-12 rounded-full border-[3px] border-[#18181B] border-t-[#E07A5F] animate-spin" />
+            <p className="font-body text-[13px] text-text-tertiary">
               Uploading {fileName}...
             </p>
-            <div className="w-full max-w-xs h-1.5 bg-[#27272A] rounded-full overflow-hidden">
+            <div className="w-full max-w-xs h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
               <div
-                className="h-full bg-[#6366F1] rounded-full transition-all duration-300"
+                className="h-full bg-accent-primary rounded-full transition-all duration-300"
                 style={{ width: `${progress}%` }}
               />
             </div>
-            <span className="font-body text-[11px] text-[#71717A]">
+            <span className="font-body text-[11px] text-text-secondary">
               {progress}%
             </span>
           </>
         ) : progress === 100 ? (
           <>
             <CheckCircle className="w-10 h-10 text-[#10B981]" />
-            <p className="font-body text-[13px] text-[#A1A1AA]">
+            <p className="font-body text-[13px] text-text-tertiary">
               {fileName} uploaded successfully
             </p>
             <button
@@ -150,19 +150,19 @@ export default function VideoUploader({ onUploadComplete }: VideoUploaderProps) 
                 e.stopPropagation();
                 reset();
               }}
-              className="font-body text-[12px] text-[#6366F1] hover:underline"
+              className="font-body text-[12px] text-accent-primary hover:underline"
             >
               Upload another
             </button>
           </>
         ) : (
           <>
-            <Upload className="w-8 h-8 text-[#71717A]" />
+            <Upload className="w-8 h-8 text-text-secondary" />
             <div className="text-center">
-              <p className="font-body text-[13px] text-[#FAFAFA] font-medium">
+              <p className="font-body text-[13px] text-text-primary font-medium">
                 Drag and drop a video file here
               </p>
-              <p className="font-body text-[12px] text-[#71717A] mt-1">
+              <p className="font-body text-[12px] text-text-secondary mt-1">
                 or click to browse. MP4, MOV, WebM accepted.
               </p>
             </div>
@@ -171,8 +171,8 @@ export default function VideoUploader({ onUploadComplete }: VideoUploaderProps) 
       </div>
 
       {error && (
-        <div className="flex items-center gap-2 bg-[rgba(99,102,241,0.12)] border-[0.5px] border-[#6366F1]/20 rounded-md px-3 py-2">
-          <X className="w-4 h-4 text-[#6366F1] flex-shrink-0" />
+        <div className="flex items-center gap-2 bg-coral-light border border-accent-primary/20 rounded-md px-3 py-2">
+          <X className="w-4 h-4 text-accent-primary flex-shrink-0" />
           <p className="font-body text-[12px] text-[#4338CA]">{error}</p>
         </div>
       )}

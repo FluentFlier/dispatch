@@ -3,71 +3,148 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #09090B;
-  --bg-secondary: #18181B;
-  --bg-tertiary: #27272A;
-  --text-primary: #FAFAFA;
-  --text-secondary: #A1A1AA;
-  --text-tertiary: #71717A;
-  --border-default: rgba(255, 255, 255, 0.08);
-  --border-hover: rgba(255, 255, 255, 0.16);
-  --border-active: rgba(255, 255, 255, 0.28);
-  --accent: #818CF8;
-  --accent-light: rgba(99, 102, 241, 0.12);
-  --accent-dark: #6366F1;
+  --bg-primary: #faf7f2;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #f3ede4;
+  --text-primary: #1c1917;
+  --text-secondary: #57534e;
+  --text-tertiary: #78716c;
+  --border-default: rgba(28, 25, 23, 0.1);
+  --border-hover: rgba(28, 25, 23, 0.18);
+  --accent: #e07a5f;
+  --accent-light: rgba(224, 122, 95, 0.14);
+  --accent-dark: #c45c48;
+  --sage: #3d8b7a;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
-  font-size: 13px;
+  font-size: 15px;
   line-height: 1.55;
 }
 
-h1, h2, h3, h4, h5, h6, .font-display, .font-heading {
-  font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-  line-height: 1.15;
-}
-
-::selection {
-  background: rgba(99, 102, 241, 0.25);
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'DM Sans', system-ui, sans-serif;
+  line-height: 1.2;
+  letter-spacing: -0.02em;
   color: var(--text-primary);
 }
 
-::-webkit-scrollbar { width: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--border-default); border-radius: 2px; }
-::-webkit-scrollbar-thumb:hover { background: var(--border-hover); }
+::selection {
+  background: rgba(224, 122, 95, 0.25);
+  color: var(--text-primary);
+}
 
-textarea:focus, input:focus, select:focus {
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+
+textarea:focus,
+input:focus,
+select:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.15);
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+@layer components {
+  .page-shell {
+    @apply max-w-3xl mx-auto space-y-6 pt-1 pb-8;
+  }
+
+  .page-shell-wide {
+    @apply max-w-5xl mx-auto space-y-6 pt-1 pb-8;
+  }
+
+  .page-title {
+    @apply text-2xl font-semibold text-text-primary tracking-tight;
+  }
+
+  .page-subtitle {
+    @apply mt-1 text-[15px] text-text-secondary leading-relaxed;
+  }
+
+  .card-surface {
+    @apply rounded-lg border border-border bg-bg-secondary p-4 shadow-card;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 min-h-[48px] px-5 rounded-md text-[15px] font-semibold text-text-inverse bg-accent-primary hover:bg-accent-dark transition-colors shadow-soft disabled:opacity-50 disabled:pointer-events-none;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 min-h-[48px] px-5 rounded-md text-[15px] font-medium text-text-primary bg-bg-secondary border border-border hover:bg-bg-tertiary transition-colors disabled:opacity-50;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-md text-sm font-medium text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors;
+  }
+
+  .field-label {
+    @apply block text-sm font-medium text-text-primary mb-1.5;
+  }
+
+  .field-hint {
+    @apply text-xs text-text-tertiary mt-1;
+  }
+
+  .select-field {
+    @apply w-full min-h-[48px] appearance-none bg-bg-secondary border border-border rounded-md px-3 py-2 text-[15px] text-text-primary cursor-pointer transition-colors;
+  }
+
+  .chip {
+    @apply inline-flex items-center px-3 py-1.5 rounded-badge text-xs font-medium min-h-[32px];
+  }
 }
 
 @keyframes slide-in-right {
-  from { transform: translateX(100%); }
-  to { transform: translateX(0); }
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
 }
 
 .animate-slide-in {
-  animation: slide-in-right 0.15s ease-out;
+  animation: slide-in-right 0.2s ease-out;
 }
 
 @keyframes pulse-skeleton {
-  0%, 100% { opacity: 0.3; }
-  50% { opacity: 0.5; }
+  0%,
+  100% {
+    opacity: 0.45;
+  }
+  50% {
+    opacity: 0.75;
+  }
 }
 
 .animate-skeleton {
   animation: pulse-skeleton 1.5s ease-in-out infinite;
 }
 
-/* Utility to hide scrollbar while keeping scroll functionality */
 .scrollbar-hide {
   -ms-overflow-style: none;
   scrollbar-width: none;

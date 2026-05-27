@@ -4,7 +4,7 @@ import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import { Skeleton } from './Skeleton';
 
 type Variant = 'primary' | 'secondary' | 'ghost';
-type Size = 'sm' | 'md';
+type Size = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant;
@@ -15,16 +15,17 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<Variant, string> = {
   primary:
-    'bg-[#6366F1] text-white border-0 hover:opacity-90',
+    'bg-accent-primary text-text-inverse border border-transparent shadow-soft hover:bg-accent-dark',
   secondary:
-    'bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] text-[#FAFAFA] hover:bg-[#27272A]',
+    'bg-bg-secondary border border-border text-text-primary hover:bg-bg-tertiary',
   ghost:
-    'bg-transparent border-[0.5px] border-[rgba(255,255,255,0.12)] text-[#A1A1AA] hover:bg-[#27272A]',
+    'bg-transparent border border-transparent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary',
 };
 
 const sizeStyles: Record<Size, string> = {
-  sm: 'px-[14px] py-[7px] text-[13px]',
-  md: 'px-5 py-[10px] text-[13px]',
+  sm: 'px-3 py-2 text-sm min-h-[40px]',
+  md: 'px-5 py-2.5 text-[15px] min-h-[44px]',
+  lg: 'px-6 py-3.5 text-base min-h-[52px] font-semibold',
 };
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
@@ -40,13 +41,11 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref,
   ) => {
-    const padding = variant === 'primary' ? sizeStyles[size] : sizeStyles.sm;
-
     return (
       <button
         ref={ref}
         disabled={disabled || loading}
-        className={`inline-flex items-center justify-center gap-2 rounded-[7px] font-body font-medium transition-all duration-100 disabled:opacity-50 disabled:pointer-events-none ${variantStyles[variant]} ${padding} ${className}`}
+        className={`inline-flex items-center justify-center gap-2 rounded-md font-body font-medium transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
         {...rest}
       >
         {loading && <Skeleton className="h-4 w-4 rounded" />}

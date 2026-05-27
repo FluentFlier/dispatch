@@ -5,10 +5,6 @@ import {
   Layers,
   CheckCircle2,
   Flame,
-  Wand2,
-  BookOpen,
-  PlusCircle,
-  Lightbulb,
   ArrowRight,
   Link2,
   AlertCircle,
@@ -20,11 +16,13 @@ import { PILLAR_COLORS, STATUS_BADGE, STATUS_LABELS } from '@/lib/constants';
 
 /** Resolve a pillar color with graceful fallback for custom pillars. */
 function getPillarColor(pillar: string): string {
-  return PILLAR_COLORS[pillar as Pillar] ?? '#71717A';
+  return PILLAR_COLORS[pillar as Pillar] ?? '#78716C';
 }
 import { formatDateShort, formatRelative } from '@/lib/utils';
 import TodaysPrompt from '@/components/dashboard/TodaysPrompt';
 import NeedsAttention, { type AttentionItem } from '@/components/dashboard/NeedsAttention';
+import { CreatorBrainCard } from '@/components/dashboard/CreatorBrainCard';
+import { QuickActions } from '@/components/dashboard/QuickActions';
 import { getUserEntitlements } from '@/lib/entitlements';
 
 // ---------------------------------------------------------------------------
@@ -67,7 +65,7 @@ function computeStreak(postedDates: string[]): number {
 }
 
 const PRIORITY_COLORS: Record<Priority, string> = {
-  high: '#6366F1',
+  high: '#E07A5F',
   medium: '#F59E0B',
   low: '#5A5047',
 };
@@ -83,10 +81,17 @@ export default async function DashboardPage() {
   if (!uid) {
     // No server-side auth -- show welcome state
     return (
-      <div className="max-w-5xl mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center">
-        <h2 className="font-display font-[700] text-[20px] text-text-primary mb-2">Welcome to Dispatch</h2>
-        <p className="text-[14px] text-text-secondary mb-6 max-w-md">Your dashboard will populate once you start creating content. Use the Generate tab to get started.</p>
-        <a href="/generate" className="px-5 py-2.5 rounded-lg text-[13px] font-semibold text-white bg-coral hover:bg-coral-dark transition-all">Start Generating</a>
+      <div className="max-w-lg mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+        <h2 className="text-2xl font-semibold text-text-primary mb-2">Welcome to Dispatch</h2>
+        <p className="text-[15px] text-text-secondary mb-6 leading-relaxed">
+          Write in your voice, schedule posts, and reply to comments — all in one place.
+        </p>
+        <a
+          href="/generate"
+          className="inline-flex items-center justify-center min-h-[48px] px-6 rounded-md text-[15px] font-semibold text-text-inverse bg-accent-primary hover:bg-accent-dark transition-colors shadow-soft"
+        >
+          Write your first post
+        </a>
       </div>
     );
   }
@@ -189,20 +194,30 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
-      {/* Greeting */}
-      <h1 className="font-display font-[800] text-[21px] text-[#FAFAFA] tracking-[-0.02em] leading-[1.2] pt-2">
-        {creatorProfile?.display_name ? `Hey ${creatorProfile.display_name.split(' ')[0]}, what are we shipping?` : 'What are we building today?'}
-      </h1>
+    <div className="max-w-3xl mx-auto space-y-6">
+      <header className="pt-1">
+        <h1 className="text-2xl font-semibold text-text-primary tracking-tight">
+          {creatorProfile?.display_name
+            ? `Hi, ${creatorProfile.display_name.split(' ')[0]}`
+            : 'Home'}
+        </h1>
+        <p className="mt-1 text-[15px] text-text-secondary">
+          What would you like to do today?
+        </p>
+      </header>
+
+      <QuickActions />
 
       <NeedsAttention items={attentionItems} />
 
+      <CreatorBrainCard />
+
       {/* Setup checklist -- only show if setup is incomplete */}
       {!setupComplete && (
-        <section className="bg-[#09090B] border-[0.5px] border-[rgba(129,140,248,0.25)] rounded-[12px] p-4">
+        <section className="rounded-lg border border-border bg-bg-secondary p-4 shadow-card">
           <div className="flex items-center gap-2 mb-3">
-            <AlertCircle size={14} className="text-[#818CF8]" />
-            <span className="text-[12px] font-medium text-[#FAFAFA]">Finish setting up to unlock publishing</span>
+            <AlertCircle size={16} className="text-accent-primary shrink-0" />
+            <span className="text-sm font-medium text-text-primary">Finish setup to publish</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <SetupStep done={hasProfile} label="Set up profile" href="/settings" />
@@ -215,21 +230,26 @@ export default async function DashboardPage() {
       {/* Connection status */}
       {hasConnections && (
         <div className="flex items-center gap-2 flex-wrap">
-          <Link2 size={12} className="text-[#52525B]" />
+          <Link2 size={14} className="text-text-tertiary" />
           {allPlatforms.map((p) => {
             const connected = connectedPlatforms.includes(p);
             return (
-              <span key={p} className={`text-[10px] font-medium px-2 py-0.5 rounded-[3px] capitalize ${
-                connected
-                  ? 'bg-[rgba(16,185,129,0.12)] text-[#10B981]'
-                  : 'bg-[#18181B] text-[#52525B]'
-              }`}>
+              <span
+                key={p}
+                className={`text-xs font-medium px-2.5 py-1 rounded-badge capitalize ${
+                  connected
+                    ? 'bg-sage-light text-accent-secondary'
+                    : 'bg-bg-tertiary text-text-tertiary'
+                }`}
+              >
                 {p === 'twitter' ? 'X' : p}
               </span>
             );
           })}
           {connectedPlatforms.length < 4 && (
-            <Link href="/settings" className="text-[10px] text-[#818CF8] hover:text-[#A5B4FC] transition-colors">+ connect more</Link>
+            <Link href="/settings" className="text-xs text-accent-primary hover:text-accent-dark font-medium">
+              + connect more
+            </Link>
           )}
         </div>
       )}
@@ -245,33 +265,36 @@ export default async function DashboardPage() {
       {/* Middle row: Up Next + Today's Prompt */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         {/* Up Next */}
-        <section className="bg-[#09090B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-[13px_14px]">
-          <SectionLabel>UP NEXT</SectionLabel>
+        <section className="rounded-lg border border-border bg-bg-secondary p-4 shadow-card">
+          <SectionLabel>Coming up</SectionLabel>
           {upNext.length === 0 ? (
-            <p className="font-body text-[13px] text-[#71717A]">Nothing scheduled. Time to plan some content.</p>
+            <p className="text-sm text-text-secondary">Nothing scheduled yet.</p>
           ) : (
             <ul className="space-y-2">
               {upNext.map((post) => (
                 <li key={post.id}>
-                  <Link href="/library" className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-3 group min-h-[44px] py-1">
+                  <Link
+                    href="/library"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 group min-h-[44px] py-2 px-2 -mx-2 rounded-md hover:bg-bg-tertiary transition-colors"
+                  >
                     <div className="flex items-center gap-3 min-w-0">
                       <span
-                        className="inline-block w-[3px] h-8 rounded-r-[2px] shrink-0"
+                        className="inline-block w-1 h-8 rounded-full shrink-0"
                         style={{ backgroundColor: getPillarColor(post.pillar) }}
                       />
-                      <span className="font-body text-[13px] font-medium text-[#FAFAFA] truncate group-hover:text-[#6366F1] transition-colors duration-100">
+                      <span className="text-sm font-medium text-text-primary truncate group-hover:text-accent-primary transition-colors">
                         {post.title}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-6 sm:ml-0">
-                      <span className="font-body text-[10px] font-medium text-[#71717A] bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[3px] px-[7px] py-[2px] capitalize tracking-[0.05em]">
+                    <div className="flex items-center gap-2 shrink-0 ml-4 sm:ml-0">
+                      <span className="text-xs text-text-tertiary bg-bg-tertiary px-2 py-0.5 rounded-badge capitalize">
                         {post.platform}
                       </span>
-                      <span className={`inline-flex items-center px-[7px] py-[2px] rounded-[3px] font-body text-[10px] font-medium tracking-[0.01em] ${STATUS_BADGE[post.status]}`}>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-badge text-xs font-medium ${STATUS_BADGE[post.status]}`}>
                         {STATUS_LABELS[post.status]}
                       </span>
                       {post.scheduled_date && (
-                        <span className="font-body text-[11px] text-[#71717A]">{formatDateShort(post.scheduled_date)}</span>
+                        <span className="text-xs text-text-tertiary">{formatDateShort(post.scheduled_date)}</span>
                       )}
                     </div>
                   </Link>
@@ -286,30 +309,30 @@ export default async function DashboardPage() {
       </div>
 
       {/* Backlog */}
-      <section className="bg-[#09090B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-[13px_14px]">
+      <section className="rounded-lg border border-border bg-bg-secondary p-4 shadow-card">
         <div className="flex items-center justify-between mb-3">
-          <SectionLabel className="mb-0">BACKLOG</SectionLabel>
-          <Link href="/ideas" className="font-body text-[11px] text-[#71717A] hover:text-[#6366F1] transition-colors duration-100 flex items-center gap-1">
-            View all <ArrowRight size={12} />
+          <SectionLabel className="mb-0">Ideas to write</SectionLabel>
+          <Link href="/ideas" className="text-xs text-accent-primary hover:text-accent-dark font-medium flex items-center gap-1 min-h-[44px]">
+            See all <ArrowRight size={14} />
           </Link>
         </div>
         {backlog.length === 0 ? (
-          <p className="font-body text-[13px] text-[#71717A]">Nothing queued. Add an idea before you forget it.</p>
+          <p className="text-sm text-text-secondary">No ideas saved yet.</p>
         ) : (
           <ul className="space-y-2">
             {backlog.map((idea) => (
-              <li key={idea.id} className="flex items-center justify-between gap-3">
+              <li key={idea.id} className="flex items-center justify-between gap-3 py-1">
                 <div className="flex items-center gap-3 min-w-0">
                   <span
-                    className="inline-block w-[6px] h-[6px] rounded-full shrink-0"
+                    className="inline-block w-2 h-2 rounded-full shrink-0"
                     style={{ backgroundColor: getPillarColor(idea.pillar) }}
                   />
-                  <span className="font-body text-[13px] text-[#FAFAFA] truncate">{idea.idea}</span>
+                  <span className="text-sm text-text-primary truncate">{idea.idea}</span>
                 </div>
                 <span
-                  className="inline-flex items-center px-[7px] py-[2px] rounded-[3px] font-body text-[10px] font-medium capitalize shrink-0 tracking-[0.01em]"
+                  className="inline-flex items-center px-2 py-0.5 rounded-badge text-xs font-medium capitalize shrink-0"
                   style={{
-                    backgroundColor: `${PRIORITY_COLORS[idea.priority]}20`,
+                    backgroundColor: `${PRIORITY_COLORS[idea.priority]}18`,
                     color: PRIORITY_COLORS[idea.priority],
                   }}
                 >
@@ -321,38 +344,27 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      {/* Quick Actions */}
-      <section>
-        <SectionLabel>QUICK ACTIONS</SectionLabel>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <QuickAction href="/generate" icon={Wand2} label="Generate Script" />
-          <QuickAction href="/generate?tab=story-mine" icon={BookOpen} label="Mine a Story" />
-          <QuickAction href="/library?action=new" icon={PlusCircle} label="Log a Post" />
-          <QuickAction href="/ideas" icon={Lightbulb} label="Add Idea" />
-        </div>
-      </section>
-
       {/* Recent Activity */}
-      <section className="bg-[#09090B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-[13px_14px]">
-        <SectionLabel>RECENT ACTIVITY</SectionLabel>
+      <section className="rounded-lg border border-border bg-bg-secondary p-4 shadow-card">
+        <SectionLabel>Recent</SectionLabel>
         {recentActivity.length === 0 ? (
-          <p className="font-body text-[13px] text-[#71717A]">No recent activity.</p>
+          <p className="text-sm text-text-secondary">Your latest posts will show here.</p>
         ) : (
           <ul className="space-y-2">
             {recentActivity.map((post) => (
-              <li key={post.id} className="flex items-center justify-between gap-3">
+              <li key={post.id} className="flex items-center justify-between gap-3 py-1">
                 <div className="flex items-center gap-3 min-w-0">
                   <span
-                    className="inline-block w-[6px] h-[6px] rounded-full shrink-0"
+                    className="inline-block w-2 h-2 rounded-full shrink-0"
                     style={{ backgroundColor: getPillarColor(post.pillar) }}
                   />
-                  <span className="font-body text-[13px] text-[#FAFAFA] truncate">{post.title}</span>
+                  <span className="text-sm text-text-primary truncate">{post.title}</span>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span className={`inline-flex items-center px-[7px] py-[2px] rounded-[3px] font-body text-[10px] font-medium tracking-[0.01em] ${STATUS_BADGE[post.status]}`}>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-badge text-xs font-medium ${STATUS_BADGE[post.status]}`}>
                     {STATUS_LABELS[post.status]}
                   </span>
-                  <span className="font-body text-[11px] text-[#71717A]">{formatRelative(post.updated_at)}</span>
+                  <span className="text-xs text-text-tertiary">{formatRelative(post.updated_at)}</span>
                 </div>
               </li>
             ))}
@@ -369,7 +381,7 @@ export default async function DashboardPage() {
 
 function SectionLabel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return (
-    <p className={`font-body font-medium text-[10px] uppercase tracking-[0.10em] text-[#71717A] mb-3 ${className}`}>
+    <p className={`text-xs font-semibold uppercase tracking-wide text-text-tertiary mb-3 ${className}`}>
       {children}
     </p>
   );
@@ -387,35 +399,13 @@ function StatCard({
   accent?: boolean;
 }) {
   return (
-    <div className="bg-[#09090B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-[13px_14px]">
+    <div className="rounded-lg border border-border bg-bg-secondary p-4 shadow-card">
       <div className="flex items-center gap-3 mb-1">
-        <Icon size={16} className="text-[#71717A]" />
-        <span className={`font-body text-[22px] font-medium ${accent ? 'text-[#6366F1]' : 'text-[#FAFAFA]'}`}>{value}</span>
+        <Icon size={18} className="text-text-tertiary" />
+        <span className={`text-2xl font-semibold ${accent ? 'text-accent-primary' : 'text-text-primary'}`}>{value}</span>
       </div>
-      <p className="font-body text-[11px] text-[#71717A]">{label}</p>
+      <p className="text-xs text-text-secondary">{label}</p>
     </div>
-  );
-}
-
-function QuickAction({
-  href,
-  icon: Icon,
-  label,
-}: {
-  href: string;
-  icon: LucideIcon;
-  label: string;
-}) {
-  return (
-    <Link
-      href={href}
-      className="flex flex-col items-center justify-center gap-2 bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] p-[10px_14px] min-h-[56px] hover:border-[rgba(255,255,255,0.25)] transition-colors duration-100 group"
-    >
-      <Icon size={18} className="text-[#71717A] group-hover:text-[#A1A1AA] transition-colors duration-100" />
-      <span className="font-body text-[11px] text-[#A1A1AA] group-hover:text-[#FAFAFA] transition-colors duration-100 text-center">
-        {label}
-      </span>
-    </Link>
   );
 }
 
@@ -423,19 +413,19 @@ function SetupStep({ done, label, href }: { done: boolean; label: string; href: 
   return (
     <Link
       href={href}
-      className={`flex items-center gap-2 px-3 py-2.5 rounded-[7px] text-[12px] transition-colors ${
+      className={`flex items-center gap-2 px-3 py-3 rounded-md text-sm transition-colors min-h-[44px] ${
         done
-          ? 'bg-[rgba(16,185,129,0.08)] text-[#10B981]'
-          : 'bg-[#18181B] text-[#A1A1AA] hover:bg-[#27272A]'
+          ? 'bg-sage-light text-accent-secondary'
+          : 'bg-bg-tertiary text-text-secondary hover:bg-border'
       }`}
     >
       {done ? (
-        <CheckCircle2 size={14} className="text-[#10B981] shrink-0" />
+        <CheckCircle2 size={16} className="text-accent-secondary shrink-0" />
       ) : (
-        <span className="w-3.5 h-3.5 rounded-full border border-[#52525B] shrink-0" />
+        <span className="w-4 h-4 rounded-full border-2 border-border shrink-0" />
       )}
-      <span className={done ? 'line-through opacity-60' : ''}>{label}</span>
-      {!done && <ArrowRight size={12} className="ml-auto text-[#52525B]" />}
+      <span className={done ? 'line-through opacity-70' : ''}>{label}</span>
+      {!done && <ArrowRight size={14} className="ml-auto text-text-tertiary" />}
     </Link>
   );
 }

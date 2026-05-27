@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { generateContent, buildSystemPrompt } from '@/lib/claude';
-import type { CreatorProfileForPrompt } from '@/lib/claude';
-import { searchUserContext } from '@/lib/supermemory';
+import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { z } from 'zod';
 
 const AutoGenSchema = z.object({
@@ -35,40 +34,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { type, topic, platform, context } = parsed.data;
   const client = getServerClient();
 
-  // Load profile
-  let profile: CreatorProfileForPrompt | null = null;
-  try {
-    const { data: profileRow } = await client.database
-      .from('creator_profile')
-      .select('display_name, bio, content_pillars, voice_description, voice_rules')
-      .eq('user_id', user.id)
-      .single();
-
-    if (profileRow) {
-      profile = {
-        display_name: profileRow.display_name,
-        bio: profileRow.bio ?? undefined,
-        content_pillars: typeof profileRow.content_pillars === 'string'
-          ? JSON.parse(profileRow.content_pillars)
-          : profileRow.content_pillars,
-        voice_description: profileRow.voice_description ?? undefined,
-        voice_rules: profileRow.voice_rules ?? undefined,
-      };
-    }
-  } catch { /* no profile */ }
-
-  // Get Supermemory context if available
-  let memoryContext = '';
-  try {
-    if (topic) {
-      const results = await searchUserContext(user.id, topic, 3);
-      if (results.length > 0) {
-        memoryContext = `\n\nRelevant context from your memory:\n${results.map(r => r.content).filter(Boolean).join('\n---\n')}`;
-      }
-    }
-  } catch {
-    // Supermemory optional
-  }
+  const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {
+    memoryQuery: topic ?? context,
+  });
 
   // Check auto-publish setting
   const { data: autoPublishSetting } = await client.database
@@ -100,7 +68,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
 Topic: ${topic || 'Creator\'s choice based on their pillars'}
 ${context ? `Additional context: ${context}` : ''}
-${memoryContext}
 
 Platform rules: ${platformGuide[platform]}
 Content type: ${typeGuide[type]}
@@ -115,7 +82,13 @@ Return JSON:
 }`;
 
   try {
-    const systemPrompt = buildSystemPrompt(profile, `You are generating a ${type} post for ${platform}.`);
+    const taskContext = [
+      `You are generating a ${type} post for ${platform}.`,
+      contextAdditions,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    const systemPrompt = buildSystemPrompt(profile, taskContext);
     const result = await generateContent(prompt, undefined, systemPrompt, profile);
 
     const jsonMatch = result.match(/\{[\s\S]*\}/);
@@ -128,7 +101,7 @@ Return JSON:
     // Store in auto_generated_posts queue
     const { data: savedPost, error: saveError } = await client.database
       .from('posts')
-      .insert({
+      .insert([{
         user_id: user.id,
         title: generated.hook || topic || 'Auto-generated post',
         pillar: profile?.content_pillars?.[0]?.name || 'general',
@@ -147,7 +120,7 @@ Return JSON:
         }),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-      })
+      }])
       .select()
       .single();
 

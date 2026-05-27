@@ -1,0 +1,116 @@
+import { generateContent, buildSystemPrompt, type CreatorProfileForPrompt } from '@/lib/claude';
+import { humanize } from '@/lib/humanizer';
+import { evaluateDraft, evaluationPasses, type VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
+import { buildVoiceComposeHints } from '@/lib/voice-prompts';
+
+export interface VoicePipelineInput {
+  userPrompt: string;
+  profile: CreatorProfileForPrompt | null;
+  contextAdditions?: string;
+  systemOverride?: string;
+  platform?: string;
+  contentType?: 'post' | 'reply' | 'comment';
+  /** Skip critique/revise pass (faster, cheaper) */
+  fast?: boolean;
+  /** Max draft→evaluate→revise loops (Imagine uses until all metrics pass) */
+  maxIterations?: number;
+}
+
+export interface VoicePipelineResult {
+  text: string;
+  voice_match_score: number;
+  ai_score: number;
+  revised: boolean;
+  flags: string[];
+  evaluation?: VoiceEvaluationMatrix;
+  iterations: number;
+}
+
+function stripEmDashes(text: string): string {
+  return text.replace(/\u2014/g, ' - ').replace(/\u2013/g, '-');
+}
+
+/**
+ * End-to-end voice generation: draft → score → optional revise → humanize.
+ * Mirrors multi-step agent graphs (Imagine/LangGraph) without hosted graph infra.
+ */
+export async function generateWithVoicePipeline(
+  input: VoicePipelineInput,
+): Promise<VoicePipelineResult> {
+  const contentType = input.contentType ?? 'post';
+  const composeHints = buildVoiceComposeHints(input.platform, contentType);
+  const taskHint = input.platform
+    ? `Platform: ${input.platform}. Match native format and length.`
+    : undefined;
+  const mergedContext = [composeHints, taskHint, input.contextAdditions]
+    .filter(Boolean)
+    .join('\n\n');
+
+  const systemPrompt = input.systemOverride
+    ? `${input.systemOverride}\n\n${composeHints}`
+    : buildSystemPrompt(input.profile, mergedContext || undefined);
+
+  const maxIterations = input.maxIterations ?? 2;
+  let text = '';
+  let revised = false;
+  let evaluation: VoiceEvaluationMatrix | undefined;
+  let iterations = 0;
+
+  for (let i = 0; i < maxIterations; i++) {
+    iterations = i + 1;
+    const draftPrompt =
+      i === 0
+        ? input.userPrompt
+        : `Rewrite from scratch. Previous draft failed voice QA.
+
+ORIGINAL REQUEST:
+${input.userPrompt}
+
+REVISION NOTES:
+${evaluation?.revision_notes ?? 'Sound more like the creator. Less generic.'}
+
+Return ONLY the new text.`;
+
+    text = stripEmDashes(
+      await generateContent(draftPrompt, undefined, systemPrompt, input.profile),
+    );
+
+    if (input.fast) break;
+
+    evaluation = await evaluateDraft(
+      text,
+      input.profile,
+      mergedContext || undefined,
+      contentType,
+    );
+
+    if (evaluationPasses(evaluation)) break;
+    revised = i > 0;
+  }
+
+  if (!input.fast && evaluation && evaluation.ai_slop > 3) {
+    try {
+      text = stripEmDashes(await humanize(text, input.profile));
+    } catch {
+      // keep draft
+    }
+  }
+
+  const voice_match_score = evaluation
+    ? Math.round((evaluation.persona_fidelity / 10) * 100)
+    : 0;
+  const ai_score = evaluation ? evaluation.ai_slop * 10 : 0;
+  const flags: string[] = evaluation && !evaluation.pass
+    ? ['below_voice_threshold']
+  : [];
+
+  return {
+    text,
+    voice_match_score,
+    ai_score,
+    revised,
+    flags,
+    evaluation,
+    iterations,
+  };
+}
