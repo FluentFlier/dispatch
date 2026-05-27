@@ -15,7 +15,10 @@ import {
   Target,
   Users,
   TrendingUp,
+  Copy,
 } from "lucide-react";
+import { CopyButton } from "@/components/ui/CopyButton";
+import { bucketEngagers, type Engager } from "@/lib/hooks-intelligence/categorize";
 import { getInsforge } from "@/lib/insforge/client";
 import type { Post, HashtagSet, WeeklyReview } from "@/lib/types";
 import { usePillars } from "@/hooks/usePillars";
@@ -219,14 +222,16 @@ export default function AnalyticsPage() {
           ) : topHooks.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {topHooks.slice(0, 8).map((hook, idx) => (
-                <div key={idx} className="rounded-lg border border-border/70 bg-bg p-4 hover:border-accent-primary/40 transition-colors group">
-                  <div className="text-sm leading-snug text-text-primary line-clamp-3">“{hook.text}”</div>
+                <div key={idx} className="rounded-lg border border-border/70 bg-bg p-4 hover:border-accent-primary/40 transition-colors group flex flex-col">
+                  <div className="text-sm leading-snug text-text-primary line-clamp-3 flex-1">“{hook.text}”</div>
                   <div className="mt-3 flex items-center justify-between text-xs">
                     <div className="text-text-secondary">@{hook.author} • {hook.verticals?.[0] || 'general'}</div>
                     <div className="font-mono text-accent-primary font-semibold">{hook.score}</div>
                   </div>
-                  <div className="mt-2 text-[10px] text-text-tertiary opacity-70 group-hover:opacity-100">
-                    Use in your next post • Save to Creator Brain
+                  <div className="mt-2 flex items-center gap-2">
+                    <CopyButton text={hook.text} className="text-[10px] px-2 py-0.5" />
+                    <a href="/generate" className="text-[10px] text-accent-primary hover:underline">Use in Generate</a>
+                    <button onClick={() => alert('Saved to Creator Brain (demo)')} className="text-[10px] text-sage hover:underline">Save to Brain</button>
                   </div>
                 </div>
               ))}
@@ -256,12 +261,23 @@ export default function AnalyticsPage() {
           </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { label: 'ICP (Ideal Customers)', count: '12', color: 'text-coral', desc: 'Founders & decision makers' },
-              { label: 'Potential Leads', count: '28', color: 'text-amber-600', desc: 'Asking questions, high intent' },
-              { label: 'Community', count: '47', color: 'text-sage', desc: 'Creators & makers like you' },
-              { label: 'Other', count: '19', color: 'text-text-tertiary', desc: 'Casual engagers' },
-            ].map((bucket, i) => (
+            {(() => {
+              // Real categorize demo using our intelligence module (sample engagers from typical creator audience)
+              const sampleEngagers: Engager[] = [
+                { name: 'Alex Rivera', handle: '@alexbuilds', bio: 'Founder building in public', engagementType: 'comment' },
+                { name: 'Sam Chen', handle: '@samchen', bio: 'Indie maker, ex-Google', engagementType: 'like' },
+                { name: 'Jordan Lee', handle: '@jordanlee', bio: 'Content creator & writer', engagementType: 'comment' },
+                { name: 'Taylor Kim', handle: '@taylorkim', bio: 'CEO at early startup', engagementType: 'comment' },
+                { name: 'Morgan Ellis', handle: '@morganellis', bio: 'Designer who loves threads', engagementType: 'like' },
+              ];
+              const buckets = bucketEngagers(sampleEngagers, ['founder', 'ceo', 'builder', 'indie']);
+              return [
+                { label: 'ICP (Ideal Customers)', count: buckets.ICP.length, color: 'text-coral', desc: 'Founders & decision makers' },
+                { label: 'Potential Leads', count: buckets['Potential Lead'].length, color: 'text-amber-600', desc: 'Asking questions, high intent' },
+                { label: 'Community', count: buckets.Community.length, color: 'text-sage', desc: 'Creators & makers like you' },
+                { label: 'Other', count: buckets.Other.length, color: 'text-text-tertiary', desc: 'Casual engagers' },
+              ];
+            })().map((bucket, i) => (
               <div key={i} className="rounded-lg border border-border/60 p-4 bg-bg">
                 <div className={`text-3xl font-semibold tabular-nums ${bucket.color}`}>{bucket.count}</div>
                 <div className="font-medium text-sm mt-1">{bucket.label}</div>
