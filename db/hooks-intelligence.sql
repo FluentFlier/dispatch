@@ -1,5 +1,9 @@
 -- Hook Intelligence + Social Listening (persistent storage in InsForge)
--- Run: npx @insforge/cli db query "$(cat db/hooks-intelligence.sql)"
+-- To apply (run with service role key on your real InsForge project):
+-- npx @insforge/cli db query "$(cat db/hooks-intelligence.sql)"
+-- Then also apply production-delta.sql for voice/engagement/brain columns if not already done.
+--
+-- This enables real lead_categories persistence, snapshots, research_posts, etc. for the consumer analytics value.
 
 create table if not exists hook_examples (
   id text primary key,

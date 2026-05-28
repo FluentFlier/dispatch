@@ -19,7 +19,7 @@ import { addHooksToDataset } from '../src/lib/hooks-intelligence';
 import type { ExtractedHook, HookVertical } from '../src/lib/hooks-intelligence/types';
 const B = process.env.B || `${process.env.HOME}/.claude/skills/gstack/browse/dist/browse`;
 
-function extractPostsFromProfile(handle: string, max = 8): Array<{text: string, engagement?: any}> {
+function extractPostsFromProfile(handle: string, max = 20): Array<{text: string, engagement?: any}> {
   spawnSync(B, ['goto', `https://x.com/${handle}`], { encoding: 'utf8' });
   spawnSync('sleep', ['4']);  // More time for X JS render
 

@@ -304,7 +304,6 @@ export async function syncEngagementComments(
       engagementRate: Math.min(0.15, synced / 200),
       leadsGenerated: realLeadsGenerated || Math.floor(synced / 3),
       success: synced > 5,
-      categorized: recentComments ? 'real' : 'proxy',
     }] : [];
 
     if (signals.length) {
