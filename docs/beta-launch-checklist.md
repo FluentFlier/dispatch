@@ -30,3 +30,10 @@
 
 - Server events via `src/lib/analytics.ts` (set `ANALYTICS_WEBHOOK_URL` for forwarding)
 - Key events: `subscription_active`, `publish_failed`, `first_publish_success`, `upgrade_checkout_started`
+
+## Intelligence (advanced / post-beta)
+
+- [ ] Hook mining runs producing 100+ high-quality hooks
+- [ ] Research Lab and Generate suggestions surface real RAG hooks
+- [ ] Categorized lead analytics (ICP / Potential Leads) visible in Analytics
+- [ ] Continuous mining loop (`hooks:listen`) and bulk DB import working
