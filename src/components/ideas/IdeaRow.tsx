@@ -7,9 +7,9 @@ import type { Priority } from '@/lib/constants';
 import { usePillars } from '@/hooks/usePillars';
 
 const PRIORITY_STYLES: Record<Priority, { bg: string; text: string }> = {
-  high: { bg: 'rgba(99,102,241,0.12)', text: '#4338CA' },
+  high: { bg: 'rgba(224, 122, 95, 0.14)', text: '#C45C48' },
   medium: { bg: '#FAEEDA', text: '#854F0B' },
-  low: { bg: '#18181B', text: '#71717A' },
+  low: { bg: '#F3EDE4', text: '#78716C' },
 };
 
 interface IdeaRowProps {
@@ -47,7 +47,7 @@ export default function IdeaRow({
 
   return (
     <div
-      className={`group flex items-start gap-3 px-3 py-2.5 rounded-[7px] hover:bg-[#18181B] transition-colors ${
+      className={`group flex items-start gap-3 px-3 py-2.5 rounded-md hover:bg-bg-tertiary transition-colors ${
         idea.converted ? 'opacity-50' : ''
       }`}
     >
@@ -57,20 +57,20 @@ export default function IdeaRow({
         style={{
           backgroundColor:
             idea.priority === 'high'
-              ? '#6366F1'
+              ? '#E07A5F'
               : idea.priority === 'medium'
               ? '#F59E0B'
-              : '#71717A',
+              : '#78716C',
         }}
       />
 
       {/* Converted toggle */}
       <button
         onClick={onToggleConverted}
-        className={`mt-0.5 w-4 h-4 rounded border-[0.5px] shrink-0 transition-colors ${
+        className={`mt-0.5 w-4 h-4 rounded border shrink-0 transition-colors ${
           idea.converted
             ? 'bg-[#10B981] border-[#10B981]'
-            : 'border-[#FAFAFA]/12 hover:border-[#FAFAFA]/25'
+            : 'border-border hover:border-border-hover'
         }`}
         title={idea.converted ? 'Mark unconverted' : 'Mark converted'}
       >
@@ -102,7 +102,7 @@ export default function IdeaRow({
               }
               if (e.key === 'Escape') setEditing(false);
             }}
-            className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-2 py-0.5 text-[13px] text-[#FAFAFA] focus:outline-none focus:border-[#FAFAFA]/40 transition-colors"
+            className="w-full bg-bg-tertiary border border-border rounded-md px-2 py-0.5 text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors"
           />
         ) : (
           <p
@@ -110,7 +110,7 @@ export default function IdeaRow({
               setEditing(true);
               setEditText(idea.idea);
             }}
-            className={`text-[13px] text-[#FAFAFA] cursor-text leading-[1.55] ${
+            className={`text-[13px] text-text-primary cursor-text leading-[1.55] ${
               idea.converted ? 'line-through' : ''
             }`}
           >
@@ -149,7 +149,7 @@ export default function IdeaRow({
           onClick={onConvertToScript}
           disabled={converting}
           title="Convert to Script"
-          className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-[7px] text-[#71717A] hover:text-[#534AB7] hover:bg-[#EEEDFE] transition-colors disabled:animate-pulse"
+          className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md text-text-secondary hover:text-accent-primary hover:bg-coral-light transition-colors disabled:animate-pulse"
         >
           <Wand2 size={15} />
         </button>
@@ -160,7 +160,7 @@ export default function IdeaRow({
               onDelete();
               setConfirmDelete(false);
             }}
-            className="px-3 py-2 min-h-[44px] rounded-[3px] text-[10px] font-medium bg-[rgba(99,102,241,0.12)] text-[#6366F1] hover:opacity-80 transition-opacity"
+            className="px-3 py-2 min-h-[44px] rounded-[3px] text-[10px] font-medium bg-coral-light text-accent-primary hover:opacity-80 transition-opacity"
           >
             Confirm
           </button>
@@ -168,7 +168,7 @@ export default function IdeaRow({
           <button
             onClick={() => setConfirmDelete(true)}
             title="Delete"
-            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-[7px] text-[#71717A] hover:text-[#6366F1] hover:bg-[rgba(99,102,241,0.12)] transition-colors"
+            className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md text-text-secondary hover:text-accent-primary hover:bg-coral-light transition-colors"
           >
             <Trash2 size={15} />
           </button>

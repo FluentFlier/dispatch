@@ -57,7 +57,7 @@ No em dashes.`;
   return (
     <div className="space-y-5">
       <div>
-        <label className="block font-body text-[13px] text-[#A1A1AA] mb-2">
+        <label className="block font-body text-[13px] text-text-tertiary mb-2">
           Trending topic or moment
         </label>
         <textarea
@@ -65,7 +65,7 @@ No em dashes.`;
           onChange={(e) => setTrend(e.target.value)}
           rows={4}
           placeholder="Describe a trending topic in tech, culture, or your space..."
-          className="w-full bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-4 py-3 font-body text-[13px] text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[rgba(255,255,255,0.40)] resize-none transition-colors duration-100"
+          className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover resize-none transition-colors duration-100"
         />
       </div>
 
@@ -77,7 +77,7 @@ No em dashes.`;
         Find My Angle
       </Button>
 
-      {error && <p className="font-body text-[13px] text-[#6366F1]">{error}</p>}
+      {error && <p className="font-body text-[13px] text-accent-primary">{error}</p>}
 
       <GenerateOutput text={output} loading={loading} />
     </div>

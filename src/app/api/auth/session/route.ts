@@ -6,7 +6,7 @@ import { getUserEntitlements } from '@/lib/entitlements';
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) {
-    return NextResponse.json({ authenticated: false }, { status: 401 });
+    return NextResponse.json({ authenticated: false });
   }
 
   const entitlements = await getUserEntitlements(user.id);

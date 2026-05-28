@@ -37,7 +37,8 @@ function useSpotlight() {
 }
 
 const features = [
-  { tag: 'GENERATE', title: 'AI that writes like you', desc: 'Eight tools trained on your voice, pillars, and background. Scripts, hooks, captions, replies, repurposing.' },
+  { tag: 'COMMENTS', title: 'Reply without the tab chaos', desc: 'Comments on your posts land in one inbox. AI drafts replies in your voice — you review and send.' },
+  { tag: 'GENERATE', title: 'AI that writes like you', desc: 'Scripts, hooks, captions, and repurposing — with voice quality scores before you publish.' },
   { tag: 'ORGANIZE', title: 'Pipeline, not chaos', desc: 'Every post tracked from idea to posted. Pillar tags, status badges, bulk actions, and full-text search.' },
   { tag: 'SCHEDULE', title: 'Calendar with drag-and-drop', desc: 'Drag posts onto days. AI fills your week. Visual gaps show where momentum breaks.' },
   { tag: 'PUBLISH', title: 'Four platforms, one click', desc: 'X, LinkedIn, Instagram, Threads. OAuth connect, platform formatting, token refresh built in.' },
@@ -59,25 +60,10 @@ export default function LandingPageContent({ loggedIn }: Props) {
         @keyframes beam { from { transform: translateY(-100%) rotate(15deg); opacity: 0; } 50% { opacity: 1; } to { transform: translateY(200%) rotate(15deg); opacity: 0; } }
       `}</style>
 
-      {/* Dot grid */}
-      <div className="fixed inset-0 pointer-events-none z-0" style={{ backgroundImage: 'radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
-
-      {/* Aurora blobs */}
-      <div className="fixed inset-0 pointer-events-none z-[1] overflow-hidden">
-        <div className="absolute -top-[200px] left-[10%] w-[600px] h-[600px] rounded-full opacity-[0.12]" style={{ background: 'radial-gradient(circle, #6366F1, transparent 70%)', filter: 'blur(100px)', animation: 'float1 12s ease-in-out infinite alternate' }} />
-        <div className="absolute top-[40%] -right-[100px] w-[500px] h-[500px] rounded-full opacity-[0.08]" style={{ background: 'radial-gradient(circle, #8B5CF6, transparent 70%)', filter: 'blur(120px)', animation: 'float2 15s ease-in-out infinite alternate' }} />
-      </div>
-
-      {/* Grain */}
-      <div className="fixed inset-0 pointer-events-none z-[2] opacity-[0.035]" style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")` }} />
-
-      {/* Cursor spotlight */}
-      <div className="fixed inset-0 pointer-events-none z-[3]" style={{ background: 'radial-gradient(800px circle at var(--mx, 50%) var(--my, 50%), rgba(99,102,241,0.07), transparent 50%)' }} />
-
       <div className="relative z-10">
         {/* Nav */}
         <nav className="flex items-center justify-between px-6 sm:px-10 py-5 max-w-6xl mx-auto">
-          <span className="font-display font-[800] text-[15px] tracking-[0.2em] text-text-primary">DISPATCH</span>
+          <span className="font-semibold text-[15px] tracking-[0.2em] text-text-primary">DISPATCH</span>
           <div className="flex items-center gap-4">
             {loggedIn ? (
               <Link href="/dashboard" className="px-5 py-2 text-[13px] font-semibold rounded-md bg-text-primary text-bg-primary hover:opacity-90 transition-all">Dashboard</Link>
@@ -92,63 +78,51 @@ export default function LandingPageContent({ loggedIn }: Props) {
 
         {/* Hero */}
         <section className="pt-24 sm:pt-36 pb-28 px-6 sm:px-10 max-w-5xl mx-auto">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[2px] h-[400px] overflow-hidden pointer-events-none opacity-40">
-            <div className="w-full h-[120px]" style={{ background: 'linear-gradient(to bottom, transparent, #818CF8, transparent)', animation: 'beam 4s ease-in-out infinite' }} />
+          <div className="w-24 h-1 mb-10 rounded-full bg-gradient-to-r from-accent-primary to-accent-secondary" />
+
+          <h1 className="font-semibold tracking-tight text-text-primary leading-[1.05]" style={{ fontSize: 'clamp(40px, 7vw, 72px)' }}>
+            Your content,<br />
+            <span className="text-accent-primary">in one place.</span>
+          </h1>
+
+          <p className="mt-6 max-w-lg text-[17px] text-text-secondary leading-relaxed">
+            Write in your voice, schedule posts, and reply to comments — without jumping between apps. Built to be simple.
+          </p>
+
+          <div className="flex flex-wrap items-center gap-3 mt-9">
+            <Link href="/login"
+              className="group relative inline-flex items-center gap-2 px-7 py-3.5 min-h-[52px] text-[15px] font-semibold rounded-md bg-accent-primary text-text-inverse overflow-hidden transition-all hover:bg-accent-dark active:scale-[0.98] shadow-soft">
+              <span className="relative">Get started free</span>
+              <svg className="relative w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
+            </Link>
+            <Link href="#features" className="px-6 py-3.5 text-[14px] text-text-tertiary hover:text-text-primary transition-colors">See features &darr;</Link>
           </div>
-          <div className="w-[200px] h-[1px] mb-12" style={{ background: 'linear-gradient(90deg, #818CF8, transparent)' }} />
 
-          <Fade delay={80}>
-            <h1 className="font-display font-[800] tracking-[-0.04em] text-text-primary leading-[1.02]" style={{ fontSize: 'clamp(44px, 8vw, 80px)' }}>
-              Your content,<br />
-              <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #818CF8 0%, #C084FC 50%, #22D3EE 100%)' }}>dispatched.</span>
-            </h1>
-          </Fade>
-
-          <Fade delay={180}>
-            <p className="mt-7 max-w-lg text-[17px] text-text-secondary leading-relaxed">
-              The command center for creators who ship. AI writing, content pipeline, scheduling, and multi-platform publishing -- one workspace.
-            </p>
-          </Fade>
-
-          <Fade delay={280}>
-            <div className="flex flex-wrap items-center gap-3 mt-9">
-              <Link href="/login"
-                className="group relative inline-flex items-center gap-2 px-7 py-3.5 text-[14px] font-semibold rounded-lg bg-text-primary text-bg-primary overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98]">
-                <span className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(110deg, transparent 30%, rgba(99,102,241,0.15) 50%, transparent 70%)', backgroundSize: '200% 100%', animation: 'shimmer 3s infinite' }} />
-                <span className="relative">Start creating</span>
-                <svg className="relative w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-              </Link>
-              <Link href="#features" className="px-6 py-3.5 text-[14px] text-text-tertiary hover:text-text-primary transition-colors">See features &darr;</Link>
-            </div>
-          </Fade>
-
-          <Fade delay={420}>
-            <div className="flex items-center gap-12 sm:gap-16 mt-24 pt-8 border-t border-border">
-              {[{ n: '8', l: 'AI writing tools' }, { n: '4', l: 'Platforms' }, { n: '5', l: 'Pipeline stages' }, { n: '<1m', l: 'Setup time' }].map((s, i) => (
-                <div key={i}>
-                  <div className="font-display font-[800] text-[36px] text-text-primary leading-none">{s.n}</div>
-                  <div className="text-[11px] text-text-secondary tracking-[0.1em] uppercase mt-1">{s.l}</div>
-                </div>
-              ))}
-            </div>
-          </Fade>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-8 mt-24 pt-8 border-t border-border">
+            {[{ n: '8', l: 'AI writing tools' }, { n: '4', l: 'Platforms' }, { n: '5', l: 'Pipeline stages' }, { n: '<1m', l: 'Setup time' }].map((s, i) => (
+              <div key={i}>
+                <div className="font-semibold text-[36px] text-text-primary leading-none">{s.n}</div>
+                <div className="text-[11px] text-text-secondary tracking-[0.1em] uppercase mt-1">{s.l}</div>
+              </div>
+            ))}
+          </div>
         </section>
 
         {/* Features */}
         <section id="features" className="px-6 sm:px-10 pb-28 max-w-5xl mx-auto">
           <Fade>
             <span className="text-[11px] font-semibold tracking-[0.14em] text-coral uppercase">Features</span>
-            <h2 className="font-display font-[800] mt-3 mb-14 text-text-primary tracking-[-0.03em] leading-[1.1]" style={{ fontSize: 'clamp(28px, 4vw, 40px)' }}>
+            <h2 className="font-semibold mt-3 mb-14 text-text-primary tracking-[-0.03em] leading-[1.1]" style={{ fontSize: 'clamp(28px, 4vw, 40px)' }}>
               Everything to go from<br /><em className="font-normal italic">idea to posted.</em>
             </h2>
           </Fade>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {features.map((f, i) => (
               <Fade key={i} delay={i * 60}>
-                <div className="group rounded-xl p-6 bg-[#111113] border border-[rgba(255,255,255,0.1)] hover:border-coral/30 hover:shadow-lg hover:shadow-coral/[0.08] transition-all duration-300 hover:-translate-y-0.5 h-full">
-                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-medium tracking-[0.12em] text-coral bg-coral-light border border-coral/10 mb-4">{f.tag}</span>
-                  <h3 className="font-display text-[16px] font-[700] text-text-primary mb-1.5">{f.title}</h3>
-                  <p className="text-[14px] text-[#B4B4BD] leading-relaxed">{f.desc}</p>
+                <div className="group rounded-lg p-6 bg-bg-secondary border border-border hover:border-accent-primary/40 shadow-card hover:shadow-soft transition-all duration-300 h-full">
+                  <span className="inline-block px-2 py-0.5 rounded-badge text-[10px] font-medium tracking-wide text-accent-primary bg-coral-light mb-4">{f.tag}</span>
+                  <h3 className="text-base font-semibold text-text-primary mb-1.5">{f.title}</h3>
+                  <p className="text-sm text-text-secondary leading-relaxed">{f.desc}</p>
                 </div>
               </Fade>
             ))}
@@ -159,7 +133,7 @@ export default function LandingPageContent({ loggedIn }: Props) {
         <section className="px-6 sm:px-10 py-24 max-w-5xl mx-auto border-t border-border">
           <Fade>
             <span className="text-[11px] font-semibold tracking-[0.14em] text-coral uppercase">Workflow</span>
-            <h2 className="font-display font-[800] mt-3 mb-16 text-text-primary tracking-[-0.03em] leading-[1.1]" style={{ fontSize: 'clamp(28px, 4vw, 40px)' }}>
+            <h2 className="font-semibold mt-3 mb-16 text-text-primary tracking-[-0.03em] leading-[1.1]" style={{ fontSize: 'clamp(28px, 4vw, 40px)' }}>
               Three steps. <em className="font-normal italic">That&apos;s it.</em>
             </h2>
           </Fade>
@@ -167,14 +141,14 @@ export default function LandingPageContent({ loggedIn }: Props) {
             {[
               { s: '01', t: 'Define your voice', d: 'Name, pillars, tone, background. The AI learns your style.' },
               { s: '02', t: 'Create and organize', d: 'Generate scripts, organize in library, drag posts onto calendar.' },
-              { s: '03', t: 'Publish and learn', d: 'Push to all platforms. Track performance. AI spots what works.' },
+              { s: '03', t: 'Publish and reply', d: 'Post everywhere. Sync comments. Approve AI replies in one tap.' },
             ].map((s, i) => (
               <Fade key={i} delay={i * 120}>
                 <div className="relative pl-5 border-l border-border">
-                  <div className="absolute -left-[4px] top-0 w-[7px] h-[7px] rounded-full bg-coral" style={{ boxShadow: '0 0 12px rgba(129,140,248,0.5)' }} />
+                  <div className="absolute -left-[4px] top-0 w-[7px] h-[7px] rounded-full bg-accent-primary" />
                   <span className="text-[11px] text-text-secondary tracking-[0.08em]">{s.s}</span>
-                  <h3 className="font-display text-[16px] font-[700] text-text-primary mt-2 mb-2">{s.t}</h3>
-                  <p className="text-[14px] text-[#B4B4BD] leading-relaxed">{s.d}</p>
+                  <h3 className="font-display text-[16px] font-semibold text-text-primary mt-2 mb-2">{s.t}</h3>
+                  <p className="text-sm text-text-secondary leading-relaxed">{s.d}</p>
                 </div>
               </Fade>
             ))}
@@ -183,11 +157,10 @@ export default function LandingPageContent({ loggedIn }: Props) {
 
         {/* CTA */}
         <section className="relative text-center py-28 px-6 overflow-hidden">
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[350px] rounded-full pointer-events-none" style={{ background: 'radial-gradient(ellipse, rgba(99,102,241,0.1), transparent 65%)', filter: 'blur(40px)' }} />
           <Fade className="relative">
-            <h2 className="font-display font-[800] text-text-primary tracking-[-0.03em] leading-tight" style={{ fontSize: 'clamp(34px, 6vw, 56px)' }}>
+            <h2 className="font-semibold text-text-primary tracking-[-0.03em] leading-tight" style={{ fontSize: 'clamp(34px, 6vw, 56px)' }}>
               Ready to ship<br />
-              <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(135deg, #818CF8, #C084FC, #22D3EE)' }}>more content?</span>
+              <span className="text-accent-primary">more content?</span>
             </h2>
             <p className="text-[16px] text-text-secondary mt-5 mb-9 max-w-md mx-auto">Free to use. Profile setup takes under a minute.</p>
             <Link href="/login"
@@ -201,7 +174,7 @@ export default function LandingPageContent({ loggedIn }: Props) {
 
         {/* Footer */}
         <footer className="px-6 sm:px-10 py-8 max-w-6xl mx-auto flex items-center justify-between border-t border-border">
-          <span className="font-display font-[800] text-[11px] tracking-[0.2em] text-text-tertiary">DISPATCH</span>
+          <span className="font-semibold text-[11px] tracking-[0.2em] text-text-tertiary">DISPATCH</span>
           <span className="text-[11px] text-text-tertiary">&copy; {new Date().getFullYear()}</span>
         </footer>
       </div>

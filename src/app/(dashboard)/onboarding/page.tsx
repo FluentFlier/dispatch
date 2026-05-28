@@ -12,12 +12,12 @@ import type { ContentPillarConfig } from '@/types/database';
 const TOTAL_STEPS = 4;
 
 const PRESET_COLORS = [
-  '#6366F1',
-  '#F59E0B',
-  '#10B981',
-  '#8B5CF6',
-  '#6366F1',
-  '#5A5047',
+  '#E07A5F',
+  '#D4A054',
+  '#3D8B7A',
+  '#8B7BB8',
+  '#DC6B5C',
+  '#5B8FA8',
 ];
 
 const DEFAULT_PILLARS: ContentPillarConfig[] = [
@@ -36,10 +36,10 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
           key={i}
           className={`h-1.5 rounded-full transition-all duration-200 ${
             i < current
-              ? 'bg-[#6366F1] flex-[2]'
+              ? 'bg-accent-primary flex-[2]'
               : i === current
-              ? 'bg-[#6366F1]/40 flex-[2]'
-              : 'bg-[#27272A] flex-1'
+              ? 'bg-coral-light flex-[2]'
+              : 'bg-bg-tertiary flex-1'
           }`}
         />
       ))}
@@ -169,6 +169,12 @@ export default function OnboardingPage() {
         if (settingsError) throw settingsError;
       }
 
+      try {
+        await fetch('/api/brain/provision', { method: 'POST' });
+      } catch {
+        // Non-blocking
+      }
+
       router.push('/dashboard');
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to save profile');
@@ -180,9 +186,9 @@ export default function OnboardingPage() {
   /* ---- Shared input classes ---- */
 
   const inputCls =
-    'w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-4 py-3 font-body text-[13px] text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[#FAFAFA]/40 transition-colors';
+    'w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors';
   const textareaCls = `${inputCls} resize-none`;
-  const labelCls = 'block font-body text-[13px] text-[#A1A1AA] mb-2';
+  const labelCls = 'block font-body text-[13px] text-text-tertiary mb-2';
 
   /* ---- Step renderers ---- */
 
@@ -193,10 +199,10 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display font-[700] text-[20px] text-[#FAFAFA] mb-1">
+              <h2 className="font-display font-semibold text-[20px] text-text-primary mb-1">
                 {"Let's start with the basics"}
               </h2>
-              <p className="font-body text-[13px] text-[#71717A]">
+              <p className="font-body text-[13px] text-text-secondary">
                 What should we call you?
               </p>
             </div>
@@ -231,10 +237,10 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display font-[700] text-[20px] text-[#FAFAFA] mb-1">
+              <h2 className="font-display font-semibold text-[20px] text-text-primary mb-1">
                 Define your content pillars
               </h2>
-              <p className="font-body text-[13px] text-[#71717A]">
+              <p className="font-body text-[13px] text-text-secondary">
                 These are the core topics you create content about. Add at least one.
               </p>
             </div>
@@ -243,18 +249,18 @@ export default function OnboardingPage() {
               {pillars.map((pillar, i) => (
                 <div
                   key={i}
-                  className="border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-4 space-y-3"
+                  className="border border-border rounded-lg p-4 space-y-3"
                   style={{ borderLeftColor: pillar.color, borderLeftWidth: 3 }}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-body text-[12px] font-medium text-[#71717A]">
+                    <span className="font-body text-[12px] font-medium text-text-secondary">
                       Pillar {i + 1}
                     </span>
                     {pillars.length > 1 && (
                       <button
                         type="button"
                         onClick={() => removePillar(i)}
-                        className="text-[11px] text-[#71717A] hover:text-[#6366F1] transition-colors"
+                        className="text-[11px] text-text-secondary hover:text-accent-primary transition-colors"
                       >
                         Remove
                       </button>
@@ -277,7 +283,7 @@ export default function OnboardingPage() {
                           onClick={() => updatePillar(i, 'color', color)}
                           className={`w-6 h-6 rounded-full transition-transform ${
                             pillar.color === color
-                              ? 'ring-2 ring-[#FAFAFA] ring-offset-1 ring-offset-[#09090B] scale-110'
+                              ? 'ring-2 ring-accent-primary ring-offset-1 ring-offset-bg-secondary scale-110'
                               : 'hover:scale-110'
                           }`}
                           style={{ backgroundColor: color }}
@@ -300,7 +306,7 @@ export default function OnboardingPage() {
                 <button
                   type="button"
                   onClick={addPillar}
-                  className="w-full border-[0.5px] border-dashed border-[#FAFAFA]/12 rounded-[12px] py-3 text-[13px] text-[#71717A] hover:border-[#6366F1] hover:text-[#6366F1] transition-colors"
+                  className="w-full border border-dashed border-border rounded-lg py-3 text-[13px] text-text-secondary hover:border-accent-primary hover:text-accent-primary transition-colors"
                 >
                   + Add pillar
                 </button>
@@ -314,10 +320,10 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display font-[700] text-[20px] text-[#FAFAFA] mb-1">
+              <h2 className="font-display font-semibold text-[20px] text-text-primary mb-1">
                 Describe your voice
               </h2>
-              <p className="font-body text-[13px] text-[#71717A]">
+              <p className="font-body text-[13px] text-text-secondary">
                 Help the AI match how you talk. Both fields are optional but recommended.
               </p>
             </div>
@@ -351,10 +357,10 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display font-[700] text-[20px] text-[#FAFAFA] mb-1">
+              <h2 className="font-display font-semibold text-[20px] text-text-primary mb-1">
                 Add your context
               </h2>
-              <p className="font-body text-[13px] text-[#71717A]">
+              <p className="font-body text-[13px] text-text-secondary">
                 Tell the AI about your background, current projects, anything it should always know.
                 You can update this later in Settings.
               </p>
@@ -384,10 +390,10 @@ export default function OnboardingPage() {
 
   return (
     <div className="max-w-lg mx-auto py-12 px-4">
-      <h1 className="font-display font-[800] text-[18px] text-[#FAFAFA] tracking-[0.16em] mb-2">
+      <h1 className="font-semibold text-[18px] text-text-primary tracking-[0.16em] mb-2">
         DISPATCH
       </h1>
-      <p className="font-body text-[13px] text-[#71717A] mb-6">
+      <p className="font-body text-[13px] text-text-secondary mb-6">
         Step {step + 1} of {TOTAL_STEPS}
       </p>
 
@@ -396,7 +402,7 @@ export default function OnboardingPage() {
       {renderStep()}
 
       {error && (
-        <p className="font-body text-[13px] text-[#6366F1] mt-4">{error}</p>
+        <p className="font-body text-[13px] text-accent-primary mt-4">{error}</p>
       )}
 
       <div className="flex items-center justify-between mt-8">
@@ -404,7 +410,7 @@ export default function OnboardingPage() {
           <button
             type="button"
             onClick={handleBack}
-            className="rounded-[7px] py-[10px] px-[20px] font-body text-[13px] font-medium text-[#A1A1AA] border-[0.5px] border-[#FAFAFA]/12 hover:border-[#FAFAFA]/25 transition-colors"
+            className="rounded-md py-[10px] px-[20px] font-body text-[13px] font-medium text-text-tertiary border border-border hover:border-border-hover transition-colors"
           >
             Back
           </button>
@@ -417,7 +423,7 @@ export default function OnboardingPage() {
             type="button"
             onClick={handleFinish}
             disabled={loading}
-            className="rounded-[7px] py-[10px] px-[24px] text-white font-body text-[13px] font-medium bg-[#6366F1] hover:opacity-90 transition-all duration-100 disabled:opacity-40"
+            className="rounded-md py-[10px] px-[24px] text-text-inverse font-body text-[13px] font-medium bg-accent-primary hover:bg-accent-dark transition-all duration-100 disabled:opacity-40"
           >
             {loading ? 'Setting up...' : 'Finish setup'}
           </button>
@@ -426,7 +432,7 @@ export default function OnboardingPage() {
             type="button"
             onClick={handleNext}
             disabled={!canProceed()}
-            className="rounded-[7px] py-[10px] px-[24px] text-white font-body text-[13px] font-medium bg-[#6366F1] hover:opacity-90 transition-all duration-100 disabled:opacity-40"
+            className="rounded-md py-[10px] px-[24px] text-text-inverse font-body text-[13px] font-medium bg-accent-primary hover:bg-accent-dark transition-all duration-100 disabled:opacity-40"
           >
             Continue
           </button>

@@ -165,16 +165,14 @@ export default function VoiceLabPage() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto px-0 sm:px-4 py-8 space-y-6">
+    <div className="page-shell space-y-6">
       <div className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-lg bg-[rgba(129,140,248,0.15)] flex items-center justify-center">
-          <Mic className="w-4 h-4 text-[#818CF8]" />
+        <div className="w-11 h-11 rounded-md bg-coral-light flex items-center justify-center">
+          <Mic className="w-5 h-5 text-accent-primary" />
         </div>
         <div>
-          <h1 className="font-heading text-[22px] font-[800] text-[#FAFAFA] leading-[1.2] tracking-[-0.02em]">
-            Voice Lab
-          </h1>
-          <p className="text-[13px] text-[#71717A]">Extract and craft your unique content voice</p>
+          <h1 className="page-title">Your voice</h1>
+          <p className="page-subtitle">Paste your best posts. We learn how you write so every draft sounds like you.</p>
         </div>
       </div>
 
@@ -188,13 +186,13 @@ export default function VoiceLabPage() {
             (s === "interview" && step === "result");
           return (
             <div key={s} className="flex items-center gap-2">
-              {i > 0 && <ChevronRight className="w-3 h-3 text-[#3F3F46]" />}
+              {i > 0 && <ChevronRight className="w-3 h-3 text-text-tertiary" />}
               <span className={`px-2.5 py-1 rounded-full ${
                 isDone
-                  ? "bg-[rgba(52,211,153,0.12)] text-[#6EE7B7]"
+                  ? "bg-sage-light text-accent-secondary"
                   : isActive
-                    ? "bg-[rgba(129,140,248,0.12)] text-[#A5B4FC]"
-                    : "bg-[rgba(255,255,255,0.04)] text-[#52525B]"
+                    ? "bg-coral-light text-accent-primary"
+                    : "bg-bg-tertiary text-text-tertiary"
               }`}>
                 {labels[i]}
               </span>
@@ -204,7 +202,7 @@ export default function VoiceLabPage() {
       </div>
 
       {error && (
-        <div className="bg-[rgba(239,68,68,0.08)] border border-[rgba(239,68,68,0.2)] rounded-lg px-4 py-3 text-[13px] text-[#FCA5A5]">
+        <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-[13px] text-red-800">
           {error}
         </div>
       )}
@@ -212,19 +210,19 @@ export default function VoiceLabPage() {
       {/* Step 1: Paste Samples */}
       {step === "samples" && (
         <div className="space-y-4">
-          <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6 space-y-4">
+          <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-heading text-[16px] font-[700] text-[#FAFAFA]">
+              <h2 className="font-heading text-[16px] font-semibold text-text-primary">
                 Paste your best content
               </h2>
-              <span className="text-[12px] text-[#52525B]">{validSamples.length} valid samples</span>
+              <span className="text-[12px] text-text-tertiary">{validSamples.length} valid samples</span>
             </div>
-            <p className="text-[13px] text-[#71717A]">
+            <p className="text-[13px] text-text-secondary">
               Add 5-15 posts that represent your voice at its best. Mix platforms for a richer profile.
             </p>
 
             {samples.map((sample, index) => (
-              <div key={index} className="space-y-2 p-4 rounded-lg bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)]">
+              <div key={index} className="space-y-2 p-4 rounded-lg bg-bg-tertiary border border-border">
                 <div className="flex items-center justify-between">
                   <div className="flex gap-1.5">
                     {PLATFORMS.map((p) => (
@@ -233,8 +231,8 @@ export default function VoiceLabPage() {
                         onClick={() => updateSample(index, "platform", p)}
                         className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
                           sample.platform === p
-                            ? "bg-[rgba(129,140,248,0.15)] text-[#A5B4FC]"
-                            : "bg-[rgba(255,255,255,0.04)] text-[#52525B] hover:text-[#71717A]"
+                            ? "bg-coral-light text-accent-primary"
+                            : "bg-bg-tertiary text-text-tertiary hover:text-text-secondary"
                         }`}
                       >
                         {p}
@@ -242,7 +240,7 @@ export default function VoiceLabPage() {
                     ))}
                   </div>
                   {samples.length > 1 && (
-                    <button onClick={() => removeSample(index)} className="text-[#52525B] hover:text-[#A1A1AA]">
+                    <button onClick={() => removeSample(index)} className="text-text-tertiary hover:text-text-tertiary">
                       <X className="w-3.5 h-3.5" />
                     </button>
                   )}
@@ -252,7 +250,7 @@ export default function VoiceLabPage() {
                   onChange={(e) => updateSample(index, "content", e.target.value)}
                   placeholder="Paste a post, tweet, or caption..."
                   rows={3}
-                  className="w-full bg-transparent text-[13px] text-[#FAFAFA] placeholder-[#3F3F46] resize-none focus:outline-none"
+                  className="w-full bg-transparent text-[13px] text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none"
                 />
               </div>
             ))}
@@ -260,7 +258,7 @@ export default function VoiceLabPage() {
             <button
               onClick={addSample}
               disabled={samples.length >= 20}
-              className="flex items-center gap-1.5 text-[12px] text-[#71717A] hover:text-[#A1A1AA] disabled:opacity-30"
+              className="flex items-center gap-1.5 text-[12px] text-text-secondary hover:text-text-tertiary disabled:opacity-30"
             >
               <Plus className="w-3.5 h-3.5" /> Add another sample
             </button>
@@ -269,7 +267,7 @@ export default function VoiceLabPage() {
           <button
             onClick={analyzeSamples}
             disabled={validSamples.length < 3}
-            className="w-full py-3 rounded-lg font-medium text-[14px] transition-all disabled:opacity-30 disabled:cursor-not-allowed bg-[#818CF8] text-white hover:bg-[#6366F1]"
+            className="w-full py-3 rounded-lg font-medium text-[14px] transition-all disabled:opacity-30 disabled:cursor-not-allowed bg-accent-primary text-white hover:bg-accent-dark"
           >
             <span className="flex items-center justify-center gap-2">
               <Sparkles className="w-4 h-4" />
@@ -281,10 +279,10 @@ export default function VoiceLabPage() {
 
       {/* Analyzing spinner */}
       {step === "analyzing" && (
-        <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-12 flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-[#818CF8]" />
-          <p className="text-[14px] text-[#A1A1AA]">Analyzing your voice patterns...</p>
-          <p className="text-[12px] text-[#52525B]">Reading sentence structure, tone, vocabulary, and quirks</p>
+        <div className="bg-bg-secondary border border-border rounded-lg p-12 flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-accent-primary" />
+          <p className="text-[14px] text-text-tertiary">Analyzing your voice patterns...</p>
+          <p className="text-[12px] text-text-tertiary">Reading sentence structure, tone, vocabulary, and quirks</p>
         </div>
       )}
 
@@ -292,15 +290,15 @@ export default function VoiceLabPage() {
       {step === "interview" && analysis && (
         <div className="space-y-4">
           {/* Analysis Summary */}
-          <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6 space-y-3">
-            <h2 className="font-heading text-[16px] font-[700] text-[#FAFAFA]">Voice Snapshot</h2>
-            <p className="text-[13px] text-[#A1A1AA] leading-relaxed">{analysis.voice_summary}</p>
+          <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
+            <h2 className="font-heading text-[16px] font-semibold text-text-primary">Voice Snapshot</h2>
+            <p className="text-[13px] text-text-tertiary leading-relaxed">{analysis.voice_summary}</p>
             <div className="flex flex-wrap gap-1.5 mt-2">
               {analysis.voice_rules.slice(0, 6).map((rule, i) => (
                 <span key={i} className={`text-[11px] px-2.5 py-1 rounded-full ${
                   rule.startsWith("DO")
-                    ? "bg-[rgba(52,211,153,0.1)] text-[#6EE7B7]"
-                    : "bg-[rgba(239,68,68,0.1)] text-[#FCA5A5]"
+                    ? "bg-sage-light text-accent-secondary"
+                    : "bg-red-50 text-red-800"
                 }`}>
                   {rule}
                 </span>
@@ -309,22 +307,22 @@ export default function VoiceLabPage() {
           </div>
 
           {/* Gap Questions */}
-          <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6 space-y-4">
-            <h2 className="font-heading text-[16px] font-[700] text-[#FAFAFA]">Quick Voice Interview</h2>
-            <p className="text-[13px] text-[#71717A]">
+          <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
+            <h2 className="font-heading text-[16px] font-semibold text-text-primary">Quick Voice Interview</h2>
+            <p className="text-[13px] text-text-secondary">
               Answer these to fill in what the AI could not tell from your writing alone. Skip any you want.
             </p>
 
             {analysis.gap_questions.map((q) => (
               <div key={q.id} className="space-y-2">
-                <label className="text-[13px] text-[#FAFAFA] font-medium">{q.question}</label>
-                <p className="text-[11px] text-[#52525B]">{q.why}</p>
+                <label className="text-[13px] text-text-primary font-medium">{q.question}</label>
+                <p className="text-[11px] text-text-tertiary">{q.why}</p>
                 <textarea
                   value={answers[q.id] || ""}
                   onChange={(e) => setAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))}
                   placeholder="Your answer..."
                   rows={2}
-                  className="w-full bg-[rgba(255,255,255,0.03)] border border-[rgba(255,255,255,0.08)] rounded-lg px-3 py-2 text-[13px] text-[#FAFAFA] placeholder-[#3F3F46] resize-none focus:outline-none focus:border-[rgba(129,140,248,0.3)]"
+                  className="w-full bg-bg-tertiary border border-border rounded-lg px-3 py-2 text-[13px] text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent-primary/40"
                 />
               </div>
             ))}
@@ -332,7 +330,7 @@ export default function VoiceLabPage() {
 
           <button
             onClick={synthesizePersona}
-            className="w-full py-3 rounded-lg font-medium text-[14px] bg-[#818CF8] text-white hover:bg-[#6366F1] transition-all"
+            className="w-full py-3 rounded-lg font-medium text-[14px] bg-accent-primary text-white hover:bg-accent-dark transition-all"
           >
             <span className="flex items-center justify-center gap-2">
               <Sparkles className="w-4 h-4" />
@@ -344,10 +342,10 @@ export default function VoiceLabPage() {
 
       {/* Synthesizing spinner */}
       {step === "synthesizing" && (
-        <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-12 flex flex-col items-center gap-4">
-          <Loader2 className="w-8 h-8 animate-spin text-[#818CF8]" />
-          <p className="text-[14px] text-[#A1A1AA]">Crafting your persona...</p>
-          <p className="text-[12px] text-[#52525B]">Merging analysis with your interview answers</p>
+        <div className="bg-bg-secondary border border-border rounded-lg p-12 flex flex-col items-center gap-4">
+          <Loader2 className="w-8 h-8 animate-spin text-accent-primary" />
+          <p className="text-[14px] text-text-tertiary">Crafting your persona...</p>
+          <p className="text-[12px] text-text-tertiary">Merging analysis with your interview answers</p>
         </div>
       )}
 
@@ -355,44 +353,44 @@ export default function VoiceLabPage() {
       {step === "result" && persona && (
         <div className="space-y-4">
           {/* Voice Description */}
-          <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6 space-y-3">
-            <h2 className="font-heading text-[16px] font-[700] text-[#FAFAFA]">Your Voice</h2>
-            <p className="text-[13px] text-[#A1A1AA] leading-relaxed">{persona.voice_description}</p>
+          <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
+            <h2 className="font-heading text-[16px] font-semibold text-text-primary">Your Voice</h2>
+            <p className="text-[13px] text-text-tertiary leading-relaxed">{persona.voice_description}</p>
           </div>
 
           {/* Voice Rules */}
-          <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6 space-y-3">
-            <h2 className="font-heading text-[16px] font-[700] text-[#FAFAFA]">Voice Rules</h2>
-            <pre className="text-[12px] text-[#A1A1AA] whitespace-pre-wrap leading-relaxed font-mono bg-[rgba(255,255,255,0.02)] rounded-lg p-4">
+          <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
+            <h2 className="font-heading text-[16px] font-semibold text-text-primary">Voice Rules</h2>
+            <pre className="text-[12px] text-text-tertiary whitespace-pre-wrap leading-relaxed font-mono bg-bg-tertiary rounded-lg p-4">
               {persona.voice_rules}
             </pre>
           </div>
 
           {/* Vocabulary */}
-          <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6 space-y-3">
-            <h2 className="font-heading text-[16px] font-[700] text-[#FAFAFA]">Vocabulary Fingerprint</h2>
+          <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
+            <h2 className="font-heading text-[16px] font-semibold text-text-primary">Vocabulary Fingerprint</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <p className="text-[11px] text-[#52525B] mb-1.5 uppercase tracking-wider">Uses Often</p>
+                <p className="text-[11px] text-text-tertiary mb-1.5 uppercase tracking-wider">Uses Often</p>
                 <div className="flex flex-wrap gap-1">
                   {persona.vocabulary_fingerprint.uses_often?.map((w) => (
-                    <span key={w} className="text-[11px] px-2 py-0.5 rounded-full bg-[rgba(129,140,248,0.1)] text-[#A5B4FC]">{w}</span>
+                    <span key={w} className="text-[11px] px-2 py-0.5 rounded-full bg-coral-light text-accent-primary">{w}</span>
                   ))}
                 </div>
               </div>
               <div>
-                <p className="text-[11px] text-[#52525B] mb-1.5 uppercase tracking-wider">Never Uses</p>
+                <p className="text-[11px] text-text-tertiary mb-1.5 uppercase tracking-wider">Never Uses</p>
                 <div className="flex flex-wrap gap-1">
                   {persona.vocabulary_fingerprint.never_uses?.map((w) => (
-                    <span key={w} className="text-[11px] px-2 py-0.5 rounded-full bg-[rgba(239,68,68,0.1)] text-[#FCA5A5]">{w}</span>
+                    <span key={w} className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-800">{w}</span>
                   ))}
                 </div>
               </div>
               <div>
-                <p className="text-[11px] text-[#52525B] mb-1.5 uppercase tracking-wider">Signature Phrases</p>
+                <p className="text-[11px] text-text-tertiary mb-1.5 uppercase tracking-wider">Signature Phrases</p>
                 <div className="flex flex-wrap gap-1">
                   {persona.vocabulary_fingerprint.signature_phrases?.map((w) => (
-                    <span key={w} className="text-[11px] px-2 py-0.5 rounded-full bg-[rgba(52,211,153,0.1)] text-[#6EE7B7]">{w}</span>
+                    <span key={w} className="text-[11px] px-2 py-0.5 rounded-full bg-sage-light text-accent-secondary">{w}</span>
                   ))}
                 </div>
               </div>
@@ -400,19 +398,19 @@ export default function VoiceLabPage() {
           </div>
 
           {/* Exportable Prompt */}
-          <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6 space-y-3">
+          <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="font-heading text-[16px] font-[700] text-[#FAFAFA]">Exportable Persona Prompt</h2>
+              <h2 className="font-heading text-[16px] font-semibold text-text-primary">Exportable Persona Prompt</h2>
               <button
                 onClick={copyExportPrompt}
-                className="flex items-center gap-1.5 text-[12px] text-[#71717A] hover:text-[#A1A1AA] transition-colors"
+                className="flex items-center gap-1.5 text-[12px] text-text-secondary hover:text-text-tertiary transition-colors"
               >
-                {copied ? <Check className="w-3.5 h-3.5 text-[#6EE7B7]" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? <Check className="w-3.5 h-3.5 text-accent-secondary" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied ? "Copied!" : "Copy"}
               </button>
             </div>
-            <p className="text-[11px] text-[#52525B]">Use this in Claude, ChatGPT, or any LLM to write in your voice</p>
-            <pre className="text-[12px] text-[#A1A1AA] whitespace-pre-wrap leading-relaxed font-mono bg-[rgba(255,255,255,0.02)] border border-[rgba(255,255,255,0.06)] rounded-lg p-4 max-h-[300px] overflow-y-auto">
+            <p className="text-[11px] text-text-tertiary">Use this in Claude, ChatGPT, or any LLM to write in your voice</p>
+            <pre className="text-[12px] text-text-tertiary whitespace-pre-wrap leading-relaxed font-mono bg-bg-tertiary border border-border rounded-lg p-4 max-h-[300px] overflow-y-auto">
               {persona.exportable_prompt}
             </pre>
           </div>
@@ -422,14 +420,14 @@ export default function VoiceLabPage() {
             <button
               onClick={savePersona}
               disabled={saving}
-              className="flex-1 py-3 rounded-lg font-medium text-[14px] transition-all bg-[#818CF8] text-white hover:bg-[#6366F1] disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-3 rounded-lg font-medium text-[14px] transition-all bg-accent-primary text-white hover:bg-accent-dark disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
               {saved ? "Saved to Profile!" : saving ? "Saving..." : "Save to Profile"}
             </button>
             <button
               onClick={copyExportPrompt}
-              className="px-6 py-3 rounded-lg font-medium text-[14px] transition-all bg-[rgba(255,255,255,0.06)] text-[#FAFAFA] hover:bg-[rgba(255,255,255,0.1)] flex items-center gap-2"
+              className="px-6 py-3 rounded-lg font-medium text-[14px] transition-all bg-bg-tertiary text-text-primary hover:bg-bg-tertiary flex items-center gap-2"
             >
               <Download className="w-4 h-4" />
               Export
@@ -439,7 +437,7 @@ export default function VoiceLabPage() {
           {/* Start Over */}
           <button
             onClick={() => { setStep("samples"); setAnalysis(null); setPersona(null); setError(null); }}
-            className="text-[12px] text-[#52525B] hover:text-[#71717A] transition-colors"
+            className="text-[12px] text-text-tertiary hover:text-text-secondary transition-colors"
           >
             Start over with new samples
           </button>

@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/Button';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { SkeletonLines } from '@/components/ui/Skeleton';
 
-const PLATFORM_TONES: Record<string, string> = {
-  instagram: 'Raw, direct, like texting a friend. Short. Engage genuinely. Ask a follow-up question when natural. No em dashes. Never sound like a brand.',
-  twitter: 'Punchy, witty, under 280 chars. Match the energy of the comment. Be real, not corporate.',
-  linkedin: 'Professional but warm. Add value with your reply. Reference your experience when relevant. Keep it concise.',
-  threads: 'Casual, conversational, like you are chatting with a friend. Short and natural.',
+const PLATFORM_CONSTRAINTS: Record<string, string> = {
+  instagram: 'Instagram comment. Short, conversational. No em dashes.',
+  twitter: 'X/Twitter reply. Under 280 characters unless clearly a thread reply.',
+  linkedin: 'LinkedIn comment. Professional but still in the creator\'s voice.',
+  threads: 'Threads reply. Casual and brief.',
 };
 
 async function callGenerate(prompt: string): Promise<string> {
@@ -43,11 +43,11 @@ export function CommentReplies() {
     setReplies([]);
 
     const commentLines = comments.trim().split('\n').filter((l) => l.trim());
-    const tone = PLATFORM_TONES[platform] || PLATFORM_TONES.instagram;
+    const platformConstraint = PLATFORM_CONSTRAINTS[platform] || PLATFORM_CONSTRAINTS.instagram;
 
-    const prompt = `Write replies to these ${platform} comments in the creator's voice.
+    const prompt = `Write replies to these comments. Sound exactly like the creator (use their voice from your system context), not a generic brand account.
 
-TONE: ${tone}
+PLATFORM: ${platformConstraint}
 
 COMMENTS:
 ${commentLines.map((c, i) => `${i + 1}. ${c}`).join('\n')}
@@ -99,15 +99,15 @@ REPLY 2: (your reply)
     <div className="space-y-5">
       {/* Platform selector */}
       <div className="flex gap-2">
-        {Object.keys(PLATFORM_TONES).map((p) => (
+        {Object.keys(PLATFORM_CONSTRAINTS).map((p) => (
           <button
             key={p}
             type="button"
             onClick={() => setPlatform(p)}
             className={`px-3 py-1.5 rounded-[5px] text-[12px] font-medium capitalize transition-colors ${
               platform === p
-                ? 'bg-[#27272A] text-[#FAFAFA]'
-                : 'text-[#71717A] hover:text-[#A1A1AA]'
+                ? 'bg-bg-tertiary text-text-primary'
+                : 'text-text-secondary hover:text-text-tertiary'
             }`}
           >
             {p === 'twitter' ? 'X' : p}
@@ -116,7 +116,7 @@ REPLY 2: (your reply)
       </div>
 
       <div>
-        <label className="block font-body text-[13px] text-[#A1A1AA] mb-2">
+        <label className="block font-body text-[13px] text-text-tertiary mb-2">
           Paste comments (one per line)
         </label>
         <textarea
@@ -124,7 +124,7 @@ REPLY 2: (your reply)
           onChange={(e) => setComments(e.target.value)}
           rows={6}
           placeholder={`Paste ${platform} comments here, one per line...`}
-          className="w-full bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-4 py-3 font-body text-[13px] text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[rgba(255,255,255,0.40)] resize-none transition-colors duration-100"
+          className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover resize-none transition-colors duration-100"
         />
       </div>
 
@@ -135,7 +135,7 @@ REPLY 2: (your reply)
       {error && <p className="font-body text-[13px] text-red-400">{error}</p>}
 
       {loading && (
-        <div className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-[13px_14px]">
+        <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px]">
           <SkeletonLines count={4} />
         </div>
       )}
@@ -145,23 +145,23 @@ REPLY 2: (your reply)
           {replies.map((pair, i) => (
             <div
               key={i}
-              className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-4 space-y-2"
+              className="bg-bg-tertiary border border-border rounded-lg p-4 space-y-2"
             >
               {/* Original comment */}
               <div className="flex items-start gap-2">
-                <span className="text-[10px] font-medium tracking-[0.08em] uppercase text-[#52525B] shrink-0 mt-0.5">
+                <span className="text-[10px] font-medium tracking-[0.08em] uppercase text-text-tertiary shrink-0 mt-0.5">
                   Comment
                 </span>
-                <p className="font-body text-[12px] text-[#71717A] leading-relaxed flex-1">
+                <p className="font-body text-[12px] text-text-secondary leading-relaxed flex-1">
                   {pair.comment}
                 </p>
               </div>
               {/* Generated reply */}
-              <div className="flex items-start gap-2 pt-2 border-t-[0.5px] border-[rgba(255,255,255,0.06)]">
-                <span className="text-[10px] font-medium tracking-[0.08em] uppercase text-[#818CF8] shrink-0 mt-0.5">
+              <div className="flex items-start gap-2 pt-2 border-t border-border">
+                <span className="text-[10px] font-medium tracking-[0.08em] uppercase text-accent-primary shrink-0 mt-0.5">
                   Reply
                 </span>
-                <p className="font-body text-[13px] text-[#FAFAFA] leading-[1.55] flex-1">
+                <p className="font-body text-[13px] text-text-primary leading-[1.55] flex-1">
                   {pair.reply}
                 </p>
                 <CopyButton text={pair.reply} />

@@ -20,16 +20,16 @@ export default function AutoOptimizeToggle({
   return (
     <>
       <div className="flex items-start gap-3 mb-4">
-        <div className="flex-shrink-0 mt-0.5 w-8 h-8 rounded-lg bg-[#6366F1]/12 flex items-center justify-center">
-          <Zap className="w-4 h-4 text-[#818CF8]" />
+        <div className="flex-shrink-0 mt-0.5 w-8 h-8 rounded-lg bg-accent-primary/12 flex items-center justify-center">
+          <Zap className="w-4 h-4 text-accent-primary" />
         </div>
         <div className="flex-1">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-[#FAFAFA] font-medium">
+              <p className="text-sm text-text-primary font-medium">
                 Auto-generate platform variants when saving a post
               </p>
-              <p className="text-xs text-[#71717A] mt-1">
+              <p className="text-xs text-text-secondary mt-1">
                 When enabled, saving or updating a post with script or caption
                 changes will automatically create optimized variants for all
                 connected platforms.
@@ -41,7 +41,7 @@ export default function AutoOptimizeToggle({
               aria-checked={enabled}
               onClick={() => onChange(!enabled)}
               className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors ${
-                enabled ? "bg-[#6366F1]" : "bg-[#27272A]"
+                enabled ? "bg-accent-primary" : "bg-bg-tertiary"
               }`}
             >
               <span
@@ -58,7 +58,7 @@ export default function AutoOptimizeToggle({
           type="button"
           disabled={saving}
           onClick={onSave}
-          className="px-5 py-2 rounded-lg bg-[#6366F1] text-white font-medium text-sm hover:bg-[#6366F1]/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+          className="px-5 py-2 rounded-lg bg-accent-primary text-white font-medium text-sm hover:bg-accent-primary/90 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
         >
           {saving ? "Saving..." : "Save"}
         </button>

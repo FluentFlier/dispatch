@@ -214,8 +214,8 @@ export default function BulkPublishPanel({
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-3">
-        <Loader2 size={14} className="animate-spin text-[#71717A]" />
-        <span className="text-[11px] text-[#71717A]">Loading accounts...</span>
+        <Loader2 size={14} className="animate-spin text-text-secondary" />
+        <span className="text-[11px] text-text-secondary">Loading accounts...</span>
       </div>
     );
   }
@@ -223,10 +223,10 @@ export default function BulkPublishPanel({
   if (accounts.length === 0) {
     return (
       <div className="py-3">
-        <p className="text-[11px] text-[#71717A] mb-2">No accounts connected.</p>
+        <p className="text-[11px] text-text-secondary mb-2">No accounts connected.</p>
         <Link
           href="/settings"
-          className="inline-flex items-center gap-1.5 text-[11px] text-[#6366F1] hover:opacity-80 transition-opacity"
+          className="inline-flex items-center gap-1.5 text-[11px] text-accent-primary hover:opacity-80 transition-opacity"
         >
           <Settings size={12} /> Connect accounts in Settings
         </Link>
@@ -255,11 +255,11 @@ export default function BulkPublishPanel({
                   if (state.status === 'pending') togglePlatform(account.platform);
                 }}
                 disabled={state.status !== 'pending'}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[8px] border-[0.5px] transition-all duration-100 ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-[8px] border transition-all duration-100 ${
                   state.selected
-                    ? 'border-[#6366F1]/40 bg-[rgba(99,102,241,0.06)]'
-                    : 'border-[#FAFAFA]/12 bg-[#18181B]'
-                } ${state.status === 'pending' ? 'cursor-pointer hover:border-[#FAFAFA]/25' : 'cursor-default'}`}
+                    ? 'border-accent-primary/40 bg-coral-light'
+                    : 'border-border bg-bg-tertiary'
+                } ${state.status === 'pending' ? 'cursor-pointer hover:border-border-hover' : 'cursor-default'}`}
               >
                 {/* Platform icon */}
                 <span
@@ -272,11 +272,11 @@ export default function BulkPublishPanel({
                 {/* Platform info */}
                 <div className="flex-1 text-left">
                   <div className="flex items-center gap-2">
-                    <span className="text-[12px] font-medium text-[#FAFAFA]">
+                    <span className="text-[12px] font-medium text-text-primary">
                       {config.label}
                     </span>
                     {account.account_name && (
-                      <span className="text-[10px] text-[#71717A]">
+                      <span className="text-[10px] text-text-secondary">
                         {account.account_name}
                       </span>
                     )}
@@ -284,7 +284,7 @@ export default function BulkPublishPanel({
                   {/* Character count */}
                   <span
                     className={`text-[10px] ${
-                      overLimit ? 'text-[#F87171]' : 'text-[#71717A]'
+                      overLimit ? 'text-[#F87171]' : 'text-text-secondary'
                     }`}
                   >
                     {charCount}/{config.charLimit} chars
@@ -298,15 +298,15 @@ export default function BulkPublishPanel({
                     <div
                       className={`w-5 h-5 rounded-full border-[1.5px] flex items-center justify-center transition-colors ${
                         state.selected
-                          ? 'border-[#6366F1] bg-[#6366F1]'
-                          : 'border-[#71717A]'
+                          ? 'border-accent-primary bg-accent-primary'
+                          : 'border-border'
                       }`}
                     >
                       {state.selected && <Check size={10} className="text-white" />}
                     </div>
                   )}
                   {state.status === 'publishing' && (
-                    <Loader2 size={16} className="animate-spin text-[#6366F1]" />
+                    <Loader2 size={16} className="animate-spin text-accent-primary" />
                   )}
                   {state.status === 'published' && (
                     <div className="w-5 h-5 rounded-full bg-[rgba(52,211,153,0.15)] flex items-center justify-center">
@@ -340,7 +340,7 @@ export default function BulkPublishPanel({
                   <button
                     type="button"
                     onClick={() => handleRetry(account.platform)}
-                    className="flex items-center gap-1 text-[10px] text-[#6366F1] hover:opacity-80 transition-opacity shrink-0"
+                    className="flex items-center gap-1 text-[10px] text-accent-primary hover:opacity-80 transition-opacity shrink-0"
                   >
                     <RefreshCw size={10} /> Retry
                   </button>
@@ -376,8 +376,8 @@ export default function BulkPublishPanel({
 
       {/* Completion summary */}
       {allDone && (
-        <div className="bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[8px] p-3 space-y-1.5">
-          <p className="text-[12px] font-medium text-[#FAFAFA]">
+        <div className="bg-bg-tertiary border border-border rounded-[8px] p-3 space-y-1.5">
+          <p className="text-[12px] font-medium text-text-primary">
             Publishing Complete
           </p>
           <div className="flex items-center gap-3">
@@ -393,7 +393,7 @@ export default function BulkPublishPanel({
             )}
           </div>
           {failedCount > 0 && (
-            <p className="text-[10px] text-[#71717A]">
+            <p className="text-[10px] text-text-secondary">
               You can retry failed platforms above.
             </p>
           )}

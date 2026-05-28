@@ -1,0 +1,16 @@
+/** Simplified navigation for everyday creators (plain labels). */
+
+export const primaryNav = [
+  { name: 'Home', href: '/dashboard', short: 'Home' },
+  { name: 'Write', href: '/generate', short: 'Write' },
+  { name: 'Posts', href: '/library', short: 'Posts' },
+  { name: 'Schedule', href: '/calendar', short: 'Plan' },
+  { name: 'Comments', href: '/inbox', short: 'Reply' },
+] as const;
+
+export const moreNav = [
+  { name: 'Ideas', href: '/ideas' },
+  { name: 'Your voice', href: '/voice-lab' },
+  { name: 'Analytics', href: '/analytics' },
+  { name: 'Settings', href: '/settings' },
+] as const;

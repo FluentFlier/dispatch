@@ -9,6 +9,9 @@ ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS health_status text NOT NULL
 
 -- posts extensions
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS publish_job_id uuid;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS voice_match_score int;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS ai_score int;
+ALTER TABLE posts ADD COLUMN IF NOT EXISTS voice_evaluation jsonb;
 
 -- subscriptions
 CREATE TABLE IF NOT EXISTS subscriptions (
@@ -84,3 +87,46 @@ CREATE INDEX IF NOT EXISTS posts_scheduled_publish ON posts (scheduled_publish_a
 CREATE INDEX IF NOT EXISTS publish_jobs_status_scheduled ON publish_jobs (status, scheduled_for);
 CREATE INDEX IF NOT EXISTS publish_jobs_user ON publish_jobs (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS usage_counters_lookup ON usage_counters (user_id, metric, period_key);
+
+-- engagement inbox (comments + reply queue)
+CREATE TABLE IF NOT EXISTS post_comments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  post_id uuid NOT NULL REFERENCES posts(id) ON DELETE CASCADE,
+  platform text NOT NULL,
+  provider_comment_id text NOT NULL,
+  author_name text,
+  author_handle text,
+  author_headline text,
+  comment_text text NOT NULL,
+  commented_at timestamptz,
+  parent_comment_id uuid REFERENCES post_comments(id) ON DELETE CASCADE,
+  synced_at timestamptz DEFAULT now() NOT NULL,
+  UNIQUE(user_id, provider_comment_id)
+);
+
+CREATE TABLE IF NOT EXISTS comment_reply_queue (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  post_comment_id uuid NOT NULL REFERENCES post_comments(id) ON DELETE CASCADE,
+  draft_reply text NOT NULL,
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft','approved','sent','skipped','failed')),
+  voice_match_score int,
+  evaluation jsonb,
+  sent_at timestamptz,
+  provider_reply_id text,
+  last_error text,
+  created_at timestamptz DEFAULT now() NOT NULL,
+  updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS post_comments_post ON post_comments (post_id, commented_at DESC);
+CREATE INDEX IF NOT EXISTS post_comments_user_unreplied ON post_comments (user_id, synced_at DESC);
+CREATE INDEX IF NOT EXISTS comment_reply_queue_status ON comment_reply_queue (user_id, status);
+
+DO $$ BEGIN
+  CREATE TRIGGER comment_reply_queue_updated_at
+    BEFORE UPDATE ON comment_reply_queue
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;

@@ -3,6 +3,12 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 
 const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const EXTENSION_BY_TYPE: Record<string, string> = {
+  'image/jpeg': 'jpg',
+  'image/png': 'png',
+  'image/webp': 'webp',
+  'image/gif': 'gif',
+};
 const BUCKET = 'post-media';
 
 export async function POST(req: NextRequest): Promise<NextResponse> {
@@ -34,7 +40,7 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
     }
 
     const client = getServerClient();
-    const ext = file.name.split('.').pop() || 'jpg';
+    const ext = EXTENSION_BY_TYPE[file.type] ?? 'jpg';
     const fileName = `${user.id}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
 
     const { data, error } = await client.storage

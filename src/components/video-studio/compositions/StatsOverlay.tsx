@@ -15,7 +15,7 @@ export interface StatsOverlayProps {
 export const StatsOverlay: React.FC<StatsOverlayProps> = ({
   videoSrc,
   stats,
-  accentColor = '#6366F1',
+  accentColor = '#E07A5F',
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();

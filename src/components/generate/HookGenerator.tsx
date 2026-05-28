@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { SkeletonLines } from '@/components/ui/Skeleton';
@@ -24,6 +24,17 @@ export function HookGenerator() {
   const [hooks, setHooks] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Live RAG + RL hooks from the intelligence engine (GStack mined + trained)
+  const [intelHooks, setIntelHooks] = useState<any[]>([]);
+  const [intelLoading, setIntelLoading] = useState(true);
+
+  useEffect(() => {
+    fetch('/api/hooks/intelligence?limit=6')
+      .then(r => r.ok ? r.json() : { hooks: [] })
+      .then(d => setIntelHooks(d.hooks || []))
+      .finally(() => setIntelLoading(false));
+  }, []);
 
   const generate = async () => {
     setLoading(true);
@@ -59,14 +70,14 @@ Numbered 1-8. One per line. No explanation. No em dashes.`;
   return (
     <div className="space-y-5">
       <div>
-        <label className="block font-body text-[13px] text-[#A1A1AA] mb-2">
+        <label className="block font-body text-[13px] text-text-tertiary mb-2">
           Topic (optional)
         </label>
         <input
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
           placeholder="Leave blank for general hooks or enter a topic..."
-          className="w-full bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-4 py-3 font-body text-[13px] text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[rgba(255,255,255,0.40)] transition-colors duration-100"
+          className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors duration-100"
         />
       </div>
 
@@ -74,23 +85,23 @@ Numbered 1-8. One per line. No explanation. No em dashes.`;
         Generate 8 Hooks
       </Button>
 
-      {error && <p className="font-body text-[13px] text-[#6366F1]">{error}</p>}
+      {error && <p className="font-body text-[13px] text-accent-primary">{error}</p>}
 
       {loading && (
-        <div className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-[13px_14px]">
+        <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px]">
           <SkeletonLines count={3} />
         </div>
       )}
 
       {hooks.length > 0 && (
-        <div className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-[13px_14px] space-y-2">
+        <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-2">
           {hooks.map((hook, i) => (
             <div
               key={i}
-              className="flex items-start justify-between gap-3 py-2 border-b-[0.5px] border-[rgba(255,255,255,0.12)] last:border-0"
+              className="flex items-start justify-between gap-3 py-2 border-b border-border last:border-0"
             >
-              <p className="font-body text-[13px] text-[#FAFAFA] flex-1 leading-[1.55]">
-                <span className="text-[#71717A] font-medium mr-2">
+              <p className="font-body text-[13px] text-text-primary flex-1 leading-[1.55]">
+                <span className="text-text-secondary font-medium mr-2">
                   {i + 1}.
                 </span>
                 {hook}
@@ -100,6 +111,26 @@ Numbered 1-8. One per line. No explanation. No em dashes.`;
           ))}
         </div>
       )}
+
+      {/* Live Intelligence Hooks (RAG + RL from GStack mined data) - makes research -> generate working */}
+      <div className="mt-4">
+        <div className="text-[12px] font-medium text-text-secondary mb-2 flex items-center gap-2">
+          Or use live high-converting hooks from your Intelligence (RAG + RL trained)
+          {intelLoading && <span className="text-[10px]">(loading...)</span>}
+        </div>
+        {intelHooks.length > 0 ? (
+          <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-2 text-sm">
+            {intelHooks.slice(0, 5).map((h, i) => (
+              <div key={i} className="flex items-start justify-between gap-2 py-1 border-b border-border last:border-0">
+                <p className="flex-1 text-text-primary">“{h.text}” — <span className="text-text-secondary">@{h.author}</span></p>
+                <CopyButton text={h.text} />
+              </div>
+            ))}
+          </div>
+        ) : !intelLoading && (
+          <div className="text-xs text-text-tertiary">Run more GStack mining or research to populate your personal high-converting hook library.</div>
+        )}
+      </div>
     </div>
   );
 }

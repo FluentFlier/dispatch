@@ -15,7 +15,7 @@ interface StoryHighlightsProps {
 export const StoryHighlights: React.FC<StoryHighlightsProps> = ({
   clips,
   transitionDuration = 15,
-  accentColor = '#6366F1',
+  accentColor = '#E07A5F',
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();

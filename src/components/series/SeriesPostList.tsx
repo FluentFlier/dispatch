@@ -38,7 +38,7 @@ export default function SeriesPostList({
 }: SeriesPostListProps) {
   if (loading) {
     return (
-      <div className="text-[#71717A] text-[11px] py-4 text-center">
+      <div className="text-text-secondary text-[11px] py-4 text-center">
         Loading posts...
       </div>
     );
@@ -55,14 +55,14 @@ export default function SeriesPostList({
           return (
             <div
               key={`empty-${position}`}
-              className="flex items-center justify-between px-3 py-2.5 rounded-[7px] border-[0.5px] border-dashed border-[#FAFAFA]/12"
+              className="flex items-center justify-between px-3 py-2.5 rounded-md border border-dashed border-border"
             >
-              <span className="text-[13px] text-[#71717A]">
+              <span className="text-[13px] text-text-secondary">
                 Part {position} - Not started
               </span>
               <button
                 onClick={() => onAddPart(position)}
-                className="flex items-center gap-1 text-[11px] text-[#6366F1] hover:opacity-80 transition-opacity"
+                className="flex items-center gap-1 text-[11px] text-accent-primary hover:opacity-80 transition-opacity"
               >
                 <Plus size={14} />
                 Add Post to Part
@@ -77,16 +77,16 @@ export default function SeriesPostList({
         return (
           <div
             key={post.id}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-[7px] bg-[#18181B] hover:bg-[#27272A] transition-colors"
+            className="flex items-center gap-3 px-3 py-2.5 rounded-md bg-bg-tertiary hover:bg-bg-tertiary transition-colors"
           >
             {/* Position number */}
-            <span className="text-[11px] font-medium text-[#71717A] w-6 text-center shrink-0">
+            <span className="text-[11px] font-medium text-text-secondary w-6 text-center shrink-0">
               {position}
             </span>
 
             {/* Post info */}
             <div className="flex-1 min-w-0">
-              <p className="text-[13px] text-[#FAFAFA] truncate">{post.title}</p>
+              <p className="text-[13px] text-text-primary truncate">{post.title}</p>
             </div>
 
             {/* Badges */}
@@ -102,7 +102,7 @@ export default function SeriesPostList({
                   if (prevPost) onSwap(post, prevPost);
                 }}
                 disabled={!prevPost || reordering}
-                className="p-0.5 rounded text-[#71717A] hover:text-[#FAFAFA] disabled:opacity-20 transition-colors"
+                className="p-0.5 rounded text-text-secondary hover:text-text-primary disabled:opacity-20 transition-colors"
                 title="Move up"
               >
                 <ArrowUp size={13} />
@@ -112,7 +112,7 @@ export default function SeriesPostList({
                   if (nextPost) onSwap(post, nextPost);
                 }}
                 disabled={!nextPost || reordering}
-                className="p-0.5 rounded text-[#71717A] hover:text-[#FAFAFA] disabled:opacity-20 transition-colors"
+                className="p-0.5 rounded text-text-secondary hover:text-text-primary disabled:opacity-20 transition-colors"
                 title="Move down"
               >
                 <ArrowDown size={13} />

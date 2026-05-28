@@ -8,18 +8,118 @@ import { Button } from '@/components/ui/Button';
 import { getInsforgeClient } from '@/lib/insforge/client';
 import { PLATFORMS } from '@/lib/constants';
 import type { Platform } from '@/lib/constants';
+import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 import { usePillars } from '@/hooks/usePillars';
 import { OptimizePanel } from './OptimizePanel';
+
+export interface GenerateVoiceMetrics {
+  voice_match_score?: number;
+  ai_score?: number;
+  iterations?: number;
+  revised?: boolean;
+  evaluation?: VoiceEvaluationMatrix;
+}
 
 interface GenerateOutputProps {
   text: string;
   loading: boolean;
   sourcePlatform?: Platform;
+  voiceMetrics?: GenerateVoiceMetrics;
   children?: React.ReactNode;
   onTextUpdate?: (newText: string) => void;
 }
 
-export function GenerateOutput({ text, loading, sourcePlatform, children, onTextUpdate }: GenerateOutputProps) {
+function scoreColor(value: number, invert = false): string {
+  const good = invert ? value <= 30 : value >= 80;
+  const mid = invert ? value <= 60 : value >= 60;
+  if (good) return 'text-[#6EE7B7]';
+  if (mid) return 'text-[#FCD34D]';
+  return 'text-[#FCA5A5]';
+}
+
+function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
+  const { voice_match_score, ai_score, iterations, revised, evaluation } = metrics;
+  const hasHeader =
+    voice_match_score !== undefined ||
+    ai_score !== undefined ||
+    iterations !== undefined;
+
+  if (!hasHeader && !evaluation) return null;
+
+  const dimensions: { key: keyof VoiceEvaluationMatrix; label: string; invert?: boolean }[] = [
+    { key: 'persona_fidelity', label: 'Persona' },
+    { key: 'uniqueness', label: 'Unique' },
+    { key: 'specificity', label: 'Specific' },
+    { key: 'so_what', label: 'So what' },
+    { key: 'pain_resonance', label: 'Pain' },
+    { key: 'ai_slop', label: 'AI slop', invert: true },
+  ];
+
+  return (
+    <div className="bg-bg-secondary border border-border rounded-[10px] p-3 space-y-2">
+      <p className="font-body text-[11px] uppercase tracking-wide text-text-secondary">
+        Voice QA
+      </p>
+      {hasHeader && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 font-body text-[12px]">
+          {voice_match_score !== undefined && (
+            <span className={scoreColor(voice_match_score)}>
+              Voice match: {voice_match_score}%
+            </span>
+          )}
+          {ai_score !== undefined && (
+            <span className={scoreColor(ai_score, true)}>
+              AI tells: {ai_score}/100
+            </span>
+          )}
+          {iterations !== undefined && (
+            <span className="text-text-secondary">
+              Passes: {iterations}
+              {revised ? ' (revised)' : ''}
+            </span>
+          )}
+          {evaluation?.pass !== undefined && (
+            <span className={evaluation.pass ? 'text-[#6EE7B7]' : 'text-[#FCD34D]'}>
+              {evaluation.pass ? 'Passed' : 'Below threshold'}
+            </span>
+          )}
+        </div>
+      )}
+      {evaluation && (
+        <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+          {dimensions.map(({ key, label, invert }) => {
+            const raw = evaluation[key];
+            if (typeof raw !== 'number') return null;
+            const display = invert ? `${raw}/10` : `${raw}/10`;
+            const pct = invert ? (10 - raw) * 10 : raw * 10;
+            return (
+              <div key={key} className="text-center">
+                <p className={`font-body text-[13px] font-medium ${scoreColor(pct, invert)}`}>
+                  {display}
+                </p>
+                <p className="font-body text-[10px] text-text-secondary">{label}</p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {evaluation?.revision_notes && !evaluation.pass && (
+        <p className="font-body text-[11px] text-text-secondary leading-snug">
+          {evaluation.revision_notes}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export function GenerateOutput({
+  text,
+  loading,
+  sourcePlatform,
+  voiceMetrics,
+  children,
+  onTextUpdate,
+}: GenerateOutputProps) {
   const [showSave, setShowSave] = useState(false);
   const [humanizing, setHumanizing] = useState(false);
   const [aiScore, setAiScore] = useState<number | null>(null);
@@ -63,7 +163,7 @@ export function GenerateOutput({ text, loading, sourcePlatform, children, onText
 
   if (loading) {
     return (
-      <div className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-[13px_14px] space-y-3">
+      <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-3">
         <SkeletonLines count={3} />
       </div>
     );
@@ -71,10 +171,17 @@ export function GenerateOutput({ text, loading, sourcePlatform, children, onText
 
   if (!text) return null;
 
+  const showVoiceMetrics =
+    voiceMetrics &&
+    (voiceMetrics.voice_match_score !== undefined ||
+      voiceMetrics.iterations !== undefined ||
+      voiceMetrics.evaluation !== undefined);
+
   return (
     <div className="space-y-4">
-      <div className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-[13px_14px] space-y-4">
-        <pre className="whitespace-pre-wrap font-body text-[13px] text-[#FAFAFA] leading-[1.55]">
+      {showVoiceMetrics && <VoiceMetricsPanel metrics={voiceMetrics} />}
+      <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-4">
+        <pre className="whitespace-pre-wrap font-body text-[13px] text-text-primary leading-[1.55]">
           {text}
         </pre>
         <div className="flex flex-wrap items-center gap-2">
@@ -117,6 +224,7 @@ export function GenerateOutput({ text, loading, sourcePlatform, children, onText
         open={showSave}
         onClose={() => setShowSave(false)}
         script={text}
+        voiceMetrics={voiceMetrics}
       />
     </div>
   );
@@ -127,10 +235,12 @@ function SaveToLibraryModal({
   open,
   onClose,
   script,
+  voiceMetrics,
 }: {
   open: boolean;
   onClose: () => void;
   script: string;
+  voiceMetrics?: GenerateVoiceMetrics;
 }) {
   const { pillars: pillarList, loading: pillarsLoading } = usePillars();
   const [title, setTitle] = useState(() => {
@@ -163,14 +273,17 @@ function SaveToLibraryModal({
       if (!userData?.user) throw new Error('Not logged in');
       const { error: dbError } = await insforge.database
         .from('posts')
-        .insert({
+        .insert([{
           user_id: userData.user.id,
           title: title.trim(),
           pillar,
           script,
           status: 'scripted',
           platform,
-        })
+          voice_match_score: voiceMetrics?.voice_match_score ?? null,
+          ai_score: voiceMetrics?.ai_score ?? null,
+          voice_evaluation: voiceMetrics?.evaluation ?? null,
+        }])
         .select()
         .single();
       if (dbError) throw dbError;
@@ -188,13 +301,13 @@ function SaveToLibraryModal({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder="Post title"
-        className="w-full bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-3 py-2 font-body text-[13px] text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[rgba(255,255,255,0.40)] transition-colors duration-100"
+        className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors duration-100"
       />
       <div className="flex gap-3">
         <select
           value={pillar}
           onChange={(e) => setPillar(e.target.value)}
-          className="flex-1 bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-3 py-2 font-body text-[13px] text-[#FAFAFA] focus:outline-none focus:border-[rgba(255,255,255,0.40)] transition-colors duration-100"
+          className="flex-1 bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors duration-100"
         >
           {pillarList.map((p) => (
             <option key={p.value} value={p.value}>
@@ -205,7 +318,7 @@ function SaveToLibraryModal({
         <select
           value={platform}
           onChange={(e) => setPlatform(e.target.value as Platform)}
-          className="flex-1 bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-3 py-2 font-body text-[13px] text-[#FAFAFA] focus:outline-none focus:border-[rgba(255,255,255,0.40)] transition-colors duration-100"
+          className="flex-1 bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors duration-100"
         >
           {PLATFORMS.map((p) => (
             <option key={p} value={p}>
@@ -214,7 +327,7 @@ function SaveToLibraryModal({
           ))}
         </select>
       </div>
-      {error && <p className="font-body text-[13px] text-[#6366F1]">{error}</p>}
+      {error && <p className="font-body text-[13px] text-accent-primary">{error}</p>}
       <div className="flex gap-3 justify-end">
         <Button variant="ghost" size="sm" onClick={onClose}>
           Cancel

@@ -190,9 +190,9 @@ export default function PlatformConnections({
   return (
     <>
       {useAyrshare && (
-        <div className="mb-6 p-4 rounded-[12px] border border-[#818CF8]/25 bg-[rgba(129,140,248,0.06)]">
-          <p className="text-[13px] text-[#FAFAFA] font-medium mb-1">Connect all platforms at once</p>
-          <p className="text-[11px] text-[#71717A] mb-3">
+        <div className="mb-6 p-4 rounded-lg border border-accent-primary/25 bg-coral-light">
+          <p className="text-[13px] text-text-primary font-medium mb-1">Connect all platforms at once</p>
+          <p className="text-[11px] text-text-secondary mb-3">
             Powered by Ayrshare — link X, LinkedIn, Instagram, and Threads in one secure flow.
           </p>
           <div className="flex flex-wrap gap-2">
@@ -200,7 +200,7 @@ export default function PlatformConnections({
               type="button"
               disabled={ayrshareLoading}
               onClick={connectAllViaAyrshare}
-              className="px-4 py-2 text-[12px] text-white bg-[#6366F1] rounded-[7px] hover:bg-[#6366F1]/90 disabled:opacity-60 flex items-center gap-2"
+              className="px-4 py-2 text-[12px] text-white bg-accent-primary rounded-md hover:bg-accent-primary/90 disabled:opacity-60 flex items-center gap-2"
             >
               {ayrshareLoading && <Loader2 size={12} className="animate-spin" />}
               Connect accounts
@@ -209,7 +209,7 @@ export default function PlatformConnections({
               type="button"
               disabled={ayrshareLoading}
               onClick={syncAyrshareAccounts}
-              className="px-4 py-2 text-[12px] text-[#FAFAFA] border border-[#FAFAFA]/12 rounded-[7px] hover:border-[#FAFAFA]/25"
+              className="px-4 py-2 text-[12px] text-text-primary border border-border rounded-md hover:border-border-hover"
             >
               Sync status
             </button>
@@ -217,11 +217,11 @@ export default function PlatformConnections({
         </div>
       )}
 
-      <p className="text-sm text-[#71717A] mb-2">
+      <p className="text-sm text-text-secondary mb-2">
         {useAyrshare ? 'Per-platform status and manual API key fallback.' : 'Connect accounts via OAuth or enter API keys manually.'}
       </p>
       {!useAyrshare && (
-        <p className="text-[11px] text-[#52525B] mb-4">
+        <p className="text-[11px] text-text-tertiary mb-4">
           OAuth requires platform developer app credentials. If OAuth fails, use the API Keys option below each platform instead.
         </p>
       )}
@@ -239,7 +239,7 @@ export default function PlatformConnections({
             return (
               <div
                 key={platform}
-                className="border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] overflow-hidden"
+                className="border border-border rounded-lg overflow-hidden"
               >
                 {/* Card header */}
                 <button
@@ -247,7 +247,7 @@ export default function PlatformConnections({
                   onClick={() =>
                     setExpandedPlatform(isExpanded ? null : platform)
                   }
-                  className="w-full flex items-center justify-between py-3 px-4 min-h-[44px] bg-[#18181B] hover:bg-[#27272A] transition-colors"
+                  className="w-full flex items-center justify-between py-3 px-4 min-h-[44px] bg-bg-tertiary hover:bg-bg-tertiary transition-colors"
                 >
                   <div className="flex items-center gap-3">
                     <span
@@ -256,24 +256,24 @@ export default function PlatformConnections({
                     >
                       {meta.icon}
                     </span>
-                    <span className="text-[13px] font-medium text-[#FAFAFA]">
+                    <span className="text-[13px] font-medium text-text-primary">
                       {meta.label}
                     </span>
                     <ConnectionBadge status={status} />
                   </div>
                   {isExpanded ? (
-                    <ChevronDown size={16} className="text-[#71717A]" />
+                    <ChevronDown size={16} className="text-text-secondary" />
                   ) : (
-                    <ChevronRight size={16} className="text-[#71717A]" />
+                    <ChevronRight size={16} className="text-text-secondary" />
                   )}
                 </button>
 
                 {/* Expanded body */}
                 {isExpanded && (
-                  <div className="p-4 space-y-4 border-t-[0.5px] border-[#FAFAFA]/12">
+                  <div className="p-4 space-y-4 border-t border-border">
                     {/* OAuth section */}
                     <div>
-                      <span className="text-[10px] font-medium tracking-[0.10em] uppercase text-[#71717A] block mb-2">
+                      <span className="text-[10px] font-medium tracking-[0.10em] uppercase text-text-secondary block mb-2">
                         OAUTH CONNECTION
                       </span>
                       {status === "oauth" && account ? (
@@ -294,7 +294,7 @@ export default function PlatformConnections({
                               e.stopPropagation();
                               onDisconnect(platform);
                             }}
-                            className="flex items-center gap-1 px-3 py-1.5 text-[11px] text-[#A1A1AA] border-[0.5px] border-[#FAFAFA]/12 rounded-[6px] hover:border-[#FAFAFA]/25 transition-colors disabled:opacity-60"
+                            className="flex items-center gap-1 px-3 py-1.5 text-[11px] text-text-tertiary border border-border rounded-[6px] hover:border-border-hover transition-colors disabled:opacity-60"
                           >
                             <Unplug size={12} />
                             {isDisconnecting ? "..." : "Disconnect"}
@@ -304,7 +304,7 @@ export default function PlatformConnections({
                         <button
                           type="button"
                           onClick={() => onConnect(platform)}
-                          className="px-4 py-2 text-[12px] text-white bg-[#6366F1] rounded-[7px] hover:bg-[#6366F1]/90 transition-colors"
+                          className="px-4 py-2 text-[12px] text-white bg-accent-primary rounded-md hover:bg-accent-primary/90 transition-colors"
                         >
                           Connect with {meta.label}
                         </button>
@@ -357,7 +357,7 @@ function ConnectionBadge({ status }: { status: "oauth" | "byok" | "none" }) {
     );
   }
   return (
-    <span className="text-[10px] px-2 py-0.5 rounded-[3px] bg-[#27272A] text-[#71717A]">
+    <span className="text-[10px] px-2 py-0.5 rounded-[3px] bg-bg-tertiary text-text-secondary">
       Not configured
     </span>
   );
@@ -391,17 +391,17 @@ function ByokSection({
   return (
     <div>
       <div className="flex items-center gap-2 mb-2">
-        <KeyRound size={12} className="text-[#71717A]" />
-        <span className="text-[10px] font-medium tracking-[0.10em] uppercase text-[#71717A]">
+        <KeyRound size={12} className="text-text-secondary" />
+        <span className="text-[10px] font-medium tracking-[0.10em] uppercase text-text-secondary">
           USE API KEYS
         </span>
       </div>
-      <p className="text-[11px] text-[#71717A] mb-3">
+      <p className="text-[11px] text-text-secondary mb-3">
         Enter your own API credentials as a fallback to OAuth.
       </p>
 
       {isByokConnected && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-[rgba(139,92,246,0.1)] rounded-[7px]">
+        <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-[rgba(139,92,246,0.1)] rounded-md">
           <Check size={14} className="text-[#8B5CF6]" />
           <span className="text-[12px] text-[#8B5CF6]">
             Manual keys configured
@@ -442,7 +442,7 @@ function ByokSection({
           type="button"
           disabled={saving}
           onClick={onSaveKeys}
-          className="px-4 py-2 min-h-[44px] text-[12px] text-white bg-[#6366F1] rounded-[7px] hover:bg-[#6366F1]/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-4 py-2 min-h-[44px] text-[12px] text-white bg-accent-primary rounded-md hover:bg-accent-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {saving && <Loader2 size={12} className="animate-spin" />}
           {saving ? "Saving..." : "Save Keys"}
@@ -451,7 +451,7 @@ function ByokSection({
           type="button"
           disabled={testing}
           onClick={onTestConnection}
-          className="px-4 py-2 min-h-[44px] text-[12px] text-[#FAFAFA] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] hover:border-[#FAFAFA]/25 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-4 py-2 min-h-[44px] text-[12px] text-text-primary border border-border rounded-md hover:border-border-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {testing && <Loader2 size={12} className="animate-spin" />}
           {testing ? "Testing..." : "Test Connection"}
@@ -474,19 +474,19 @@ function PasswordField({
 
   return (
     <div>
-      <label className="block text-xs text-[#71717A] mb-1">{label}</label>
+      <label className="block text-xs text-text-secondary mb-1">{label}</label>
       <div className="relative">
         <input
           type={visible ? "text" : "password"}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={label}
-          className="w-full bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-3 py-2 pr-10 text-sm font-mono text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[#FAFAFA]/40 transition-colors"
+          className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 pr-10 text-sm font-mono text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors"
         />
         <button
           type="button"
           onClick={() => setVisible(!visible)}
-          className="absolute right-1 top-1/2 -translate-y-1/2 w-[44px] h-[44px] flex items-center justify-center text-[#71717A] hover:text-[#FAFAFA] transition-colors"
+          className="absolute right-1 top-1/2 -translate-y-1/2 w-[44px] h-[44px] flex items-center justify-center text-text-secondary hover:text-text-primary transition-colors"
           aria-label={visible ? "Hide" : "Show"}
         >
           {visible ? <EyeOff size={16} /> : <Eye size={16} />}

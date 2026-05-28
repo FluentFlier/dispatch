@@ -22,15 +22,15 @@ export default function CalendarBacklog({
   fillDisabled,
 }: CalendarBacklogProps) {
   return (
-    <div className="lg:w-[280px] lg:border-l-[0.5px] lg:border-[#FAFAFA]/12 lg:pl-4 shrink-0">
+    <div className="lg:w-[280px] lg:border-l lg:border-border lg:pl-4 shrink-0">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-heading text-[16px] font-[700] text-[#FAFAFA]">
+        <h2 className="font-heading text-[16px] font-semibold text-text-primary">
           Unscheduled
         </h2>
         <button
           onClick={onFillWeek}
           disabled={fillDisabled}
-          className="flex items-center gap-1.5 bg-[#6366F1] text-white text-[11px] font-medium px-2.5 py-1.5 rounded-[7px] hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex items-center gap-1.5 bg-accent-primary text-white text-[11px] font-medium px-2.5 py-1.5 rounded-md hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Sparkles className="w-3.5 h-3.5" />
           Fill This Week
@@ -38,7 +38,7 @@ export default function CalendarBacklog({
       </div>
 
       {backlog.length === 0 ? (
-        <p className="text-[13px] text-[#71717A]">No unscheduled posts.</p>
+        <p className="text-[13px] text-text-secondary">No unscheduled posts.</p>
       ) : (
         <Droppable droppableId="backlog" isDropDisabled>
           {(provided) => (
@@ -55,17 +55,17 @@ export default function CalendarBacklog({
                       {...dragProvided.draggableProps}
                       {...dragProvided.dragHandleProps}
                       onClick={() => onPostClick(p)}
-                      className={`rounded-[12px] border-[0.5px] p-2.5 cursor-grab transition-colors ${
+                      className={`rounded-lg border p-2.5 cursor-grab transition-colors ${
                         dragSnapshot.isDragging
-                          ? 'border-[#6366F1] bg-[rgba(99,102,241,0.12)] shadow-lg rotate-2'
+                          ? 'border-accent-primary bg-coral-light shadow-lg rotate-2'
                           : selectedPostId === p.id
-                          ? 'border-[#6366F1] bg-[rgba(99,102,241,0.12)]'
-                          : 'border-[#FAFAFA]/12 bg-[#09090B] hover:border-[#FAFAFA]/25'
+                          ? 'border-accent-primary bg-coral-light'
+                          : 'border-border bg-bg-secondary hover:border-border-hover'
                       }`}
                     >
                       <div className="flex items-center gap-1.5 mb-1">
                         <PillarDot pillar={p.pillar} />
-                        <span className="text-[13px] text-[#FAFAFA] font-medium truncate">
+                        <span className="text-[13px] text-text-primary font-medium truncate">
                           {p.title}
                         </span>
                       </div>

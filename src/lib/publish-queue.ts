@@ -171,6 +171,13 @@ export async function processPublishJob(
       .eq('id', job.post_id)
       .eq('user_id', job.user_id);
 
+    try {
+      const { syncBrainPublishedPost } = await import('@/lib/brain/sync');
+      await syncBrainPublishedPost(client, job.user_id, job.post_id);
+    } catch {
+      // Non-critical
+    }
+
     await incrementUsage(job.user_id, 'publish_post', 1);
     logInfo('publish_job.success', { jobId, platform: job.platform });
 

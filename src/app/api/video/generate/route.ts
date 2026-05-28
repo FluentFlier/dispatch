@@ -14,6 +14,17 @@ const GenerateVideoSchema = z.object({
   duration: z.number().min(5).max(120).optional(),
 }).strict();
 
+function parseJsonObjectOrArray(text: string): unknown {
+  const jsonMatch = text.match(/[\[{][\s\S]*[\]}]/);
+  if (!jsonMatch) return {};
+
+  try {
+    return JSON.parse(jsonMatch[0]);
+  } catch {
+    return {};
+  }
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) {
@@ -79,8 +90,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     });
 
     const rawText = aiResponse?.choices?.[0]?.message?.content ?? '{}';
-    const jsonMatch = rawText.match(/[\[{][\s\S]*[\]}]/);
-    const compositionData = jsonMatch ? JSON.parse(jsonMatch[0]) : {};
+    const compositionData = parseJsonObjectOrArray(rawText);
 
     return NextResponse.json({
       compositionData,

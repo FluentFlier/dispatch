@@ -14,6 +14,18 @@ const AutoEditRequestSchema = z.object({
   }),
 });
 
+function parseCaptionArray(text: string): unknown[] {
+  const jsonMatch = text.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) return [];
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) {
@@ -58,9 +70,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       });
 
       const rawText = aiResponse?.choices?.[0]?.message?.content ?? '[]';
-      // Extract JSON from the response
-      const jsonMatch = rawText.match(/\[[\s\S]*\]/);
-      const captions = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+      const captions = parseCaptionArray(rawText);
 
       return NextResponse.json({
         status: 'completed',

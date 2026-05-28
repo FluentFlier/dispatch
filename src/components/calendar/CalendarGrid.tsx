@@ -130,7 +130,7 @@ export default function CalendarGrid({
   const mobileListView = (
     <div className="sm:hidden space-y-2">
       {viewMode === 'month' && mobileDays.length === 0 && (
-        <p className="text-[13px] text-[#71717A] text-center py-4">No scheduled posts this month.</p>
+        <p className="text-[13px] text-text-secondary text-center py-4">No scheduled posts this month.</p>
       )}
       {mobileDays.map((day, i) => {
         const key = toDateKey(day);
@@ -146,21 +146,21 @@ export default function CalendarGrid({
                 ref={provided.innerRef}
                 {...provided.droppableProps}
                 onClick={() => onDayCellClick(day)}
-                className={`rounded-[12px] border-[0.5px] border-[#FAFAFA]/12 bg-[#09090B] p-3 cursor-pointer transition-colors ${
-                  isToday ? 'ring-1 ring-inset ring-[#6366F1]' : ''
-                } ${isPickMode ? 'hover:ring-1 hover:ring-[#6366F1]/60' : ''} ${
+                className={`rounded-lg border border-border bg-bg-secondary p-3 cursor-pointer transition-colors ${
+                  isToday ? 'ring-1 ring-inset ring-accent-primary' : ''
+                } ${isPickMode ? 'hover:ring-1 hover:ring-accent-primary/60' : ''} ${
                   snapshot.isDraggingOver
-                    ? 'bg-[rgba(99,102,241,0.12)] ring-2 ring-inset ring-[#6366F1]/50'
-                    : 'hover:bg-[#18181B]'
+                    ? 'bg-coral-light ring-2 ring-inset ring-accent-primary/50'
+                    : 'hover:bg-bg-tertiary'
                 }`}
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[12px] text-[#71717A] font-medium">
+                  <span className="text-[12px] text-text-secondary font-medium">
                     {dayLabel}
                   </span>
                   <span
                     className={`text-[14px] font-medium ${
-                      isToday ? 'text-[#6366F1]' : 'text-[#FAFAFA]'
+                      isToday ? 'text-accent-primary' : 'text-text-primary'
                     }`}
                   >
                     {viewMode === 'month'
@@ -168,7 +168,7 @@ export default function CalendarGrid({
                       : day.getDate()}
                   </span>
                   {dayPosts.length === 0 && (
-                    <span className="text-[11px] text-[#71717A] ml-auto">No posts</span>
+                    <span className="text-[11px] text-text-secondary ml-auto">No posts</span>
                   )}
                 </div>
                 <div className="space-y-1.5">
@@ -179,10 +179,10 @@ export default function CalendarGrid({
                         e.stopPropagation();
                         onPostClick(p);
                       }}
-                      className="rounded-[7px] border-[0.5px] border-[#FAFAFA]/12 bg-[#18181B] p-2.5 min-h-[44px] cursor-pointer hover:border-[#FAFAFA]/25 transition-colors flex items-center gap-2"
+                      className="rounded-md border border-border bg-bg-tertiary p-2.5 min-h-[44px] cursor-pointer hover:border-border-hover transition-colors flex items-center gap-2"
                     >
                       <PillarDot pillar={p.pillar} />
-                      <span className="text-[13px] text-[#FAFAFA] font-medium truncate flex-1">
+                      <span className="text-[13px] text-text-primary font-medium truncate flex-1">
                         {truncateText(p.title, 30)}
                       </span>
                       <StatusBadge status={p.status} />
@@ -210,7 +210,7 @@ export default function CalendarGrid({
           {DAY_HEADERS_MON.map((d) => (
             <div
               key={d}
-              className="font-body text-center text-[10px] font-medium text-[#71717A] py-2 uppercase tracking-[0.1em]"
+              className="font-body text-center text-[10px] font-medium text-text-secondary py-2 uppercase tracking-[0.1em]"
             >
               {d}
             </div>
@@ -218,7 +218,7 @@ export default function CalendarGrid({
         </div>
 
         {/* Day cells */}
-        <div className="grid grid-cols-7 border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] overflow-hidden">
+        <div className="grid grid-cols-7 border border-border rounded-lg overflow-hidden">
           {days.map((day, i) => {
             const key = toDateKey(day);
             const isCurrentMonth =
@@ -233,7 +233,7 @@ export default function CalendarGrid({
             const borderClasses = [
               col < 6 ? 'border-r-[0.5px]' : '',
               row < totalRows - 1 ? 'border-b-[0.5px]' : '',
-              'border-[#FAFAFA]/12',
+              'border-border',
             ].join(' ');
 
             return (
@@ -243,24 +243,24 @@ export default function CalendarGrid({
                     ref={provided.innerRef}
                     {...provided.droppableProps}
                     onClick={() => onDayCellClick(day)}
-                    className={`bg-[#09090B] cursor-pointer transition-colors ${borderClasses} ${
+                    className={`bg-bg-secondary cursor-pointer transition-colors ${borderClasses} ${
                       isWeekView ? 'min-h-[200px] p-2' : 'min-h-[80px] p-1.5'
-                    } ${isToday ? 'ring-1 ring-inset ring-[#6366F1]' : ''} ${
-                      isPickMode ? 'hover:ring-1 hover:ring-[#6366F1]/60' : ''
+                    } ${isToday ? 'ring-1 ring-inset ring-accent-primary' : ''} ${
+                      isPickMode ? 'hover:ring-1 hover:ring-accent-primary/60' : ''
                     } ${
                       snapshot.isDraggingOver
-                        ? 'bg-[rgba(99,102,241,0.12)] ring-2 ring-inset ring-[#6366F1]/50'
-                        : 'hover:bg-[#27272A]'
+                        ? 'bg-coral-light ring-2 ring-inset ring-accent-primary/50'
+                        : 'hover:bg-bg-tertiary'
                     }`}
                   >
                     {isWeekView ? (
                       <div className="mb-2">
-                        <span className="text-[11px] text-[#71717A] font-medium">
+                        <span className="text-[11px] text-text-secondary font-medium">
                           {DAY_HEADERS_MON[i]}
                         </span>
                         <span
                           className={`ml-1 text-[13px] font-medium ${
-                            isToday ? 'text-[#6366F1]' : 'text-[#FAFAFA]'
+                            isToday ? 'text-accent-primary' : 'text-text-primary'
                           }`}
                         >
                           {day.getDate()}
@@ -269,7 +269,7 @@ export default function CalendarGrid({
                     ) : (
                       <span
                         className={`text-[11px] font-medium ${
-                          isCurrentMonth ? 'text-[#FAFAFA]' : 'text-[#71717A]'
+                          isCurrentMonth ? 'text-text-primary' : 'text-text-secondary'
                         }`}
                       >
                         {day.getDate()}
@@ -285,11 +285,11 @@ export default function CalendarGrid({
                               e.stopPropagation();
                               onPostClick(p);
                             }}
-                            className="rounded-[7px] border-[0.5px] border-[#FAFAFA]/12 bg-[#09090B] p-1.5 cursor-pointer hover:border-[#FAFAFA]/25 transition-colors"
+                            className="rounded-md border border-border bg-bg-secondary p-1.5 cursor-pointer hover:border-border-hover transition-colors"
                           >
                             <div className="flex items-center gap-1 mb-0.5">
                               <PillarDot pillar={p.pillar} />
-                              <span className="text-[11px] text-[#FAFAFA] font-medium truncate">
+                              <span className="text-[11px] text-text-primary font-medium truncate">
                                 {truncateText(p.title, 20)}
                               </span>
                             </div>
@@ -314,7 +314,7 @@ export default function CalendarGrid({
                         )
                       )}
                       {!isWeekView && dayPosts.length > 3 && (
-                        <span className="text-[10px] text-[#71717A]">
+                        <span className="text-[10px] text-text-secondary">
                           +{dayPosts.length - 3} more
                         </span>
                       )}

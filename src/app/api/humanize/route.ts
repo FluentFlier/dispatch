@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { humanize, aiScore } from '@/lib/humanizer';
-import type { CreatorProfileForPrompt } from '@/lib/claude';
+import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { z } from 'zod';
 import { checkRateLimit } from '@/lib/rate-limit';
 
@@ -25,7 +25,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const parsed = HumanizeSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
-  // Score only mode
   if (parsed.data.scoreOnly) {
     try {
       const result = await aiScore(parsed.data.text);
@@ -36,28 +35,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  // Load profile for voice matching
   const client = getServerClient();
-  let profile: CreatorProfileForPrompt | null = null;
-  try {
-    const { data: profileRow } = await client.database
-      .from('creator_profile')
-      .select('display_name, bio, content_pillars, voice_description, voice_rules')
-      .eq('user_id', user.id)
-      .single();
-
-    if (profileRow) {
-      profile = {
-        display_name: profileRow.display_name,
-        bio: profileRow.bio ?? undefined,
-        content_pillars: typeof profileRow.content_pillars === 'string'
-          ? JSON.parse(profileRow.content_pillars)
-          : profileRow.content_pillars,
-        voice_description: profileRow.voice_description ?? undefined,
-        voice_rules: profileRow.voice_rules ?? undefined,
-      };
-    }
-  } catch { /* no profile */ }
+  const { profile } = await loadCreatorVoiceContext(client, user.id);
 
   try {
     const humanized = await humanize(parsed.data.text, profile);

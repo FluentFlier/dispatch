@@ -66,12 +66,12 @@ function TeleprompterContent() {
   // Manual entry mode - dark exception for recording context
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-black px-4">
-      <h1 className="font-display text-[22px] font-[800] text-white leading-[1.2] tracking-[-0.02em]">Teleprompter</h1>
+      <h1 className="font-display text-[22px] font-semibold text-white leading-[1.2] tracking-[-0.02em]">Teleprompter</h1>
       <textarea
         value={script}
         onChange={(e) => setScript(e.target.value)}
         placeholder="Paste your script here..."
-        className="font-display h-64 w-full max-w-xl resize-none rounded-[12px] border-[0.5px] border-white/20 p-4 text-[16px] text-white placeholder-white/40 outline-none focus:border-[#6366F1]"
+        className="font-display h-64 w-full max-w-xl resize-none rounded-lg border border-white/20 p-4 text-[16px] text-white placeholder-white/40 outline-none focus:border-accent-primary"
         style={{ backgroundColor: '#111', lineHeight: 1.7 }}
       />
       <button
@@ -79,7 +79,7 @@ function TeleprompterContent() {
           if (script.trim()) setIsActive(true);
         }}
         disabled={!script.trim()}
-        className="font-display rounded-[7px] bg-[#6366F1] px-8 py-3 text-[16px] font-[700] text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+        className="font-display rounded-md bg-accent-primary px-8 py-3 text-[16px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-40"
       >
         Start
       </button>

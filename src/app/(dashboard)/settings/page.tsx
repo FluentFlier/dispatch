@@ -15,6 +15,7 @@ import BioGenerator from "@/components/settings/BioGenerator";
 import PlatformConnections from "@/components/settings/PlatformConnections";
 import ProfileEditor from "@/components/settings/ProfileEditor";
 import AutoOptimizeToggle from "@/components/settings/AutoOptimizeToggle";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -53,8 +54,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <div className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-6">
-      <h2 className="font-heading text-[16px] font-[700] text-[#FAFAFA] mb-4">{title}</h2>
+    <div className="bg-bg-secondary border border-border rounded-lg p-6 shadow-card">
+      <h2 className="font-heading text-[16px] font-semibold text-text-primary mb-4">{title}</h2>
       {children}
     </div>
   );
@@ -473,7 +474,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-[#71717A]" />
+        <Loader2 className="w-6 h-6 animate-spin text-text-secondary" />
       </div>
     );
   }
@@ -481,21 +482,19 @@ export default function SettingsPage() {
   const pillarOptions = pillars.map((p) => p.name).filter(Boolean);
 
   return (
-    <div className="max-w-3xl mx-auto px-0 sm:px-4 py-8 space-y-6">
-      <h1 className="font-heading text-[22px] font-[800] text-[#FAFAFA] leading-[1.2] tracking-[-0.02em]">
-        Settings
-      </h1>
+    <div className="page-shell space-y-6">
+      <PageHeader title="Settings" subtitle="Profile, connected accounts, and how Dispatch writes for you." />
 
       {/* Tab bar */}
-      <div className="flex gap-1 bg-[#18181B] rounded-[10px] p-1">
+      <div className="flex gap-1 bg-bg-tertiary rounded-[10px] p-1">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex-1 px-4 py-2 rounded-[7px] text-[13px] font-medium transition-all ${
+            className={`flex-1 px-4 py-2 rounded-md text-[13px] font-medium transition-all ${
               activeTab === tab.id
-                ? 'bg-[#27272A] text-[#FAFAFA]'
-                : 'text-[#71717A] hover:text-[#A1A1AA]'
+                ? 'bg-bg-secondary text-text-primary shadow-card'
+                : 'text-text-secondary hover:text-text-primary'
             }`}
           >
             {tab.label}
@@ -535,18 +534,18 @@ export default function SettingsPage() {
         <Section title="Plan & billing">
           {entitlements ? (
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 rounded-[10px] bg-[#18181B] border border-[#FAFAFA]/10">
+              <div className="flex items-center justify-between p-4 rounded-[10px] bg-bg-tertiary border border-border">
                 <div>
-                  <p className="text-[13px] text-[#FAFAFA] font-medium capitalize">{entitlements.plan} plan</p>
-                  <p className="text-[11px] text-[#71717A] mt-1">
+                  <p className="text-[13px] text-text-primary font-medium capitalize">{entitlements.plan} plan</p>
+                  <p className="text-[11px] text-text-secondary mt-1">
                     {entitlements.usage.publishes} / {entitlements.limits.publishesPerMonth} publishes this month
                   </p>
                 </div>
                 <span
                   className={`text-[10px] px-2 py-0.5 rounded-[3px] ${
                     entitlements.isPaid
-                      ? 'bg-[rgba(16,185,129,0.15)] text-[#10B981]'
-                      : 'bg-[#27272A] text-[#71717A]'
+                      ? 'bg-sage-light text-accent-secondary'
+                      : 'bg-bg-tertiary text-text-secondary'
                   }`}
                 >
                   {entitlements.isPaid ? 'Active' : 'Free'}
@@ -555,7 +554,7 @@ export default function SettingsPage() {
               {!entitlements.isPaid && (
                 <a
                   href="/pricing"
-                  className="inline-block px-4 py-2 text-[12px] text-white bg-[#6366F1] rounded-[7px] hover:bg-[#6366F1]/90"
+                  className="inline-block px-4 py-2 text-[12px] text-text-inverse bg-accent-primary rounded-md hover:bg-accent-dark transition-colors"
                 >
                   Upgrade to publish
                 </a>
@@ -565,14 +564,14 @@ export default function SettingsPage() {
                   type="button"
                   disabled={billingLoading}
                   onClick={openBillingPortal}
-                  className="px-4 py-2 text-[12px] text-[#FAFAFA] border border-[#FAFAFA]/12 rounded-[7px] hover:border-[#FAFAFA]/25 disabled:opacity-60"
+                  className="px-4 py-2 text-[12px] text-text-primary border border-border rounded-md hover:border-border-hover disabled:opacity-60"
                 >
                   {billingLoading ? 'Opening…' : 'Manage subscription'}
                 </button>
               )}
             </div>
           ) : (
-            <p className="text-[13px] text-[#71717A]">Loading billing…</p>
+            <p className="text-[13px] text-text-secondary">Loading billing…</p>
           )}
         </Section>
       )}

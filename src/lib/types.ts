@@ -20,6 +20,9 @@ export interface Post {
   comments: number | null;
   shares: number | null;
   follows_gained: number | null;
+  voice_match_score: number | null;
+  ai_score: number | null;
+  voice_evaluation: Record<string, unknown> | null;
   series_id: string | null;
   series_position: number | null;
   variant_group_id: string | null;
@@ -98,3 +101,15 @@ export interface GenerateRequest {
 export interface GenerateResponse {
   text: string;
 }
+
+export type {
+  PostCommentRow,
+  CommentReplyQueueRow,
+  InboxComment,
+  InboxPostGroup,
+  EngagementInboxResult,
+  ReplyQueueStatus,
+  SyncEngagementResult,
+  DraftRepliesResult,
+  SendRepliesResult,
+} from '@/lib/engagement/types';

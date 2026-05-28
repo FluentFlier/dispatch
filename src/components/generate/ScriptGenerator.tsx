@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { GenerateOutput } from './GenerateOutput';
+import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
 import { usePillars } from '@/hooks/usePillars';
 import { PLATFORMS } from '@/lib/constants';
 import type { Platform } from '@/lib/constants';
@@ -59,18 +59,30 @@ CTA: Ask if they knew this kind of research existed.
 No em dashes.`,
 };
 
-async function callGenerate(prompt: string): Promise<string> {
+async function callGenerate(
+  prompt: string,
+  platform: Platform,
+): Promise<{ text: string; voiceMetrics: GenerateVoiceMetrics }> {
   const res = await fetch('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, platform, topic: prompt.slice(0, 200) }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
     throw new Error(body.error || 'Generation failed');
   }
-  const { text } = await res.json();
-  return text;
+  const data = await res.json();
+  return {
+    text: data.text,
+    voiceMetrics: {
+      voice_match_score: data.voice_match_score,
+      ai_score: data.ai_score,
+      iterations: data.iterations,
+      revised: data.revised,
+      evaluation: data.evaluation,
+    },
+  };
 }
 
 interface ScriptGeneratorProps {
@@ -106,6 +118,7 @@ export function ScriptGenerator({
     }
   }, [pillarsLoading, pillarList, pillar]);
   const [output, setOutput] = useState(initialResult);
+  const [voiceMetrics, setVoiceMetrics] = useState<GenerateVoiceMetrics | undefined>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -113,6 +126,7 @@ export function ScriptGenerator({
     setLoading(true);
     setError('');
     setOutput('');
+    setVoiceMetrics(undefined);
     try {
       const info = pillarList.find((p) => p.value === pillar);
       let prompt: string;
@@ -129,8 +143,9 @@ CTA: One direct question.`;
       if (topic.trim()) {
         prompt += `\n\nTopic: ${topic.trim()}`;
       }
-      const text = await callGenerate(prompt);
-      setOutput(text);
+      const result = await callGenerate(prompt, platform);
+      setOutput(result.text);
+      setVoiceMetrics(result.voiceMetrics);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Generation failed');
     } finally {
@@ -141,7 +156,7 @@ CTA: One direct question.`;
   return (
     <div className="space-y-5">
       <div>
-        <label className="block font-body text-[13px] text-[#A1A1AA] mb-2">Content Pillar</label>
+        <label className="block font-body text-[13px] text-text-tertiary mb-2">Content Pillar</label>
         <div className="flex flex-wrap gap-2">
           {pillarList.map((p) => (
             <button
@@ -149,11 +164,11 @@ CTA: One direct question.`;
               onClick={() => setPillar(p.value)}
               className="px-4 py-1.5 rounded-[20px] font-body text-[13px] font-medium transition-all duration-100"
               style={{
-                backgroundColor: '#18181B',
-                color: pillar === p.value ? p.color : '#A1A1AA',
+                backgroundColor: '#F3EDE4',
+                color: pillar === p.value ? p.color : '#78716C',
                 border: pillar === p.value
                   ? `1.5px solid ${p.color}`
-                  : '0.5px solid rgba(255,255,255,0.12)',
+                  : '1px solid rgba(28, 25, 23, 0.1)',
               }}
             >
               {p.label}
@@ -163,7 +178,7 @@ CTA: One direct question.`;
       </div>
 
       <div>
-        <label className="block font-body text-[13px] text-[#A1A1AA] mb-2">
+        <label className="block font-body text-[13px] text-text-tertiary mb-2">
           Topic (optional)
         </label>
         <textarea
@@ -171,12 +186,12 @@ CTA: One direct question.`;
           onChange={(e) => setTopic(e.target.value)}
           rows={3}
           placeholder="Enter a specific topic or leave blank for a general script..."
-          className="w-full bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-4 py-3 font-body text-[13px] text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[rgba(255,255,255,0.40)] resize-none transition-colors duration-100"
+          className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover resize-none transition-colors duration-100"
         />
       </div>
 
       <div>
-        <label className="block font-body text-[13px] text-[#A1A1AA] mb-2">
+        <label className="block font-body text-[13px] text-text-tertiary mb-2">
           Target Platform
         </label>
         <div className="flex flex-wrap gap-2">
@@ -186,11 +201,11 @@ CTA: One direct question.`;
               onClick={() => setPlatform(p)}
               className="px-4 py-1.5 rounded-[20px] font-body text-[13px] font-medium transition-all duration-100"
               style={{
-                backgroundColor: '#18181B',
-                color: platform === p ? '#FAFAFA' : '#A1A1AA',
+                backgroundColor: '#F3EDE4',
+                color: platform === p ? '#1C1917' : '#78716C',
                 border: platform === p
-                  ? '1.5px solid rgba(255,255,255,0.40)'
-                  : '0.5px solid rgba(255,255,255,0.12)',
+                  ? '1.5px solid rgba(28, 25, 23, 0.28)'
+                  : '1px solid rgba(28, 25, 23, 0.1)',
               }}
             >
               {p.charAt(0).toUpperCase() + p.slice(1)}
@@ -203,9 +218,14 @@ CTA: One direct question.`;
         Generate Script
       </Button>
 
-      {error && <p className="font-body text-[13px] text-[#6366F1]">{error}</p>}
+      {error && <p className="font-body text-[13px] text-accent-primary">{error}</p>}
 
-      <GenerateOutput text={output} loading={loading} sourcePlatform={platform} />
+      <GenerateOutput
+        text={output}
+        loading={loading}
+        sourcePlatform={platform}
+        voiceMetrics={voiceMetrics}
+      />
     </div>
   );
 }

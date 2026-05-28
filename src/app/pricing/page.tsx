@@ -10,7 +10,7 @@ const PLANS = [
     name: 'Starter',
     price: '$19',
     description: 'Solo creators shipping consistently',
-    features: ['3 connected accounts', '60 publishes / month', 'Reliable scheduling', 'Publish status timeline'],
+    features: ['3 connected accounts', '60 publishes / month', 'Reliable scheduling', 'Publish status timeline', 'Basic Hook Intelligence (limited)'],
   },
   {
     id: 'growth' as const,
@@ -18,14 +18,14 @@ const PLANS = [
     price: '$49',
     description: 'Growing creators across platforms',
     popular: true,
-    features: ['10 connected accounts', '300 publishes / month', 'Priority retries', 'Usage dashboard'],
+    features: ['10 connected accounts', '300 publishes / month', 'Priority retries', 'Usage dashboard', 'Full Research Lab + Hook Lab', 'Lead categorization insights'],
   },
   {
     id: 'pro' as const,
     name: 'Pro',
     price: '$99',
     description: 'Agencies and power users',
-    features: ['30 connected accounts', '1,500 publishes / month', 'Team-ready limits', 'Concierge onboarding'],
+    features: ['30 connected accounts', '1,500 publishes / month', 'Team-ready limits', 'Concierge onboarding', 'Unlimited intelligence runs', 'Custom watchlists + Apify mining', 'Advanced RL + analytics snapshots'],
   },
 ];
 
@@ -37,6 +37,13 @@ export default function PricingPage() {
     setLoading(plan);
     setError('');
     try {
+      const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
+      const session = (await sessionRes.json()) as { authenticated?: boolean };
+      if (!session.authenticated) {
+        window.location.href = '/login';
+        return;
+      }
+
       const res = await fetch('/api/billing/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -56,25 +63,25 @@ export default function PricingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#050507] text-[#FAFAFA]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+    <div className="min-h-screen bg-bg-primary text-text-primary" style={{ fontFamily: "'DM Sans', sans-serif" }}>
       <div className="max-w-5xl mx-auto px-5 py-16">
         <div className="text-center mb-12">
-          <Link href="/" className="text-[12px] text-[#818CF8] hover:text-[#A5B4FC] mb-6 inline-block">
+          <Link href="/" className="text-[12px] text-accent-primary hover:text-accent-dark mb-6 inline-block">
             ← Dispatch
           </Link>
           <h1
-            className="text-[36px] tracking-[-0.03em] mb-3"
+            className="text-[36px] tracking-[-0.03em] mb-3 text-text-primary"
             style={{ fontFamily: "'Instrument Serif', serif" }}
           >
             Publish everywhere. Bill once.
           </h1>
-          <p className="text-[15px] text-[#71717A] max-w-lg mx-auto">
+          <p className="text-[15px] text-text-secondary max-w-lg mx-auto">
             Connect once, schedule reliably, and see every post&apos;s delivery status in one timeline.
           </p>
         </div>
 
         {error && (
-          <p className="text-center text-[13px] text-[#FCA5A5] mb-6 px-4 py-2 rounded-lg bg-red-500/10 border border-red-500/20">
+          <p className="text-center text-[13px] text-accent-dark mb-6 px-4 py-2 rounded-lg bg-coral-light border border-accent-primary/30">
             {error}
           </p>
         )}
@@ -83,27 +90,27 @@ export default function PricingPage() {
           {PLANS.map((plan) => (
             <div
               key={plan.id}
-              className={`rounded-2xl p-6 border ${
+              className={`rounded-2xl p-6 border shadow-card ${
                 plan.popular
-                  ? 'border-[#818CF8]/40 bg-[rgba(129,140,248,0.06)]'
-                  : 'border-[#FAFAFA]/10 bg-[rgba(255,255,255,0.02)]'
+                  ? 'border-accent-primary/40 bg-coral-light'
+                  : 'border-border bg-bg-secondary'
               }`}
             >
               {plan.popular && (
-                <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-[#818CF8] mb-3">
+                <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wider text-accent-primary mb-3">
                   <Zap size={12} /> Most popular
                 </span>
               )}
-              <h2 className="text-[18px] font-semibold">{plan.name}</h2>
-              <p className="text-[28px] font-medium mt-1">
+              <h2 className="text-[18px] font-semibold text-text-primary">{plan.name}</h2>
+              <p className="text-[28px] font-medium mt-1 text-text-primary">
                 {plan.price}
-                <span className="text-[13px] text-[#71717A] font-normal">/mo</span>
+                <span className="text-[13px] text-text-secondary font-normal">/mo</span>
               </p>
-              <p className="text-[13px] text-[#71717A] mt-2 mb-5">{plan.description}</p>
+              <p className="text-[13px] text-text-secondary mt-2 mb-5">{plan.description}</p>
               <ul className="space-y-2 mb-6">
                 {plan.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-[13px] text-[#A1A1AA]">
-                    <Check size={14} className="text-[#10B981] shrink-0 mt-0.5" />
+                  <li key={f} className="flex items-start gap-2 text-[13px] text-text-tertiary">
+                    <Check size={14} className="text-accent-secondary shrink-0 mt-0.5" />
                     {f}
                   </li>
                 ))}
@@ -114,8 +121,8 @@ export default function PricingPage() {
                 onClick={() => checkout(plan.id)}
                 className={`w-full py-3 rounded-xl text-[14px] font-medium transition-colors flex items-center justify-center gap-2 ${
                   plan.popular
-                    ? 'bg-[#6366F1] hover:bg-[#5558E3] text-white'
-                    : 'bg-[#18181B] hover:bg-[#27272A] text-[#FAFAFA] border border-[#FAFAFA]/12'
+                    ? 'bg-accent-primary hover:bg-accent-dark text-text-inverse shadow-soft'
+                    : 'bg-bg-tertiary hover:bg-bg-elevated text-text-primary border border-border'
                 }`}
               >
                 {loading === plan.id && <Loader2 size={14} className="animate-spin" />}
@@ -125,9 +132,9 @@ export default function PricingPage() {
           ))}
         </div>
 
-        <p className="text-center text-[12px] text-[#52525B] mt-10">
+        <p className="text-center text-[12px] text-text-tertiary mt-10">
           Free tier includes drafts and previews. Publishing requires a paid plan.{' '}
-          <Link href="/login" className="text-[#818CF8] hover:underline">
+          <Link href="/login" className="text-accent-primary hover:text-accent-dark hover:underline">
             Sign in
           </Link>
         </p>

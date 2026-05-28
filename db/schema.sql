@@ -60,6 +60,9 @@ create table if not exists posts (
   comments int,
   shares int,
   follows_gained int,
+  voice_match_score int,
+  ai_score int,
+  voice_evaluation jsonb,
   series_id uuid references series(id) on delete set null,
   series_position int,
   variant_group_id uuid,
@@ -259,6 +262,26 @@ create table if not exists ayrshare_profiles (
 );
 
 -- ============================================================
+-- CREATOR BRAIN (per-user memory pages, GBrain-style on InsForge)
+-- ============================================================
+
+create table if not exists creator_brain_pages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null,
+  slug text not null,
+  title text not null,
+  tags text[] not null default '{}',
+  body text not null,
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null,
+  unique(user_id, slug)
+);
+
+create trigger creator_brain_pages_updated_at
+  before update on creator_brain_pages
+  for each row execute function update_updated_at();
+
+-- ============================================================
 -- INDEXES
 -- ============================================================
 
@@ -273,3 +296,4 @@ create index if not exists social_accounts_user on social_accounts (user_id);
 create index if not exists publish_jobs_status_scheduled on publish_jobs (status, scheduled_for);
 create index if not exists publish_jobs_user on publish_jobs (user_id, created_at desc);
 create index if not exists usage_counters_lookup on usage_counters (user_id, metric, period_key);
+create index if not exists creator_brain_pages_user on creator_brain_pages (user_id, updated_at desc);

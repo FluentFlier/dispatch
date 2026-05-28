@@ -11,6 +11,7 @@ import PostGrid from '@/components/library/PostGrid';
 import PostTable from '@/components/library/PostTable';
 import PostEditorDrawer from '@/components/library/PostEditorDrawer';
 import PublishTimeline from '@/components/library/PublishTimeline';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 export default function LibraryPage() {
   const { pillars: pillarList, getLabel } = usePillars();
@@ -191,12 +192,12 @@ export default function LibraryPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <div className="h-8 w-32 bg-[#18181B] rounded-[7px] animate-pulse" />
-          <div className="h-9 w-28 bg-[#18181B] rounded-[7px] animate-pulse" />
+          <div className="h-8 w-32 bg-bg-tertiary rounded-md animate-pulse" />
+          <div className="h-9 w-28 bg-bg-tertiary rounded-md animate-pulse" />
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
           {Array.from({ length: 6 }).map((_, i) => (
-            <div key={i} className="h-48 bg-[#18181B] rounded-[12px] animate-pulse" />
+            <div key={i} className="h-48 bg-bg-tertiary rounded-lg animate-pulse" />
           ))}
         </div>
       </div>
@@ -204,35 +205,36 @@ export default function LibraryPage() {
   }
 
   return (
-    <div className="space-y-4">
-      {/* Top bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="font-heading text-[22px] font-[800] text-[#FAFAFA] leading-[1.2] tracking-[-0.02em]">Library</h1>
+    <div className="page-shell-wide space-y-4">
+      <PageHeader
+        title="Posts"
+        subtitle="All your drafts, scheduled posts, and published content."
+        action={
         <div className="flex items-center gap-2 flex-wrap">
           {/* Search */}
           <div className="relative flex-1 min-w-[150px] sm:flex-none">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#71717A]" />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
             <input
               type="text"
               placeholder="Search posts..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.08)] rounded-[7px] pl-8 pr-3 py-2 min-h-[44px] text-[13px] text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[#FAFAFA]/40 w-full sm:w-56 transition-colors"
+              className="bg-bg-tertiary border border-border rounded-md pl-8 pr-3 py-2 min-h-[44px] text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover w-full sm:w-56 transition-colors"
             />
           </div>
           {/* View toggle */}
           <button
             onClick={() => setView('card')}
-            className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-[7px] border-[0.5px] transition-all duration-100 ${
-              view === 'card' ? 'border-[#6366F1] text-[#6366F1]' : 'border-[#FAFAFA]/12 text-[#71717A] hover:text-[#FAFAFA]'
+            className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md border transition-all duration-100 ${
+              view === 'card' ? 'border-accent-primary text-accent-primary' : 'border-border text-text-secondary hover:text-text-primary'
             }`}
           >
             <Grid3X3 className="w-4 h-4" />
           </button>
           <button
             onClick={() => setView('table')}
-            className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-[7px] border-[0.5px] transition-all duration-100 ${
-              view === 'table' ? 'border-[#6366F1] text-[#6366F1]' : 'border-[#FAFAFA]/12 text-[#71717A] hover:text-[#FAFAFA]'
+            className={`p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md border transition-all duration-100 ${
+              view === 'table' ? 'border-accent-primary text-accent-primary' : 'border-border text-text-secondary hover:text-text-primary'
             }`}
           >
             <List className="w-4 h-4" />
@@ -240,14 +242,15 @@ export default function LibraryPage() {
           {/* New Post */}
           <button
             onClick={handleNewPost}
-            className="flex items-center gap-1.5 bg-[#6366F1] text-white text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-[7px] hover:opacity-90 transition-opacity"
+            className="flex items-center gap-1.5 bg-accent-primary text-text-inverse text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-md hover:opacity-90 transition-opacity"
           >
             <Plus className="w-4 h-4" />
             <span className="hidden sm:inline">New Post</span>
             <span className="sm:hidden">New</span>
           </button>
         </div>
-      </div>
+        }
+      />
 
       {/* Filters row */}
       <div className="flex flex-wrap gap-2">
@@ -281,21 +284,21 @@ export default function LibraryPage() {
 
       {/* Bulk actions */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] px-4 py-2">
-          <span className="text-[13px] text-[#71717A]">{selected.size} selected</span>
-          <button onClick={handleBulkDelete} className="flex items-center gap-1 text-[13px] text-[#6366F1] hover:opacity-80">
+        <div className="flex items-center gap-3 bg-bg-tertiary border border-border rounded-lg px-4 py-2">
+          <span className="text-[13px] text-text-secondary">{selected.size} selected</span>
+          <button onClick={handleBulkDelete} className="flex items-center gap-1 text-[13px] text-accent-primary hover:opacity-80">
             <Trash2 className="w-3.5 h-3.5" /> Delete
           </button>
           <div className="relative group">
-            <button className="flex items-center gap-1 text-[13px] text-[#71717A] hover:text-[#FAFAFA]">
+            <button className="flex items-center gap-1 text-[13px] text-text-secondary hover:text-text-primary">
               Change Status <ChevronDown className="w-3.5 h-3.5" />
             </button>
-            <div className="absolute top-full left-0 mt-1 bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] py-1 hidden group-hover:block z-20">
+            <div className="absolute top-full left-0 mt-1 bg-bg-secondary border border-border rounded-lg py-1 shadow-card hidden group-hover:block z-20">
               {STATUSES.map((s) => (
                 <button
                   key={s}
                   onClick={() => handleBulkStatus(s)}
-                  className="block w-full text-left px-4 py-1.5 text-[13px] text-[#FAFAFA] hover:bg-[#18181B] capitalize"
+                  className="block w-full text-left px-4 py-1.5 text-[13px] text-text-primary hover:bg-bg-tertiary capitalize"
                 >
                   {STATUS_LABELS[s]}
                 </button>
@@ -309,18 +312,18 @@ export default function LibraryPage() {
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           {posts.length === 0 && (
-            <FileText className="w-12 h-12 text-[#71717A] mb-4" />
+            <FileText className="w-12 h-12 text-text-secondary mb-4" />
           )}
-          <h2 className="font-heading text-[16px] font-[700] text-[#FAFAFA] mb-1">
+          <h2 className="font-heading text-[16px] font-semibold text-text-primary mb-1">
             {posts.length === 0 ? 'Nothing scripted yet' : 'No posts match your filters'}
           </h2>
-          <p className="text-[#71717A] text-[13px] mb-4">
+          <p className="text-text-secondary text-[13px] mb-4">
             {posts.length === 0 ? 'Generate a script or convert an idea to get started.' : 'Try adjusting your filters.'}
           </p>
           {posts.length === 0 && (
             <a
               href="/generate"
-              className="flex items-center gap-1.5 bg-[#6366F1] text-white text-[13px] font-medium px-5 py-[10px] rounded-[7px] hover:opacity-90 transition-opacity"
+              className="flex items-center gap-1.5 bg-accent-primary text-text-inverse text-[13px] font-medium px-5 py-[10px] rounded-md hover:opacity-90 transition-opacity"
             >
               <Plus className="w-4 h-4" /> Generate a Script
             </a>
@@ -348,7 +351,7 @@ export default function LibraryPage() {
           <button
             onClick={loadMore}
             disabled={loadingMore}
-            className="text-[13px] text-[#71717A] hover:text-[#FAFAFA] bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] px-6 py-2 min-h-[44px] transition-colors disabled:opacity-50"
+            className="text-[13px] text-text-secondary hover:text-text-primary bg-bg-tertiary border border-border rounded-md px-6 py-2 min-h-[44px] transition-colors disabled:opacity-50"
           >
             {loadingMore ? 'Loading...' : 'Load More'}
           </button>
@@ -356,8 +359,8 @@ export default function LibraryPage() {
       )}
 
       {/* Publish timeline */}
-      <section className="bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-4 mt-6">
-        <h2 className="text-[12px] font-medium uppercase tracking-[0.1em] text-[#71717A] mb-3">
+      <section className="bg-bg-secondary border border-border rounded-lg p-4 mt-6 shadow-card">
+        <h2 className="text-[12px] font-medium uppercase tracking-[0.1em] text-text-secondary mb-3">
           Publish activity
         </h2>
         <PublishTimeline limit={10} />
@@ -397,7 +400,7 @@ function FilterDropdown({
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="appearance-none bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] pl-3 pr-7 py-2 min-h-[44px] text-[13px] text-[#FAFAFA] focus:outline-none focus:border-[#FAFAFA]/40 cursor-pointer transition-colors"
+        className="appearance-none bg-bg-tertiary border border-border rounded-md pl-3 pr-7 py-2 min-h-[44px] text-[13px] text-text-primary focus:outline-none focus:border-border-hover cursor-pointer transition-colors"
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
@@ -405,7 +408,7 @@ function FilterDropdown({
           </option>
         ))}
       </select>
-      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#71717A] pointer-events-none" />
+      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-secondary pointer-events-none" />
     </div>
   );
 }

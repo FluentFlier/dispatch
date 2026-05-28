@@ -27,6 +27,9 @@ const UpdatePostSchema = z.object({
   source_platform: z.string().nullable().optional(),
   scheduled_publish_at: z.string().nullable().optional(),
   image_url: z.string().nullable().optional(),
+  voice_match_score: z.number().int().min(0).max(100).nullable().optional(),
+  ai_score: z.number().int().min(0).max(100).nullable().optional(),
+  voice_evaluation: z.record(z.string(), z.unknown()).nullable().optional(),
   updated_at: z.string().optional(),
 }).strict();
 

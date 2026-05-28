@@ -68,13 +68,13 @@ Each part works standalone but rewards watching all. Part 1 must be the stronges
 
       const { data: series, error: seriesErr } = await insforge.database
         .from('series')
-        .insert({
+        .insert([{
           user_id: userData.user.id,
           name: concept.trim(),
           description: output,
           pillar: 'explainer' as Pillar,
           total_parts: numParts,
-        })
+        }])
         .select()
         .single();
       if (seriesErr) throw seriesErr;
@@ -133,19 +133,19 @@ Each part works standalone but rewards watching all. Part 1 must be the stronges
   return (
     <div className="space-y-5">
       <div>
-        <label className="block font-body text-[13px] text-[#A1A1AA] mb-2">
+        <label className="block font-body text-[13px] text-text-tertiary mb-2">
           Series concept
         </label>
         <input
           value={concept}
           onChange={(e) => setConcept(e.target.value)}
           placeholder="What is this series about?"
-          className="w-full bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-4 py-3 font-body text-[13px] text-[#FAFAFA] placeholder:text-[#71717A] focus:outline-none focus:border-[rgba(255,255,255,0.40)] transition-colors duration-100"
+          className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors duration-100"
         />
       </div>
 
       <div>
-        <label className="block font-body text-[13px] text-[#A1A1AA] mb-2">
+        <label className="block font-body text-[13px] text-text-tertiary mb-2">
           Number of parts
         </label>
         <input
@@ -158,7 +158,7 @@ Each part works standalone but rewards watching all. Part 1 must be the stronges
               Math.min(10, Math.max(2, parseInt(e.target.value, 10) || 2)),
             )
           }
-          className="w-24 bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[7px] px-4 py-3 font-body text-[13px] text-[#FAFAFA] focus:outline-none focus:border-[rgba(255,255,255,0.40)] transition-colors duration-100"
+          className="w-24 bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors duration-100"
         />
       </div>
 
@@ -170,7 +170,7 @@ Each part works standalone but rewards watching all. Part 1 must be the stronges
         Plan Series
       </Button>
 
-      {error && <p className="font-body text-[13px] text-[#6366F1]">{error}</p>}
+      {error && <p className="font-body text-[13px] text-accent-primary">{error}</p>}
 
       <GenerateOutput text={output} loading={loading}>
         <Button

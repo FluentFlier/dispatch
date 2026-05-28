@@ -26,6 +26,9 @@ const CreatePostSchema = z.object({
   variant_group_id: z.string().uuid().nullable().optional(),
   source_platform: z.string().nullable().optional(),
   image_url: z.string().nullable().optional(),
+  voice_match_score: z.number().int().min(0).max(100).nullable().optional(),
+  ai_score: z.number().int().min(0).max(100).nullable().optional(),
+  voice_evaluation: z.record(z.string(), z.unknown()).nullable().optional(),
 }).strict();
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -79,7 +82,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const client = getServerClient();
   const { data, error } = await client
     .database.from('posts')
-    .insert({ ...parsed.data, user_id: user.id })
+    .insert([{ ...parsed.data, user_id: user.id }])
     .select()
     .single();
 

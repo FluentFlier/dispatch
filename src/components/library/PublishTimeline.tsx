@@ -25,8 +25,8 @@ const STATUS_COLOR: Record<string, string> = {
   published: 'text-[#10B981]',
   failed: 'text-[#F87171]',
   dead: 'text-[#F87171]',
-  queued: 'text-[#818CF8]',
-  processing: 'text-[#A1A1AA]',
+  queued: 'text-accent-primary',
+  processing: 'text-text-tertiary',
 };
 
 export default function PublishTimeline({ limit = 8 }: { limit?: number }) {
@@ -56,25 +56,25 @@ export default function PublishTimeline({ limit = 8 }: { limit?: number }) {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 text-[#71717A] text-[13px] py-4">
+      <div className="flex items-center gap-2 text-text-secondary text-[13px] py-4">
         <Loader2 size={14} className="animate-spin" /> Loading publish activity…
       </div>
     );
   }
 
   if (jobs.length === 0) {
-    return <p className="text-[13px] text-[#71717A] py-2">No publish activity yet.</p>;
+    return <p className="text-[13px] text-text-secondary py-2">No publish activity yet.</p>;
   }
 
   return (
     <ul className="space-y-2">
       {jobs.map((job) => {
         const Icon = STATUS_ICON[job.status] ?? Clock;
-        const color = STATUS_COLOR[job.status] ?? 'text-[#71717A]';
+        const color = STATUS_COLOR[job.status] ?? 'text-text-secondary';
         return (
           <li
             key={job.id}
-            className="flex items-start gap-3 py-2 border-b border-[#FAFAFA]/06 last:border-0"
+            className="flex items-start gap-3 py-2 border-b border-border last:border-0"
           >
             <Icon
               size={14}
@@ -82,8 +82,8 @@ export default function PublishTimeline({ limit = 8 }: { limit?: number }) {
             />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-[13px] text-[#FAFAFA] capitalize">{job.platform}</span>
-                <span className="text-[10px] text-[#52525B] uppercase tracking-wide">{job.status}</span>
+                <span className="text-[13px] text-text-primary capitalize">{job.platform}</span>
+                <span className="text-[10px] text-text-tertiary uppercase tracking-wide">{job.status}</span>
               </div>
               {job.last_error && (
                 <p className="text-[11px] text-[#F87171] mt-0.5 line-clamp-2">{job.last_error}</p>
@@ -93,7 +93,7 @@ export default function PublishTimeline({ limit = 8 }: { limit?: number }) {
                   href={job.provider_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[11px] text-[#818CF8] hover:underline mt-0.5 inline-block"
+                  className="text-[11px] text-accent-primary hover:underline mt-0.5 inline-block"
                 >
                   View post
                 </a>
@@ -103,7 +103,7 @@ export default function PublishTimeline({ limit = 8 }: { limit?: number }) {
               <button
                 type="button"
                 onClick={() => retry(job.id)}
-                className="text-[11px] text-[#818CF8] hover:text-[#A5B4FC] shrink-0"
+                className="text-[11px] text-accent-primary hover:text-accent-primary shrink-0"
               >
                 Retry
               </button>

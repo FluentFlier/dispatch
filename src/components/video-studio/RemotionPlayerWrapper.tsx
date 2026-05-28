@@ -60,7 +60,7 @@ const UnifiedComposition: React.FC<Record<string, unknown>> = (props) => {
             <div style={{
               position: 'absolute', top: '15%', left: '10%',
               width: interpolate(frame, [0, 20], [0, 120], { extrapolateRight: 'clamp' }),
-              height: 4, backgroundColor: '#6366F1', borderRadius: 2,
+              height: 4, backgroundColor: '#E07A5F', borderRadius: 2,
             }} />
             <div style={{
               opacity: interpolate(frame, [5, 20], [0, 1], { extrapolateRight: 'clamp' }),
@@ -98,7 +98,7 @@ const UnifiedComposition: React.FC<Record<string, unknown>> = (props) => {
                 backgroundColor: 'rgba(9,9,11,0.85)', borderRadius: 12, padding: '16px 24px',
                 textAlign: 'center', border: '1px solid rgba(99,102,241,0.25)', minWidth: 120,
               }}>
-                <div style={{ fontSize: 36, fontWeight: 800, color: '#6366F1', fontFamily: 'Inter, system-ui, sans-serif', lineHeight: 1 }}>{stat.value}</div>
+                <div style={{ fontSize: 36, fontWeight: 800, color: '#E07A5F', fontFamily: 'Inter, system-ui, sans-serif', lineHeight: 1 }}>{stat.value}</div>
                 <div style={{ fontSize: 14, color: '#A1A1AA', marginTop: 4, fontFamily: 'Inter, system-ui, sans-serif', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{stat.label}</div>
               </div>
             );

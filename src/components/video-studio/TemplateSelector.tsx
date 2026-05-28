@@ -66,7 +66,7 @@ interface TemplateSelectorProps {
 export default function TemplateSelector({ selected, onSelect, hasVideo }: TemplateSelectorProps) {
   return (
     <div className="space-y-3">
-      <h3 className="font-heading text-[15px] font-[700] text-[#FAFAFA]">
+      <h3 className="font-heading text-[15px] font-semibold text-text-primary">
         Templates
       </h3>
       <div className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 ${!hasVideo ? 'opacity-50 pointer-events-none' : ''}`}>
@@ -76,21 +76,21 @@ export default function TemplateSelector({ selected, onSelect, hasVideo }: Templ
             <button
               key={template.id}
               onClick={() => onSelect?.(template.id)}
-              className={`text-left rounded-lg p-4 border-[0.5px] transition-all duration-100 ${
+              className={`text-left rounded-lg p-4 border transition-all duration-100 ${
                 isSelected
-                  ? 'bg-[rgba(99,102,241,0.12)] border-[#6366F1]/40'
-                  : 'bg-[#18181B] border-[#FAFAFA]/12 hover:border-[#FAFAFA]/25'
+                  ? 'bg-coral-light border-accent-primary/40'
+                  : 'bg-bg-tertiary border-border hover:border-border-hover'
               }`}
             >
               <div className={`flex items-center justify-center w-full h-24 rounded-md mb-3 ${
-                isSelected ? 'bg-[#6366F1]/20 text-[#6366F1]' : 'bg-[#27272A] text-[#71717A]'
+                isSelected ? 'bg-accent-primary/20 text-accent-primary' : 'bg-bg-tertiary text-text-secondary'
               }`}>
                 {isSelected ? <Check className="w-6 h-6" /> : template.icon}
               </div>
-              <p className={`font-body text-[13px] font-medium ${isSelected ? 'text-[#6366F1]' : 'text-[#FAFAFA]'}`}>
+              <p className={`font-body text-[13px] font-medium ${isSelected ? 'text-accent-primary' : 'text-text-primary'}`}>
                 {template.title}
               </p>
-              <p className="font-body text-[11px] text-[#71717A] mt-1 line-clamp-2">
+              <p className="font-body text-[11px] text-text-secondary mt-1 line-clamp-2">
                 {template.description}
               </p>
             </button>
@@ -98,7 +98,7 @@ export default function TemplateSelector({ selected, onSelect, hasVideo }: Templ
         })}
       </div>
       {!hasVideo && (
-        <p className="font-body text-[11px] text-[#71717A]">
+        <p className="font-body text-[11px] text-text-secondary">
           Upload a video to enable templates.
         </p>
       )}

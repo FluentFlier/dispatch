@@ -50,18 +50,18 @@ export default function StoryCard({
 }: StoryCardProps) {
   return (
     <div
-      className={`bg-[#09090B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] transition-all ${
+      className={`bg-bg-secondary border border-border rounded-lg transition-all ${
         story.used ? 'opacity-75' : ''
       } ${
         isExpanded
           ? 'col-span-1 md:col-span-2 lg:col-span-3'
-          : 'hover:border-[#FAFAFA]/25 cursor-pointer'
+          : 'hover:border-border-hover cursor-pointer'
       }`}
     >
       {/* Card header */}
       <div className="p-[13px_14px]" onClick={onToggleExpand}>
         <div className="flex items-start justify-between gap-2 mb-2">
-          <p className="text-[13px] text-[#A1A1AA] leading-[1.55] italic">
+          <p className="text-[13px] text-text-tertiary leading-[1.55] italic">
             {isExpanded
               ? story.raw_memory
               : story.raw_memory.length > 100
@@ -74,7 +74,7 @@ export default function StoryCard({
                 e.stopPropagation();
                 onToggleExpand();
               }}
-              className="shrink-0 p-1 text-[#71717A] hover:text-[#FAFAFA]"
+              className="shrink-0 p-1 text-text-secondary hover:text-text-primary"
             >
               <X className="w-4 h-4" />
             </button>
@@ -82,7 +82,7 @@ export default function StoryCard({
         </div>
 
         {story.mined_angle && (
-          <p className="text-[13px] font-medium text-[#6366F1] mb-2">
+          <p className="text-[13px] font-medium text-accent-primary mb-2">
             {story.mined_angle}
           </p>
         )}
@@ -93,7 +93,7 @@ export default function StoryCard({
             className={`text-[10px] px-[7px] py-[2px] rounded-[3px] font-medium tracking-[0.01em] ${
               story.used
                 ? 'bg-[rgba(16,185,129,0.15)] text-[#3B6D11]'
-                : 'bg-[#18181B] text-[#71717A]'
+                : 'bg-bg-tertiary text-text-secondary'
             }`}
           >
             {story.used ? 'Used' : 'Unused'}
@@ -103,37 +103,37 @@ export default function StoryCard({
 
       {/* Expanded section */}
       {isExpanded && (
-        <div className="border-t-[0.5px] border-[#FAFAFA]/12 px-[14px] py-4 space-y-4">
+        <div className="border-t-[0.5px] border-border px-[14px] py-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <h4 className="font-body text-[10px] font-medium text-[#71717A] uppercase tracking-[0.1em] mb-1">
+              <h4 className="font-body text-[10px] font-medium text-text-secondary uppercase tracking-[0.1em] mb-1">
                 Raw Memory
               </h4>
-              <p className="text-[13px] text-[#FAFAFA] leading-[1.55]">
+              <p className="text-[13px] text-text-primary leading-[1.55]">
                 {story.raw_memory}
               </p>
             </div>
             <div>
-              <h4 className="font-body text-[10px] font-medium text-[#71717A] uppercase tracking-[0.1em] mb-1">
+              <h4 className="font-body text-[10px] font-medium text-text-secondary uppercase tracking-[0.1em] mb-1">
                 Mined Angle
               </h4>
-              <p className="text-[13px] text-[#6366F1] font-medium">
+              <p className="text-[13px] text-accent-primary font-medium">
                 {story.mined_angle || 'Not yet mined'}
               </p>
             </div>
             <div>
-              <h4 className="font-body text-[10px] font-medium text-[#71717A] uppercase tracking-[0.1em] mb-1">
+              <h4 className="font-body text-[10px] font-medium text-text-secondary uppercase tracking-[0.1em] mb-1">
                 Mined Hook
               </h4>
-              <p className="text-[13px] text-[#FAFAFA]">
+              <p className="text-[13px] text-text-primary">
                 {story.mined_hook || 'Not yet mined'}
               </p>
             </div>
             <div>
-              <h4 className="font-body text-[10px] font-medium text-[#71717A] uppercase tracking-[0.1em] mb-1">
+              <h4 className="font-body text-[10px] font-medium text-text-secondary uppercase tracking-[0.1em] mb-1">
                 Caption Line
               </h4>
-              <p className="text-[13px] text-[#FAFAFA]">
+              <p className="text-[13px] text-text-primary">
                 {story.mined_caption_line || 'Not yet mined'}
               </p>
             </div>
@@ -141,14 +141,14 @@ export default function StoryCard({
 
           {story.mined_script && (
             <div>
-              <h4 className="font-body text-[10px] font-medium text-[#71717A] uppercase tracking-[0.1em] mb-1">
+              <h4 className="font-body text-[10px] font-medium text-text-secondary uppercase tracking-[0.1em] mb-1">
                 Mined Script
               </h4>
-              <div className="bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[12px] p-3">
+              <div className="bg-bg-tertiary border border-border rounded-lg p-3">
                 {story.mined_script.split('\n').map((line, i) => (
                   <p
                     key={i}
-                    className="text-[13px] text-[#FAFAFA] leading-[1.55]"
+                    className="text-[13px] text-text-primary leading-[1.55]"
                   >
                     {line || '\u00A0'}
                   </p>
@@ -159,7 +159,7 @@ export default function StoryCard({
 
           {story.pillar && (
             <div>
-              <h4 className="font-body text-[10px] font-medium text-[#71717A] uppercase tracking-[0.1em] mb-1">
+              <h4 className="font-body text-[10px] font-medium text-text-secondary uppercase tracking-[0.1em] mb-1">
                 Pillar
               </h4>
               <StoryPillarBadge pillar={story.pillar} />
@@ -167,11 +167,11 @@ export default function StoryCard({
           )}
 
           {/* Action buttons */}
-          <div className="flex flex-wrap gap-2 pt-2 border-t-[0.5px] border-[#FAFAFA]/12">
+          <div className="flex flex-wrap gap-2 pt-2 border-t-[0.5px] border-border">
             <button
               onClick={onConvert}
               disabled={converting || story.used}
-              className="flex items-center gap-1.5 bg-[#6366F1] text-white text-[13px] font-medium px-5 py-[10px] rounded-[7px] hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 bg-accent-primary text-white text-[13px] font-medium px-5 py-[10px] rounded-md hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <ArrowRightCircle className="w-4 h-4" />
               {converting
@@ -183,7 +183,7 @@ export default function StoryCard({
             <button
               onClick={onRemine}
               disabled={remining}
-              className="flex items-center gap-1.5 bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 text-[#FAFAFA] text-[13px] font-medium px-[14px] py-[7px] rounded-[7px] hover:border-[#FAFAFA]/25 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex items-center gap-1.5 bg-bg-tertiary border border-border text-text-primary text-[13px] font-medium px-[14px] py-[7px] rounded-md hover:border-border-hover transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <RefreshCw
                 className={`w-4 h-4 ${remining ? 'animate-spin' : ''}`}
@@ -193,7 +193,7 @@ export default function StoryCard({
             <button
               onClick={onDelete}
               disabled={deleting}
-              className="flex items-center gap-1.5 text-[#6366F1] hover:opacity-80 text-[13px] font-medium px-[14px] py-[7px] rounded-[7px] border-[0.5px] border-transparent hover:border-[#6366F1]/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
+              className="flex items-center gap-1.5 text-accent-primary hover:opacity-80 text-[13px] font-medium px-[14px] py-[7px] rounded-md border border-transparent hover:border-accent-primary/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
             >
               <Trash2 className="w-4 h-4" />
               {deleting ? 'Deleting...' : 'Delete'}

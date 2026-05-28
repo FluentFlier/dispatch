@@ -72,3 +72,26 @@ export async function createBillingPortalSession(
   });
   return json.url as string;
 }
+
+/**
+ * Record usage for metered billing (Stripe Billing Meters or subscription usage records).
+ * Call this from UsageTracker for research/generate/agent calls on paid plans.
+ */
+export async function recordUsageEvent(params: {
+  customerId: string;
+  metric: string; // e.g. 'research_calls' or 'ai_generations'
+  value: number;
+  timestamp?: number;
+}): Promise<void> {
+  try {
+    await stripeRequest('/billing/meter_events', {
+      'event_name': params.metric,
+      'payload[stripe_customer_id]': params.customerId,
+      'payload[value]': String(params.value),
+      ...(params.timestamp ? { 'timestamp': String(params.timestamp) } : {}),
+    });
+  } catch (e) {
+    // Best effort — don't break generation if metering fails
+    console.warn('[Stripe] Meter event failed (non-fatal):', e);
+  }
+}

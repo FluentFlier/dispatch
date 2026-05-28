@@ -55,8 +55,8 @@ export function PlatformConstraints({ platform, hasImage = false, compact = fals
   if (compact) {
     return (
       <div className="flex items-start gap-2 mt-2">
-        <Info size={12} className="text-[#52525B] mt-0.5 shrink-0" />
-        <p className="text-[11px] text-[#52525B] leading-relaxed">
+        <Info size={12} className="text-text-tertiary mt-0.5 shrink-0" />
+        <p className="text-[11px] text-text-secondary leading-relaxed">
           {config.rules[0]}
           {config.imageRequired && !hasImage && (
             <span className="text-amber-400 ml-1">(image required)</span>
@@ -67,17 +67,17 @@ export function PlatformConstraints({ platform, hasImage = false, compact = fals
   }
 
   return (
-    <div className="bg-[#18181B] border-[0.5px] border-[rgba(255,255,255,0.08)] rounded-[7px] p-3 mt-2">
+    <div className="bg-bg-tertiary border border-border rounded-md p-3 mt-2">
       <div className="flex items-center gap-1.5 mb-2">
-        <Info size={12} className="text-[#52525B]" />
-        <span className="text-[10px] font-medium tracking-[0.08em] uppercase text-[#52525B]">
+        <Info size={12} className="text-text-tertiary" />
+        <span className="text-[10px] font-medium tracking-[0.08em] uppercase text-text-tertiary">
           {platform === 'twitter' ? 'X' : platform} rules
         </span>
       </div>
       <ul className="space-y-1">
         {config.rules.map((rule, i) => (
-          <li key={i} className="text-[11px] text-[#71717A] leading-relaxed flex items-start gap-1.5">
-            <span className="text-[#52525B] mt-0.5">-</span>
+          <li key={i} className="text-[11px] text-text-secondary leading-relaxed flex items-start gap-1.5">
+            <span className="text-text-tertiary mt-0.5">-</span>
             {rule}
           </li>
         ))}

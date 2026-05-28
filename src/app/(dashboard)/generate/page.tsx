@@ -4,6 +4,7 @@ import { Suspense, useEffect, useState, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { Tabs } from "@/components/ui/Tabs";
 import { SkeletonLines } from "@/components/ui/Skeleton";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { ScriptGenerator } from "@/components/generate/ScriptGenerator";
 import { StoryMine } from "@/components/generate/StoryMine";
 import { CaptionHashtags } from "@/components/generate/CaptionHashtags";
@@ -24,13 +25,13 @@ type TabId =
   | "series";
 
 const TAB_LIST: { id: TabId; label: string }[] = [
-  { id: "script", label: "Script" },
-  { id: "story-mine", label: "Story Mine" },
-  { id: "caption", label: "Caption + Tags" },
-  { id: "hooks", label: "Hooks" },
+  { id: "script", label: "New post" },
+  { id: "caption", label: "Caption" },
+  { id: "hooks", label: "Hook" },
+  { id: "comments", label: "Reply" },
+  { id: "story-mine", label: "Story" },
   { id: "repurpose", label: "Repurpose" },
   { id: "trend", label: "Trend" },
-  { id: "comments", label: "Replies" },
   { id: "series", label: "Series" },
 ];
 
@@ -38,11 +39,9 @@ export default function GeneratePage() {
   return (
     <Suspense
       fallback={
-        <div className="space-y-6">
-          <h1 className="font-display font-[800] text-[21px] text-[#FAFAFA] tracking-[-0.02em] leading-[1.2]">
-            Generate
-          </h1>
-          <div className="bg-[#09090B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-[13px_14px]">
+        <div className="page-shell">
+          <PageHeader title="Write" subtitle="AI drafts in your voice." />
+          <div className="card-surface">
             <SkeletonLines count={3} />
           </div>
         </div>
@@ -63,7 +62,6 @@ function GeneratePageInner() {
     TAB_LIST.find((t) => t.id === tabParam)?.id || "script",
   );
 
-  // Sync URL with active tab
   useEffect(() => {
     const current = searchParams.get("tab");
     if (current !== activeTab) {
@@ -73,22 +71,14 @@ function GeneratePageInner() {
     }
   }, [activeTab, searchParams, router]);
 
-  // Scroll active tab into view
   useEffect(() => {
     if (!tabBarRef.current) return;
-    const activeEl = tabBarRef.current.querySelector(
-      `[data-tab="${activeTab}"]`,
-    );
+    const activeEl = tabBarRef.current.querySelector(`[data-tab="${activeTab}"]`);
     if (activeEl) {
-      activeEl.scrollIntoView({
-        behavior: "smooth",
-        block: "nearest",
-        inline: "center",
-      });
+      activeEl.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
     }
   }, [activeTab]);
 
-  // Read pre-fill params for the Ideas "Convert to Script" flow
   const initialResult = searchParams.get("result") || "";
   const initialTopic = searchParams.get("topic") || "";
   const initialPillar = searchParams.get("pillar") || "";
@@ -123,22 +113,22 @@ function GeneratePageInner() {
   };
 
   return (
-    <div className="space-y-6">
-      <h1 className="font-display font-[800] text-[21px] text-[#FAFAFA] tracking-[-0.02em] leading-[1.2]">Generate</h1>
+    <div className="page-shell-wide">
+      <PageHeader
+        title="Write"
+        subtitle="Pick a tool below. Everything is drafted in your voice — edit before you publish."
+      />
 
-      {/* Tab bar */}
-      <div ref={tabBarRef} className="-mx-4 px-4 md:mx-0 md:px-0 overflow-x-auto">
+      <div ref={tabBarRef} className="-mx-1 overflow-x-auto scrollbar-hide">
         <Tabs
           tabs={TAB_LIST}
           activeTab={activeTab}
           onChange={(id) => setActiveTab(id as TabId)}
+          variant="pill"
         />
       </div>
 
-      {/* Tab content */}
-      <div className="bg-[#09090B] border-[0.5px] border-[rgba(255,255,255,0.12)] rounded-[12px] p-[13px_14px]">
-        {renderTab()}
-      </div>
+      <div className="card-surface min-h-[320px]">{renderTab()}</div>
     </div>
   );
 }

@@ -45,7 +45,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const client = getServerClient();
   const { data, error } = await client
     .database.from('weekly_reviews')
-    .insert({ ...parsed.data, user_id: user.id })
+    .insert([{ ...parsed.data, user_id: user.id }])
     .select()
     .single();
 

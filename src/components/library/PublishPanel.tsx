@@ -106,8 +106,8 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-2">
-        <Loader2 size={14} className="animate-spin text-[#71717A]" />
-        <span className="text-[11px] text-[#71717A]">Loading accounts...</span>
+        <Loader2 size={14} className="animate-spin text-text-secondary" />
+        <span className="text-[11px] text-text-secondary">Loading accounts...</span>
       </div>
     );
   }
@@ -115,10 +115,10 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
   if (accounts.length === 0) {
     return (
       <div className="py-2">
-        <p className="text-[11px] text-[#71717A] mb-2">No accounts connected.</p>
+        <p className="text-[11px] text-text-secondary mb-2">No accounts connected.</p>
         <Link
           href="/settings"
-          className="inline-flex items-center gap-1.5 text-[11px] text-[#6366F1] hover:opacity-80 transition-opacity"
+          className="inline-flex items-center gap-1.5 text-[11px] text-accent-primary hover:opacity-80 transition-opacity"
         >
           <Settings size={12} /> Connect accounts in Settings
         </Link>
@@ -145,7 +145,7 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
                 type="button"
                 disabled={isPublishing || result?.success}
                 onClick={() => handlePublish(account.platform)}
-                className="flex-1 flex items-center gap-2 px-3 py-2 text-[11px] bg-[#18181B] border-[0.5px] border-[#FAFAFA]/12 rounded-[7px] hover:border-[#FAFAFA]/25 transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                className="flex-1 flex items-center gap-2 px-3 py-2 text-[11px] bg-bg-tertiary border border-border rounded-md hover:border-border-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 <span
                   className="w-5 h-5 rounded-[4px] flex items-center justify-center text-[9px] font-bold text-white shrink-0"
@@ -157,7 +157,7 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
                 {isPublishing ? (
                   <>
                     <Loader2 size={12} className="animate-spin" />
-                    <span className="text-[#A1A1AA]">Posting...</span>
+                    <span className="text-text-tertiary">Posting...</span>
                   </>
                 ) : result?.success ? (
                   <>
@@ -165,11 +165,11 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
                     <span className="text-[#3B6D11]">Posted to {config.label}</span>
                   </>
                 ) : (
-                  <span className="text-[#FAFAFA]">Post to {config.label}</span>
+                  <span className="text-text-primary">Post to {config.label}</span>
                 )}
 
                 {account.account_name && (
-                  <span className="ml-auto text-[10px] text-[#71717A]">{account.account_name}</span>
+                  <span className="ml-auto text-[10px] text-text-secondary">{account.account_name}</span>
                 )}
               </button>
             </div>
@@ -178,13 +178,13 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
             <div className="flex items-center gap-1 px-1">
               {overLimit ? (
                 <>
-                  <AlertCircle size={10} className="text-[#6366F1]" />
-                  <span className="text-[10px] text-[#6366F1]">
+                  <AlertCircle size={10} className="text-accent-primary" />
+                  <span className="text-[10px] text-accent-primary">
                     {charCount}/{config.charLimit} characters (over limit)
                   </span>
                 </>
               ) : (
-                <span className="text-[10px] text-[#71717A]">
+                <span className="text-[10px] text-text-secondary">
                   {charCount}/{config.charLimit} characters
                 </span>
               )}
@@ -196,7 +196,7 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
                 href={result.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 px-1 text-[10px] text-[#6366F1] hover:underline"
+                className="flex items-center gap-1 px-1 text-[10px] text-accent-primary hover:underline"
               >
                 <ExternalLink size={10} /> View post
               </a>
@@ -204,7 +204,7 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
 
             {/* Error message */}
             {result && !result.success && (
-              <p className="px-1 text-[10px] text-[#6366F1]">{result.error}</p>
+              <p className="px-1 text-[10px] text-accent-primary">{result.error}</p>
             )}
           </div>
         );

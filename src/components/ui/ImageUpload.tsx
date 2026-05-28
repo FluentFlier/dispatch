@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { useState, useRef, useCallback } from 'react';
 import { Upload, X, Loader2, ImageIcon } from 'lucide-react';
 
@@ -55,15 +56,20 @@ export function ImageUpload({ imageUrl, onUpload, onRemove }: ImageUploadProps) 
   if (imageUrl) {
     return (
       <div className="relative group">
-        <img
+        <div className="relative h-[200px] w-full overflow-hidden rounded-md border border-border">
+        <Image
           src={imageUrl}
           alt="Post media"
-          className="w-full max-h-[200px] object-cover rounded-[7px] border-[0.5px] border-[rgba(255,255,255,0.12)]"
+          fill
+          sizes="(max-width: 768px) 100vw, 640px"
+          className="object-cover"
+          unoptimized
         />
+        </div>
         <button
           type="button"
           onClick={onRemove}
-          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-[#09090B]/80 flex items-center justify-center text-[#A1A1AA] hover:text-[#FAFAFA] opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-bg-primary/80 flex items-center justify-center text-text-secondary hover:text-text-primary opacity-0 group-hover:opacity-100 transition-opacity"
         >
           <X size={14} />
         </button>
@@ -80,21 +86,21 @@ export function ImageUpload({ imageUrl, onUpload, onRemove }: ImageUploadProps) 
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         disabled={uploading}
-        className={`w-full flex flex-col items-center justify-center gap-2 py-6 rounded-[7px] border border-dashed transition-all ${
+        className={`w-full flex flex-col items-center justify-center gap-2 py-6 rounded-md border border-dashed transition-all ${
           dragOver
-            ? 'border-[#818CF8] bg-[rgba(129,140,248,0.08)]'
-            : 'border-[rgba(255,255,255,0.12)] bg-[#18181B] hover:border-[rgba(255,255,255,0.25)]'
+            ? 'border-accent-primary bg-coral-light'
+            : 'border-border bg-bg-tertiary hover:border-border-hover'
         } ${uploading ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
       >
         {uploading ? (
-          <Loader2 size={20} className="text-[#71717A] animate-spin" />
+          <Loader2 size={20} className="text-text-tertiary animate-spin" />
         ) : (
-          <ImageIcon size={20} className="text-[#52525B]" />
+          <ImageIcon size={20} className="text-text-tertiary" />
         )}
-        <span className="text-[12px] text-[#71717A]">
+        <span className="text-[12px] text-text-secondary">
           {uploading ? 'Uploading...' : 'Drop image or click to upload'}
         </span>
-        <span className="text-[10px] text-[#52525B]">JPG, PNG, WebP, GIF. Max 10MB</span>
+        <span className="text-[10px] text-text-tertiary">JPG, PNG, WebP, GIF. Max 10MB</span>
       </button>
       <input
         ref={inputRef}

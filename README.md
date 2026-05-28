@@ -6,8 +6,9 @@ Private content command center for creators who ship. Generate, organize, schedu
 
 ## Features
 
-- **Generate** — AI studio: scripts, hooks, captions, story mining, repurposing, trends, comment replies, series planning
-- **Library** — Post CRM with status pipeline, filters, bulk actions, and editor drawer
+- **Generate** — AI studio with voice QA scores: scripts, hooks, captions, story mining, repurposing, trends, series planning
+- **Comments** — Sync replies on your posts, AI drafts in your voice, approve and send
+- **Library** — Post command center (Write | Schedule | Comments | Stats tabs), pipeline, bulk publish
 - **Calendar** — Month/week views, drag-and-drop scheduling, AI week fill
 - **Publish** — OAuth for X, LinkedIn, Instagram, Threads; platform-specific formatting
 - **Analytics** — Weekly reviews, pillar breakdowns, performance logging
@@ -79,9 +80,30 @@ db/
 docs/           # Plans and research
 ```
 
-## Deploy
+## Deploy (production checklist)
 
-Configured for [Vercel](https://vercel.com/) with cron jobs in [`vercel.json`](vercel.json). Set the project **Root Directory** to `.` (repo root). Ensure all env vars from `.env.example` are set in the Vercel dashboard.
+1. **InsForge** — Link project: `npx @insforge/cli link`
+2. **Schema** — Apply in order:
+   - `db/schema.sql` (fresh projects)
+   - `db/production-delta.sql` (billing, publish queue, engagement)
+   - `db/creator-brain.sql` (Creator Brain pages)
+3. **Secrets** — Set in Vercel / InsForge:
+   - `NEXT_PUBLIC_INSFORGE_URL`, `NEXT_PUBLIC_INSFORGE_ANON_KEY`, `INSFORGE_SERVICE_ROLE_KEY`
+   - `TOKEN_ENCRYPTION_KEY` (`openssl rand -hex 32`)
+   - `NEXT_PUBLIC_APP_URL`, `CRON_SECRET`
+   - `AYRSHARE_API_KEY` (recommended for multi-platform publish + comment sync)
+4. **OAuth** — Add redirect URLs in InsForge dashboard for `/login`
+5. **Deploy** — [Vercel](https://vercel.com/) with [`vercel.json`](vercel.json) crons:
+   - `/api/cron/publish` — every 5 min
+   - `/api/cron/engagement-sync` — every 15 min
+   - `/api/cron/auto-generate` — daily
+6. **Smoke test** — `GET /api/health` should return `status: ok` (social may be `missing` until Ayrshare is set)
+
+### First-time user flow
+
+Sign in → onboarding (profile + voice) → Settings → connect platforms (Ayrshare) → Write → Posts → publish → Comments inbox to reply.
+
+Configured for [Vercel](https://vercel.com/). Set the project **Root Directory** to `.` (repo root).
 
 ## Brand
 
