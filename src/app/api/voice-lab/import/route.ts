@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { lookup } from 'dns/promises';
+import { isIP } from 'node:net';
 import { getAuthenticatedUser } from '@/lib/insforge/server';
 import { z } from 'zod';
 
@@ -80,8 +82,58 @@ function chunkSamples(text: string): string[] {
   return chunks.slice(0, 4);
 }
 
+function isPrivateIp(address: string): boolean {
+  if (isIP(address) === 4) {
+    const [a, b] = address.split('.').map(Number);
+    if (a === 10) return true;
+    if (a === 127) return true;
+    if (a === 169 && b === 254) return true;
+    if (a === 192 && b === 168) return true;
+    if (a === 172 && b !== undefined && b >= 16 && b <= 31) return true;
+    if (a === 0) return true;
+    return false;
+  }
+
+  if (isIP(address) === 6) {
+    const normalized = address.toLowerCase();
+    if (normalized === '::1') return true;
+    if (normalized.startsWith('fe80:')) return true;
+    if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true;
+    if (normalized.startsWith('::ffff:127.')) return true;
+  }
+
+  return false;
+}
+
+async function assertPublicUrl(url: string): Promise<URL> {
+  const parsed = new URL(url);
+
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    throw new Error('Only http and https URLs are allowed');
+  }
+
+  const hostname = parsed.hostname.toLowerCase();
+  if (hostname === 'localhost' || hostname.endsWith('.localhost') || hostname.endsWith('.local')) {
+    throw new Error('Private hosts are not allowed');
+  }
+
+  if (isIP(hostname) !== 0) {
+    if (isPrivateIp(hostname)) throw new Error('Private hosts are not allowed');
+    return parsed;
+  }
+
+  const records = await lookup(hostname, { all: true, verbatim: true });
+  if (records.some((record) => isPrivateIp(record.address))) {
+    throw new Error('Private hosts are not allowed');
+  }
+
+  return parsed;
+}
+
 async function fetchReadable(url: string): Promise<{ title?: string; body: string }> {
-  const readerUrl = `https://r.jina.ai/http://r.jina.ai/http://${url}`;
+  await assertPublicUrl(url);
+
+  const readerUrl = `https://r.jina.ai/${url}`;
   const readerRes = await fetch(readerUrl, {
     headers: { Accept: 'text/plain' },
     next: { revalidate: 0 },

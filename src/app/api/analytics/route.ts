@@ -31,6 +31,7 @@ export async function GET(): Promise<NextResponse> {
   if (postsRes.error) return NextResponse.json({ error: postsRes.error.message }, { status: 500 });
   if (setsRes.error) return NextResponse.json({ error: setsRes.error.message }, { status: 500 });
   if (reviewsRes.error) return NextResponse.json({ error: reviewsRes.error.message }, { status: 500 });
+  if (leadsRes.error) return NextResponse.json({ error: leadsRes.error.message }, { status: 500 });
 
   const posts = postsRes.data ?? [];
   const leadCounts: Record<string, number> = { ICP: 0, 'Potential Lead': 0, Community: 0, Other: 0 };
