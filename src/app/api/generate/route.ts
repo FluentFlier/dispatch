@@ -3,7 +3,8 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { z } from 'zod';
-import { checkRateLimit } from '@/lib/rate-limit';
+import { guardAiRequest } from '@/lib/ai-guard';
+import { errorResponse } from '@/lib/api-errors';
 
 const RequestSchema = z.object({
   prompt: z.string().min(1).max(10000),
@@ -30,17 +31,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const parsed = RequestSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
-  const rl = await checkRateLimit(user.id);
-  if (!rl.allowed) {
-    const retryAfter = Math.ceil((rl.resetAt - Date.now()) / 1000);
-    return NextResponse.json(
-      { error: 'Rate limit exceeded. Try again later.' },
-      {
-        status: 429,
-        headers: { 'Retry-After': String(retryAfter) },
-      },
-    );
-  }
+  const guard = await guardAiRequest(user.id);
+  if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
   const client = getServerClient();
   const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {
@@ -68,7 +60,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       evaluation: result.evaluation,
     });
   } catch (err) {
-    console.error('Claude API error:', err);
-    return NextResponse.json({ error: 'Generation failed' }, { status: 500 });
+    return errorResponse('Generation failed.', 500, err);
   }
 }

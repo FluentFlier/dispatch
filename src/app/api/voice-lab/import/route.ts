@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { lookup } from 'dns/promises';
 import { isIP } from 'node:net';
 import { getAuthenticatedUser } from '@/lib/insforge/server';
+import { guardAiRequest } from '@/lib/ai-guard';
 import { z } from 'zod';
 
 const ImportSchema = z.object({
@@ -145,13 +146,34 @@ async function fetchReadable(url: string): Promise<{ title?: string; body: strin
     if (cleaned.body.length >= 80) return cleaned;
   }
 
-  const directRes = await fetch(url, {
-    headers: {
-      Accept: 'text/html,text/plain',
-      'User-Agent': 'ContentOSVoiceImporter/1.0',
-    },
+  const directHeaders = {
+    Accept: 'text/html,text/plain',
+    'User-Agent': 'ContentOSVoiceImporter/1.0',
+  };
+  let directRes = await fetch(url, {
+    headers: directHeaders,
+    redirect: 'manual',
     next: { revalidate: 0 },
   });
+
+  // Manually follow a single redirect, re-validating the target against the
+  // SSRF allowlist so an attacker cannot redirect us to a private host.
+  if (directRes.status >= 300 && directRes.status < 400) {
+    const location = directRes.headers.get('location');
+    if (!location) throw new Error(`Could not read ${url}`);
+    const redirectTarget = new URL(location, url).toString();
+    await assertPublicUrl(redirectTarget);
+    directRes = await fetch(redirectTarget, {
+      headers: directHeaders,
+      redirect: 'manual',
+      next: { revalidate: 0 },
+    });
+    // A second redirect is not followed (single manual hop only).
+    if (directRes.status >= 300 && directRes.status < 400) {
+      throw new Error(`Could not read ${url}`);
+    }
+  }
+
   if (!directRes.ok) throw new Error(`Could not read ${url}`);
 
   const html = await directRes.text();
@@ -184,6 +206,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const parsed = ImportSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
+
+  const guard = await guardAiRequest(user.id);
+  if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
   const samples: ImportedSample[] = [];
   const failures: { url: string; error: string }[] = [];

@@ -80,13 +80,34 @@ export async function handleStripeWebhook(
     case 'customer.subscription.updated':
     case 'customer.subscription.deleted': {
       const sub = event.data.object;
-      const userId = (sub.metadata as Record<string, string>)?.user_id;
       const status = sub.status as string;
       const customerId = sub.customer as string;
       const subscriptionId = sub.id as string;
       const plan = planFromMetadata(sub.metadata as Record<string, string>);
 
-      if (!userId) break;
+      // Stripe does not reliably copy metadata onto subscription objects, so we
+      // resolve the local user by the stored stripe_customer_id first and only
+      // fall back to metadata.user_id. Without this, cancellations/downgrades
+      // could silently no-op and leave a canceled user with paid access.
+      let userId: string | undefined;
+      if (customerId) {
+        const { data: rows } = await client.database
+          .from('subscriptions')
+          .select('user_id')
+          .eq('stripe_customer_id', customerId)
+          .limit(1);
+        userId = (rows?.[0] as { user_id?: string } | undefined)?.user_id;
+      }
+      if (!userId) {
+        userId = (sub.metadata as Record<string, string>)?.user_id;
+      }
+
+      if (!userId) {
+        console.warn(
+          `[stripe-webhook] Could not resolve user for ${event.type}; stripe_customer_id=${customerId}`
+        );
+        break;
+      }
 
       const mappedStatus =
         status === 'active' || status === 'trialing'

@@ -1,19 +1,28 @@
 import { createClient } from '@insforge/sdk';
 import { cookies } from 'next/headers';
+import { isProduction } from '@/lib/env';
 
 /** Service-role client for cron/background jobs (no user cookie). */
 export function getServiceClient(): ReturnType<typeof createClient> {
   const url = process.env.NEXT_PUBLIC_INSFORGE_URL;
-  const serviceKey =
-    process.env.INSFORGE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY;
+  const serviceKey = process.env.INSFORGE_SERVICE_ROLE_KEY?.trim();
 
-  if (!url || !serviceKey) {
+  // In production the real service-role key is mandatory. Never silently fall
+  // back to the public anon key: that would run cron/admin/webhook paths as an
+  // anon user (RLS-blocked writes, broken billing) and conflate "service" with
+  // a key that ships to the browser.
+  if (isProduction() && !serviceKey) {
+    throw new Error('INSFORGE_SERVICE_ROLE_KEY is required in production');
+  }
+
+  const key = serviceKey ?? process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY;
+  if (!url || !key) {
     throw new Error('Missing InsForge env vars for service client');
   }
 
   return createClient({
     baseUrl: url,
-    anonKey: serviceKey,
+    anonKey: key,
     isServerMode: true,
   });
 }

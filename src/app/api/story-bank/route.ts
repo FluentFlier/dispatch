@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
 
 export async function GET(): Promise<NextResponse> {
@@ -13,7 +14,7 @@ export async function GET(): Promise<NextResponse> {
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return errorResponse('Could not load stories.', 500, error);
   return NextResponse.json({ stories: data });
 }
 
@@ -42,6 +43,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return errorResponse('Could not save story.', 500, error);
   return NextResponse.json({ story: data }, { status: 201 });
 }

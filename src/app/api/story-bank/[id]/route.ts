@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
 
 export async function GET(
@@ -17,7 +18,7 @@ export async function GET(
     .eq('user_id', user.id)
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 404 });
+  if (error) return errorResponse('Story not found.', 404, error);
   return NextResponse.json({ story: data });
 }
 
@@ -59,7 +60,7 @@ export async function PATCH(
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return errorResponse('Could not update story.', 500, error);
   return NextResponse.json({ story: data });
 }
 
@@ -77,6 +78,6 @@ export async function DELETE(
     .eq('id', params.id)
     .eq('user_id', user.id);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return errorResponse('Could not delete story.', 500, error);
   return NextResponse.json({ success: true });
 }
