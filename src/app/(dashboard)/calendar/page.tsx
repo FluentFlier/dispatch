@@ -20,6 +20,7 @@ import CalendarBacklog from "@/components/calendar/CalendarBacklog";
 import { ScheduleModal, FillWeekModal } from "@/components/calendar/CalendarModals";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ClientOnly } from "@/components/ClientOnly";
+import { useRouter } from "next/navigation";
 
 type ViewMode = "month" | "week";
 
@@ -62,6 +63,7 @@ const MONTH_NAMES = [
 
 export default function CalendarPage() {
   const { getLabel } = usePillars();
+  const router = useRouter();
   const today = useMemo(() => new Date(), []);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
@@ -203,8 +205,8 @@ export default function CalendarPage() {
     }
   };
 
-  const handlePostClick = (_post: Post) => {
-    window.location.href = "/library";
+  const handlePostClick = (post: Post) => {
+    router.push(`/library?post=${post.id}`);
   };
 
   /* ---- Fill This Week ---- */

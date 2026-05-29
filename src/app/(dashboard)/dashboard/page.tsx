@@ -282,7 +282,7 @@ export default async function DashboardPage() {
                 {upNext.map((post) => (
                   <li key={post.id}>
                     <Link
-                      href="/library"
+                      href={`/library?post=${post.id}`}
                       className="group flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
                     >
                       <div className="flex items-center gap-3 min-w-0">

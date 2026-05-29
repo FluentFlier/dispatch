@@ -75,6 +75,36 @@ export default function LibraryPage() {
     fetchData();
   }, [fetchData]);
 
+  // Deep-link: /library?post=<id> opens that post in the editor drawer.
+  // Falls back to fetching the single post when it is not on the first page.
+  useEffect(() => {
+    if (loading) return;
+    const postId = new URLSearchParams(window.location.search).get('post');
+    if (!postId) return;
+    const existing = posts.find((p) => p.id === postId);
+    if (existing) {
+      setEditorPost(existing);
+      setEditorOpen(true);
+      return;
+    }
+    let cancelled = false;
+    fetch(`/api/posts/${postId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const p = (d?.post ?? d) as Post | null;
+        if (!cancelled && p?.id) {
+          setEditorPost(p);
+          setEditorOpen(true);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // Run once after the initial load settles.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
+
   // Client-side filtering
   const filtered = useMemo(() => {
     let result = posts;
