@@ -4,7 +4,7 @@ import Sidebar from '@/components/nav/Sidebar';
 import BottomBar from '@/components/nav/BottomBar';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
-import { getAuthenticatedUser } from '@/lib/insforge/server';
+import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 
 export default async function DashboardLayout({
   children,
@@ -19,6 +19,20 @@ export default async function DashboardLayout({
     redirect('/login?expired=1');
   }
 
+  const isOnboarding = pathname === '/onboarding' || pathname.startsWith('/onboarding/');
+  if (!isOnboarding && pathname !== '/teleprompter') {
+    const client = getServerClient();
+    const { data: profile } = await client.database
+      .from('creator_profile')
+      .select('onboarding_complete')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!profile?.onboarding_complete) {
+      redirect('/onboarding');
+    }
+  }
+
   if (pathname === '/teleprompter') {
     return <ToastProvider>{children}</ToastProvider>;
   }
@@ -27,7 +41,7 @@ export default async function DashboardLayout({
     <ToastProvider>
       <div className="flex h-screen min-h-screen bg-bg-primary text-text-primary">
         <Sidebar />
-        <main className="flex-1 md:ml-[240px] overflow-y-auto overflow-x-hidden px-4 md:px-8 py-6 pb-24 md:pb-8 min-w-0 w-full">
+        <main className="flex-1 md:ml-[264px] overflow-y-auto overflow-x-hidden px-4 md:px-8 py-6 pb-24 md:pb-8 min-w-0 w-full">
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>
         <BottomBar />

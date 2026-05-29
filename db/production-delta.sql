@@ -7,6 +7,39 @@ ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS provider_profile_key text;
 ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS provider_meta jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS health_status text NOT NULL DEFAULT 'unknown';
 
+ALTER TABLE social_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE social_accounts FORCE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY social_accounts_select ON social_accounts
+    FOR SELECT USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY social_accounts_insert ON social_accounts
+    FOR INSERT WITH CHECK (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY social_accounts_update ON social_accounts
+    FOR UPDATE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY social_accounts_delete ON social_accounts
+    FOR DELETE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY social_accounts_project_admin ON social_accounts
+    FOR ALL TO project_admin USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
 -- posts extensions
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS publish_job_id uuid;
 ALTER TABLE posts ADD COLUMN IF NOT EXISTS voice_match_score int;
@@ -123,6 +156,71 @@ CREATE TABLE IF NOT EXISTS comment_reply_queue (
 CREATE INDEX IF NOT EXISTS post_comments_post ON post_comments (post_id, commented_at DESC);
 CREATE INDEX IF NOT EXISTS post_comments_user_unreplied ON post_comments (user_id, synced_at DESC);
 CREATE INDEX IF NOT EXISTS comment_reply_queue_status ON comment_reply_queue (user_id, status);
+
+ALTER TABLE post_comments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE post_comments FORCE ROW LEVEL SECURITY;
+ALTER TABLE comment_reply_queue ENABLE ROW LEVEL SECURITY;
+ALTER TABLE comment_reply_queue FORCE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY post_comments_select ON post_comments
+    FOR SELECT USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_comments_insert ON post_comments
+    FOR INSERT WITH CHECK (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_comments_update ON post_comments
+    FOR UPDATE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_comments_delete ON post_comments
+    FOR DELETE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY post_comments_project_admin ON post_comments
+    FOR ALL TO project_admin USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY comment_reply_queue_select ON comment_reply_queue
+    FOR SELECT USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY comment_reply_queue_insert ON comment_reply_queue
+    FOR INSERT WITH CHECK (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY comment_reply_queue_update ON comment_reply_queue
+    FOR UPDATE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY comment_reply_queue_delete ON comment_reply_queue
+    FOR DELETE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY comment_reply_queue_project_admin ON comment_reply_queue
+    FOR ALL TO project_admin USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
 
 DO $$ BEGIN
   CREATE TRIGGER comment_reply_queue_updated_at

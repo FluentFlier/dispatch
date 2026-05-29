@@ -72,39 +72,21 @@ export default function AnalyticsPage() {
 
   // Real categorized leads from DB (now that persistence is wired in the closed loop)
   const [realLeadCounts, setRealLeadCounts] = useState<Record<string, number> | null>(null);
-  const [leadsLoading, setLeadsLoading] = useState(true);
 
   const fetchData = useCallback(async () => {
     try {
-      const insforge = getInsforge();
-      const { data: userData } = await insforge.auth.getCurrentUser();
-      if (!userData?.user) return;
-      const uid = userData.user.id;
-      setUserId(uid);
+      const res = await fetch('/api/analytics', {
+        credentials: 'same-origin',
+        cache: 'no-store',
+      });
+      if (!res.ok) return;
+      const data = await res.json();
 
-      const [postsRes, setsRes, reviewsRes] = await Promise.all([
-        insforge.database
-          .from("posts")
-          .select("*")
-          .eq("user_id", uid)
-          .eq("status", "posted")
-          .order("posted_date", { ascending: false })
-          .limit(30),
-        insforge.database
-          .from("hashtag_sets")
-          .select("*")
-          .eq("user_id", uid)
-          .order("created_at", { ascending: false }),
-        insforge.database
-          .from("weekly_reviews")
-          .select("*")
-          .eq("user_id", uid)
-          .order("week_start", { ascending: false }),
-      ]);
-
-      setPosts(postsRes.data ?? []);
-      setHashtagSets(setsRes.data ?? []);
-      setReviews(reviewsRes.data ?? []);
+      setUserId(data.userId ?? null);
+      setPosts(data.posts ?? []);
+      setHashtagSets(data.hashtagSets ?? []);
+      setReviews(data.reviews ?? []);
+      setRealLeadCounts(data.leadCounts ?? null);
     } finally {
       setLoading(false);
     }
@@ -133,32 +115,7 @@ export default function AnalyticsPage() {
       }
     };
     loadIntelligence();
-  }, [userId]);
-
-  // Fetch real lead categorization counts now that the sync persists them
-  useEffect(() => {
-    if (!userId) return;
-    const fetchRealLeads = async () => {
-      try {
-        const insforge = getInsforge();
-        const { data: leads } = await insforge.database
-          .from('lead_categories')
-          .select('category')
-          .eq('user_id', userId);
-
-        const counts: Record<string, number> = { ICP: 0, 'Potential Lead': 0, Community: 0, Other: 0 };
-        (leads || []).forEach((l: any) => {
-          if (counts[l.category] !== undefined) counts[l.category]++;
-        });
-        setRealLeadCounts(counts);
-      } catch (e) {
-        // Fall back to demo if table not ready
-      } finally {
-        setLeadsLoading(false);
-      }
-    };
-    fetchRealLeads();
-  }, [userId]);
+  }, []);
 
   if (loading) {
     return (

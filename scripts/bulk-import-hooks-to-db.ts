@@ -4,7 +4,6 @@
  * 
  * Usage: npx tsx scripts/bulk-import-hooks-to-db.ts
  */
-import { createClient } from '@insforge/sdk';
 import * as fs from 'fs';
 
 async function main() {
@@ -15,6 +14,8 @@ async function main() {
     process.exit(1);
   }
 
+  // Dynamic import avoids tsx/CJS resolution issues with @insforge/shared-schemas.
+  const { createClient } = await import('@insforge/sdk');
   const client = createClient({ baseUrl: url, anonKey: key, isServerMode: true });
 
   const dataset = JSON.parse(fs.readFileSync('data/hooks-dataset.json', 'utf8'));

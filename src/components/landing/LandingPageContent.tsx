@@ -1,16 +1,35 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef } from 'react';
+import type { ComponentType, ReactNode, RefObject } from 'react';
 import Link from 'next/link';
+import {
+  ArrowRight,
+  BarChart3,
+  BookOpen,
+  CalendarDays,
+  Check,
+  ChevronRight,
+  LayoutDashboard,
+  MessageSquareText,
+  Mic,
+  PenLine,
+  Sparkles,
+  Video,
+  SlidersHorizontal,
+} from 'lucide-react';
 
-function useFadeIn(delay = 0): React.RefObject<HTMLDivElement> {
+function useFadeIn(delay = 0): RefObject<HTMLDivElement> {
   const ref = useRef<HTMLDivElement>(null!);
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
     const io = new IntersectionObserver(([entry]) => {
       if (entry.isIntersecting) {
-        setTimeout(() => { el.style.opacity = '1'; el.style.transform = 'translateY(0)'; }, delay);
+        setTimeout(() => {
+          el.style.opacity = '1';
+          el.style.transform = 'translateY(0)';
+        }, delay);
         io.unobserve(el);
       }
     }, { threshold: 0.08 });
@@ -20,161 +39,384 @@ function useFadeIn(delay = 0): React.RefObject<HTMLDivElement> {
   return ref;
 }
 
-function Fade({ children, className = '', delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
+function Fade({ children, className = '', delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
   const ref = useFadeIn(delay);
   return (
-    <div ref={ref} className={className} style={{ opacity: 0, transform: 'translateY(20px)', transition: `opacity 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms, transform 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms` }}>
+    <div
+      ref={ref}
+      className={className}
+      style={{
+        opacity: 0,
+        transform: 'translateY(18px)',
+        transition: `opacity 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms, transform 0.7s cubic-bezier(0.16,1,0.3,1) ${delay}ms`,
+      }}
+    >
       {children}
     </div>
   );
 }
 
-function useSpotlight() {
-  const ref = useRef<HTMLDivElement>(null!);
-  const move = useCallback((e: MouseEvent) => { if (ref.current) { ref.current.style.setProperty('--mx', `${e.clientX}px`); ref.current.style.setProperty('--my', `${e.clientY}px`); } }, []);
-  useEffect(() => { window.addEventListener('mousemove', move); return () => window.removeEventListener('mousemove', move); }, [move]);
-  return ref;
-}
-
-const features = [
-  { tag: 'COMMENTS', title: 'Reply without the tab chaos', desc: 'Comments on your posts land in one inbox. AI drafts replies in your voice — you review and send.' },
-  { tag: 'GENERATE', title: 'AI that writes like you', desc: 'Scripts, hooks, captions, and repurposing — with voice quality scores before you publish.' },
-  { tag: 'ORGANIZE', title: 'Pipeline, not chaos', desc: 'Every post tracked from idea to posted. Pillar tags, status badges, bulk actions, and full-text search.' },
-  { tag: 'SCHEDULE', title: 'Calendar with drag-and-drop', desc: 'Drag posts onto days. AI fills your week. Visual gaps show where momentum breaks.' },
-  { tag: 'PUBLISH', title: 'Four platforms, one click', desc: 'X, LinkedIn, Instagram, Threads. OAuth connect, platform formatting, token refresh built in.' },
-  { tag: 'ANALYZE', title: 'Know what ships', desc: 'Weekly AI reviews, pillar breakdowns, posting streaks, performance logs. Pattern detection across content.' },
-  { tag: 'EDIT', title: 'Video studio built in', desc: 'Upload, template, preview. Auto-captions and smart cuts ready when you plug in a processing backend.' },
+const surfaceCards = [
+  {
+    icon: LayoutDashboard,
+    title: 'Dashboard',
+    desc: 'Command center for your week, setup, and publishing pipeline.',
+    href: '/dashboard',
+  },
+  {
+    icon: PenLine,
+    title: 'Generate',
+    desc: 'Draft in your voice with hook intelligence and quality checks.',
+    href: '/generate',
+  },
+  {
+    icon: BarChart3,
+    title: 'Analytics',
+    desc: 'See performance, lead categories, and research signals in one place.',
+    href: '/analytics',
+  },
+  {
+    icon: Mic,
+    title: 'Voice Lab',
+    desc: 'Import public links, analyze tone, and train the writing model.',
+    href: '/voice-lab',
+  },
+  {
+    icon: BookOpen,
+    title: 'Story Bank',
+    desc: 'Save stories, angles, and proof so good ideas do not disappear.',
+    href: '/story-bank',
+  },
+  {
+    icon: SlidersHorizontal,
+    title: 'Teleprompter',
+    desc: 'Read scripts cleanly when a post becomes a video or live delivery.',
+    href: '/teleprompter',
+  },
+  {
+    icon: Video,
+    title: 'Video Studio',
+    desc: 'Turn clips into posts with captions, templates, and preview controls.',
+    href: '/video-studio',
+  },
+  {
+    icon: CalendarDays,
+    title: 'Calendar',
+    desc: 'Plan the week with a schedule that makes gaps and cadence obvious.',
+    href: '/calendar',
+  },
 ];
 
-interface Props { loggedIn: boolean }
+const previewNav = [
+  { label: 'Dashboard', href: '/dashboard', active: true },
+  { label: 'Generate', href: '/generate', active: false },
+  { label: 'Voice Lab', href: '/voice-lab', active: false },
+  { label: 'Analytics', href: '/analytics', active: false },
+  { label: 'Story Bank', href: '/story-bank', active: false },
+  { label: 'Teleprompter', href: '/teleprompter', active: false },
+] as const;
+
+interface Props {
+  loggedIn: boolean;
+}
+
+function PreviewMetric({ value, label }: { value: string; label: string }) {
+  return (
+    <div className="rounded-lg border border-border bg-bg-primary px-4 py-3">
+      <div className="text-[22px] font-semibold leading-none text-text-primary">{value}</div>
+      <div className="mt-1 text-[11px] uppercase tracking-[0.12em] text-text-tertiary">{label}</div>
+    </div>
+  );
+}
+
+function SurfaceCard({
+  icon: Icon,
+  title,
+  desc,
+  href,
+}: {
+  icon: ComponentType<{ className?: string }>;
+  title: string;
+  desc: string;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="group rounded-xl border border-border bg-bg-secondary p-5 shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:border-accent-primary/40 hover:shadow-soft"
+    >
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-bg-primary text-accent-primary">
+            <Icon className="h-5 w-5" />
+          </div>
+          <div>
+            <h3 className="text-[15px] font-semibold text-text-primary">{title}</h3>
+            <p className="mt-1 text-[13px] leading-6 text-text-secondary">{desc}</p>
+          </div>
+        </div>
+        <ChevronRight className="mt-1 h-4 w-4 text-text-tertiary transition-transform group-hover:translate-x-0.5" />
+      </div>
+    </Link>
+  );
+}
 
 export default function LandingPageContent({ loggedIn }: Props) {
-  const spotRef = useSpotlight();
-
   return (
-    <div ref={spotRef} className="relative min-h-screen overflow-x-hidden bg-bg-primary font-body text-text-secondary">
-      <style>{`
-        @keyframes float1 { from { transform: translate(0,0) scale(1); } to { transform: translate(40px,30px) scale(1.1); } }
-        @keyframes float2 { from { transform: translate(0,0) scale(1); } to { transform: translate(-30px,50px) scale(1.05); } }
-        @keyframes shimmer { from { background-position: -200% center; } to { background-position: 200% center; } }
-        @keyframes beam { from { transform: translateY(-100%) rotate(15deg); opacity: 0; } 50% { opacity: 1; } to { transform: translateY(200%) rotate(15deg); opacity: 0; } }
-      `}</style>
-
+    <div className="relative min-h-screen overflow-x-hidden bg-bg-primary font-body text-text-secondary">
       <div className="relative z-10">
-        {/* Nav */}
-        <nav className="flex items-center justify-between px-6 sm:px-10 py-5 max-w-6xl mx-auto">
-          <span className="font-semibold text-[15px] tracking-[0.2em] text-text-primary">DISPATCH</span>
-          <div className="flex items-center gap-4">
+        <nav className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 sm:px-10">
+          <div className="flex items-center gap-3">
+            <span className="text-[13px] font-semibold tracking-[0.22em] text-text-primary">DISPATCH</span>
+            <span className="hidden rounded-badge border border-border px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.14em] text-text-tertiary sm:inline-flex">
+              Content OS
+            </span>
+          </div>
+          <div className="flex items-center gap-3">
+            <Link href="/pricing" className="hidden text-[13px] text-text-tertiary transition-colors hover:text-text-primary sm:inline-flex">
+              Pricing
+            </Link>
             {loggedIn ? (
-              <Link href="/dashboard" className="px-5 py-2 text-[13px] font-semibold rounded-md bg-text-primary text-bg-primary hover:opacity-90 transition-all">Dashboard</Link>
+              <Link href="/dashboard" className="btn-primary">
+                Dashboard
+              </Link>
             ) : (
               <>
-                <Link href="/login" className="text-[13px] text-text-tertiary hover:text-text-primary transition-colors">Sign in</Link>
-                <Link href="/login" className="px-5 py-2 text-[13px] font-semibold rounded-md bg-text-primary text-bg-primary hover:opacity-90 transition-all">Get Started</Link>
+                <Link href="/login" className="btn-secondary">
+                  Sign in
+                </Link>
+                <Link href="/login" className="btn-primary">
+                  Start free
+                </Link>
               </>
             )}
           </div>
         </nav>
 
-        {/* Hero */}
-        <section className="pt-24 sm:pt-36 pb-28 px-6 sm:px-10 max-w-5xl mx-auto">
-          <div className="w-24 h-1 mb-10 rounded-full bg-gradient-to-r from-accent-primary to-accent-secondary" />
+        <section className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-6 pb-18 pt-10 sm:px-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center lg:pt-18">
+          <Fade className="max-w-3xl">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-primary">Product suite</p>
+            <h1 className="mt-4 text-[clamp(42px,7vw,78px)] font-semibold leading-[0.96] tracking-[-0.05em] text-text-primary">
+              One workspace for content that actually ships.
+            </h1>
+            <p className="mt-6 max-w-2xl text-[17px] leading-8 text-text-secondary">
+              Dispatch keeps the whole loop in one place, research, writing, voice training, scheduling, publishing, replies, and the intelligence that tells you what to do next.
+            </p>
 
-          <h1 className="font-semibold tracking-tight text-text-primary leading-[1.05]" style={{ fontSize: 'clamp(40px, 7vw, 72px)' }}>
-            Your content,<br />
-            <span className="text-accent-primary">in one place.</span>
-          </h1>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <Link href={loggedIn ? '/dashboard' : '/login'} className="btn-primary">
+                {loggedIn ? 'Open dashboard' : 'Get started free'}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link href="/pricing" className="btn-secondary">
+                View pricing
+              </Link>
+            </div>
 
-          <p className="mt-6 max-w-lg text-[17px] text-text-secondary leading-relaxed">
-            Write in your voice, schedule posts, and reply to comments — without jumping between apps. Built to be simple.
-          </p>
+            <div className="mt-8 flex flex-wrap gap-2">
+              {['Dashboard', 'Generate', 'Voice Lab', 'Analytics', 'Story Bank', 'Teleprompter', 'Video Studio'].map((item) => (
+                <span
+                  key={item}
+                  className="inline-flex items-center rounded-badge border border-border bg-bg-secondary px-3 py-1.5 text-[12px] font-medium text-text-secondary"
+                >
+                  {item}
+                </span>
+              ))}
+            </div>
 
-          <div className="flex flex-wrap items-center gap-3 mt-9">
-            <Link href="/login"
-              className="group relative inline-flex items-center gap-2 px-7 py-3.5 min-h-[52px] text-[15px] font-semibold rounded-md bg-accent-primary text-text-inverse overflow-hidden transition-all hover:bg-accent-dark active:scale-[0.98] shadow-soft">
-              <span className="relative">Get started free</span>
-              <svg className="relative w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-            </Link>
-            <Link href="#features" className="px-6 py-3.5 text-[14px] text-text-tertiary hover:text-text-primary transition-colors">See features &darr;</Link>
-          </div>
+            <div className="mt-10 grid max-w-2xl grid-cols-1 gap-3 sm:grid-cols-3">
+              {[
+                { value: '8', label: 'surfaces shipped' },
+                { value: '4', label: 'publish targets' },
+                { value: '<1m', label: 'setup to first draft' },
+              ].map((stat) => (
+                <div key={stat.label} className="rounded-xl border border-border bg-bg-secondary px-4 py-4 shadow-card">
+                  <div className="text-[28px] font-semibold leading-none text-text-primary">{stat.value}</div>
+                  <div className="mt-1 text-[11px] uppercase tracking-[0.12em] text-text-tertiary">{stat.label}</div>
+                </div>
+              ))}
+            </div>
+          </Fade>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-8 mt-24 pt-8 border-t border-border">
-            {[{ n: '8', l: 'AI writing tools' }, { n: '4', l: 'Platforms' }, { n: '5', l: 'Pipeline stages' }, { n: '<1m', l: 'Setup time' }].map((s, i) => (
-              <div key={i}>
-                <div className="font-semibold text-[36px] text-text-primary leading-none">{s.n}</div>
-                <div className="text-[11px] text-text-secondary tracking-[0.1em] uppercase mt-1">{s.l}</div>
+          <Fade delay={80}>
+            <div className="rounded-2xl border border-border bg-bg-secondary shadow-card">
+              <div className="flex items-center gap-2 border-b border-border px-4 py-3">
+                <span className="h-2.5 w-2.5 rounded-full bg-rose-300" />
+                <span className="h-2.5 w-2.5 rounded-full bg-amber-200" />
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-300" />
+                <span className="ml-2 text-[11px] uppercase tracking-[0.14em] text-text-tertiary">Live workspace preview</span>
               </div>
-            ))}
-          </div>
+
+              <div className="grid gap-0 lg:grid-cols-[190px_minmax(0,1fr)]">
+                <aside className="border-b border-border p-4 lg:border-b-0 lg:border-r">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">Workspace</div>
+                  <div className="mt-3 space-y-1">
+                    {previewNav.map((item) => (
+                      <Link
+                        key={item.label}
+                        href={item.href}
+                        className={`flex items-center justify-between rounded-lg px-3 py-2 text-[13px] transition-colors ${
+                          item.active
+                            ? 'bg-bg-primary text-text-primary'
+                            : 'text-text-secondary hover:bg-bg-primary hover:text-text-primary'
+                        }`}
+                      >
+                        <span>{item.label}</span>
+                        <span className="text-text-tertiary">/</span>
+                      </Link>
+                    ))}
+                  </div>
+                </aside>
+
+                <div className="p-4 sm:p-5">
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <PreviewMetric value="12" label="published this week" />
+                    <PreviewMetric value="4" label="posts in pipeline" />
+                    <PreviewMetric value="27" label="lead signals" />
+                  </div>
+
+                  <div className="mt-4 grid gap-3 lg:grid-cols-[1.05fr_0.95fr]">
+                    <div className="rounded-xl border border-border bg-bg-primary p-4">
+                      <div className="flex items-center justify-between gap-4">
+                        <div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-primary">Generate</div>
+                          <h3 className="mt-1 text-[15px] font-semibold text-text-primary">Drafts that read like the same person wrote them</h3>
+                        </div>
+                        <Sparkles className="h-5 w-5 text-accent-primary" />
+                      </div>
+                      <div className="mt-4 space-y-3">
+                        {[
+                          'Hook intelligence pulled from live patterns',
+                          'Voice score before you publish',
+                          'One click to save, schedule, or send to teleprompter',
+                        ].map((line) => (
+                          <div key={line} className="flex items-start gap-2 text-[13px] text-text-secondary">
+                            <Check className="mt-0.5 h-4 w-4 shrink-0 text-accent-secondary" />
+                            <span>{line}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="rounded-xl border border-border bg-bg-primary p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-primary">Voice Lab</div>
+                            <p className="mt-1 text-[13px] text-text-secondary">Import public links and train tone from real writing.</p>
+                          </div>
+                          <Mic className="h-5 w-5 text-accent-primary" />
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-border bg-bg-primary p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-primary">Analytics</div>
+                            <p className="mt-1 text-[13px] text-text-secondary">Lead buckets, research runs, and post performance in one view.</p>
+                          </div>
+                          <BarChart3 className="h-5 w-5 text-accent-primary" />
+                        </div>
+                      </div>
+
+                      <div className="rounded-xl border border-border bg-bg-primary p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-primary">Video Studio</div>
+                            <p className="mt-1 text-[13px] text-text-secondary">Captions, template previews, and delivery-ready clips.</p>
+                          </div>
+                          <Video className="h-5 w-5 text-accent-primary" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_0.9fr]">
+                    <div className="rounded-xl border border-border bg-bg-primary p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-primary">Pipeline</div>
+                          <p className="mt-1 text-[13px] text-text-secondary">Schedule, publish, and keep the week visible.</p>
+                        </div>
+                        <CalendarDays className="h-5 w-5 text-accent-primary" />
+                      </div>
+                      <div className="mt-4 space-y-2">
+                        {[
+                          ['Mon', 'LinkedIn carousel', 'Queued'],
+                          ['Wed', 'X thread', 'Ready'],
+                          ['Fri', 'Video script', 'In review'],
+                        ].map(([day, title, status]) => (
+                          <div key={title} className="flex items-center justify-between rounded-lg border border-border bg-bg-secondary px-3 py-2 text-[13px]">
+                            <span className="text-text-secondary">{day}</span>
+                            <span className="truncate px-2 text-text-primary">{title}</span>
+                            <span className="text-text-tertiary">{status}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-border bg-bg-primary p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-accent-primary">Reply engine</div>
+                          <p className="mt-1 text-[13px] text-text-secondary">Turn comments into leads, not noise.</p>
+                        </div>
+                        <MessageSquareText className="h-5 w-5 text-accent-primary" />
+                      </div>
+                      <div className="mt-4 rounded-lg border border-border bg-bg-secondary p-3">
+                        <p className="text-[12px] text-text-secondary">New signal detected</p>
+                        <p className="mt-1 text-[14px] font-medium text-text-primary">Reply with a short answer and save the conversation to the brain.</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </Fade>
         </section>
 
-        {/* Features */}
-        <section id="features" className="px-6 sm:px-10 pb-28 max-w-5xl mx-auto">
+        <section className="mx-auto max-w-7xl px-6 py-18 sm:px-10">
           <Fade>
-            <span className="text-[11px] font-semibold tracking-[0.14em] text-coral uppercase">Features</span>
-            <h2 className="font-semibold mt-3 mb-14 text-text-primary tracking-[-0.03em] leading-[1.1]" style={{ fontSize: 'clamp(28px, 4vw, 40px)' }}>
-              Everything to go from<br /><em className="font-normal italic">idea to posted.</em>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-primary">Inside the suite</p>
+            <h2 className="mt-3 text-[clamp(30px,4vw,44px)] font-semibold leading-[1.06] tracking-[-0.04em] text-text-primary">
+              One product, eight useful surfaces.
             </h2>
+            <p className="mt-4 max-w-2xl text-[16px] leading-7 text-text-secondary">
+              The point is not to bury the good parts. It is to let a buyer see the loop in seconds and understand why the system is worth paying for.
+            </p>
           </Fade>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {features.map((f, i) => (
-              <Fade key={i} delay={i * 60}>
-                <div className="group rounded-lg p-6 bg-bg-secondary border border-border hover:border-accent-primary/40 shadow-card hover:shadow-soft transition-all duration-300 h-full">
-                  <span className="inline-block px-2 py-0.5 rounded-badge text-[10px] font-medium tracking-wide text-accent-primary bg-coral-light mb-4">{f.tag}</span>
-                  <h3 className="text-base font-semibold text-text-primary mb-1.5">{f.title}</h3>
-                  <p className="text-sm text-text-secondary leading-relaxed">{f.desc}</p>
-                </div>
+
+          <div className="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {surfaceCards.map((surface, index) => (
+              <Fade key={surface.title} delay={index * 50}>
+                <SurfaceCard {...surface} />
               </Fade>
             ))}
           </div>
         </section>
 
-        {/* How It Works */}
-        <section className="px-6 sm:px-10 py-24 max-w-5xl mx-auto border-t border-border">
-          <Fade>
-            <span className="text-[11px] font-semibold tracking-[0.14em] text-coral uppercase">Workflow</span>
-            <h2 className="font-semibold mt-3 mb-16 text-text-primary tracking-[-0.03em] leading-[1.1]" style={{ fontSize: 'clamp(28px, 4vw, 40px)' }}>
-              Three steps. <em className="font-normal italic">That&apos;s it.</em>
+        <section className="mx-auto max-w-7xl px-6 pb-18 pt-2 sm:px-10">
+          <Fade className="text-center">
+            <h2 className="text-[clamp(34px,6vw,58px)] font-semibold leading-[1] tracking-[-0.05em] text-text-primary">
+              Ready to ship more content?
             </h2>
-          </Fade>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
-            {[
-              { s: '01', t: 'Define your voice', d: 'Name, pillars, tone, background. The AI learns your style.' },
-              { s: '02', t: 'Create and organize', d: 'Generate scripts, organize in library, drag posts onto calendar.' },
-              { s: '03', t: 'Publish and reply', d: 'Post everywhere. Sync comments. Approve AI replies in one tap.' },
-            ].map((s, i) => (
-              <Fade key={i} delay={i * 120}>
-                <div className="relative pl-5 border-l border-border">
-                  <div className="absolute -left-[4px] top-0 w-[7px] h-[7px] rounded-full bg-accent-primary" />
-                  <span className="text-[11px] text-text-secondary tracking-[0.08em]">{s.s}</span>
-                  <h3 className="font-display text-[16px] font-semibold text-text-primary mt-2 mb-2">{s.t}</h3>
-                  <p className="text-sm text-text-secondary leading-relaxed">{s.d}</p>
-                </div>
-              </Fade>
-            ))}
-          </div>
-        </section>
-
-        {/* CTA */}
-        <section className="relative text-center py-28 px-6 overflow-hidden">
-          <Fade className="relative">
-            <h2 className="font-semibold text-text-primary tracking-[-0.03em] leading-tight" style={{ fontSize: 'clamp(34px, 6vw, 56px)' }}>
-              Ready to ship<br />
-              <span className="text-accent-primary">more content?</span>
-            </h2>
-            <p className="text-[16px] text-text-secondary mt-5 mb-9 max-w-md mx-auto">Free to use. Profile setup takes under a minute.</p>
-            <Link href="/login"
-              className="group relative inline-flex items-center gap-2 px-8 py-3.5 text-[15px] font-semibold rounded-lg bg-text-primary text-bg-primary overflow-hidden transition-all hover:scale-[1.02] active:scale-[0.98]">
-              <span className="absolute inset-0 pointer-events-none" style={{ background: 'linear-gradient(110deg, transparent 30%, rgba(99,102,241,0.15) 50%, transparent 70%)', backgroundSize: '200% 100%', animation: 'shimmer 3s infinite' }} />
-              <span className="relative">Get Started</span>
-              <svg className="relative w-4 h-4 transition-transform group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}><path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" /></svg>
-            </Link>
+            <p className="mx-auto mt-5 max-w-lg text-[16px] leading-7 text-text-secondary">
+              Free to use. Profile setup takes under a minute, and the rest of the workspace is already waiting.
+            </p>
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+              <Link href={loggedIn ? '/dashboard' : '/login'} className="btn-primary">
+                {loggedIn ? 'Open dashboard' : 'Get started free'}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link href="/pricing" className="btn-secondary">
+                View pricing
+              </Link>
+            </div>
           </Fade>
         </section>
 
-        {/* Footer */}
-        <footer className="px-6 sm:px-10 py-8 max-w-6xl mx-auto flex items-center justify-between border-t border-border">
-          <span className="font-semibold text-[11px] tracking-[0.2em] text-text-tertiary">DISPATCH</span>
+        <footer className="mx-auto flex max-w-7xl items-center justify-between border-t border-border px-6 py-8 sm:px-10">
+          <span className="text-[11px] font-semibold tracking-[0.2em] text-text-tertiary">DISPATCH</span>
           <span className="text-[11px] text-text-tertiary">&copy; {new Date().getFullYear()}</span>
         </footer>
       </div>

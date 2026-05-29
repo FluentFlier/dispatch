@@ -14,6 +14,7 @@ async function syncTokenToCookie(): Promise<boolean> {
         const res = await fetch("/api/auth", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
           body: JSON.stringify({ token }),
         });
         if (res.ok) return true;
@@ -24,6 +25,19 @@ async function syncTokenToCookie(): Promise<boolean> {
     await new Promise((r) => setTimeout(r, (attempt + 1) * 300));
   }
   return false;
+}
+
+async function finishSessionSync(): Promise<boolean> {
+  const synced = await syncTokenToCookie();
+  if (!synced) return false;
+
+  const res = await fetch("/api/auth/session", {
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+  if (!res.ok) return false;
+  const session = (await res.json()) as { authenticated?: boolean };
+  return Boolean(session.authenticated);
 }
 
 export default function LoginPage() {
@@ -37,10 +51,11 @@ export default function LoginPage() {
   }, []);
 
   async function handleAuth() {
-    const client = getInsforgeClient();
     const params = new URLSearchParams(window.location.search);
+    const hasOAuthCode = params.has("insforge_code");
+    const client = getInsforgeClient();
 
-    if (params.has("insforge_code")) {
+    if (hasOAuthCode) {
       setStatus("Completing sign-in...");
       const authReady = (client.auth as unknown as { authCallbackHandled?: Promise<void> }).authCallbackHandled;
       if (authReady) {
@@ -56,7 +71,12 @@ export default function LoginPage() {
         const { data } = await client.auth.getCurrentUser();
         if (data?.user) {
           setStatus("Syncing session...");
-          await syncTokenToCookie();
+          const synced = await finishSessionSync();
+          if (!synced) {
+            setError("Sign-in completed, but the app could not create your session. Please try again.");
+            setReady(true);
+            return;
+          }
           window.location.replace("/dashboard");
           return;
         }
@@ -71,7 +91,24 @@ export default function LoginPage() {
     }
 
     try {
-      const res = await fetch("/api/auth/session", { cache: "no-store" });
+      const { data } = await client.auth.getCurrentUser();
+      if (data?.user) {
+        setStatus("Syncing session...");
+        const synced = await finishSessionSync();
+        if (synced) {
+          window.location.replace("/dashboard");
+          return;
+        }
+      }
+    } catch {
+      /* no browser session */
+    }
+
+    try {
+      const res = await fetch("/api/auth/session", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
       const session = (await res.json()) as { authenticated?: boolean };
       if (session.authenticated) {
         setStatus("Syncing session...");

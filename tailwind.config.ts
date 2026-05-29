@@ -10,28 +10,28 @@ const config: Config = {
     extend: {
       colors: {
         bg: {
-          primary: '#FAF7F2',
+          primary: '#F6F7F4',
           secondary: '#FFFFFF',
-          tertiary: '#F3EDE4',
-          elevated: '#FFFDF9',
+          tertiary: '#EEF1ED',
+          elevated: '#FBFCFA',
         },
         text: {
-          primary: '#1C1917',
-          secondary: '#57534E',
-          tertiary: '#78716C',
-          inverse: '#FFFDF9',
+          primary: '#171717',
+          secondary: '#525252',
+          tertiary: '#737373',
+          inverse: '#FFFFFF',
         },
         border: {
-          DEFAULT: 'rgba(28, 25, 23, 0.1)',
-          primary: 'rgba(28, 25, 23, 0.1)',
-          hover: 'rgba(28, 25, 23, 0.18)',
-          active: 'rgba(28, 25, 23, 0.28)',
+          DEFAULT: 'rgba(23, 23, 23, 0.1)',
+          primary: 'rgba(23, 23, 23, 0.1)',
+          hover: 'rgba(23, 23, 23, 0.2)',
+          active: 'rgba(23, 23, 23, 0.3)',
         },
         accent: {
-          primary: '#E07A5F',
-          secondary: '#3D8B7A',
-          light: 'rgba(224, 122, 95, 0.14)',
-          dark: '#C45C48',
+          primary: '#2563EB',
+          secondary: '#0F766E',
+          light: 'rgba(37, 99, 235, 0.1)',
+          dark: '#1D4ED8',
         },
         coral: {
           DEFAULT: '#E07A5F',
@@ -39,8 +39,8 @@ const config: Config = {
           dark: '#C45C48',
         },
         sage: {
-          DEFAULT: '#3D8B7A',
-          light: 'rgba(61, 139, 122, 0.14)',
+          DEFAULT: '#0F766E',
+          light: 'rgba(15, 118, 110, 0.1)',
         },
         pillar: {
           'hot-take': '#DC6B5C',
@@ -60,14 +60,14 @@ const config: Config = {
         base: ['15px', { lineHeight: '1.55' }],
       },
       borderRadius: {
-        lg: '16px',
-        md: '10px',
+        lg: '8px',
+        md: '6px',
         badge: '6px',
         pill: '999px',
       },
       boxShadow: {
-        card: '0 1px 2px rgba(28, 25, 23, 0.04), 0 4px 16px rgba(28, 25, 23, 0.06)',
-        soft: '0 2px 12px rgba(224, 122, 95, 0.12)',
+        card: '0 1px 2px rgba(23, 23, 23, 0.05), 0 8px 24px rgba(23, 23, 23, 0.05)',
+        soft: '0 8px 24px rgba(37, 99, 235, 0.12)',
       },
     },
   },

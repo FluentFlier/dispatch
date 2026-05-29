@@ -3,18 +3,18 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #faf7f2;
+  --bg-primary: #f6f7f4;
   --bg-secondary: #ffffff;
-  --bg-tertiary: #f3ede4;
-  --text-primary: #1c1917;
-  --text-secondary: #57534e;
-  --text-tertiary: #78716c;
-  --border-default: rgba(28, 25, 23, 0.1);
-  --border-hover: rgba(28, 25, 23, 0.18);
-  --accent: #e07a5f;
-  --accent-light: rgba(224, 122, 95, 0.14);
-  --accent-dark: #c45c48;
-  --sage: #3d8b7a;
+  --bg-tertiary: #eef1ed;
+  --text-primary: #171717;
+  --text-secondary: #525252;
+  --text-tertiary: #737373;
+  --border-default: rgba(23, 23, 23, 0.1);
+  --border-hover: rgba(23, 23, 23, 0.2);
+  --accent: #2563eb;
+  --accent-light: rgba(37, 99, 235, 0.1);
+  --accent-dark: #1d4ed8;
+  --sage: #0f766e;
 }
 
 * {
@@ -38,7 +38,7 @@ h5,
 h6 {
   font-family: 'DM Sans', system-ui, sans-serif;
   line-height: 1.2;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--text-primary);
 }
 
@@ -68,15 +68,15 @@ select:focus {
 
 @layer components {
   .page-shell {
-    @apply max-w-3xl mx-auto space-y-6 pt-1 pb-8;
+    @apply max-w-4xl mx-auto space-y-6 pt-1 pb-8;
   }
 
   .page-shell-wide {
-    @apply max-w-5xl mx-auto space-y-6 pt-1 pb-8;
+    @apply max-w-6xl mx-auto space-y-6 pt-1 pb-8;
   }
 
   .page-title {
-    @apply text-2xl font-semibold text-text-primary tracking-tight;
+    @apply text-[28px] font-semibold text-text-primary;
   }
 
   .page-subtitle {
@@ -113,6 +113,14 @@ select:focus {
 
   .chip {
     @apply inline-flex items-center px-3 py-1.5 rounded-badge text-xs font-medium min-h-[32px];
+  }
+
+  .section-label {
+    @apply text-[11px] font-semibold uppercase tracking-wide text-text-tertiary;
+  }
+
+  .empty-state {
+    @apply rounded-lg border border-dashed border-border bg-bg-secondary/70 p-5 text-sm text-text-secondary;
   }
 }
 

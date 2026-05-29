@@ -36,6 +36,74 @@ create index if not exists post_comments_post on post_comments (post_id, comment
 create index if not exists post_comments_user_unreplied on post_comments (user_id, synced_at desc);
 create index if not exists comment_reply_queue_status on comment_reply_queue (user_id, status);
 
-create trigger comment_reply_queue_updated_at
-  before update on comment_reply_queue
-  for each row execute function update_updated_at();
+alter table post_comments enable row level security;
+alter table post_comments force row level security;
+alter table comment_reply_queue enable row level security;
+alter table comment_reply_queue force row level security;
+
+do $$ begin
+  create policy post_comments_select on post_comments
+    for select using (user_id = auth.uid());
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy post_comments_insert on post_comments
+    for insert with check (user_id = auth.uid());
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy post_comments_update on post_comments
+    for update using (user_id = auth.uid());
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy post_comments_delete on post_comments
+    for delete using (user_id = auth.uid());
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy post_comments_project_admin on post_comments
+    for all to project_admin using (true) with check (true);
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy comment_reply_queue_select on comment_reply_queue
+    for select using (user_id = auth.uid());
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy comment_reply_queue_insert on comment_reply_queue
+    for insert with check (user_id = auth.uid());
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy comment_reply_queue_update on comment_reply_queue
+    for update using (user_id = auth.uid());
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy comment_reply_queue_delete on comment_reply_queue
+    for delete using (user_id = auth.uid());
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create policy comment_reply_queue_project_admin on comment_reply_queue
+    for all to project_admin using (true) with check (true);
+exception when duplicate_object then null;
+end $$;
+
+do $$ begin
+  create trigger comment_reply_queue_updated_at
+    before update on comment_reply_queue
+    for each row execute function update_updated_at();
+exception when duplicate_object then null;
+end $$;
