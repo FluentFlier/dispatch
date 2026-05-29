@@ -3,6 +3,7 @@
 import { motion, useInView } from 'motion/react';
 import { useRef } from 'react';
 import { Reveal } from './primitives';
+import SectionAtmosphere from './SectionAtmosphere';
 
 const TRAITS = [
   { label: 'Directness', value: 88, tone: '#FF6B4A' },
@@ -37,7 +38,8 @@ function TraitBar({ label, value, tone, delay }: { label: string; value: number;
 export default function VoiceFingerprint() {
   return (
     <section id="voice" className="relative scroll-mt-24 py-24">
-      <div className="mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-5 sm:px-8 lg:grid-cols-2">
+      <SectionAtmosphere tone="cyan" accent="gold" position="right" />
+      <div className="relative z-10 mx-auto grid max-w-6xl grid-cols-1 items-center gap-12 px-5 sm:px-8 lg:grid-cols-2">
         <Reveal>
           <p className="os-mono text-[11px] uppercase tracking-[0.2em] text-os-muted">
             Trained, not generic

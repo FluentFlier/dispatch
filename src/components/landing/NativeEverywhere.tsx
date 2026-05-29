@@ -1,6 +1,7 @@
 'use client';
 
 import { Reveal, PlatformGlyph } from './primitives';
+import SectionAtmosphere from './SectionAtmosphere';
 import { FileText, Film, CornerDownRight, LayoutGrid } from 'lucide-react';
 
 const BRANCHES = [
@@ -51,7 +52,8 @@ const BRANCHES = [
 export default function NativeEverywhere() {
   return (
     <section id="everywhere" className="relative scroll-mt-24 py-24">
-      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+      <SectionAtmosphere tone="gold" accent="coral" position="left" />
+      <div className="relative z-10 mx-auto max-w-6xl px-5 sm:px-8">
         <div className="grid grid-cols-1 gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
           <Reveal>
             <p className="os-mono text-[11px] uppercase tracking-[0.2em] text-os-muted">

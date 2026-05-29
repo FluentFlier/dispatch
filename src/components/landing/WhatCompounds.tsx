@@ -1,6 +1,7 @@
 'use client';
 
 import { Counter, Reveal } from './primitives';
+import SectionAtmosphere from './SectionAtmosphere';
 
 const METRICS = [
   { value: 38, suffix: '', tone: 'text-os-gold', label: 'ideas that became pipeline', sub: 'tracked from draft to reply to call' },
@@ -18,7 +19,8 @@ const COMPOUNDS = [
 export default function WhatCompounds() {
   return (
     <section className="relative py-24">
-      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+      <SectionAtmosphere tone="gold" accent="lime" position="center" />
+      <div className="relative z-10 mx-auto max-w-6xl px-5 sm:px-8">
         <Reveal className="max-w-2xl">
           <p className="os-mono text-[11px] uppercase tracking-[0.2em] text-os-muted">
             Analytics worth reading

@@ -3,6 +3,7 @@
 import { motion } from 'motion/react';
 import { Radar, PenLine, CalendarClock, MessagesSquare, LineChart, RefreshCw } from 'lucide-react';
 import { Reveal } from './primitives';
+import SectionAtmosphere from './SectionAtmosphere';
 
 const STEPS = [
   {
@@ -50,7 +51,8 @@ const STEPS = [
 export default function TheLoop() {
   return (
     <section id="loop" className="relative scroll-mt-24 py-24">
-      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+      <SectionAtmosphere tone="coral" accent="cyan" position="left" />
+      <div className="relative z-10 mx-auto max-w-6xl px-5 sm:px-8">
         <Reveal className="max-w-2xl">
           <p className="os-mono text-[11px] uppercase tracking-[0.2em] text-os-muted">
             It isn&apos;t a feature list. It&apos;s a loop
