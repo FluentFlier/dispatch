@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { motion } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
+import { Menu, X } from 'lucide-react';
 import { Magnetic } from './primitives';
 
 const links = [
@@ -14,6 +15,7 @@ const links = [
 
 export default function LandingNav({ loggedIn }: { loggedIn: boolean }) {
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -27,16 +29,16 @@ export default function LandingNav({ loggedIn }: { loggedIn: boolean }) {
       initial={{ y: -32, opacity: 0 }}
       animate={{ y: 0, opacity: 1 }}
       transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-      className="fixed inset-x-0 top-0 z-50 flex justify-center px-4 pt-4"
+      className="fixed inset-x-0 top-0 z-50 flex flex-col items-center px-4 pt-4"
     >
       <nav
         className={`flex w-full max-w-6xl items-center justify-between rounded-full px-4 py-2.5 transition-all duration-500 sm:px-5 ${
-          scrolled
+          scrolled || menuOpen
             ? 'border border-os-border bg-[rgba(13,15,19,0.72)] shadow-glass backdrop-blur-xl'
             : 'border border-transparent bg-transparent'
         }`}
       >
-        <Link href="/" className="flex items-center gap-2.5">
+        <Link href="/" className="flex items-center gap-2.5" onClick={() => setMenuOpen(false)}>
           <span className="relative flex h-7 w-7 items-center justify-center rounded-lg bg-os-coral/15 ring-1 ring-os-coral/30">
             <span className="h-2 w-2 rounded-sm bg-os-coral animate-os-pulse-dot" />
           </span>
@@ -87,8 +89,50 @@ export default function LandingNav({ loggedIn }: { loggedIn: boolean }) {
               </Magnetic>
             </>
           )}
+          <button
+            type="button"
+            onClick={() => setMenuOpen((v) => !v)}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={menuOpen}
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-os-border text-os-soft transition-colors hover:text-os-text md:hidden"
+          >
+            {menuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          </button>
         </div>
       </nav>
+
+      {/* Mobile menu sheet */}
+      <AnimatePresence>
+        {menuOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="mt-2 w-full max-w-6xl overflow-hidden rounded-3xl border border-os-border bg-[rgba(13,15,19,0.92)] p-2 shadow-glass backdrop-blur-xl md:hidden"
+          >
+            {links.map((l) => (
+              <Link
+                key={l.label}
+                href={l.href}
+                onClick={() => setMenuOpen(false)}
+                className="block rounded-2xl px-4 py-3 text-[15px] text-os-soft transition-colors hover:bg-os-surface hover:text-os-text"
+              >
+                {l.label}
+              </Link>
+            ))}
+            {!loggedIn && (
+              <Link
+                href="/login"
+                onClick={() => setMenuOpen(false)}
+                className="block rounded-2xl px-4 py-3 text-[15px] text-os-soft transition-colors hover:bg-os-surface hover:text-os-text sm:hidden"
+              >
+                Sign in
+              </Link>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.header>
   );
 }
