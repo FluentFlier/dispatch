@@ -25,10 +25,28 @@ const jetbrains = JetBrains_Mono({
   display: 'swap',
 });
 
+const SITE_TITLE = 'Content OS: Your content engine, trained on you';
+const SITE_DESC =
+  'The content command center for creators and founders. Research what is moving, write in your voice, schedule everywhere, reply faster, and learn what compounds.';
+
 export const metadata: Metadata = {
-  title: 'Content OS: Your content engine, trained on you',
-  description:
-    'The content command center for creators and founders. Research what is moving, write in your voice, schedule everywhere, reply faster, and learn what compounds.',
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
+  title: SITE_TITLE,
+  description: SITE_DESC,
+  openGraph: {
+    title: SITE_TITLE,
+    description: SITE_DESC,
+    url: '/',
+    siteName: 'Content OS',
+    type: 'website',
+    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Content OS' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: SITE_TITLE,
+    description: SITE_DESC,
+    images: ['/og.png'],
+  },
 };
 
 export default function RootLayout({
