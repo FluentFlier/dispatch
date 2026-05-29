@@ -28,7 +28,7 @@ interface PostRow {
 
 /**
  * Provision empty brain namespace for a new creator.
- * InsForge-first — no GBrain server required for users.
+ * InsForge-first: no GBrain server required for users.
  */
 export async function provisionCreatorBrain(
   client: InsforgeClient,
@@ -94,7 +94,7 @@ export async function syncBrainFromProfile(
 
   await putBrainPage(client, userId, {
     slug: BRAIN_SLUG.voice,
-    title: `${profile.display_name} — voice`,
+    title: `${profile.display_name}: voice`,
     tags: ['voice', 'core'],
     body: JSON.stringify(
       {
@@ -109,7 +109,7 @@ export async function syncBrainFromProfile(
 
   await putBrainPage(client, userId, {
     slug: BRAIN_SLUG.profile,
-    title: `${profile.display_name} — profile`,
+    title: `${profile.display_name}: profile`,
     tags: ['profile', 'core'],
     body: JSON.stringify(
       {

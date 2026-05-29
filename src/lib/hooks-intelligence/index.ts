@@ -1,5 +1,5 @@
 /**
- * Hook Intelligence - The phenomenal engine for Dispatch
+ * Hook Intelligence - The phenomenal engine for Content OS
  * 
  * - Free massive-scale mining via gstack
  * - Smart scoring + learned ranking (light RL)
@@ -10,6 +10,7 @@
 import type { ExtractedHook, HookDataset, RankedHook, HookVertical } from './types';
 import { DEFAULT_WATCHLIST } from './watchlist';
 import { rankHooks, scoreHook } from './scorer';
+import bootstrapDataset from '../../../data/hooks-dataset.json';
 
 const DATA_PATH = 'data/hooks-dataset.json';
 
@@ -23,21 +24,11 @@ let cachedDataset: HookDataset | null = null;
 export function loadHookDataset(): HookDataset {
   if (cachedDataset) return cachedDataset;
 
-  try {
-    const fs = require('fs');
-    if (fs.existsSync(DATA_PATH)) {
-      cachedDataset = JSON.parse(fs.readFileSync(DATA_PATH, 'utf8'));
-      return cachedDataset!;
-    }
-  } catch {}
-
-  // Bootstrap (populated at runtime by prod-mining.ts writing to DB + addHooksToDataset)
-  return {
-    version: '1.0.0',
-    lastUpdated: new Date().toISOString(),
-    hooks: [],
-    scores: {},
-  };
+  // Bundled bootstrap so hooks are available in serverless (the hook_examples
+  // table is the live source of truth; prod-mining + RL keep it fresh). Clone so
+  // runtime additions never mutate the imported module object.
+  cachedDataset = JSON.parse(JSON.stringify(bootstrapDataset)) as HookDataset;
+  return cachedDataset;
 }
 
 export function saveHookDataset(dataset: HookDataset) {
@@ -48,7 +39,7 @@ export function saveHookDataset(dataset: HookDataset) {
     fs.writeFileSync(DATA_PATH, JSON.stringify(dataset, null, 2));
     cachedDataset = dataset;
   } catch (e) {
-    console.warn('Could not persist hook dataset (serverless ok — DB is source of truth via prod mining)');
+    console.warn('Could not persist hook dataset (serverless ok: DB is source of truth via prod mining)');
   }
 }
 
@@ -84,7 +75,7 @@ export function getBestHooksForContext(
 
 /**
  * Social Listening entry point.
- * This is what keeps Dispatch "always on top".
+ * This is what keeps Content OS "always on top".
  */
 export async function runSocialListening(refreshAccounts = 20) {
   const { DEFAULT_WATCHLIST } = await import('./watchlist');

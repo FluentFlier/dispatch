@@ -394,7 +394,7 @@ export default function OnboardingPage() {
   return (
     <div className="max-w-lg mx-auto py-12 px-4">
       <h1 className="font-semibold text-[18px] text-text-primary tracking-[0.16em] mb-2">
-        DISPATCH
+        CONTENT OS
       </h1>
       <p className="font-body text-[13px] text-text-secondary mb-6">
         Step {step + 1} of {TOTAL_STEPS}

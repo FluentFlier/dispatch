@@ -27,7 +27,7 @@ export function getServerClient(): ReturnType<typeof createClient> {
   }
 
   const cookieStore = cookies();
-  const token = cookieStore.get('dispatch-token')?.value;
+  const token = cookieStore.get('content-os-token')?.value;
 
   return createClient({
     baseUrl: url,

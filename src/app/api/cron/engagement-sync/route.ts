@@ -8,7 +8,7 @@ import { prodMining } from '@/lib/hooks-intelligence/prod-mining';
 import { usage } from '@/lib/hooks-intelligence/usage-tracker';
 
 /**
- * GET /api/cron/engagement-sync — pull comments for users with published posts.
+ * GET /api/cron/engagement-sync: pull comments for users with published posts.
  * Protected by CRON_SECRET Bearer token.
  * 
  * Also triggers closed-loop intelligence:

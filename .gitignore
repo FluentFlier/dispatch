@@ -24,3 +24,7 @@ node_modules/
 .roo
 .trae
 .windsurf
+
+# build + tooling artifacts
+tsconfig.tsbuildinfo
+.playwright-mcp/

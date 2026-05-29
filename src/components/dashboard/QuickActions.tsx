@@ -27,7 +27,7 @@ const actions = [
     title: 'Research & Intelligence',
     description: 'Live high-converting hooks + lead categorization from real data.',
     href: '/analytics#intelligence',
-    icon: Sparkles, // reuse from lucide, or import if needed — actually add import
+    icon: Sparkles,
     accent: 'bg-amber-100 text-amber-700',
   },
 ];

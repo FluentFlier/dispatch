@@ -10,7 +10,7 @@ import { logInfo, logError } from '@/lib/logger';
 import { trackEvent } from '@/lib/analytics';
 
 /**
- * GET /api/cron/publish — process publish queue + legacy scheduled posts.
+ * GET /api/cron/publish: process publish queue + legacy scheduled posts.
  * Protected by CRON_SECRET Bearer token.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {

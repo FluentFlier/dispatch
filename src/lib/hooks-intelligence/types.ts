@@ -1,5 +1,5 @@
 /**
- * Hook Intelligence System for Dispatch
+ * Hook Intelligence System for Content OS
  * 
  * Powers phenomenal hook generation and social listening.
  * Data mined for free via gstack browser automation.

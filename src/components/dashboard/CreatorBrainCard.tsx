@@ -98,7 +98,7 @@ export function CreatorBrainCard() {
           <p className="mt-1 text-xs text-text-tertiary">
             {status?.provisioned
               ? `${status.page_count} memory pages · drafts use your voice + what already shipped`
-              : 'Your long-term memory for AI drafts — voice, profile, and top posts'}
+              : 'Your long-term memory for AI drafts: voice, profile, and top posts'}
           </p>
           {message && (
             <p className="mt-2 text-xs text-accent-primary">{message}</p>

@@ -226,7 +226,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           title: publishContent.slice(0, 80),
           pillar: 'general',
           platform,
-          status: scheduledAt ? 'edited' : 'edited',
+          status: 'edited',
           caption: publishContent,
           image_url: imageUrl ?? null,
           scheduled_publish_at: scheduledAt ?? null,

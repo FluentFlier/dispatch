@@ -148,7 +148,7 @@ async function fetchReadable(url: string): Promise<{ title?: string; body: strin
   const directRes = await fetch(url, {
     headers: {
       Accept: 'text/html,text/plain',
-      'User-Agent': 'DispatchVoiceImporter/1.0',
+      'User-Agent': 'ContentOSVoiceImporter/1.0',
     },
     next: { revalidate: 0 },
   });

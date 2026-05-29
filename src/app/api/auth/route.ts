@@ -37,7 +37,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const response = NextResponse.json({ ok: true, userId: validation.userId });
-    response.cookies.set('dispatch-token', parsed.data.token, COOKIE_OPTS);
+    response.cookies.set('content-os-token', parsed.data.token, COOKIE_OPTS);
     logInfo('auth.session_created', { userId: validation.userId });
     return response;
   } catch {
@@ -48,6 +48,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 /** DELETE: Clear auth cookie */
 export async function DELETE(): Promise<NextResponse> {
   const response = NextResponse.json({ ok: true });
-  response.cookies.set('dispatch-token', '', { ...COOKIE_OPTS, maxAge: 0 });
+  response.cookies.set('content-os-token', '', { ...COOKIE_OPTS, maxAge: 0 });
   return response;
 }

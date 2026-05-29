@@ -91,7 +91,7 @@ export async function recordUsageEvent(params: {
       ...(params.timestamp ? { 'timestamp': String(params.timestamp) } : {}),
     });
   } catch (e) {
-    // Best effort — don't break generation if metering fails
+    // Best effort: don't break generation if metering fails
     console.warn('[Stripe] Meter event failed (non-fatal):', e);
   }
 }

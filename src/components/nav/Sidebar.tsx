@@ -68,7 +68,7 @@ export default function Sidebar() {
             D
           </span>
           <span>
-            <span className="block text-sm font-semibold leading-tight">Dispatch</span>
+            <span className="block text-sm font-semibold leading-tight">Content OS</span>
             <span className="block text-[11px] text-white/45 leading-tight">Creator operating system</span>
           </span>
         </Link>

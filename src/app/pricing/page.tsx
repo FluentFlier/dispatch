@@ -67,7 +67,7 @@ export default function PricingPage() {
       <div className="mx-auto max-w-6xl px-5 py-16">
         <div className="mb-12 rounded-2xl border border-border bg-bg-secondary px-6 py-8 shadow-card">
           <Link href="/" className="text-[12px] text-accent-primary hover:text-accent-dark inline-block">
-            ← Dispatch
+            ← Content OS
           </Link>
           <div className="mt-6 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
             <div>
@@ -76,7 +76,7 @@ export default function PricingPage() {
                 Publish, learn, and improve from one product.
               </h1>
               <p className="mt-5 max-w-2xl text-[16px] leading-7 text-text-secondary">
-                Dispatch is not just scheduling. It is the dashboard, generate flow, voice lab, analytics, story bank, teleprompter, and video tooling you need to make the stack feel complete.
+                Content OS is not just scheduling. It is the dashboard, generate flow, voice lab, analytics, story bank, teleprompter, and video tooling you need to make the stack feel complete.
               </p>
               <div className="mt-6 flex flex-wrap gap-2">
                 {['Dashboard', 'Generate', 'Voice Lab', 'Analytics', 'Story Bank', 'Teleprompter', 'Video Studio'].map((item) => (

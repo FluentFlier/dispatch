@@ -1,7 +1,7 @@
 {
-  "name": "dispatch",
+  "name": "content-os",
   "version": "0.1.0",
-  "description": "Dispatch — private content command center for creators",
+  "description": "Content OS — private content command center for creators",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -18,7 +18,9 @@
     "apify-client": "^2.23.3",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "lenis": "^1.3.23",
     "lucide-react": "^0.468.0",
+    "motion": "^12.40.0",
     "next": "14.2.21",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",

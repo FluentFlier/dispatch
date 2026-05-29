@@ -149,10 +149,10 @@ export default function LoginPage() {
       <div className="hidden lg:flex lg:w-[42%] flex-col justify-between p-12 bg-bg-tertiary border-r border-border">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-accent-primary mb-4">
-            Dispatch
+            Content OS
           </p>
           <h1 className="text-3xl font-semibold text-text-primary leading-tight tracking-tight">
-            Write, schedule, and reply — in one calm place.
+            Write, schedule, and reply, all in one calm place.
           </h1>
           <p className="text-[15px] text-text-secondary mt-4 max-w-sm leading-relaxed">
             Built for everyday creators. No jargon, no juggling five apps. Just your voice and your posts.
@@ -162,7 +162,7 @@ export default function LoginPage() {
           <p className="text-sm text-text-secondary italic leading-relaxed">
             &ldquo;I stopped copy-pasting into four apps. Everything lives here now.&rdquo;
           </p>
-          <footer className="text-xs text-text-tertiary mt-2">— Beta creator</footer>
+          <footer className="text-xs text-text-tertiary mt-2">Beta creator</footer>
         </blockquote>
       </div>
 
@@ -177,13 +177,13 @@ export default function LoginPage() {
             <>
               <div className="text-center mb-8 lg:text-left">
                 <p className="text-xs font-semibold uppercase tracking-wide text-accent-primary mb-2 lg:hidden">
-                  Dispatch
+                  Content OS
                 </p>
                 <h2 className="text-2xl font-semibold text-text-primary tracking-tight">
                   Sign in
                 </h2>
                 <p className="text-[15px] text-text-secondary mt-2">
-                  Use Google or GitHub — takes about 10 seconds.
+                  Use Google or GitHub. Takes about 10 seconds.
                 </p>
               </div>
 

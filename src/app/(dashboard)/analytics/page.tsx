@@ -15,9 +15,9 @@ import {
   Target,
   Users,
   TrendingUp,
-  Copy,
 } from "lucide-react";
 import { CopyButton } from "@/components/ui/CopyButton";
+import { useToast } from "@/components/ui/Toast";
 import { bucketEngagers, type Engager } from "@/lib/hooks-intelligence/categorize";
 import { getInsforge } from "@/lib/insforge/client";
 import type { Post, HashtagSet, WeeklyReview } from "@/lib/types";
@@ -58,6 +58,7 @@ function truncate(s: string, len: number) {
 
 export default function AnalyticsPage() {
   const { pillars: pillarList, getLabel, getColor } = usePillars();
+  const { toast } = useToast();
   const [userId, setUserId] = useState<string | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [hashtagSets, setHashtagSets] = useState<HashtagSet[]>([]);
@@ -219,9 +220,10 @@ export default function AnalyticsPage() {
                     <a href="/generate" className="text-[10px] text-accent-primary hover:underline">Use in Generate</a>
                     <button onClick={async () => {
                       try {
-                        await fetch('/api/brain/sync', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: hook.text, type: 'hook', source: 'intelligence' }) });
-                        alert('Saved to Creator Brain!');
-                      } catch { alert('Saved (demo - real API call attempted)'); }
+                        const res = await fetch('/api/brain/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: hook.text, type: 'hook', source: 'intelligence' }) });
+                        if (!res.ok) throw new Error('save failed');
+                        toast('Saved to Creator Brain');
+                      } catch { toast('Could not save. Try again.', 'error'); }
                     }} className="text-[10px] text-sage hover:underline">Save to Brain</button>
                   </div>
                 </div>
@@ -233,7 +235,7 @@ export default function AnalyticsPage() {
 
           {researchResult && (
             <div className="mt-4 rounded-lg border border-accent-primary/30 bg-accent-primary/5 p-4 text-sm">
-              <div className="font-medium mb-2 flex items-center gap-2">Research complete — intelligence updated <span className="text-xs opacity-70">(RAG + RL applied)</span></div>
+              <div className="font-medium mb-2 flex items-center gap-2">Research complete. Intelligence updated. <span className="text-xs opacity-70">(RAG + RL applied)</span></div>
               {researchResult.intelligence?.hooks && (
                 <div className="mb-2">
                   <div className="text-xs font-semibold mb-1">Top hooks surfaced:</div>
@@ -258,18 +260,12 @@ export default function AnalyticsPage() {
           </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {(realLeadCounts ? [
-              { label: 'ICP (Ideal Customers)', count: realLeadCounts.ICP || 0, color: 'text-coral', desc: 'Founders & decision makers' },
-              { label: 'Potential Leads', count: realLeadCounts['Potential Lead'] || 0, color: 'text-amber-600', desc: 'Asking questions, high intent' },
-              { label: 'Community', count: realLeadCounts.Community || 0, color: 'text-sage', desc: 'Creators & makers like you' },
-              { label: 'Other', count: realLeadCounts.Other || 0, color: 'text-text-tertiary', desc: 'Casual engagers' },
-            ] : [
-              // Fallback demo until real data from engagement sync + persistence
-              { label: 'ICP (Ideal Customers)', count: 12, color: 'text-coral', desc: 'Founders & decision makers' },
-              { label: 'Potential Leads', count: 28, color: 'text-amber-600', desc: 'Asking questions, high intent' },
-              { label: 'Community', count: 47, color: 'text-sage', desc: 'Creators & makers like you' },
-              { label: 'Other', count: 19, color: 'text-text-tertiary', desc: 'Casual engagers' },
-            ]).map((bucket, i) => (
+            {[
+              { label: 'ICP (Ideal Customers)', count: realLeadCounts?.ICP || 0, color: 'text-coral', desc: 'Founders & decision makers' },
+              { label: 'Potential Leads', count: realLeadCounts?.['Potential Lead'] || 0, color: 'text-amber-600', desc: 'Asking questions, high intent' },
+              { label: 'Community', count: realLeadCounts?.Community || 0, color: 'text-sage', desc: 'Creators & makers like you' },
+              { label: 'Other', count: realLeadCounts?.Other || 0, color: 'text-text-tertiary', desc: 'Casual engagers' },
+            ].map((bucket, i) => (
               <div key={i} className="rounded-lg border border-border/60 p-4 bg-bg">
                 <div className={`text-3xl font-semibold tabular-nums ${bucket.color}`}>{bucket.count}</div>
                 <div className="font-medium text-sm mt-1">{bucket.label}</div>
@@ -279,7 +275,7 @@ export default function AnalyticsPage() {
           </div>
 
           <div className="mt-4 text-xs text-text-tertiary">
-            Populated automatically after every engagement sync. Full data appears once you have published posts with comments. (Current view uses illustrative sample + our categorize util; real DB lead_categories persistence coming next.)
+            Counts come straight from your categorized engagers. They fill in automatically after each engagement sync, once your published posts start collecting comments.
           </div>
         </div>
       </section>
