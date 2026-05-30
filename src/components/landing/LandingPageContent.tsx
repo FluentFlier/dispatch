@@ -2,6 +2,7 @@
 
 import { MotionConfig } from 'motion/react';
 import SmoothScroll from './SmoothScroll';
+import ScrollProgress from './ScrollProgress';
 import LandingNav from './LandingNav';
 import Hero from './Hero';
 import PostReceipts from './PostReceipts';
@@ -22,6 +23,7 @@ export default function LandingPageContent({ loggedIn }: Props) {
     <MotionConfig reducedMotion="user">
       <SmoothScroll>
         <main className="os-landing os-grain relative min-h-screen overflow-x-hidden">
+          <ScrollProgress />
           <LandingNav loggedIn={loggedIn} />
           <Hero loggedIn={loggedIn} />
           <PostReceipts />
