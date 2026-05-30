@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getActiveWorkspaceId } from '@/lib/workspace';
 import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
 
@@ -11,12 +12,14 @@ export async function GET(
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const client = getServerClient();
-  const { data, error } = await client
+  const workspaceId = await getActiveWorkspaceId(user.id);
+  let query = client
     .database.from('series')
     .select('*')
     .eq('id', params.id)
-    .eq('user_id', user.id)
-    .single();
+    .eq('user_id', user.id);
+  if (workspaceId) query = query.eq('workspace_id', workspaceId);
+  const { data, error } = await query.single();
 
   if (error) return errorResponse('Series not found.', 404, error);
   return NextResponse.json({ series: data });
@@ -44,13 +47,14 @@ export async function PATCH(
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
   const client = getServerClient();
-  const { data, error } = await client
+  const workspaceId = await getActiveWorkspaceId(user.id);
+  let query = client
     .database.from('series')
     .update(parsed.data)
     .eq('id', params.id)
-    .eq('user_id', user.id)
-    .select()
-    .single();
+    .eq('user_id', user.id);
+  if (workspaceId) query = query.eq('workspace_id', workspaceId);
+  const { data, error } = await query.select().single();
 
   if (error) return errorResponse('Could not update series.', 500, error);
   return NextResponse.json({ series: data });
@@ -64,11 +68,14 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const client = getServerClient();
-  const { error } = await client
+  const workspaceId = await getActiveWorkspaceId(user.id);
+  let query = client
     .database.from('series')
     .delete()
     .eq('id', params.id)
     .eq('user_id', user.id);
+  if (workspaceId) query = query.eq('workspace_id', workspaceId);
+  const { error } = await query;
 
   if (error) return errorResponse('Could not delete series.', 500, error);
   return NextResponse.json({ success: true });

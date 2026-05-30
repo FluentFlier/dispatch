@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getActiveWorkspaceId } from '@/lib/workspace';
+import { errorResponse } from '@/lib/api-errors';
 import { encryptToken } from '@/lib/crypto';
 import { z } from 'zod';
 
@@ -9,12 +11,17 @@ export async function GET(): Promise<NextResponse> {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const client = getServerClient();
-  const { data, error } = await client.database
+  const workspaceId = await getActiveWorkspaceId(user.id);
+
+  let query = client.database
     .from('social_accounts')
     .select('id, platform, account_name, account_id, connected_at, token_expires_at, connection_method')
     .eq('user_id', user.id);
+  // Scope to the active workspace (rows are backfilled with workspace_id).
+  if (workspaceId) query = query.eq('workspace_id', workspaceId);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const { data, error } = await query;
+  if (error) return errorResponse('Could not load social accounts.', 500, error);
   return NextResponse.json({ accounts: data ?? [] });
 }
 
@@ -47,11 +54,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { platform, account_name, account_id, access_token, refresh_token, token_expires_at } = parsed.data;
 
   const client = getServerClient();
+  const workspaceId = await getActiveWorkspaceId(user.id);
   const { data, error } = await client.database
     .from('social_accounts')
     .upsert(
       {
         user_id: user.id,
+        workspace_id: workspaceId,
         platform,
         account_name: account_name ?? null,
         account_id: account_id ?? null,
@@ -65,6 +74,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .select('id, platform, account_name, account_id, connected_at')
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return errorResponse('Could not save social account.', 500, error);
   return NextResponse.json({ account: data }, { status: 201 });
 }
