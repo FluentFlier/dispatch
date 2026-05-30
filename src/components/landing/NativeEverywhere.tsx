@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { Reveal, PlatformGlyph } from './primitives';
 import SectionAtmosphere from './SectionAtmosphere';
 import { FileText, Film, CornerDownRight, LayoutGrid } from 'lucide-react';
@@ -103,6 +104,19 @@ export default function NativeEverywhere() {
             ))}
           </div>
         </div>
+
+        <Reveal delay={0.1}>
+          <div className="relative mt-12 overflow-hidden rounded-2xl border border-os-border bg-os-surface-strong/40 p-3 shadow-glass sm:mt-16 sm:p-4">
+            <Image
+              src="/images/native-everywhere.png"
+              alt="The same idea, native on X, LinkedIn, and Instagram"
+              width={1360}
+              height={600}
+              sizes="(max-width: 1024px) 100vw, 1024px"
+              className="h-auto w-full rounded-xl"
+            />
+          </div>
+        </Reveal>
       </div>
     </section>
   );
