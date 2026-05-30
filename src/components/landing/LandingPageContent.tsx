@@ -6,6 +6,7 @@ import LandingNav from './LandingNav';
 import Hero from './Hero';
 import PostReceipts from './PostReceipts';
 import TheLoop from './TheLoop';
+import ProductShowcase from './ProductShowcase';
 import VoiceFingerprint from './VoiceFingerprint';
 import NativeEverywhere from './NativeEverywhere';
 import WhatCompounds from './WhatCompounds';
@@ -25,6 +26,7 @@ export default function LandingPageContent({ loggedIn }: Props) {
           <Hero loggedIn={loggedIn} />
           <PostReceipts />
           <TheLoop />
+          <ProductShowcase />
           <VoiceFingerprint />
           <NativeEverywhere />
           <WhatCompounds />
