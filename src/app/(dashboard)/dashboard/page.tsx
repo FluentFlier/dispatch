@@ -14,6 +14,7 @@ import { getServerClient, getAuthenticatedUser } from '@/lib/insforge/server';
 import type { Post, ContentIdea } from '@/lib/types';
 import type { Pillar, Priority } from '@/lib/constants';
 import { PILLAR_COLORS, STATUS_BADGE, STATUS_LABELS } from '@/lib/constants';
+import { getActiveWorkspaceId } from '@/lib/workspace';
 
 /** Resolve a pillar color with graceful fallback for custom pillars. */
 function getPillarColor(pillar: string): string {
@@ -100,27 +101,31 @@ export default async function DashboardPage() {
   const client = getServerClient();
   const { start, end } = getWeekBounds();
   const today = new Date().toISOString().slice(0, 10);
+  const workspaceId = await getActiveWorkspaceId(uid);
+  // Scope content queries to the active workspace (rows are backfilled).
+  // creator_profile stays user-scoped until per-workspace voice ships.
+  const scoped = <T,>(q: T): T => (workspaceId ? (q as { eq: (c: string, v: string) => T }).eq('workspace_id', workspaceId) : q);
 
   // Fire all queries in parallel
   const [weekPostsRes, pipelineRes, postedRes, streakRes, upNextRes, recentRes, ideasRes, weekScheduleRes, profileRes, socialRes, failedJobsRes, entitlements] =
     await Promise.all([
-      client.database.from('posts').select('id').eq('user_id', uid).eq('status', 'posted').gte('posted_date', start).lte('posted_date', end),
-      client.database.from('posts').select('id').eq('user_id', uid).neq('status', 'posted').neq('status', 'idea'),
-      client.database.from('posts').select('id').eq('user_id', uid).eq('status', 'posted'),
-      client.database.from('posts').select('posted_date').eq('user_id', uid).not('posted_date', 'is', null).order('posted_date', { ascending: false }),
-      client.database.from('posts').select('*').eq('user_id', uid).gte('scheduled_date', today).neq('status', 'posted').order('scheduled_date', { ascending: true }).limit(3),
-      client.database.from('posts').select('*').eq('user_id', uid).order('updated_at', { ascending: false }).limit(5),
-      client.database.from('content_ideas').select('*').eq('user_id', uid).eq('converted', false).order('priority', { ascending: true }).limit(3),
-      client.database.from('posts').select('title, pillar, status').eq('user_id', uid).gte('scheduled_date', start).lte('scheduled_date', end),
+      scoped(client.database.from('posts').select('id').eq('user_id', uid).eq('status', 'posted').gte('posted_date', start).lte('posted_date', end)),
+      scoped(client.database.from('posts').select('id').eq('user_id', uid).neq('status', 'posted').neq('status', 'idea')),
+      scoped(client.database.from('posts').select('id').eq('user_id', uid).eq('status', 'posted')),
+      scoped(client.database.from('posts').select('posted_date').eq('user_id', uid).not('posted_date', 'is', null).order('posted_date', { ascending: false })),
+      scoped(client.database.from('posts').select('*').eq('user_id', uid).gte('scheduled_date', today).neq('status', 'posted').order('scheduled_date', { ascending: true }).limit(3)),
+      scoped(client.database.from('posts').select('*').eq('user_id', uid).order('updated_at', { ascending: false }).limit(5)),
+      scoped(client.database.from('content_ideas').select('*').eq('user_id', uid).eq('converted', false).order('priority', { ascending: true }).limit(3)),
+      scoped(client.database.from('posts').select('title, pillar, status').eq('user_id', uid).gte('scheduled_date', start).lte('scheduled_date', end)),
       client.database.from('creator_profile').select('display_name, content_pillars, voice_description, onboarding_complete').eq('user_id', uid).maybeSingle(),
-      client.database.from('social_accounts').select('platform, connection_method, health_status').eq('user_id', uid),
-      client.database
+      scoped(client.database.from('social_accounts').select('platform, connection_method, health_status').eq('user_id', uid)),
+      scoped(client.database
         .from('publish_jobs')
         .select('id, platform, last_error, status')
         .eq('user_id', uid)
         .in('status', ['failed', 'dead'])
         .order('updated_at', { ascending: false })
-        .limit(5),
+        .limit(5)),
       getUserEntitlements(uid),
     ]);
 
