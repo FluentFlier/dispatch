@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { Building2, Check, ChevronsUpDown, Plus, User } from 'lucide-react';
 
 interface Ws {
@@ -11,7 +10,6 @@ interface Ws {
 }
 
 export default function WorkspaceSwitcher() {
-  const router = useRouter();
   const [workspaces, setWorkspaces] = useState<Ws[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -57,7 +55,9 @@ export default function WorkspaceSwitcher() {
       if (res.ok) {
         setActiveId(id);
         setOpen(false);
-        router.refresh();
+        // Full reload so client-rendered pages (library, calendar) re-read
+        // the new active workspace, not just server components.
+        window.location.reload();
       }
     } finally {
       setBusy(false);
@@ -82,11 +82,12 @@ export default function WorkspaceSwitcher() {
       }
       setNewName('');
       setAdding(false);
-      await load();
       if (d.workspace?.id) {
         setActiveId(d.workspace.id);
-        router.refresh();
+        window.location.reload();
+        return;
       }
+      await load();
     } finally {
       setBusy(false);
     }

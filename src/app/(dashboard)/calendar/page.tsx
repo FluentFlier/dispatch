@@ -96,11 +96,21 @@ export default function CalendarPage() {
       const uid = userData.user.id;
       setUserId(uid);
 
-      const { data } = await insforge.database
+      let wsId: string | null = null;
+      try {
+        const wsRes = await fetch("/api/workspaces", { cache: "no-store", credentials: "same-origin" });
+        if (wsRes.ok) wsId = (await wsRes.json()).activeId ?? null;
+      } catch {
+        /* fall back to user scope */
+      }
+
+      let query = insforge.database
         .from("posts")
         .select("*")
         .eq("user_id", uid)
         .order("scheduled_date", { ascending: true });
+      if (wsId) query = query.eq("workspace_id", wsId);
+      const { data } = await query;
 
       setPosts((data as Post[]) ?? []);
     } catch (err) {
