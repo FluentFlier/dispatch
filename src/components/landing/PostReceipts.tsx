@@ -2,6 +2,7 @@
 
 import { MessageCircle, Bookmark, ArrowUpRight } from 'lucide-react';
 import { PlatformGlyph, Reveal } from './primitives';
+import SectionAtmosphere from './SectionAtmosphere';
 
 type Receipt = {
   platform: 'x' | 'linkedin' | 'instagram' | 'threads' | 'youtube';
@@ -93,8 +94,9 @@ function ReceiptCard({ r }: { r: Receipt }) {
 export default function PostReceipts() {
   const row = [...RECEIPTS, ...RECEIPTS];
   return (
-    <section className="relative border-y border-os-border py-14">
-      <div className="mx-auto max-w-6xl px-5 sm:px-8">
+    <section className="relative overflow-hidden border-y border-os-border py-14">
+      <SectionAtmosphere tone="cyan" accent="coral" position="right" />
+      <div className="relative z-10 mx-auto max-w-6xl px-5 sm:px-8">
         <Reveal>
           <p className="os-mono text-[11px] uppercase tracking-[0.2em] text-os-muted">
             Proof, not a logo wall
@@ -105,7 +107,7 @@ export default function PostReceipts() {
         </Reveal>
       </div>
 
-      <div className="relative mt-9 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_6%,black_94%,transparent)]">
+      <div className="relative z-10 mt-9 overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_6%,black_94%,transparent)]">
         <div className="flex w-max gap-4 px-4 animate-os-marquee">
           {row.map((r, i) => (
             <ReceiptCard key={`${r.handle}-${i}`} r={r} />
