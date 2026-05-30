@@ -1,6 +1,6 @@
 'use client';
 
-import { type ComponentType, useEffect, useState } from 'react';
+import { type ComponentType } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { getInsforgeClient } from '@/lib/insforge/client';
 import { primaryNav, moreNav } from '@/lib/nav-config';
+import WorkspaceSwitcher from '@/components/nav/WorkspaceSwitcher';
 
 const navIcons: Record<string, ComponentType<{ className?: string }>> = {
   '/dashboard': Home,
@@ -33,32 +34,12 @@ const navIcons: Record<string, ComponentType<{ className?: string }>> = {
 export default function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const [userLabel, setUserLabel] = useState('');
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await fetch('/api/auth/session', {
-          credentials: 'same-origin',
-          cache: 'no-store',
-        });
-        if (!res.ok) return;
-        const session = await res.json();
-        if (!session.authenticated) return;
-        setUserLabel(session.profile?.displayName || session.user?.email || '');
-      } catch {
-        /* optional */
-      }
-    })();
-  }, []);
 
   const handleSignOut = async () => {
     await getInsforgeClient().auth.signOut();
     await fetch('/api/auth', { method: 'DELETE', credentials: 'same-origin' });
     router.push('/login');
   };
-
-  const firstName = userLabel.includes('@') ? userLabel.split('@')[0] : userLabel.split(' ')[0];
 
   return (
     <aside className="hidden md:flex md:flex-col fixed left-0 top-0 bottom-0 w-[264px] h-screen z-40 bg-[#101312] text-white border-r border-black/10">
@@ -72,12 +53,7 @@ export default function Sidebar() {
             <span className="block text-[11px] text-white/45 leading-tight">Creator operating system</span>
           </span>
         </Link>
-        {userLabel && (
-          <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2">
-            <p className="text-[11px] uppercase tracking-wide text-white/40">Workspace</p>
-            <p className="mt-0.5 truncate text-sm text-white/85">{firstName}</p>
-          </div>
-        )}
+        <WorkspaceSwitcher />
       </div>
 
       <nav className="flex-1 px-3 space-y-1">
