@@ -1,4 +1,4 @@
-/** Core brain page slugs — one namespace per creator on InsForge */
+/** Core brain page slugs: one namespace per creator on InsForge */
 export const BRAIN_SLUG = {
   voice: 'voice',
   profile: 'profile',

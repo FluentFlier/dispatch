@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 
-const CACHE_KEY = 'dispatch_todays_prompt';
+const CACHE_KEY = 'content_os_todays_prompt';
 
 interface CachedPrompt {
   date: string;

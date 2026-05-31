@@ -41,15 +41,8 @@ export async function generateWithVoicePipeline(
   const contentType = input.contentType ?? 'post';
   const composeHints = buildVoiceComposeHints(input.platform, contentType);
 
-  // Track every intelligence-powered generation for usage billing / limits
-  // (profile/user context tells us who to charge)
-  const userIdForUsage = (input.profile as any)?.userId;
-  if (userIdForUsage) {
-    try {
-      const { usage } = await import('@/lib/hooks-intelligence/usage-tracker');
-      await usage.track(userIdForUsage, 'generate', { contentType, platform: input.platform });
-    } catch {}
-  }
+  // Usage is tracked at the API boundary (/api/generate) so it is counted once
+  // per request; the pipeline stays a pure content function.
   const taskHint = input.platform
     ? `Platform: ${input.platform}. Match native format and length.`
     : undefined;
@@ -59,7 +52,7 @@ export async function generateWithVoicePipeline(
   // This is how we make posts *actually* amazing instead of generic.
   const topHooks = getBestHooksForContext(undefined as any, 6); // can be made vertical-aware later
   const hookExamples = topHooks.length > 0 
-    ? `\n\nREAL HIGH-CONVERTING HOOK EXAMPLES (use these structures + adapt to voice):\n${topHooks.map((h, i) => `${i+1}. "${h.text}" — @${h.author}`).join('\n')}`
+    ? `\n\nREAL HIGH-CONVERTING HOOK EXAMPLES (use these structures + adapt to voice):\n${topHooks.map((h, i) => `${i+1}. "${h.text}" (@${h.author})`).join('\n')}`
     : '';
 
   const mergedContext = [composeHints, taskHint, input.contextAdditions, hookExamples]

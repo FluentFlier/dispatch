@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { guardAiRequest } from '@/lib/ai-guard';
+import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
 
 const AutoEditRequestSchema = z.object({
@@ -52,6 +54,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // If captions are requested, generate AI captions
   if (options.captions) {
+    const guard = await guardAiRequest(user.id);
+    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
+
     try {
       const client = getServerClient();
       const { data: aiResponse } = await client.ai.chat.completions.create({
@@ -81,6 +86,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         options,
       });
     } catch (err) {
+      // Non-fatal: log the real cause server-side, return graceful empty captions.
       console.error('[auto-edit] Caption generation failed:', err);
       return NextResponse.json({
         status: 'completed',

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { generateContent } from '@/lib/claude';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { guardAiRequest } from '@/lib/ai-guard';
 import { z } from 'zod';
 
 const PLATFORM_ENUM = z.enum(['twitter', 'linkedin', 'instagram', 'threads']);
@@ -259,6 +260,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const { content, targetPlatforms, optimizationLevel } = parsed.data;
+
+  const guard = await guardAiRequest(user.id);
+  if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
   const client = getServerClient();
   const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {

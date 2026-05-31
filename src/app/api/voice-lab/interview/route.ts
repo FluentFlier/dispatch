@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/insforge/server';
 import { generateContent } from '@/lib/claude';
+import { guardAiRequest } from '@/lib/ai-guard';
+import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
 
 const InterviewSchema = z.object({
@@ -42,6 +44,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const parsed = InterviewSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
+  const guard = await guardAiRequest(user.id);
+  if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
+
   const prompt = `Voice Analysis:\n${JSON.stringify(parsed.data.analysis, null, 2)}\n\nInterview Answers:\n${parsed.data.answers.map(a => `Q: ${a.question}\nA: ${a.answer}`).join('\n\n')}`;
 
   try {
@@ -55,7 +60,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const persona = JSON.parse(jsonMatch[0]);
     return NextResponse.json(persona);
   } catch (err) {
-    console.error('Voice synthesis error:', err);
-    return NextResponse.json({ error: 'Synthesis failed' }, { status: 500 });
+    return errorResponse('Synthesis failed.', 500, err);
   }
 }

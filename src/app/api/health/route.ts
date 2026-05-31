@@ -4,7 +4,7 @@ import { getSocialProviderMode } from '@/lib/env';
 export const dynamic = 'force-dynamic';
 
 /**
- * GET /api/health — deployment + dependency probe for beta monitoring.
+ * GET /api/health: deployment + dependency probe for beta monitoring.
  */
 export async function GET(): Promise<NextResponse> {
   const checks: Record<string, 'ok' | 'missing' | 'degraded'> = {
@@ -31,7 +31,7 @@ export async function GET(): Promise<NextResponse> {
   return NextResponse.json(
     {
       status,
-      service: 'dispatch',
+      service: 'content-os',
       version: process.env.npm_package_version ?? '0.1.0',
       timestamp: new Date().toISOString(),
       checks,

@@ -483,7 +483,7 @@ export default function SettingsPage() {
 
   return (
     <div className="page-shell space-y-6">
-      <PageHeader title="Settings" subtitle="Profile, connected accounts, and how Dispatch writes for you." />
+      <PageHeader title="Settings" subtitle="Profile, connected accounts, and how Content OS writes for you." />
 
       {/* Tab bar */}
       <div className="flex gap-1 bg-bg-tertiary rounded-[10px] p-1">

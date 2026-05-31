@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { generateContent, buildSystemPrompt } from '@/lib/claude';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { guardAiRequest } from '@/lib/ai-guard';
+import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
 
 const AutoGenSchema = z.object({
@@ -32,6 +34,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
   const { type, topic, platform, context } = parsed.data;
+
+  const guard = await guardAiRequest(user.id);
+  if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
+
   const client = getServerClient();
 
   const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {
@@ -125,8 +131,7 @@ Return JSON:
       .single();
 
     if (saveError) {
-      console.error('Save error:', saveError);
-      return NextResponse.json({ error: 'Failed to save generated content' }, { status: 500 });
+      return errorResponse('Failed to save generated content.', 500, saveError);
     }
 
     return NextResponse.json({
@@ -135,7 +140,6 @@ Return JSON:
       auto_publish: shouldAutoPublish,
     });
   } catch (err) {
-    console.error('Auto-generation error:', err);
-    return NextResponse.json({ error: 'Generation failed' }, { status: 500 });
+    return errorResponse('Generation failed.', 500, err);
   }
 }

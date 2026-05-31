@@ -162,6 +162,24 @@ export async function assertCanSchedule(userId: string): Promise<{
   return { ok: true, entitlements };
 }
 
+export async function assertCanGenerate(userId: string): Promise<{
+  ok: boolean;
+  error?: string;
+  entitlements: UserEntitlements;
+}> {
+  const entitlements = await getUserEntitlements(userId);
+
+  if (entitlements.usage.aiGenerations >= entitlements.limits.aiGenerationsPerMonth) {
+    return {
+      ok: false,
+      error: `Monthly AI generation limit reached (${entitlements.limits.aiGenerationsPerMonth}). Upgrade your plan for more.`,
+      entitlements,
+    };
+  }
+
+  return { ok: true, entitlements };
+}
+
 export function getPlanPriceIds(): Record<Exclude<PlanId, 'free'>, string | undefined> {
   return {
     starter: process.env.STRIPE_PRICE_STARTER,

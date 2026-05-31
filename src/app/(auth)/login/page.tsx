@@ -14,6 +14,7 @@ async function syncTokenToCookie(): Promise<boolean> {
         const res = await fetch("/api/auth", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
           body: JSON.stringify({ token }),
         });
         if (res.ok) return true;
@@ -24,6 +25,19 @@ async function syncTokenToCookie(): Promise<boolean> {
     await new Promise((r) => setTimeout(r, (attempt + 1) * 300));
   }
   return false;
+}
+
+async function finishSessionSync(): Promise<boolean> {
+  const synced = await syncTokenToCookie();
+  if (!synced) return false;
+
+  const res = await fetch("/api/auth/session", {
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+  if (!res.ok) return false;
+  const session = (await res.json()) as { authenticated?: boolean };
+  return Boolean(session.authenticated);
 }
 
 export default function LoginPage() {
@@ -37,10 +51,11 @@ export default function LoginPage() {
   }, []);
 
   async function handleAuth() {
-    const client = getInsforgeClient();
     const params = new URLSearchParams(window.location.search);
+    const hasOAuthCode = params.has("insforge_code");
+    const client = getInsforgeClient();
 
-    if (params.has("insforge_code")) {
+    if (hasOAuthCode) {
       setStatus("Completing sign-in...");
       const authReady = (client.auth as unknown as { authCallbackHandled?: Promise<void> }).authCallbackHandled;
       if (authReady) {
@@ -56,7 +71,12 @@ export default function LoginPage() {
         const { data } = await client.auth.getCurrentUser();
         if (data?.user) {
           setStatus("Syncing session...");
-          await syncTokenToCookie();
+          const synced = await finishSessionSync();
+          if (!synced) {
+            setError("Sign-in completed, but the app could not create your session. Please try again.");
+            setReady(true);
+            return;
+          }
           window.location.replace("/dashboard");
           return;
         }
@@ -71,7 +91,24 @@ export default function LoginPage() {
     }
 
     try {
-      const res = await fetch("/api/auth/session", { cache: "no-store" });
+      const { data } = await client.auth.getCurrentUser();
+      if (data?.user) {
+        setStatus("Syncing session...");
+        const synced = await finishSessionSync();
+        if (synced) {
+          window.location.replace("/dashboard");
+          return;
+        }
+      }
+    } catch {
+      /* no browser session */
+    }
+
+    try {
+      const res = await fetch("/api/auth/session", {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
       const session = (await res.json()) as { authenticated?: boolean };
       if (session.authenticated) {
         setStatus("Syncing session...");
@@ -112,10 +149,10 @@ export default function LoginPage() {
       <div className="hidden lg:flex lg:w-[42%] flex-col justify-between p-12 bg-bg-tertiary border-r border-border">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-accent-primary mb-4">
-            Dispatch
+            Content OS
           </p>
           <h1 className="text-3xl font-semibold text-text-primary leading-tight tracking-tight">
-            Write, schedule, and reply — in one calm place.
+            Write, schedule, and reply, all in one calm place.
           </h1>
           <p className="text-[15px] text-text-secondary mt-4 max-w-sm leading-relaxed">
             Built for everyday creators. No jargon, no juggling five apps. Just your voice and your posts.
@@ -125,7 +162,7 @@ export default function LoginPage() {
           <p className="text-sm text-text-secondary italic leading-relaxed">
             &ldquo;I stopped copy-pasting into four apps. Everything lives here now.&rdquo;
           </p>
-          <footer className="text-xs text-text-tertiary mt-2">— Beta creator</footer>
+          <footer className="text-xs text-text-tertiary mt-2">Beta creator</footer>
         </blockquote>
       </div>
 
@@ -140,13 +177,13 @@ export default function LoginPage() {
             <>
               <div className="text-center mb-8 lg:text-left">
                 <p className="text-xs font-semibold uppercase tracking-wide text-accent-primary mb-2 lg:hidden">
-                  Dispatch
+                  Content OS
                 </p>
                 <h2 className="text-2xl font-semibold text-text-primary tracking-tight">
                   Sign in
                 </h2>
                 <p className="text-[15px] text-text-secondary mt-2">
-                  Use Google or GitHub — takes about 10 seconds.
+                  Use Google or GitHub. Takes about 10 seconds.
                 </p>
               </div>
 

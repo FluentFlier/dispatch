@@ -3,18 +3,18 @@
 @tailwind utilities;
 
 :root {
-  --bg-primary: #faf7f2;
+  --bg-primary: #f6f7f4;
   --bg-secondary: #ffffff;
-  --bg-tertiary: #f3ede4;
-  --text-primary: #1c1917;
-  --text-secondary: #57534e;
-  --text-tertiary: #78716c;
-  --border-default: rgba(28, 25, 23, 0.1);
-  --border-hover: rgba(28, 25, 23, 0.18);
-  --accent: #e07a5f;
-  --accent-light: rgba(224, 122, 95, 0.14);
-  --accent-dark: #c45c48;
-  --sage: #3d8b7a;
+  --bg-tertiary: #eef1ed;
+  --text-primary: #171717;
+  --text-secondary: #525252;
+  --text-tertiary: #737373;
+  --border-default: rgba(23, 23, 23, 0.1);
+  --border-hover: rgba(23, 23, 23, 0.2);
+  --accent: #2563eb;
+  --accent-light: rgba(37, 99, 235, 0.1);
+  --accent-dark: #1d4ed8;
+  --sage: #0f766e;
 }
 
 * {
@@ -38,7 +38,7 @@ h5,
 h6 {
   font-family: 'DM Sans', system-ui, sans-serif;
   line-height: 1.2;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--text-primary);
 }
 
@@ -68,15 +68,15 @@ select:focus {
 
 @layer components {
   .page-shell {
-    @apply max-w-3xl mx-auto space-y-6 pt-1 pb-8;
+    @apply max-w-4xl mx-auto space-y-6 pt-1 pb-8;
   }
 
   .page-shell-wide {
-    @apply max-w-5xl mx-auto space-y-6 pt-1 pb-8;
+    @apply max-w-6xl mx-auto space-y-6 pt-1 pb-8;
   }
 
   .page-title {
-    @apply text-2xl font-semibold text-text-primary tracking-tight;
+    @apply text-[28px] font-semibold text-text-primary;
   }
 
   .page-subtitle {
@@ -113,6 +113,14 @@ select:focus {
 
   .chip {
     @apply inline-flex items-center px-3 py-1.5 rounded-badge text-xs font-medium min-h-[32px];
+  }
+
+  .section-label {
+    @apply text-[11px] font-semibold uppercase tracking-wide text-text-tertiary;
+  }
+
+  .empty-state {
+    @apply rounded-lg border border-dashed border-border bg-bg-secondary/70 p-5 text-sm text-text-secondary;
   }
 }
 
@@ -151,4 +159,90 @@ select:focus {
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* ───────────────────────── Content OS landing (scoped dark theme) ───────────────────────── */
+.os-landing {
+  --os-bg: #07080a;
+  --os-text: #f4f0e8;
+  --os-soft: #c9c0b3;
+  --os-muted: #7f776c;
+  background: var(--os-bg);
+  color: var(--os-soft);
+  font-family: var(--font-hanken), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  line-height: 1.6;
+  letter-spacing: -0.01em;
+}
+
+.os-landing h1,
+.os-landing h2,
+.os-landing h3 {
+  color: var(--os-text);
+}
+
+.os-landing ::selection {
+  background: rgba(255, 107, 74, 0.3);
+  color: #fff;
+}
+
+.os-serif {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-optical-sizing: auto;
+}
+
+.os-mono {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+/* Film-grain texture overlay: adds cinematic depth without an image asset */
+.os-grain::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.06;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* Gradient shimmer text: oil-slick coral→gold→cyan, animated sweep */
+.os-shimmer-text {
+  background: linear-gradient(
+    100deg,
+    #ff6b4a 0%,
+    #d7b56d 28%,
+    #f4f0e8 50%,
+    #5be7d8 72%,
+    #ff6b4a 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: os-shimmer 6s linear infinite;
+}
+
+@keyframes os-shimmer {
+  0% {
+    background-position: 200% center;
+  }
+  100% {
+    background-position: -200% center;
+  }
+}
+
+.os-landing .os-glass {
+  background: rgba(20, 22, 27, 0.6);
+  border: 1px solid rgba(244, 240, 232, 0.1);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .os-shimmer-text,
+  .os-landing [class*='animate-os-'] {
+    animation: none !important;
+  }
 }

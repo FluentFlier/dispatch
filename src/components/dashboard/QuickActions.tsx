@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { PenLine, FolderOpen, MessageCircle, Sparkles } from 'lucide-react';
+import { ArrowRight, FolderOpen, MessageCircle, PenLine, Sparkles } from 'lucide-react';
 
 const actions = [
   {
@@ -27,30 +27,33 @@ const actions = [
     title: 'Research & Intelligence',
     description: 'Live high-converting hooks + lead categorization from real data.',
     href: '/analytics#intelligence',
-    icon: Sparkles, // reuse from lucide, or import if needed — actually add import
+    icon: Sparkles,
     accent: 'bg-amber-100 text-amber-700',
   },
 ];
 
 export function QuickActions() {
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+    <section className="grid grid-cols-1 lg:grid-cols-4 gap-2">
       {actions.map((action) => (
         <Link
           key={action.href}
           href={action.href}
-          className="group flex flex-col gap-3 rounded-lg border border-border bg-bg-secondary p-5 shadow-card hover:border-accent-primary/40 hover:shadow-soft transition-all min-h-[120px]"
+          className="group flex min-h-[116px] flex-col justify-between rounded-lg border border-border bg-bg-secondary p-4 shadow-card hover:-translate-y-0.5 hover:border-border-hover hover:shadow-soft transition-all"
         >
-          <div
-            className={`flex h-11 w-11 items-center justify-center rounded-md ${action.accent}`}
-          >
-            <action.icon className="h-5 w-5" strokeWidth={2} />
+          <div className="flex items-start justify-between gap-3">
+            <div
+              className={`flex h-9 w-9 items-center justify-center rounded-md ${action.accent}`}
+            >
+              <action.icon className="h-4 w-4" strokeWidth={2} />
+            </div>
+            <ArrowRight className="h-4 w-4 text-text-tertiary opacity-0 transition-opacity group-hover:opacity-100" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-text-primary group-hover:text-accent-primary transition-colors">
+            <h2 className="text-sm font-semibold text-text-primary group-hover:text-accent-primary transition-colors">
               {action.title}
             </h2>
-            <p className="mt-1 text-sm text-text-secondary leading-snug">
+            <p className="mt-1 text-xs text-text-secondary leading-snug">
               {action.description}
             </p>
           </div>

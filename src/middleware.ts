@@ -24,7 +24,7 @@ export function middleware(request: NextRequest): NextResponse {
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-pathname', pathname);
 
-  const token = request.cookies.get('dispatch-token')?.value;
+  const token = request.cookies.get('content-os-token')?.value;
 
   // Public marketing routes
   if (pathname === '/pricing') {
@@ -34,7 +34,7 @@ export function middleware(request: NextRequest): NextResponse {
   // Authenticated user hitting /login -> redirect to /dashboard
   if (pathname === '/login' && token && request.nextUrl.searchParams.get('expired') === '1') {
     const response = NextResponse.next({ request: { headers: requestHeaders } });
-    response.cookies.set('dispatch-token', '', {
+    response.cookies.set('content-os-token', '', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

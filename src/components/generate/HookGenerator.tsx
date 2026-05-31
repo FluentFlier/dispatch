@@ -122,7 +122,7 @@ Numbered 1-8. One per line. No explanation. No em dashes.`;
           <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-2 text-sm">
             {intelHooks.slice(0, 5).map((h, i) => (
               <div key={i} className="flex items-start justify-between gap-2 py-1 border-b border-border last:border-0">
-                <p className="flex-1 text-text-primary">“{h.text}” — <span className="text-text-secondary">@{h.author}</span></p>
+                <p className="flex-1 text-text-primary">“{h.text}” <span className="text-text-secondary">(@{h.author})</span></p>
                 <CopyButton text={h.text} />
               </div>
             ))}

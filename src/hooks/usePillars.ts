@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getInsforgeClient } from '@/lib/insforge/client';
 import {
   PILLARS,
   PILLAR_LABELS,
@@ -98,15 +97,23 @@ export function usePillars(): UsePillarsReturn {
     let cancelled = false;
     (async () => {
       try {
-        const insforge = getInsforgeClient();
-        const { data: userData } = await insforge.auth.getCurrentUser();
-        if (!userData?.user || cancelled) {
+        const sessionRes = await fetch('/api/auth/session', {
+          credentials: 'same-origin',
+          cache: 'no-store',
+        });
+        if (!sessionRes.ok || cancelled) {
+          setLoading(false);
+          return;
+        }
+
+        const session = await sessionRes.json();
+        if (!session.authenticated || !session.user?.id || cancelled) {
           // No authenticated user: return defaults without caching
           if (!cancelled) setLoading(false);
           return;
         }
 
-        const userId = userData.user.id;
+        const userId = session.user.id;
 
         // Check user-scoped cache (only AFTER user ID is resolved)
         const cached = _cacheMap.get(userId);
@@ -117,11 +124,9 @@ export function usePillars(): UsePillarsReturn {
           return;
         }
 
-        const { data: profile } = await insforge.database
-          .from('creator_profile')
-          .select('content_pillars')
-          .eq('user_id', userId)
-          .single();
+        const profile = session.profile
+          ? { content_pillars: session.profile.contentPillars }
+          : null;
 
         if (cancelled) return;
 
