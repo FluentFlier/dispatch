@@ -3,7 +3,31 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import {
+  BarChart3,
+  CalendarDays,
+  FileText,
+  Home,
+  Lightbulb,
+  Menu,
+  MessageSquare,
+  PenLine,
+  Settings,
+  SlidersHorizontal,
+} from 'lucide-react';
 import { primaryNav, moreNav } from '@/lib/nav-config';
+
+const navIcons = {
+  '/dashboard': Home,
+  '/generate': PenLine,
+  '/library': FileText,
+  '/calendar': CalendarDays,
+  '/inbox': MessageSquare,
+  '/ideas': Lightbulb,
+  '/voice-lab': SlidersHorizontal,
+  '/analytics': BarChart3,
+  '/settings': Settings,
+} as const;
 
 export default function BottomBar() {
   const pathname = usePathname();
@@ -61,32 +85,35 @@ export default function BottomBar() {
         </div>
       )}
 
-      <nav className="fixed bottom-0 left-0 right-0 md:hidden bg-bg-secondary border-t border-border z-40 pb-[env(safe-area-inset-bottom)]">
+      <nav className="fixed bottom-0 left-0 right-0 md:hidden bg-bg-secondary/95 backdrop-blur border-t border-border z-40 pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-stretch justify-around h-16">
           {primaryNav.map((item) => {
             const isActive =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
+            const Icon = navIcons[item.href];
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center justify-center flex-1 min-h-[44px] gap-0.5 text-xs font-medium ${
+                className={`flex flex-col items-center justify-center flex-1 min-h-[44px] gap-1 text-[11px] font-medium ${
                   isActive ? 'text-accent-primary' : 'text-text-tertiary'
                 }`}
                 onClick={() => moreOpen && closeMore()}
               >
-                <span className="text-[15px] leading-none">{item.short}</span>
+                <Icon className="h-4 w-4" />
+                <span className="leading-none">{item.short}</span>
               </Link>
             );
           })}
           <button
             type="button"
             onClick={() => setMoreOpen((p) => !p)}
-            className={`flex flex-col items-center justify-center flex-1 min-h-[44px] text-xs font-medium ${
+            className={`flex flex-col items-center justify-center flex-1 min-h-[44px] gap-1 text-[11px] font-medium ${
               moreOpen || isMoreActive ? 'text-accent-primary' : 'text-text-tertiary'
             }`}
           >
-            <span className="text-[15px] leading-none">More</span>
+            <Menu className="h-4 w-4" />
+            <span className="leading-none">More</span>
           </button>
         </div>
       </nav>

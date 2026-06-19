@@ -29,7 +29,7 @@ export interface CreatorVoiceContext {
 }
 
 interface LoadVoiceContextOptions {
-  /** Topic or post idea — triggers Supermemory retrieval when set */
+  /** Topic or post idea; triggers Supermemory retrieval when set */
   memoryQuery?: string;
   /** Max few-shot samples injected into the prompt */
   maxSamples?: number;
@@ -112,13 +112,13 @@ export function buildVoiceContextAdditions({
       })
       .join('\n\n');
     sections.push(
-      `VOICE EXAMPLES (match rhythm, tone, and structure — do not copy topics verbatim):\n${examples}`,
+      `VOICE EXAMPLES (match rhythm, tone, and structure; do not copy topics verbatim):\n${examples}`,
     );
   }
 
   if (brainSnippets?.length) {
     sections.push(
-      `CREATOR BRAIN (your long-term memory on Dispatch):\n${brainSnippets.join('\n---\n')}`,
+      `CREATOR BRAIN (your long-term memory on Content OS):\n${brainSnippets.join('\n---\n')}`,
     );
   }
 

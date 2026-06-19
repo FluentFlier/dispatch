@@ -28,7 +28,7 @@ function statusLabel(queue: InboxComment['queue']): string {
   if (!queue) return 'Needs a reply';
   if (queue.status === 'sent') return 'Reply sent';
   if (queue.status === 'draft' || queue.status === 'approved') return 'Draft ready';
-  if (queue.status === 'failed') return 'Send failed — try again';
+  if (queue.status === 'failed') return 'Send failed. Try again';
   return 'Needs a reply';
 }
 

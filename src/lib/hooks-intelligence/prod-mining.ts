@@ -1,7 +1,7 @@
 /**
  * Production Mining Service for Content-OS (scalable SaaS)
  * 
- * Dev: gstack (free, fast prototyping via browser-skills + continuous loops — see scripts/).
+ * Dev: gstack (free, fast prototyping via browser-skills + continuous loops; see scripts/).
  * Prod: Apify actors (reliable, anti-bot X/LinkedIn scraping at 10k+ scale for hooks + engagement).
  * 
  * Stores to InsForge DB (hook_examples + social_listening_runs).

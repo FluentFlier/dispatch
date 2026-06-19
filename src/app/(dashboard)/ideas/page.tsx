@@ -234,7 +234,7 @@ export default function IdeasPage() {
         title="Ideas"
         subtitle={
           !loading && ideas.length > 0
-            ? `${ideas.length} saved — ${unconvertedCount} ready to turn into posts`
+            ? `${ideas.length} saved, ${unconvertedCount} ready to turn into posts`
             : 'Save ideas before you forget them. Turn any idea into a post in one tap.'
         }
       />

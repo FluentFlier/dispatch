@@ -69,7 +69,7 @@ export function getHookContextForAgent(options: RetrieveOptions = {}): string {
 
   let context = `\n\nRAG FROM REAL MINED DATA (gstack + RL scored, Imagine-eval inspired):\n`;
   examples.forEach((h, i) => {
-    context += `${i+1}. "${h.text.substring(0, 300)}..." — @${h.author} (verticals: ${(h.verticals || []).join(', ')})\n`;
+    context += `${i+1}. "${h.text.substring(0, 300)}..." (@${h.author}, verticals: ${(h.verticals || []).join(', ')})\n`;
   });
 
   // Add categorization if we have engager-like data (future: tie to inbox)

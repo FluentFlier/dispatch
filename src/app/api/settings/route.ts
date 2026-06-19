@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -17,7 +18,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     .eq('key', key)
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 404 });
+  if (error) return errorResponse('Setting not found.', 404, error);
   return NextResponse.json({ setting: data });
 }
 
@@ -48,6 +49,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return errorResponse('Could not save setting.', 500, error);
   return NextResponse.json({ setting: data });
 }

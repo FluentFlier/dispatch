@@ -49,7 +49,7 @@ export async function getOrCreateAyrshareProfileKey(userId: string): Promise<str
 
   const res = await ayrshareFetch('/profiles/profile', {
     method: 'POST',
-    body: JSON.stringify({ title: `dispatch-${userId.slice(0, 8)}` }),
+    body: JSON.stringify({ title: `content-os-${userId.slice(0, 8)}` }),
   });
 
   if (!res.ok) {
@@ -65,7 +65,7 @@ export async function getOrCreateAyrshareProfileKey(userId: string): Promise<str
     {
       user_id: userId,
       profile_key: encryptToken(profileKey),
-      title: `dispatch-${userId.slice(0, 8)}`,
+      title: `content-os-${userId.slice(0, 8)}`,
     },
   ]);
 

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Loader2, Plus, X, Copy, Check, ChevronRight, Sparkles, Mic, FileText, Download } from "lucide-react";
+import { Loader2, Plus, X, Copy, Check, ChevronRight, Sparkles, Mic, FileText, Download, Link2 } from "lucide-react";
 
 type Step = "samples" | "analyzing" | "interview" | "synthesizing" | "result";
 
 interface Sample {
   content: string;
   platform: string;
+  sourceUrl?: string;
 }
 
 interface GapQuestion {
@@ -45,6 +46,9 @@ const PLATFORMS = ["Twitter/X", "LinkedIn", "Instagram", "Threads", "Other"];
 export default function VoiceLabPage() {
   const [step, setStep] = useState<Step>("samples");
   const [samples, setSamples] = useState<Sample[]>([{ content: "", platform: "Twitter/X" }]);
+  const [importUrls, setImportUrls] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importMessage, setImportMessage] = useState("");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [persona, setPersona] = useState<Persona | null>(null);
@@ -67,6 +71,51 @@ export default function VoiceLabPage() {
   }, []);
 
   const validSamples = samples.filter((s) => s.content.trim().length > 10);
+
+  async function importSamplesFromUrls() {
+    const urls = importUrls
+      .split(/\s+/)
+      .map((url) => url.trim())
+      .filter(Boolean);
+
+    if (urls.length === 0) {
+      setError("Paste at least one public URL");
+      return;
+    }
+
+    setImporting(true);
+    setError(null);
+    setImportMessage("");
+
+    try {
+      const res = await fetch("/api/voice-lab/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ urls }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Import failed");
+
+      const imported = (data.samples || []) as Sample[];
+      if (imported.length === 0) {
+        setImportMessage("No usable writing found. Try a public article, post, newsletter, or portfolio page.");
+        return;
+      }
+
+      setSamples((prev) => {
+        const nonEmpty = prev.filter((sample) => sample.content.trim().length > 0);
+        return [...nonEmpty, ...imported].slice(0, 20);
+      });
+      setImportUrls("");
+      const failed = data.failures?.length ? ` ${data.failures.length} URL failed.` : "";
+      setImportMessage(`Imported ${imported.length} voice samples.${failed}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  }
 
   async function analyzeSamples() {
     if (validSamples.length < 3) {
@@ -211,9 +260,47 @@ export default function VoiceLabPage() {
       {step === "samples" && (
         <div className="space-y-4">
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="font-heading text-[16px] font-semibold text-text-primary">
+                  Import from public links
+                </h2>
+                <p className="mt-1 text-[13px] text-text-secondary">
+                  Paste posts, articles, newsletters, blogs, or profile links. We pull the writing and turn it into samples.
+                </p>
+              </div>
+              <Link2 className="h-5 w-5 text-accent-primary shrink-0" />
+            </div>
+            <textarea
+              value={importUrls}
+              onChange={(e) => setImportUrls(e.target.value)}
+              rows={3}
+              placeholder="https://yourblog.com/post&#10;https://x.com/you/status/...&#10;https://www.linkedin.com/posts/..."
+              className="w-full bg-bg-tertiary border border-border rounded-lg px-4 py-3 text-[13px] text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none focus:border-accent-primary/40"
+            />
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[11px] text-text-tertiary">
+                Works best with public writing pages. Private or logged-in social content may need copy/paste.
+              </p>
+              <button
+                type="button"
+                onClick={importSamplesFromUrls}
+                disabled={importing || !importUrls.trim()}
+                className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-md bg-[#101312] px-4 text-[13px] font-medium text-white transition-colors hover:bg-black disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {importing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {importing ? "Importing..." : "Import voice"}
+              </button>
+            </div>
+            {importMessage && (
+              <p className="rounded-md bg-sage-light px-3 py-2 text-[12px] text-accent-secondary">{importMessage}</p>
+            )}
+          </div>
+
+          <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="font-heading text-[16px] font-semibold text-text-primary">
-                Paste your best content
+                Paste or edit samples
               </h2>
               <span className="text-[12px] text-text-tertiary">{validSamples.length} valid samples</span>
             </div>
@@ -252,6 +339,9 @@ export default function VoiceLabPage() {
                   rows={3}
                   className="w-full bg-transparent text-[13px] text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none"
                 />
+                {sample.sourceUrl && (
+                  <p className="truncate text-[11px] text-text-tertiary">Imported from {sample.sourceUrl}</p>
+                )}
               </div>
             ))}
 

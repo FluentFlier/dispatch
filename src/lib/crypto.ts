@@ -5,6 +5,20 @@ const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
 const TAG_LENGTH = 16;
 
+/**
+ * True for any deployed environment, not just NODE_ENV==='production'.
+ * Preview/staging deploys (where NODE_ENV may be 'development') must still
+ * require the encryption key so OAuth tokens are never stored in cleartext.
+ * Only genuine local development is allowed the plaintext fallback.
+ */
+function isDeployedEnv(): boolean {
+  if (isProduction()) return true;
+  if (process.env.VERCEL === '1') return true;
+  const vercelEnv = process.env.VERCEL_ENV;
+  if (vercelEnv === 'preview' || vercelEnv === 'production') return true;
+  return false;
+}
+
 function getEncryptionKey(): Buffer | null {
   const hex = process.env.TOKEN_ENCRYPTION_KEY;
   if (!hex || hex.length !== 64) return null;
@@ -14,8 +28,8 @@ function getEncryptionKey(): Buffer | null {
 function requireEncryptionKey(): Buffer {
   const key = getEncryptionKey();
   if (!key) {
-    if (isProduction()) {
-      throw new Error('TOKEN_ENCRYPTION_KEY is required in production');
+    if (isDeployedEnv()) {
+      throw new Error('TOKEN_ENCRYPTION_KEY is required in any deployed environment');
     }
     throw new Error('TOKEN_ENCRYPTION_KEY missing. Generate with: openssl rand -hex 32');
   }
@@ -25,12 +39,12 @@ function requireEncryptionKey(): Buffer {
 /**
  * Encrypts a plaintext string using AES-256-GCM.
  * Returns a string in the format `iv:ciphertext:tag` (all base64).
- * In production, fails if TOKEN_ENCRYPTION_KEY is missing.
+ * In any deployed environment, fails if TOKEN_ENCRYPTION_KEY is missing.
  */
 export function encryptToken(plaintext: string): string {
   const key = getEncryptionKey();
   if (!key) {
-    if (isProduction()) {
+    if (isDeployedEnv()) {
       requireEncryptionKey();
     }
     return plaintext;
@@ -60,7 +74,7 @@ export function encryptToken(plaintext: string): string {
 export function decryptToken(encrypted: string): string {
   const key = getEncryptionKey();
   if (!key) {
-    if (isProduction() && encrypted.includes(':')) {
+    if (isDeployedEnv() && encrypted.includes(':')) {
       requireEncryptionKey();
     }
     return encrypted;

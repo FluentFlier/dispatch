@@ -261,7 +261,7 @@ export async function syncEngagementComments(
 
     // Query the comments we just synced for this user and categorize for real leads/ICP
     const { data: recentComments } = await client.database
-      .from('comments')
+      .from('post_comments')
       .select('author_name, author_handle, comment_text')
       .eq('user_id', userId)
       .order('commented_at', { ascending: false })

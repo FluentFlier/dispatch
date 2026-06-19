@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/insforge/server';
 import { generateContent } from '@/lib/claude';
+import { guardAiRequest } from '@/lib/ai-guard';
+import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
 
 const AnalyzeSchema = z.object({
@@ -59,6 +61,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const parsed = AnalyzeSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
+  const guard = await guardAiRequest(user.id);
+  if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
+
   const samplesText = parsed.data.samples
     .map((s, i) => `--- Sample ${i + 1}${s.platform ? ` (${s.platform})` : ''} ---\n${s.content}`)
     .join('\n\n');
@@ -78,7 +83,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const analysis = JSON.parse(jsonMatch[0]);
     return NextResponse.json(analysis);
   } catch (err) {
-    console.error('Voice analysis error:', err);
-    return NextResponse.json({ error: 'Analysis failed' }, { status: 500 });
+    return errorResponse('Analysis failed.', 500, err);
   }
 }

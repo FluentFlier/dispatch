@@ -326,6 +326,9 @@ export default function OnboardingPage() {
               <p className="font-body text-[13px] text-text-secondary">
                 Help the AI match how you talk. Both fields are optional but recommended.
               </p>
+              <p className="mt-2 rounded-md border border-border bg-bg-secondary px-3 py-2 text-[12px] text-text-secondary">
+                Want this done automatically? Finish setup, then open Your voice to import posts, articles, newsletters, or public profile links.
+              </p>
             </div>
 
             <div>
@@ -391,7 +394,7 @@ export default function OnboardingPage() {
   return (
     <div className="max-w-lg mx-auto py-12 px-4">
       <h1 className="font-semibold text-[18px] text-text-primary tracking-[0.16em] mb-2">
-        DISPATCH
+        CONTENT OS
       </h1>
       <p className="font-body text-[13px] text-text-secondary mb-6">
         Step {step + 1} of {TOTAL_STEPS}

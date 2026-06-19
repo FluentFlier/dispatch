@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { z } from 'zod';
 import { triggerAutoOptimize } from '@/lib/auto-optimize';
+import { getActiveWorkspaceId } from '@/lib/workspace';
+import { errorResponse } from '@/lib/api-errors';
 
 const CreatePostSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -36,6 +38,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const client = getServerClient();
+  const workspaceId = await getActiveWorkspaceId(user.id);
   const params = request.nextUrl.searchParams;
 
   let query = client
@@ -43,6 +46,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
+  // Scope to the active workspace (rows are backfilled with workspace_id).
+  if (workspaceId) query = query.eq('workspace_id', workspaceId);
 
   const pillar = params.get('pillar');
   if (pillar) query = query.eq('pillar', pillar);
@@ -64,7 +69,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   query = query.range(from, to);
 
   const { data, error, count } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return errorResponse('Could not load posts.', 500, error);
 
   return NextResponse.json({ posts: data, page, limit, total: count ?? data?.length ?? 0 });
 }
@@ -80,13 +85,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
   const client = getServerClient();
+  const workspaceId = await getActiveWorkspaceId(user.id);
   const { data, error } = await client
     .database.from('posts')
-    .insert([{ ...parsed.data, user_id: user.id }])
+    .insert([{ ...parsed.data, user_id: user.id, workspace_id: workspaceId }])
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return errorResponse('Could not create post.', 500, error);
 
   // Trigger auto-optimize in background if content is present
   const content = parsed.data.script || parsed.data.caption;

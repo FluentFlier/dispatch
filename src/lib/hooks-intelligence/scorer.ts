@@ -4,7 +4,7 @@
  * Scores hooks for "conversion potential" using multiple signals.
  * Designed to improve over time with more data and feedback (the RL part).
  * 
- * This is the brain that makes Dispatch's hooks "phenomenal".
+ * This is the brain that makes Content OS's hooks "phenomenal".
  */
 
 import type { ExtractedHook, HookScore, HookVertical } from './types';

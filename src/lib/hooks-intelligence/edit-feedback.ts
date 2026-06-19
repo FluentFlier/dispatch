@@ -5,7 +5,7 @@
  * so the system can learn and improve over time (tone, structure, hook quality, voice fidelity).
  * 
  * This feeds our existing Hook Intelligence RL scorer + dataset.
- * No direct code from the trial – pure conceptual replication using our stack.
+ * No direct code from the trial: pure conceptual replication using our stack.
  */
 
 import type { HookVertical } from './types';
@@ -46,7 +46,7 @@ export async function logEditFeedback(payload: EditFeedbackPayload) {
 
   // Persist lightly for now (can be picked up by research script or future cron)
   try {
-    const key = 'dispatch_edit_feedback';
+    const key = 'content_os_edit_feedback';
     const existing = JSON.parse(localStorage.getItem(key) || '[]');
     existing.push(feedback);
     localStorage.setItem(key, JSON.stringify(existing.slice(-50))); // keep last 50

@@ -64,20 +64,44 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-bg-primary text-text-primary" style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      <div className="max-w-5xl mx-auto px-5 py-16">
-        <div className="text-center mb-12">
-          <Link href="/" className="text-[12px] text-accent-primary hover:text-accent-dark mb-6 inline-block">
-            ← Dispatch
+      <div className="mx-auto max-w-6xl px-5 py-16">
+        <div className="mb-12 rounded-2xl border border-border bg-bg-secondary px-6 py-8 shadow-card">
+          <Link href="/" className="text-[12px] text-accent-primary hover:text-accent-dark inline-block">
+            ← Content OS
           </Link>
-          <h1
-            className="text-[36px] tracking-[-0.03em] mb-3 text-text-primary"
-            style={{ fontFamily: "'Instrument Serif', serif" }}
-          >
-            Publish everywhere. Bill once.
-          </h1>
-          <p className="text-[15px] text-text-secondary max-w-lg mx-auto">
-            Connect once, schedule reliably, and see every post&apos;s delivery status in one timeline.
-          </p>
+          <div className="mt-6 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-primary">Pricing</p>
+              <h1 className="mt-3 text-[clamp(36px,5vw,58px)] font-semibold leading-[0.96] tracking-[-0.05em] text-text-primary">
+                Publish, learn, and improve from one product.
+              </h1>
+              <p className="mt-5 max-w-2xl text-[16px] leading-7 text-text-secondary">
+                Content OS is not just scheduling. It is the dashboard, generate flow, voice lab, analytics, story bank, teleprompter, and video tooling you need to make the stack feel complete.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {['Dashboard', 'Generate', 'Voice Lab', 'Analytics', 'Story Bank', 'Teleprompter', 'Video Studio'].map((item) => (
+                  <span key={item} className="rounded-badge border border-border bg-bg-primary px-3 py-1.5 text-[12px] text-text-secondary">
+                    {item}
+                  </span>
+                ))}
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-border bg-bg-primary p-5">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">Try intelligence free</p>
+              <p className="mt-3 text-[15px] leading-7 text-text-secondary">
+                Start with the workspace, then unlock publishing and the intelligence features when you are ready to ship at volume.
+              </p>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Link href="/login" className="btn-primary">
+                  Start free
+                </Link>
+                <Link href="/" className="btn-secondary">
+                  See product
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
 
         {error && (
@@ -130,6 +154,22 @@ export default function PricingPage() {
               </button>
             </div>
           ))}
+        </div>
+
+        <div className="mt-10 rounded-xl border border-border bg-bg-secondary p-5">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-primary">Included surfaces</p>
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+            {[
+              'Dashboard, generate, analytics, and voice lab stay connected to one account.',
+              'Story Bank, teleprompter, video studio, and calendar are part of the core loop.',
+              'Live hook intelligence and lead analysis make the paywall feel worth crossing.',
+              'Profile setup and comments/replies are built to keep the day moving.',
+            ].map((line) => (
+              <div key={line} className="rounded-lg border border-border bg-bg-primary px-4 py-3 text-[13px] leading-6 text-text-secondary">
+                {line}
+              </div>
+            ))}
+          </div>
         </div>
 
         <p className="text-center text-[12px] text-text-tertiary mt-10">

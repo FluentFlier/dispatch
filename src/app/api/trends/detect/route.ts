@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { generateContent } from '@/lib/claude';
 import type { CreatorProfileForPrompt } from '@/lib/claude';
+import { guardAiRequest } from '@/lib/ai-guard';
+import { errorResponse } from '@/lib/api-errors';
 
 const TREND_DETECT_PROMPT = `You are a social media trend analyst. Your job is to identify current trending topics and angles that a content creator could capitalize on RIGHT NOW.
 
@@ -38,6 +40,9 @@ Return 5-8 trends. Prioritize by urgency and relevance to the creator's pillars.
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const guard = await guardAiRequest(user.id);
+  if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
   const client = getServerClient();
 
@@ -108,7 +113,6 @@ Find trends that this specific creator could ride. Be specific, not generic.`;
 
     return NextResponse.json({ trends });
   } catch (err) {
-    console.error('Trend detection error:', err);
-    return NextResponse.json({ error: 'Trend detection failed' }, { status: 500 });
+    return errorResponse('Trend detection failed.', 500, err);
   }
 }

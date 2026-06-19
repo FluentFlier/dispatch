@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { guardAiRequest } from '@/lib/ai-guard';
+import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
 
 const GenerateVideoSchema = z.object({
@@ -49,6 +51,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { prompt, template, duration = 30 } = parsed.data;
   const fps = 30;
   const totalFrames = duration * fps;
+
+  const guard = await guardAiRequest(user.id);
+  if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
   try {
     const client = getServerClient();
@@ -100,10 +105,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       message: 'Composition data generated. Apply a video and preview in the editor.',
     });
   } catch (err) {
-    console.error('[video/generate] AI generation failed:', err);
-    return NextResponse.json(
-      { error: 'Failed to generate video composition data' },
-      { status: 500 },
-    );
+    return errorResponse('Failed to generate video composition data.', 500, err);
   }
 }

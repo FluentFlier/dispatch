@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getActiveWorkspaceId } from '@/lib/workspace';
+import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
 
 export async function GET(): Promise<NextResponse> {
@@ -7,13 +9,18 @@ export async function GET(): Promise<NextResponse> {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const client = getServerClient();
-  const { data, error } = await client
+  const workspaceId = await getActiveWorkspaceId(user.id);
+
+  let query = client
     .database.from('series')
     .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
+  // Scope to the active workspace (rows are backfilled with workspace_id).
+  if (workspaceId) query = query.eq('workspace_id', workspaceId);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const { data, error } = await query;
+  if (error) return errorResponse('Could not load series.', 500, error);
   return NextResponse.json({ series: data });
 }
 
@@ -36,12 +43,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
   const client = getServerClient();
+  const workspaceId = await getActiveWorkspaceId(user.id);
   const { data, error } = await client
     .database.from('series')
-    .insert([{ ...parsed.data, user_id: user.id }])
+    .insert([{ ...parsed.data, user_id: user.id, workspace_id: workspaceId }])
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return errorResponse('Could not create series.', 500, error);
   return NextResponse.json({ series: data }, { status: 201 });
 }

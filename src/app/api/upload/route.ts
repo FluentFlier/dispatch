@@ -11,6 +11,30 @@ const EXTENSION_BY_TYPE: Record<string, string> = {
 };
 const BUCKET = 'post-media';
 
+/**
+ * Verify the file's actual content by inspecting its leading magic bytes.
+ * The client-declared MIME type is not trusted; an attacker could label a
+ * script/HTML payload as image/png. Returns true only when the bytes match an
+ * allowed image signature.
+ */
+function hasAllowedImageSignature(buf: Buffer): boolean {
+  if (buf.length < 12) return false;
+  // JPEG: FF D8 FF
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return true;
+  // PNG: 89 50 4E 47
+  if (buf[0] === 0x89 && buf[1] === 0x50 && buf[2] === 0x4e && buf[3] === 0x47) return true;
+  // GIF: 47 49 46
+  if (buf[0] === 0x47 && buf[1] === 0x49 && buf[2] === 0x46) return true;
+  // WEBP: "RIFF" (52 49 46 46) at 0 and "WEBP" (57 45 42 50) at 8
+  if (
+    buf[0] === 0x52 && buf[1] === 0x49 && buf[2] === 0x46 && buf[3] === 0x46 &&
+    buf[8] === 0x57 && buf[9] === 0x45 && buf[10] === 0x42 && buf[11] === 0x50
+  ) {
+    return true;
+  }
+  return false;
+}
+
 export async function POST(req: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) {
@@ -39,13 +63,27 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // Read the file once and verify its actual bytes match an allowed image
+    // signature. The client-declared file.type is not trusted on its own.
+    const arrayBuffer = await file.arrayBuffer();
+    const buf = Buffer.from(arrayBuffer);
+    if (!hasAllowedImageSignature(buf)) {
+      return NextResponse.json(
+        { error: 'Unsupported or corrupted image file.' },
+        { status: 400 }
+      );
+    }
+
     const client = getServerClient();
     const ext = EXTENSION_BY_TYPE[file.type] ?? 'jpg';
     const fileName = `${user.id}/${Date.now()}-${crypto.randomUUID().slice(0, 8)}.${ext}`;
 
+    // Reuse the already-read bytes for the upload so the file is not read twice.
+    const uploadBlob = new Blob([arrayBuffer], { type: file.type });
+
     const { data, error } = await client.storage
       .from(BUCKET)
-      .upload(fileName, file);
+      .upload(fileName, uploadBlob);
 
     if (error) {
       console.error('[Upload] Storage error:', error);

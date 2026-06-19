@@ -33,7 +33,7 @@ export const HOOK_PATTERNS = {
   ],
 
   visualDesign: [
-    "[Powerful short statement] — visualized",
+    "[Powerful short statement], visualized",
     "Before/after of [transformation] in one clean visual",
   ],
 } as const;
@@ -65,7 +65,7 @@ export const ALL_TOP_HOOKS = [
 ] as const;
 
 // Dynamic loading from the massive mined Hook Intelligence dataset (gstack-powered)
-// This is the "phenomenal" part — agents get real, ranked, ever-growing hook examples
+// This is the "phenomenal" part: agents get real, ranked, ever-growing hook examples
 import { getBestHooksForContext } from '../hooks-intelligence';
 
 export function getDynamicTopHooks(vertical?: any, limit = 15): string[] {

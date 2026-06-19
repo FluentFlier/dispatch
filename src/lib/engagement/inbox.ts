@@ -61,7 +61,7 @@ COMMENT AUTHOR: ${comment.author_name ?? comment.author_handle ?? 'Someone'}
 COMMENT:
 ${comment.comment_text}
 
-Return ONLY the reply text — no labels, no quotes around the whole reply.`;
+Return ONLY the reply text. No labels, no quotes around the whole reply.`;
 }
 
 export async function getEngagementInbox(
