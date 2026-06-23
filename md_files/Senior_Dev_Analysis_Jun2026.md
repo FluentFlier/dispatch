@@ -178,14 +178,14 @@ Voice description, pillars, vocabulary fingerprint, structural patterns stored i
 
 Bugs fixed (JSON.parse crash, N+1 syncBrainWins). **But not workspace-scoped** — one brain per user, not per client workspace. Agency tier breaks this. `creator_brain_pages` needs `workspace_id`.
 
-### Layer 3 — Supermemory (read wired, write missing entirely)
+### Layer 3 — Supermemory (persona write works, published post write missing)
 `src/lib/supermemory.ts` has full API client: `addMemory`, `searchMemories`, `searchUserContext`, `storePersona`. `searchUserContext` IS called in `loadCreatorVoiceContext`.
 
-**Critical gaps:**
-- **`addMemory` is never called anywhere in the codebase.** Published posts, events, performance signals — none of it goes INTO Supermemory. The write path does not exist.
-- **`storePersona` exists but is never called.** Persona never enters semantic memory.
+**Actual state after code audit:**
+- **`storePersona` IS called** — from `voice-lab/save/route.ts` line 91. When a user saves their voice profile, their persona enters Supermemory. This works.
+- **`addMemory` is never called for published posts.** Every published post, event log, and performance signal should enter Supermemory so future generations can retrieve "user wrote about X before." The write path for content is completely absent.
 - If `SUPERMEMORY_API_KEY` is not set, `searchUserContext` throws → caught silently → returns nothing. Supermemory search is a no-op for users without the key configured.
-- **Every generation starts cold from Supermemory's perspective.** The "AI that knows your history" is running on empty.
+- **Persona is in Supermemory. Past content is not.** Semantic retrieval ("what did this user write about AI before?") doesn't work because published posts never enter the system.
 
 ### Layer 4 — Story Bank (working but isolated)
 Manual memory. User drops raw memories, AI mines them into hook/angle/script. Works. But Story Bank entries are NOT connected to the generation context — mined content doesn't feed into `loadCreatorVoiceContext`. Manual memories are ignored when generating.
@@ -199,11 +199,12 @@ The vision says: voice scores stored per-workspace, updated after each published
 
 | Gap | Severity | Impact |
 |-----|----------|--------|
-| Supermemory write path missing — posts never enter it | High | Every generation starts cold |
-| Supermemory API key silent failure — search no-ops | High | Memory retrieval is dead |
+| Supermemory write path for published posts missing — addMemory never called | High | Past content never retrieved at generation time |
+| Supermemory API key silent failure — search no-ops without key | High | Memory retrieval dead for users without key |
 | Story Bank not connected to generation context | Medium | Manual memories ignored in drafts |
 | Brain sync not workspace-scoped | Medium | Agency tier: all clients share one brain |
 | No persistent voice score aggregation per workspace | Medium | Voice fingerprint never compounds |
+| storePersona IS called (voice lab save) | ✅ Fixed in analysis | Persona enters Supermemory correctly |
 
 ---
 
@@ -252,33 +253,33 @@ PRODUCT_VISION Section 4.5 calls Voice Input and Audio Layer a core differentiat
 
 ---
 
-### 9.3 Hook Intelligence Dataset — Actual State Unclear
+### 9.3 Hook Intelligence Dataset — Real and Loading in Production
 
-Analysis calls it a "real data moat" and "1000+ hooks." Actual state:
-- `src/lib/hooks-intelligence/index.ts` loads hooks via `require('fs')` inside a function body
-- BUG-13 (from CODE_MISTAKES.md): `require('fs')` inside a function is serverless-incompatible — fails silently on Vercel. Hook dataset may not be loading in production at all.
-- Whether 1000+ hooks actually exist in a static JSON file, a DB `research_posts` table, or is just a claimed number is unverified.
-- Apify production mining (`prod-mining.ts`) exists but unclear if it's running or has ever run.
+`data/hooks-dataset.json` is **661KB of real data**. The read path uses a bundled static import (`import bootstrapDataset from '../../../data/hooks-dataset.json'`) — it is NOT affected by the `require('fs')` serverless bug.
 
-**Must verify** before claiming Hook Intelligence is a live moat vs a well-architected stub.
+BUG-13 only hits `saveHookDataset()` which is the write path for runtime additions. The dataset always loads in production via the bundled import. This IS a real data moat.
+
+The live `hook_examples` DB table (written by Apify prod-mining + RL) is the intended long-term source of truth. The static JSON is the bootstrap. Both can serve the scorer and retriever.
 
 ---
 
-### 9.4 Voice Lab Routes — Inferred Layer State Not Assessed
+### 9.4 Voice Lab Routes — Inferred Layer IS Working
 
-4 routes exist: `voice-lab/analyze`, `voice-lab/import`, `voice-lab/interview`, `voice-lab/save`.
+4 routes exist and are all functional:
+- **`import`** — scrapes up to 10 URLs (with SSRF protection + private IP blocking), extracts writing samples via Jina reader fallback. Returns up to 20 chunked samples.
+- **`analyze`** — Claude extracts 10-dimension voice profile (tone, structure, vocabulary, opening/closing patterns, signature phrases, humor style, perspective, taboo words, format). Also surfaces gap questions.
+- **`interview`** — follows up on gap questions to complete the profile.
+- **`save`** — writes voice data to `creator_profile` + `user_settings` (vocabulary_fingerprint, structural_patterns, sample_posts) + syncs to Creator Brain via `syncBrainVoiceLab` + calls `storePersona` to Supermemory.
 
-PRODUCT_VISION Section 4.2 describes an "inferred layer" — AI extracts writing tone, cadence, average post length, platform-style notes from the user's past posts. Voice Lab is supposed to build this inferred layer.
-
-**Not assessed in original analysis.** Before building the intelligence pipeline, need to verify whether these routes actually produce a stored inferred layer or if they're stubs. If they work, the inferred layer already exists and should be fed into generation. If they're stubs, they need to be fixed first.
+The inferred layer pipeline works end-to-end. **Do not rebuild this.** When building Event Capture, voice import from past posts is already available.
 
 ---
 
-### 9.5 WorkspaceSwitcher Component — Exists, Wired Status Unknown
+### 9.5 WorkspaceSwitcher Component — Fully Built and Wired
 
-`src/components/nav/WorkspaceSwitcher.tsx` exists. Earlier analysis noted workspace switcher as "not built." The component exists — the open question is whether it's wired into the sidebar and functional for actual workspace switching.
+`src/components/nav/WorkspaceSwitcher.tsx` is imported and rendered in `Sidebar.tsx` (lines 20 + 56). The component fetches workspace list from `GET /api/workspaces`, switches via `PUT /api/workspaces` (sets `content-os-workspace` cookie, triggers page reload), and allows creating new client workspaces inline.
 
-**Check before building a new one.** If it's wired and functional, the UI work is done. If it exists but isn't connected to the active workspace cookie and workspace list, it just needs to be wired, not rebuilt.
+**This is done. Do not rebuild it.** The only remaining workspace UI work is ensuring it's visible to agency-tier users and reflects the active workspace accurately.
 
 ---
 
@@ -309,17 +310,21 @@ The `repurpose` tab in generate page does manual repurposing (paste script → g
 |------------------------|--------|-------|
 | Voice Pipeline (draft→evaluate→revise→humanize) | Yes | Core differentiator, working |
 | 8 generate tabs | Yes | All working |
-| Creator Brain (InsForge pages) | Partial | Working but not workspace-scoped |
-| Supermemory (semantic search) | Read only | Write path missing entirely |
-| Story Bank | Yes | Isolated — not wired to generation |
+| Voice Lab inferred layer (import→analyze→save) | Yes | Full pipeline working, SSRF protected |
+| Creator Brain (InsForge pages) | Partial | Working, not workspace-scoped yet |
+| Supermemory — persona write | Yes | storePersona called from voice-lab/save |
+| Supermemory — published post write | No | addMemory never called for posts |
+| Supermemory — semantic search | Partial | searchUserContext wired, fails silently without API key |
+| Story Bank | Yes | Isolated — not wired to generation context |
+| Workspace switcher UI | Yes | Fully built and wired in Sidebar |
 | Event Capture (calendar → Q&A → drafts) | No | Scheduling calendar exists, integration does not |
 | Whisper voice input | No | Not started |
 | ElevenLabs voice clone | No | Not started |
-| Engagement inbox + comment sync | Partial | Sync works, reply→draft loop broken |
+| Engagement inbox + comment sync + draft replies | Yes | Works — reply→new content loop is missing |
 | Multi-platform publishing (Ayrshare) | Yes | Reliability fixed in Phase 1 |
 | Analytics (manual performance logging) | Yes | No AI-driven compound analytics |
-| Hook Intelligence dataset | Unclear | May not load in production (fs bug) |
-| RL training loop | Stub | Returns empty signals, no learning |
+| Hook Intelligence dataset | Yes | 661KB real dataset, loads via bundled import in prod |
+| RL training loop | Stub | Returns empty signals, no real learning |
 | A/B testing | No | Horizon 3 |
 | Playbooks / campaign templates | No | Horizon 3 |
 | Safe auto-reply | No | Horizon 3 |
