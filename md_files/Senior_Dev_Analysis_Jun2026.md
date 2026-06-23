@@ -219,7 +219,118 @@ The vision says: voice scores stored per-workspace, updated after each published
 
 ---
 
-## 9. Key Files Referenced
+## 9. Feature Gap Audit — Vision vs Codebase (June 2026)
+
+> Full sweep of PRODUCT_VISION.md against actual codebase. Agents must read this
+> before building any new feature to avoid duplicating existing work or missing critical gaps.
+
+### 9.1 ElevenLabs + Whisper — Zero Implementation, Not Mentioned Anywhere
+
+PRODUCT_VISION Section 4.5 calls Voice Input and Audio Layer a core differentiator:
+- **Whisper API**: mic button on every text input, spoken answers transcribed to text (useful during/after events when typing is inconvenient)
+- **ElevenLabs Professional Voice Clone**: trained on user's voice samples, generates audio versions of posts, verifies drafts sound like the user before showing them
+
+**Reality**: Zero ElevenLabs code in the entire codebase. Zero Whisper integration. Voice Lab routes (`analyze`, `import`, `interview`, `save`) handle text-only import — no audio input at all. Not a "coming soon" stub — it simply does not exist. This is Horizon 1 work that was planned but never started.
+
+**Architecture implication**: Do NOT design Event Capture assuming mic input works. Build text-first Q&A flow, then layer audio in as a second pass. When audio is built, the mic must hook into the existing voice-context pipeline, not a separate path.
+
+---
+
+### 9.2 Calendar Page ≠ Calendar Integration — Critical Distinction
+
+**The scheduling calendar exists** (`src/app/(dashboard)/calendar/page.tsx`) — users drag posts onto dates. This is a content calendar, not a Google Calendar integration.
+
+**What PRODUCT_VISION actually requires (Event Capture, Section 4.4):**
+- Google Calendar + Notion Calendar API connection
+- After a high-signal event ends → trigger capture flow automatically
+- System reads event description + runs web search for additional context (speakers, announcements, agenda)
+- Generates 5 event-specific targeted questions (not generic)
+- User answers via text (or mic — see 9.1)
+- Multi-platform drafts generated from event + answers
+
+**Reality**: Zero Google Calendar API code. No `GOOGLE_CALENDAR_API_KEY` env var. No event webhook or trigger. The scheduling calendar will confuse future agents into thinking Event Capture is partially done. It is not. They are separate systems.
+
+---
+
+### 9.3 Hook Intelligence Dataset — Actual State Unclear
+
+Analysis calls it a "real data moat" and "1000+ hooks." Actual state:
+- `src/lib/hooks-intelligence/index.ts` loads hooks via `require('fs')` inside a function body
+- BUG-13 (from CODE_MISTAKES.md): `require('fs')` inside a function is serverless-incompatible — fails silently on Vercel. Hook dataset may not be loading in production at all.
+- Whether 1000+ hooks actually exist in a static JSON file, a DB `research_posts` table, or is just a claimed number is unverified.
+- Apify production mining (`prod-mining.ts`) exists but unclear if it's running or has ever run.
+
+**Must verify** before claiming Hook Intelligence is a live moat vs a well-architected stub.
+
+---
+
+### 9.4 Voice Lab Routes — Inferred Layer State Not Assessed
+
+4 routes exist: `voice-lab/analyze`, `voice-lab/import`, `voice-lab/interview`, `voice-lab/save`.
+
+PRODUCT_VISION Section 4.2 describes an "inferred layer" — AI extracts writing tone, cadence, average post length, platform-style notes from the user's past posts. Voice Lab is supposed to build this inferred layer.
+
+**Not assessed in original analysis.** Before building the intelligence pipeline, need to verify whether these routes actually produce a stored inferred layer or if they're stubs. If they work, the inferred layer already exists and should be fed into generation. If they're stubs, they need to be fixed first.
+
+---
+
+### 9.5 WorkspaceSwitcher Component — Exists, Wired Status Unknown
+
+`src/components/nav/WorkspaceSwitcher.tsx` exists. Earlier analysis noted workspace switcher as "not built." The component exists — the open question is whether it's wired into the sidebar and functional for actual workspace switching.
+
+**Check before building a new one.** If it's wired and functional, the UI work is done. If it exists but isn't connected to the active workspace cookie and workspace list, it just needs to be wired, not rebuilt.
+
+---
+
+### 9.6 Platform Rollout Strategy — Must Not Be Ignored
+
+PRODUCT_VISION Section 6 explicitly defines build order:
+1. **LinkedIn** — highest value per post for professional/founder persona
+2. **X / Twitter** — highest velocity, best for threads and real-time takes
+3. **Threads** — easiest API, growing fast
+4. **Instagram** — requires image, strictest API
+5. **Reddit** — last — different content norms, requires subreddit awareness
+
+**Do not build Reddit or advanced Instagram features before LinkedIn and X are solid.** When scoping any new feature, ask: does this work for LinkedIn and X first? Reddit is Horizon 3.
+
+---
+
+### 9.7 Content Recycling System — Horizon 2, Not Built
+
+PRODUCT_VISION Horizon 2: "Content recycling: mark posts as high-performing, system proposes updated variants with new hooks."
+
+The `repurpose` tab in generate page does manual repurposing (paste script → get variant). Automated recycling — where the system monitors published post performance, surfaces high-performers, and proactively suggests updated variants — does not exist. Not a critical gap for current stage but must be in the Horizon 2 feature plan.
+
+---
+
+### 9.8 What's Actually Built vs Vision — Honest Status Table
+
+| PRODUCT_VISION Feature | Built? | Notes |
+|------------------------|--------|-------|
+| Voice Pipeline (draft→evaluate→revise→humanize) | Yes | Core differentiator, working |
+| 8 generate tabs | Yes | All working |
+| Creator Brain (InsForge pages) | Partial | Working but not workspace-scoped |
+| Supermemory (semantic search) | Read only | Write path missing entirely |
+| Story Bank | Yes | Isolated — not wired to generation |
+| Event Capture (calendar → Q&A → drafts) | No | Scheduling calendar exists, integration does not |
+| Whisper voice input | No | Not started |
+| ElevenLabs voice clone | No | Not started |
+| Engagement inbox + comment sync | Partial | Sync works, reply→draft loop broken |
+| Multi-platform publishing (Ayrshare) | Yes | Reliability fixed in Phase 1 |
+| Analytics (manual performance logging) | Yes | No AI-driven compound analytics |
+| Hook Intelligence dataset | Unclear | May not load in production (fs bug) |
+| RL training loop | Stub | Returns empty signals, no learning |
+| A/B testing | No | Horizon 3 |
+| Playbooks / campaign templates | No | Horizon 3 |
+| Safe auto-reply | No | Horizon 3 |
+| Team collaboration | No | Horizon 3 |
+| Content recycling | Manual only | Auto-recycling = Horizon 2 |
+| Instagram support | Partial | Requires image, enforced correctly |
+| Reddit | No | Horizon 3, intentionally last |
+
+---
+
+## 10. Key Files Referenced
 
 | File | What it contains |
 |------|-----------------|
