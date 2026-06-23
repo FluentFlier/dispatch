@@ -163,7 +163,63 @@ THE MOAT (if we build it):
 
 ---
 
-## 8. Key Files Referenced
+## 8. Memory Layer — Actual State (June 2026 Audit)
+
+> Added after discovering the memory layer was omitted from the original analysis.
+> Critical context for any agent working on generation, voice, or the intelligence loop.
+
+The product vision defines 3 memory layers. Here's what's real vs broken vs missing:
+
+### Layer 1 — Declared (working)
+Voice description, pillars, vocabulary fingerprint, structural patterns stored in `creator_profile` + `user_settings`. Loaded by `loadCreatorVoiceContext` on every generation. **Working.**
+
+### Layer 2 — Creator Brain (partially working)
+`creator_brain_pages` table. Voice page, profile page, wins page, per-post pages. `retrieveBrainContext` reads into generation context. `syncBrainPublishedPost` writes published posts to it.
+
+Bugs fixed (JSON.parse crash, N+1 syncBrainWins). **But not workspace-scoped** — one brain per user, not per client workspace. Agency tier breaks this. `creator_brain_pages` needs `workspace_id`.
+
+### Layer 3 — Supermemory (read wired, write missing entirely)
+`src/lib/supermemory.ts` has full API client: `addMemory`, `searchMemories`, `searchUserContext`, `storePersona`. `searchUserContext` IS called in `loadCreatorVoiceContext`.
+
+**Critical gaps:**
+- **`addMemory` is never called anywhere in the codebase.** Published posts, events, performance signals — none of it goes INTO Supermemory. The write path does not exist.
+- **`storePersona` exists but is never called.** Persona never enters semantic memory.
+- If `SUPERMEMORY_API_KEY` is not set, `searchUserContext` throws → caught silently → returns nothing. Supermemory search is a no-op for users without the key configured.
+- **Every generation starts cold from Supermemory's perspective.** The "AI that knows your history" is running on empty.
+
+### Layer 4 — Story Bank (working but isolated)
+Manual memory. User drops raw memories, AI mines them into hook/angle/script. Works. But Story Bank entries are NOT connected to the generation context — mined content doesn't feed into `loadCreatorVoiceContext`. Manual memories are ignored when generating.
+
+### Voice Fingerprint as Persistent Scores (not built)
+The vision says: voice scores stored per-workspace, updated after each published post evaluation, surfaced consistently across app. Currently `voice_match_score` and `ai_score` are stored per-post but never aggregated. No `workspace_voice_metrics` table. Voice fingerprint never compounds — recomputed fresh each generation from Voice Lab settings.
+
+---
+
+### Memory Gap Summary
+
+| Gap | Severity | Impact |
+|-----|----------|--------|
+| Supermemory write path missing — posts never enter it | High | Every generation starts cold |
+| Supermemory API key silent failure — search no-ops | High | Memory retrieval is dead |
+| Story Bank not connected to generation context | Medium | Manual memories ignored in drafts |
+| Brain sync not workspace-scoped | Medium | Agency tier: all clients share one brain |
+| No persistent voice score aggregation per workspace | Medium | Voice fingerprint never compounds |
+
+---
+
+### What Needs to Be Architected (Memory)
+
+**1. Supermemory write pipeline** — after every publish: post content + performance signals → `addMemory(containerTags: ['workspace_${workspaceId}'])`. After voice lab save: `storePersona`. This is the missing feedback loop. File: `src/lib/brain/sync.ts` is the right place to add this alongside `syncBrainPublishedPost`.
+
+**2. Memory workspace isolation** — `containerTags` in Supermemory currently use `user_${userId}`. Change to `workspace_${workspaceId}`. Brain pages need `workspace_id` column. One brain + one Supermemory namespace per workspace.
+
+**3. Story Bank → generation context** — mined story bank entries (angle + hook) should be injected into `loadCreatorVoiceContext` alongside brain snippets, so past captured memories inform new generation.
+
+**4. `workspace_voice_metrics` table** — rolling averages of `voice_match_score`, `ai_score` per platform per pillar. Updated after each post publish via voice pipeline evaluation. Surfaced in UI as the voice fingerprint panel.
+
+---
+
+## 9. Key Files Referenced
 
 | File | What it contains |
 |------|-----------------|
