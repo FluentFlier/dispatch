@@ -3,9 +3,13 @@ import { incrementUsage } from '@/lib/usage';
 
 /**
  * Abuse + cost protection for AI-invoking endpoints. Two layers:
- *  1. Per-instance burst limit (short window) to blunt rapid hammering.
- *  2. Monthly plan cap (DB-backed via usage_counters + entitlements) which is
- *     the real, durable cost ceiling and works across serverless instances.
+ *  1. Per-instance in-memory burst limit (15 req/60s). IMPORTANT: this Map is
+ *     reset on every cold start and is NOT shared across serverless instances —
+ *     a user can bypass it by hitting different function instances or waiting for
+ *     a new cold start. It blunts rapid hammering on a single instance only.
+ *     Replace with Upstash Redis sliding window for true cross-instance enforcement.
+ *  2. Monthly plan cap (DB-backed via usage_counters + entitlements) which IS
+ *     the real, durable cost ceiling and works across all instances.
  * On success it records one ai_generate unit. Infra errors fail open (only the
  * burst limit applies) so a transient DB blip never takes generation down.
  */
