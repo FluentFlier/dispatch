@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getActiveWorkspaceId } from '@/lib/workspace';
 import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { z } from 'zod';
@@ -32,8 +33,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
   const client = getServerClient();
+  const workspaceId = await getActiveWorkspaceId(user.id);
   const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {
     memoryQuery: parsed.data.topic ?? parsed.data.prompt.slice(0, 200),
+    workspaceId: workspaceId ?? undefined,
   });
 
   try {

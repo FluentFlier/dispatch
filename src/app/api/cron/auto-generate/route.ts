@@ -4,6 +4,7 @@ import { generateContent, buildSystemPrompt } from '@/lib/claude';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { assertCanGenerate } from '@/lib/entitlements';
 import { incrementUsage } from '@/lib/usage';
+import { ensureSoloWorkspace } from '@/lib/workspace';
 import { createClient } from '@insforge/sdk';
 
 /**
@@ -85,8 +86,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         continue;
       }
 
+      // Resolve the user's solo workspace for workspace-scoped voice context.
+      // ensureSoloWorkspace creates one if it doesn't exist yet (post-migration signups).
+      let workspaceId: string | undefined;
+      try {
+        const ws = await ensureSoloWorkspace(userId);
+        workspaceId = ws.id;
+      } catch {
+        workspaceId = undefined;
+      }
+
       const { profile, contextAdditions } = await loadCreatorVoiceContext(adminClient, userId, {
         memoryQuery: todaysPillar,
+        workspaceId,
       });
 
       if (!profile) {
@@ -141,6 +153,7 @@ Return ONLY the post text, no JSON, no formatting.`;
 
       await adminClient.database.from('posts').insert([{
         user_id: userId,
+        workspace_id: workspaceId ?? null,
         title: cleaned.split('\n')[0].slice(0, 80),
         pillar: todaysPillar,
         platform: defaultPlatform,

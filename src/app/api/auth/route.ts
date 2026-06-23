@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateAccessToken } from '@/lib/auth';
+import { ensureSoloWorkspace } from '@/lib/workspace';
+import { getServerClient } from '@/lib/insforge/server';
 import { logInfo, logWarn } from '@/lib/logger';
 
 const AuthTokenSchema = z.object({
@@ -34,6 +36,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (!validation.valid) {
       logWarn('auth.token_rejected', { reason: validation.error });
       return NextResponse.json({ error: 'Invalid session token' }, { status: 401 });
+    }
+
+    // Ensure every authenticated user has a solo workspace on their first login.
+    // Non-blocking: failure to create workspace must not block login.
+    try {
+      await ensureSoloWorkspace(validation.userId);
+    } catch (err) {
+      logWarn('auth.workspace_provision_failed', { userId: validation.userId, err });
     }
 
     const response = NextResponse.json({ ok: true, userId: validation.userId });

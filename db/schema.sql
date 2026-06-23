@@ -4,6 +4,43 @@
 -- ============================================================
 
 -- ============================================================
+-- WORKSPACES (multi-tenancy — solo creators + agency clients)
+-- Each user gets one solo workspace automatically on signup.
+-- Agency plan users can create additional client workspaces.
+-- workspace_id added as nullable to all content tables first;
+-- backfill sets it from user_id, then RLS policies enforce it.
+-- ============================================================
+
+create table if not exists workspaces (
+  id uuid primary key default gen_random_uuid(),
+  owner_user_id uuid not null,
+  name text not null,
+  type text not null default 'solo' check (type in ('solo','client')),
+  created_at timestamptz default now() not null,
+  updated_at timestamptz default now() not null
+);
+
+create trigger workspaces_updated_at
+  before update on workspaces
+  for each row execute function update_updated_at();
+
+-- ============================================================
+-- WORKSPACE MEMBERS (many users can belong to a workspace)
+-- ============================================================
+
+create table if not exists workspace_members (
+  id uuid primary key default gen_random_uuid(),
+  workspace_id uuid not null references workspaces(id) on delete cascade,
+  user_id uuid not null,
+  role text not null default 'owner' check (role in ('owner','editor','viewer')),
+  created_at timestamptz default now() not null,
+  unique(workspace_id, user_id)
+);
+
+create index if not exists workspace_members_user on workspace_members (user_id);
+create index if not exists workspace_members_workspace on workspace_members (workspace_id);
+
+-- ============================================================
 -- CREATOR PROFILE (per-user settings, pillars, platform config)
 -- ============================================================
 
@@ -301,6 +338,38 @@ create index if not exists creator_brain_pages_user on creator_brain_pages (user
 -- Index for UI queries: jobs by user + status (no index existed for this pattern)
 create index if not exists publish_jobs_user_status
   on publish_jobs (user_id, status, created_at desc);
+
+-- ============================================================
+-- WORKSPACE MIGRATION: additive workspace_id columns
+-- Safe to run on a live DB — all columns are nullable.
+-- After running, execute scripts/migrate-workspaces.ts to backfill.
+-- Once backfilled, tighten RLS policies to membership-based.
+-- ============================================================
+
+alter table creator_profile   add column if not exists workspace_id uuid references workspaces(id) on delete set null;
+alter table posts              add column if not exists workspace_id uuid references workspaces(id) on delete set null;
+alter table series             add column if not exists workspace_id uuid references workspaces(id) on delete set null;
+alter table story_bank         add column if not exists workspace_id uuid references workspaces(id) on delete set null;
+alter table content_ideas      add column if not exists workspace_id uuid references workspaces(id) on delete set null;
+alter table hashtag_sets       add column if not exists workspace_id uuid references workspaces(id) on delete set null;
+alter table weekly_reviews     add column if not exists workspace_id uuid references workspaces(id) on delete set null;
+alter table user_settings      add column if not exists workspace_id uuid references workspaces(id) on delete set null;
+alter table social_accounts    add column if not exists workspace_id uuid references workspaces(id) on delete set null;
+alter table publish_jobs       add column if not exists workspace_id uuid references workspaces(id) on delete set null;
+alter table ayrshare_profiles  add column if not exists workspace_id uuid references workspaces(id) on delete set null;
+alter table creator_brain_pages add column if not exists workspace_id uuid references workspaces(id) on delete set null;
+
+-- Workspace-scoped indexes for the tables that route queries use workspace_id on
+create index if not exists posts_workspace on posts (workspace_id, status);
+create index if not exists series_workspace on series (workspace_id);
+create index if not exists content_ideas_workspace on content_ideas (workspace_id, priority, created_at desc);
+create index if not exists story_bank_workspace on story_bank (workspace_id, used);
+create index if not exists hashtag_sets_workspace on hashtag_sets (workspace_id);
+create index if not exists weekly_reviews_workspace on weekly_reviews (workspace_id, week_start);
+create index if not exists user_settings_workspace on user_settings (workspace_id, key);
+create index if not exists social_accounts_workspace on social_accounts (workspace_id, platform);
+create index if not exists publish_jobs_workspace on publish_jobs (workspace_id, status);
+create index if not exists creator_profile_workspace on creator_profile (workspace_id);
 
 -- ============================================================
 -- ATOMIC USAGE INCREMENT (Phase 0 — race condition fix)
