@@ -297,3 +297,29 @@ create index if not exists publish_jobs_status_scheduled on publish_jobs (status
 create index if not exists publish_jobs_user on publish_jobs (user_id, created_at desc);
 create index if not exists usage_counters_lookup on usage_counters (user_id, metric, period_key);
 create index if not exists creator_brain_pages_user on creator_brain_pages (user_id, updated_at desc);
+
+-- Index for UI queries: jobs by user + status (no index existed for this pattern)
+create index if not exists publish_jobs_user_status
+  on publish_jobs (user_id, status, created_at desc);
+
+-- ============================================================
+-- ATOMIC USAGE INCREMENT (Phase 0 — race condition fix)
+-- Replaces the SELECT-then-UPDATE pattern in src/lib/usage.ts.
+-- Called via client.database.rpc('increment_usage_counter', {...}).
+-- ============================================================
+
+create or replace function increment_usage_counter(
+  p_user_id uuid,
+  p_metric  text,
+  p_period_key text,
+  p_amount  int default 1
+) returns void
+language sql
+as $$
+  insert into usage_counters (user_id, metric, period_key, count, updated_at)
+  values (p_user_id, p_metric, p_period_key, p_amount, now())
+  on conflict (user_id, metric, period_key)
+  do update set
+    count      = usage_counters.count + excluded.count,
+    updated_at = now();
+$$;

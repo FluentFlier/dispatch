@@ -11,6 +11,75 @@
 - ALWAYS read a file before editing it
 - NEVER commit secrets, credentials, or .env files
 
+## Branch Management (Always Enforced)
+
+- ALWAYS create a new branch at the start of every major session (new phase, new feature wave, new bug-fix sprint)
+- Branch naming convention: `phase/<phase-name>` for feature phases, `fix/<description>` for bug-fix phases, `wave/<wave-name>` for architecture waves
+- NEVER commit directly to `main` — all changes go through a branch first
+- When a phase is complete and verified, open a PR to `main` and wait for review/approval before merging
+- After merging to `main`, delete the working branch
+- Example branch creation at session start:
+  ```bash
+  git checkout main
+  git pull origin main
+  git checkout -b phase/bug-fix-security
+  ```
+
+## Code Quality Standards (Always Enforced)
+
+- Write code like a senior developer — clean, readable, purposeful
+- Every function/method MUST have a JSDoc comment explaining WHAT it does and WHY, not just what the code literally says:
+  ```ts
+  /**
+   * Increments the usage counter atomically for a given user and metric.
+   * Uses a DB-level upsert to avoid race conditions under concurrent requests.
+   * Call this after every successful AI generation, publish, or billable action.
+   */
+  export async function incrementUsage(...): Promise<void>
+  ```
+- Comments on non-obvious logic blocks — explain the WHY, not the WHAT
+- No `any` types in new code — use proper TypeScript types or `unknown` with narrowing
+- No dead code — remove unused imports, variables, and functions
+- No silent error swallowing — every `catch` must either log the error or rethrow it
+- Keep files under 500 lines — split large files into focused modules
+- Group related logic into descriptive sections with a `// --- Section Name ---` divider
+
+## Phase Discipline (Always Enforced)
+
+- All multi-step work is organized into PHASES (not sprints, not tasks — PHASES)
+- At the start of every phase: read the phase plan, confirm scope, create the branch
+- At the end of every phase: run the phase's test suite AND manually cross-check every item in the phase plan before marking it complete
+- NEVER move to the next phase until the current phase passes ALL of the following:
+  1. `npm run build` exits 0
+  2. `npx tsc --noEmit` exits 0
+  3. `npm run lint` exits 0
+  4. Phase test suite passes (all tests green)
+  5. Every item in the phase plan is checked off manually
+- If any item fails the cross-check, fix it in the current phase — do NOT carry it forward
+- Phase completion is confirmed by a summary message listing each plan item and its status
+
+## Testing Rules (Always Enforced)
+
+- Every phase MUST have a test file in `/tests` named `phase-<name>.test.ts`
+- Test coverage requirements per phase:
+  - Every new/modified function has at least one unit test
+  - Every API route change has an integration test (authenticated + unauthenticated cases)
+  - Every bug fix has a regression test that would have caught the original bug
+  - Every security fix has a test that verifies the vulnerability is closed
+- Test file structure:
+  ```ts
+  // tests/phase-bug-fix-security.test.ts
+  describe('Phase: Bug Fix Security', () => {
+    describe('S0-1: CSRF logout fix', () => {
+      it('should NOT clear token on GET /login?expired=1', async () => { ... });
+      it('should still redirect authenticated users to /dashboard', async () => { ... });
+    });
+    // ... one describe block per phase item
+  });
+  ```
+- Run tests with `npm test` — all must pass before phase is considered complete
+- Write tests BEFORE or ALONGSIDE the fix — not as an afterthought after the phase
+
 ## File Organization
 
 - NEVER save to root folder — use the directories below

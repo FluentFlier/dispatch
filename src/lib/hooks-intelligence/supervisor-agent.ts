@@ -1,73 +1,47 @@
 /**
- * Content Intelligence Supervisor Agent (full closed-loop, GStack-powered)
- * 
- * Orchestrates like Imagine's LangGraph but with our free gstack mining + InsForge + existing voice/eval/inbox.
- * Nodes as GStack skills + our modules.
- * Call this from cron, UI, or InsForge function for autonomous "amazing content OS".
- * 
- * Flow (Imagine architecture replicated/improved):
- * Research (GStack) -> Intelligence (RAG/RL from mined + edits/performance) -> Generate (pipeline + hidden eval) -> Engage (inbox) -> Optimize (categorized analytics) -> Reinforce -> Repeat.
+ * Content Intelligence Supervisor — hook context retrieval (stub).
+ *
+ * CURRENT STATE: This function returns hook examples from the local dataset only.
+ * The RL training loop, generate node, and engagement categorization nodes are
+ * NOT yet wired. Returning `status: 'hook-context-only'` so callers know exactly
+ * what they are getting — previous version returned 'cycle-complete' and
+ * `usageTracked: true` even though no generation or training occurred.
+ *
+ * NEXT WAVE: Wire the generate node (voice pipeline call), pass real performance
+ * signals to runTrainingStep(), and connect the engage/optimize nodes.
  */
 
 import { getHookContextForAgent } from './retriever';
-import { runTrainingStep } from './rl-trainer';
-import { bucketEngagers } from './categorize';
-import { generateWithVoicePipeline } from '@/lib/voice-pipeline'; // for real generate node demo
+import type { HookVertical } from './types';
 
-export async function runContentIntelligenceSupervisor(userId: string, brief: string, vertical?: string) {
-  console.log(`[Supervisor] Starting for ${userId}: ${brief}`);
-
-  // Usage for billing / limits (research intelligence calls are monetized)
-  try {
-    const { usage } = await import('./usage-tracker');
-    await usage.track(userId, 'research', { brief, vertical });
-  } catch {}
-
-  // 1. Research Node (GStack skills as tools - continuous mining)
-  // In real: Call gstack-scrape or our research script / browser-skill
-  const researchContext = getHookContextForAgent({ query: brief, vertical: vertical as any, limit: 10, useRAG: true });
-
-  // 2. Intelligence / Persona Node (RAG + RL from all mined data + Creator Brain)
-  // Pull best examples + winning patterns
-  const intelligence = {
-    hooks: researchContext,
-    patterns: 'Numbered lists, story hooks, specific results (from GStack-extracted)',
-    // Future: RAG over full InsForge research_posts
-  };
-
-  // 3. Generate Node (our voice pipeline + 5-metric eval + RAG) - real execution demo ready
-  // (Uncomment the call below when voice pipeline types are aligned in your env)
-  console.log('[Supervisor] Generate node context ready. Real voice pipeline call can be enabled for full agent demo.');
-  // try {
-  //   const demoResult = await generateWithVoicePipeline({ userPrompt: brief, profile: null as any, contextAdditions: researchContext, fast: true });
-  //   console.log('[Supervisor] Real generate node executed.');
-  // } catch {}
-
-  // 4. Engage + Optimize Node (existing inbox + new categorization)
-  // After publish: sync -> categorize leads -> RL update
-  // (Wired in sync.ts)
-
-  // 5. RL Reinforce (from edits + performance + GStack patterns)
-  runTrainingStep([], []); // In practice, pass real signals
-
-  // Log to GStack for meta-learning
-  console.log('[Supervisor] Cycle complete. Intelligence improved. GStack loops continue mining.');
-
-  // Return rich, actionable intelligence for UI + agents
-  const topPatterns = 'Numbered lists, specific results, contrarian hooks, story openers (extracted from top RAG)';
+export async function runContentIntelligenceSupervisor(
+  userId: string,
+  brief: string,
+  vertical?: string
+): Promise<{
+  status: string;
+  brief: string;
+  vertical: string;
+  researchContext: string;
+  intelligence: { hooks: string };
+  usageTracked: boolean;
+}> {
+  // Pull top hook examples from the local dataset for the given context.
+  // This is the only node that currently runs end-to-end.
+  const researchContext = getHookContextForAgent({
+    query: brief,
+    vertical: vertical as HookVertical | undefined,
+    limit: 10,
+    useRAG: true,
+  });
 
   return {
-    status: 'cycle-complete',
+    status: 'hook-context-only',
     brief,
-    vertical: vertical || 'general',
+    vertical: vertical ?? 'general',
     researchContext: researchContext.substring(0, 400),
-    intelligence: {
-      hooks: researchContext,
-      patterns: topPatterns,
-      recommendedApproach: `Use the top hooks above, match the ${vertical || 'general'} voice, focus on specificity and emotional trigger.`,
-    },
-    usageTracked: true,
+    intelligence: { hooks: researchContext },
+    // Not charging for a stub — the generate node that would consume quota is not running.
+    usageTracked: false,
   };
 }
-
-// Usage: From cron, UI button, or agent chat: runContentIntelligenceSupervisor(user.id, 'launch new product', 'indie_maker')

@@ -21,10 +21,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Monetization + usage tracking for intelligence layer
-  const { usage } = await import('@/lib/hooks-intelligence/usage-tracker');
-  await usage.track(user.id, 'generate');
-
+  // Parse body before the guard so we can return a 400 before consuming quota.
   let body: unknown;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
 

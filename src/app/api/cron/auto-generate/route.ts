@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/insforge/server';
 import { generateContent, buildSystemPrompt } from '@/lib/claude';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { assertCanGenerate } from '@/lib/entitlements';
+import { incrementUsage } from '@/lib/usage';
 import { createClient } from '@insforge/sdk';
 
 /**
@@ -75,6 +77,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         continue;
       }
 
+      // Enforce per-user quota before generating — previously this cron used the
+      // admin client with no limit check, giving free-plan users unlimited AI daily.
+      const quota = await assertCanGenerate(userId);
+      if (!quota.ok) {
+        results.push({ userId, status: 'quota_exceeded', postsGenerated: 0 });
+        continue;
+      }
+
       const { profile, contextAdditions } = await loadCreatorVoiceContext(adminClient, userId, {
         memoryQuery: todaysPillar,
       });
@@ -142,6 +152,9 @@ Return ONLY the post text, no JSON, no formatting.`;
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }]);
+
+      // Track usage after successful generation so the quota is consumed.
+      await incrementUsage(userId, 'ai_generate', 1);
 
       results.push({ userId, status: 'generated', postsGenerated: 1 });
     } catch (err) {

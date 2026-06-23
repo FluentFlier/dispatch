@@ -50,6 +50,13 @@ export async function guardAiRequest(userId: string): Promise<AiGuardResult> {
     // entitlement lookup failed (infra): fall through, burst limit still applied
   }
 
-  incrementUsage(userId, 'ai_generate', 1).catch(() => {});
+  // Await the increment so failures are observable. We still return ok:true on
+  // DB errors (fail-open policy) but we log the failure so ops can detect
+  // systematic issues — silently swallowing meant quotas never tracked under load.
+  try {
+    await incrementUsage(userId, 'ai_generate', 1);
+  } catch (err) {
+    console.error('[ai-guard] Usage increment failed — quota not tracked:', err);
+  }
   return { ok: true };
 }

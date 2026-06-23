@@ -11,11 +11,22 @@ const TAG_LENGTH = 16;
  * require the encryption key so OAuth tokens are never stored in cleartext.
  * Only genuine local development is allowed the plaintext fallback.
  */
+/**
+ * Returns true for any deployed environment, not just NODE_ENV=production.
+ * Previously only checked Vercel-specific vars — Railway, Render, Fly.io, and
+ * any host with TOKEN_ENCRYPTION_KEY set would silently store plaintext tokens.
+ */
 function isDeployedEnv(): boolean {
   if (isProduction()) return true;
   if (process.env.VERCEL === '1') return true;
   const vercelEnv = process.env.VERCEL_ENV;
   if (vercelEnv === 'preview' || vercelEnv === 'production') return true;
+  // Other common hosting platforms
+  if (process.env.RAILWAY_ENVIRONMENT) return true;
+  if (process.env.FLY_APP_NAME) return true;
+  if (process.env.RENDER) return true;
+  // If the key is explicitly set, the operator intends encryption — require it.
+  if (process.env.TOKEN_ENCRYPTION_KEY) return true;
   return false;
 }
 
@@ -81,7 +92,13 @@ export function decryptToken(encrypted: string): string {
   }
 
   const parts = encrypted.split(':');
-  if (parts.length !== 3) return encrypted;
+  // Malformed format with an active key means the stored value is corrupted or
+  // was never encrypted. Returning it as-is would pass a garbage string to the
+  // platform API and produce a confusing downstream error. Throw explicitly so
+  // callers know the credential is unusable.
+  if (parts.length !== 3) {
+    throw new Error('[crypto] Malformed encrypted token — expected iv:ciphertext:tag format');
+  }
 
   const [ivB64, ciphertextB64, tagB64] = parts;
   const iv = Buffer.from(ivB64, 'base64');

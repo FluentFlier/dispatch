@@ -1,4 +1,21 @@
 import { createClient } from '@insforge/sdk';
+import { getAuthenticatedUser } from '@/lib/insforge/server';
+
+/**
+ * Asserts the request is authenticated and returns the user.
+ * Throws with a typed error if not — callers catch and return 401.
+ * Use this at the top of any API route that reads or writes user data
+ * BEFORE constructing any DB client, to prevent unauthenticated DB access.
+ */
+export async function assertAuthenticated(): Promise<{ id: string; email: string }> {
+  const user = await getAuthenticatedUser();
+  if (!user) {
+    const err = new Error('Unauthenticated');
+    (err as Error & { status: number }).status = 401;
+    throw err;
+  }
+  return user;
+}
 
 /**
  * Validate an InsForge access token before persisting it in an httpOnly cookie.
