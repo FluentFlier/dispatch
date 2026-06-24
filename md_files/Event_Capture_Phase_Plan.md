@@ -151,9 +151,538 @@ If the inbox shows a conversational flow — one question at a time, displayed l
 
 ---
 
-## Decision: [TO BE LOCKED IN — see step-by-step walkthrough below]
+## Decision: Option B (Q&A) as default, Option A (Auto-Draft) as user choice
 
-Once you confirm the approach, the implementation plan continues below.
+User can switch between modes per event or set a global preference in Settings. Default = Option B. Users who want the quick auto-draft can switch to Option A at any time.
+
+---
+
+## Full Architecture Deep Dive
+
+This is the complete data flow — every step, every tool, every API call, every cost. Nothing shallow.
+
+---
+
+### Full Pipeline Overview
+
+```
+TRIGGER (every hour, cron)
+  ↓
+[1] Google Calendar API — fetch ended events
+  ↓
+[2] High-Signal Filter — is this worth capturing?
+  ↓
+[3] Web Research — Serper search + Jina.ai reader
+  ↓
+[4] Memory Assembly — pull ALL relevant context before generating anything
+  ↓
+[5a] Option A: Auto-Draft       [5b] Option B: Q&A
+     → Skip to generation             → Haiku generates 5 questions
+                                       → User answers in app (async)
+                                       → Answers stored
+  ↓
+[6] Context Stack Assembly — combine everything into one generation input
+  ↓
+[7] Draft Generation — Sonnet via voice pipeline (3 platforms in parallel)
+  ↓
+[8] Validation + Enrichment — character counts, tag suggestions, post time
+  ↓
+[9] Posts created in DB — event_capture_id, workspace_id, suggested_post_time
+  ↓
+(After user publishes)
+  ↓
+[10] Memory Write Pipeline — Supermemory, Brain pages, voice metrics, RL signals
+```
+
+---
+
+### Step 1: Google Calendar API
+
+**What we get:** event title, description, start/end time, location, attendee list, organizer, event URL (if in description).
+
+**How:** OAuth 2.0. Scope: `https://www.googleapis.com/auth/calendar.readonly` (read-only, minimum permissions).
+
+**Token management:** Access tokens expire every 60 minutes. Cron refreshes before fetching if `token_expires_at < now() + 5min`. Refresh token stored encrypted (AES-256-GCM, same as OAuth social accounts).
+
+**API call:** `GET /calendars/{calendarId}/events`
+```
+timeMin = last_synced_at (or now - 3h on first run)
+timeMax = now
+singleEvents = true
+orderBy = startTime
+maxResults = 50
+```
+
+**Cost:** Free. Google Calendar API: 1M queries/day per project. Not a concern at any scale.
+
+**Failure handling:** If Google API is down, log and retry next cron run. No data loss — event is just captured an hour late.
+
+---
+
+### Step 2: High-Signal Event Filter
+
+Not every calendar event deserves a capture. Founders have dentist appointments, standups, and gym blocks on their calendars.
+
+**Classification approach: rule-based first, AI fallback.**
+
+**Rule-based (free, instant):**
+
+High-signal if title contains ANY of:
+```
+meetup, conference, summit, hackathon, demo day, keynote, talk, panel, workshop,
+customer call, investor call, sales call, discovery call, intro call,
+launch, release, announcement, interview, podcast, fireside, ama
+```
+
+Excluded if title contains ANY of:
+```
+doctor, dentist, gym, lunch, dinner, breakfast, coffee (personal), haircut,
+personal, vacation, holiday, birthday, recurring standup, sync
+```
+
+Duration filter: `end_time - start_time > 30 minutes AND < 8 hours` (all-day blocks excluded)
+
+Recency filter: `end_time > now() - 48h` (more than 2 days old = user already moved on)
+
+**AI fallback (for edge cases):** If rule-based returns unclear result on a 45-60 minute event, send title + description to Claude Haiku with a simple prompt: "Is this a professional event worth capturing for LinkedIn content? Answer yes or no." Cost: $0.001 per classification. Used sparingly.
+
+**User override:** Always available via "Capture this event" button on any calendar event in the app. Bypasses all filters.
+
+---
+
+### Step 3: Web Research
+
+**Goal:** Enrich the raw calendar event with public context — who spoke, what was announced, what topics were covered. This is what makes the Q&A questions specific and the auto-draft accurate.
+
+**Search query construction:**
+```ts
+const searchQuery = [
+  `"${event.title}"`,
+  event.location ? `"${event.location}"` : '',
+  new Date(event.start_time).getFullYear().toString(),
+].filter(Boolean).join(' ');
+
+// Fallback: broader search if no results
+const fallbackQuery = `${event.title} ${new Date(event.start_time).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`;
+```
+
+**Tool: Serper API**
+
+Cheapest reliable web search API. Google results. Structured JSON output.
+
+- Cost: $0.001 per search query (1000 free/month on free tier, then $50/50K queries)
+- Latency: ~300ms
+- Returns: organic results with title, snippet, URL
+
+We run 1-2 queries per event (primary + fallback if needed).
+
+**Tool: Jina.ai Reader**
+
+Already used in `voice-lab/import/route.ts`. Converts any URL to clean readable text.
+
+- Free tier: generous (used in existing app with no cost)
+- Paid: $0.002 per call if exceeds free tier
+- Takes the top 1-2 Serper results and extracts full text
+
+**What we parse out:**
+```ts
+interface EventResearchContext {
+  summary: string;              // 2-3 sentence description of the event
+  speakers: Array<{
+    name: string;
+    title?: string;
+    handle?: string;            // LinkedIn/X handle if found
+  }>;
+  key_topics: string[];         // Main themes discussed
+  key_announcements: string[];  // Product launches, news, quotes
+  event_url: string | null;     // Official event page
+  sources: string[];            // URLs used for research
+}
+```
+
+**Failure handling:** If no web results found (small private event, internal call), proceed with calendar data only. Research context = null. Questions become more generic ("what was the main topic?") but flow still works.
+
+**Cost per capture:** $0.001-0.003 total for research step.
+
+---
+
+### Step 4: Memory Assembly (BEFORE Generating Anything)
+
+This is the step most architectures skip. Before generating questions OR a draft, the system assembles everything it knows about the user so the output sounds like THEM.
+
+**This is what separates our captures from a generic event summary tool.**
+
+Four memory sources, queried in parallel:
+
+**4a. Creator Voice Context (existing `loadCreatorVoiceContext`)**
+
+Already built. Pulls:
+- `creator_profile`: display_name, bio_facts, content_pillars, voice_description, voice_rules
+- `user_settings`: vocabulary_fingerprint, structural_patterns, sample_posts (top 3 writing examples)
+- Creator Brain: voice page (HOW they write), profile page (WHO they are), wins page (what performed well)
+
+Called with `{ workspaceId, memoryQuery: event.title }` — the event title is used to search brain pages for relevant past posts.
+
+**4b. Supermemory Semantic Search (new for Event Capture)**
+
+We run 2-3 targeted searches to find relevant past experiences:
+
+```ts
+// Search 1: Has this user written about this event before?
+searchUserContext(userId, `${event.title}`, 3);
+
+// Search 2: Have they written about this topic domain?
+searchUserContext(userId, `${event.key_topics.join(' ')}`, 3);
+
+// Search 3: Have they written about events from this organizer?
+if (event.location) searchUserContext(userId, `${event.location}`, 2);
+```
+
+**What this finds:** "User wrote about NVIDIA AI events before, here's what they said." This lets the question generator ask: "Last time you attended an NVIDIA event you mentioned X. What changed this time?" — that's a specific, non-generic question only possible with memory.
+
+**4c. Story Bank (unused mined entries related to event topic)**
+
+```ts
+const storyEntries = await client.database
+  .from('story_bank')
+  .select('mined_angle, mined_hook, pillar')
+  .eq('user_id', userId)
+  .eq('workspace_id', workspaceId)
+  .eq('used', false)
+  .not('mined_angle', 'is', null)
+  .order('created_at', { ascending: false })
+  .limit(5);
+
+// Filter by relevance to event topic (simple keyword match)
+const relevantStories = storyEntries.filter(s =>
+  event.key_topics.some(t => s.mined_angle?.toLowerCase().includes(t.toLowerCase()))
+);
+```
+
+If a user has a Story Bank entry about "the time I pitched at a hackathon and almost quit" and they just attended a hackathon — surface that story angle. The draft can connect past and present.
+
+**4d. Past Event Performance (posts with event_capture_id)**
+
+```ts
+const pastEventPosts = await client.database
+  .from('posts')
+  .select('title, pillar, views, saves, voice_match_score, hook')
+  .eq('user_id', userId)
+  .eq('workspace_id', workspaceId)
+  .not('event_capture_id', 'is', null)
+  .eq('status', 'posted')
+  .order('saves', { ascending: false })
+  .limit(3);
+```
+
+This tells the system: "The user's best-performing event recap was a hackathon post that opened with a specific story moment and got 240 saves. Generate in that style." Closes the learning loop directly for event content.
+
+**4e. Hook Intelligence (already exists)**
+
+```ts
+const hooks = getBestHooksForContext('event_recap' as HookVertical, 6);
+```
+
+Note: `event_recap` needs to be added as a HookVertical type. The hook dataset already has event recap patterns — we just need to tag them and filter for them. Top 6 hooks injected into generation prompt.
+
+**Memory Assembly Output:**
+
+All of the above gets assembled into one `EventCaptureContext` object:
+```ts
+interface EventCaptureContext {
+  event: EventCapture;              // raw event data
+  research: EventResearchContext;   // web research results
+  voiceContext: CreatorVoiceContext; // from loadCreatorVoiceContext
+  pastEventPosts: PostRow[];        // best performing past event posts
+  relevantStories: StoryBankEntry[]; // unused story angles
+  hooks: RankedHook[];              // top 6 hooks for event recap
+  supermemorySnippets: string[];    // past posts on same topic
+}
+```
+
+**Cost for memory assembly:** $0 (all DB queries, Supermemory search on free tier or ~$0.003 if paid).
+
+---
+
+### Step 5a: Option A — Auto-Draft (No Q&A)
+
+User has selected "Quick draft" mode (either in global settings or per-event).
+
+Goes directly from memory assembly to Step 6 (context stack) and Step 7 (generation).
+
+**What the draft is based on:**
+- Event title, date, location, research context (speakers, announcements, topics)
+- Creator voice (how they write)
+- Past event post style (what format worked before)
+- Top 6 hooks
+- No personal answers — draft is research-based, voice-styled
+
+**Result:** A well-researched, voice-styled event summary. Reads like a thoughtful LinkedIn post about the event but without personal "I was there, here's what I actually experienced" texture. Still better than most people would write manually. Publishable.
+
+---
+
+### Step 5b: Option B — 5 Q&A (Default)
+
+**Question Generation (Claude Haiku):**
+
+Input:
+```
+Event: {title}, {date}, {location}
+Research: {summary}, speakers: {speakers}, topics: {key_topics}, announcements: {key_announcements}
+Creator pillars: {content_pillars}
+Past event posts: {pastEventPosts[0].hook} (their best performing event opener)
+Past memory snippets: {supermemorySnippets[0]} (if found)
+Relevant story bank angle: {relevantStories[0].mined_angle} (if found)
+
+Generate 5 SHORT, SPECIFIC, CONVERSATIONAL questions to capture personal content from this event.
+Rules:
+- Questions are 8-12 words max. No formal language.
+- Each surfaces a different angle: (1) the surprise moment, (2) the specific insight, (3) the personal story or interaction, (4) the contrarian/unexpected take, (5) what they'll do differently or what they're thinking about now
+- Reference specific event details from research (speaker names, topics, announcements)
+- If past memory snippets exist, ask one question that connects past experience to this event
+- Return JSON array of 5 strings. No other text.
+```
+
+Output: `["What surprised you most about what [Speaker Name] said?", "What's one thing you disagreed with?", ...]`
+
+**Cost:** Claude Haiku at ~$0.00025/1K input + $0.00125/1K output. ~$0.003 per question generation call.
+
+**Question delivery:** Conversational flow UI. One question at a time displayed like a message. User types short answer (2-4 sentences). Skip button on each. Total time: 2-3 minutes if they engage.
+
+**Answers stored:** `event_captures.answers = { "0": "...", "1": "...", ... }` — even partial answers. Never block draft generation because a question was skipped.
+
+---
+
+### Step 6: Context Stack Assembly
+
+Everything gets combined into one generation input per platform. This is the "prompt stack."
+
+```
+SYSTEM PROMPT (same for all platforms):
+  buildSystemPrompt(profile)
+  → voice_description: "Raw, honest, direct. No fluff..."
+  → voice_rules: "No em dashes. No corporate speak..."
+  → bio_facts: "CS grad, 36 hackathons, ISRO intern, founder of Ada..."
+  → content_pillars: ["hot-take", "founder", "hackathon", "explainer", "research"]
+  → sample_posts: [their top 3 writing examples from Voice Lab import]
+
+USER PROMPT (per platform, built dynamically):
+  SECTION 1 — EVENT CONTEXT:
+    Title: {event.title}
+    Date: {formatted date}
+    Location: {event.location}
+    
+    What happened (from research):
+    {research.summary}
+    
+    Speakers: {research.speakers.map(s => s.name + (s.title ? ', ' + s.title : '')).join('; ')}
+    Key topics: {research.key_topics.join(', ')}
+    Announcements: {research.key_announcements.join('; ')}
+  
+  SECTION 2 — PERSONAL EXPERIENCE (Option B only):
+    {questions.map((q, i) => `Q: ${q}\nA: ${answers[i] || '[skipped]'}`).join('\n\n')}
+  
+  SECTION 3 — RELEVANT PAST CONTENT (if found):
+    {supermemorySnippets.length > 0 ? 
+      "You've written about this topic before:\n" + supermemorySnippets.slice(0,2).join('\n---\n')
+      : ''}
+  
+  SECTION 4 — STORY BANK (if relevant):
+    {relevantStories.length > 0 ?
+      "Unused story angle from your story bank that might connect:\n" + relevantStories[0].mined_angle
+      : ''}
+  
+  SECTION 5 — WHAT WORKS FOR YOU:
+    {pastEventPosts.length > 0 ?
+      "Your best event recap post opened with: \"" + pastEventPosts[0].hook + "\"\n" +
+      "It got " + pastEventPosts[0].saves + " saves. Match that energy."
+      : ''}
+  
+  SECTION 6 — HOOK INTELLIGENCE:
+    Opening hooks that are converting right now in your niche:
+    {hooks.slice(0,6).map(h => `"${h.text}"`).join('\n')}
+  
+  SECTION 7 — VOICE PERFORMANCE:
+    {voiceMetrics ? 
+      "Your recent platform scores: LinkedIn " + voiceMetrics.avg_voice_match + "/100 voice match, " +
+      voiceMetrics.avg_ai_score + "/100 AI detection. Generate to match or beat these."
+      : ''}
+  
+  SECTION 8 — PLATFORM INSTRUCTIONS:
+    [Platform-specific format rules — LinkedIn 1200-2500 chars, X thread, Threads ≤500]
+    
+  GENERATE THE DRAFT:
+  [Platform-specific prompt]
+```
+
+This is the richest context stack of any content tool on the market. Nobody else has all 8 sections simultaneously.
+
+---
+
+### Step 7: Draft Generation — Voice Pipeline
+
+**3 platforms run in parallel** (Promise.all). Each goes through the full voice pipeline:
+
+```
+generateWithVoicePipeline({
+  userPrompt: platformPrompt,   // platform-specific from Step 6
+  profile,                       // voice rules + persona
+  contextAdditions,              // memory context from Step 6
+  platform: 'linkedin' | 'twitter' | 'threads',
+  fast: false,                   // always full pipeline for event posts
+})
+```
+
+**Inside the voice pipeline per draft:**
+
+1. **Generate** — Claude Sonnet 4.6. Produces draft text.
+2. **Evaluate** — 5-metric scoring: authenticity, directness, specificity, pacing, AI-score (0-100 each).
+3. **Check threshold** — if voice_match_score < 75 OR ai_score > 20: revise.
+4. **Revise** — second Claude call with specific feedback from evaluation. "This post scores 45/100 on specificity. Add more concrete details from the event."
+5. **Humanize** — strip em dashes, corporate phrasing, AI tells.
+6. **Return** — text + voice_match_score + ai_score + revised (bool) + evaluation matrix.
+
+**Models used:**
+- Generation: Claude Sonnet 4.6 (best quality for voice-matched output)
+- Evaluation: Claude Haiku (scoring only, cheaper)
+- Revision (if needed): Claude Sonnet 4.6
+
+**Cost per platform per draft (no revision):**
+- Input: ~1800 tokens (context stack) × $0.003/1K = $0.0054
+- Output: ~600 tokens × $0.015/1K = $0.009
+- Total per platform: ~$0.015
+
+**Cost for all 3 platforms (no revision):**
+- 3 × $0.015 = **~$0.045**
+
+**Cost if revision triggered (1 platform):**
+- Additional $0.015 for re-generation
+- Total: **~$0.06-0.07** worst case
+
+---
+
+### Step 8: Validation and Enrichment
+
+After drafts are generated, before saving to DB:
+
+**Character count validation:**
+- LinkedIn: warn if < 800 chars (too short for dwell time), warn if > 2600 chars (cuts off)
+- X: validate each tweet ≤ 280 chars (split if needed)
+- Threads: validate ≤ 500 chars per post
+
+**Tag suggestions for LinkedIn:**
+
+From research context, extract speaker names and look for their LinkedIn handles:
+```ts
+const tagSuggestions = research.speakers
+  .filter(s => s.handle)
+  .slice(0, 3)  // max 3 tags per LinkedIn best practice
+  .map(s => ({ name: s.name, handle: s.handle }));
+
+// Stored as post.notes field (JSON): { tagSuggestions, eventCaptureId }
+```
+
+**Optimal posting time:**
+```ts
+const suggestedTime = calculateGoldenHour({
+  eventEndTime: event.end_time,
+  userTimezone: userSettings.timezone ?? 'UTC',
+  targetPlatform: 'linkedin',  // primary platform
+});
+// Stored on post.scheduled_publish_at (not auto-published, just suggested)
+```
+
+Golden hour logic: within 48h of event end, nearest Tuesday-Thursday 8-10am or 12-1pm in user timezone. Skips weekends for LinkedIn. X can be any morning.
+
+---
+
+### Step 9: Posts Created in DB
+
+Three posts inserted (LinkedIn, X, Threads):
+
+```ts
+{
+  user_id, workspace_id,
+  event_capture_id: capture.id,
+  title: `${event.title} — ${platform} recap`,
+  pillar: inferPillarFromEvent(event, research),  // maps event type to content pillar
+  platform: 'linkedin' | 'twitter' | 'threads',
+  status: 'scripted',
+  script: draft.text,
+  caption: draft.text,
+  hook: draft.text.split('\n')[0],               // first line = hook
+  voice_match_score: draft.voice_match_score,
+  ai_score: draft.ai_score,
+  voice_evaluation: draft.evaluation,
+  scheduled_publish_at: suggestedTime,           // golden hour suggestion
+  notes: JSON.stringify({ tagSuggestions, eventCaptureId: capture.id }),
+}
+```
+
+`event_captures.status` updated to `'drafted'`.
+
+---
+
+### Step 10: Memory Write Pipeline (Post-Publish)
+
+Triggered AFTER the user approves and publishes (not when drafts are created).
+
+**10a. Supermemory — addMemory**
+```ts
+await addMemory({
+  content: [
+    `Event: ${event.title} (${event.date})`,
+    `Platform: ${platform}`,
+    `Published post: ${post.caption}`,
+    post.saves ? `Got ${post.saves} saves, ${post.views} views` : '',
+  ].filter(Boolean).join('\n\n'),
+  containerTags: [`workspace_${workspaceId}`, 'event_recap', event.key_topics[0]],
+  customId: `post_${post.id}`,
+});
+```
+
+**10b. Creator Brain — syncBrainPublishedPost**
+Already wired. Adds the post to brain pages so future generation references it.
+
+**10c. Voice Metrics — updateVoiceMetrics**
+Updates `workspace_voice_metrics` with the voice_match_score from this post.
+
+**10d. RL Signal — performance_signals**
+After engagement data comes in via engagement-sync cron, the post's save_rate feeds into `runTrainingStep`. If the hook used in this event post performed well, that hook gets a higher score.
+
+---
+
+### External Tools + Cost Summary
+
+| Tool | Step | What for | Pricing | Cost per capture |
+|------|------|----------|---------|-----------------|
+| Google Calendar API | 1 | Fetch events | Free (1M/day) | $0 |
+| Serper API | 3 | Web search (event research) | $0.001/query | $0.001-0.002 |
+| Jina.ai Reader | 3 | URL → readable text | Free tier | $0-0.004 |
+| InsForge DB | 4 | Memory queries (all layers) | Included | $0 |
+| Supermemory API | 4 | Semantic memory search | Free tier / ~$0.003 | $0-0.003 |
+| Claude Haiku | 2,5b | Event classification + question gen | $0.00025/1K in | $0.003-0.005 |
+| Claude Sonnet | 7 | Draft generation (3 platforms) | $0.003/1K in | $0.04-0.07 |
+| Supermemory API | 10a | Memory write (post-publish) | Free tier | $0 |
+| **TOTAL** | | | | **$0.05-0.09** |
+
+**Scale costs:**
+- 100 users × 3 events/week = 300 captures = **$15-27/week**
+- 500 users × 3 events/week = 1500 captures = **$75-135/week**
+- 1000 users × 3 events/week = 3000 captures = **$150-270/week**
+
+At the $700-1050/month human consultant comparison: even at 1000 active users, the AI generation cost is well below what users save on manual content creation. Price the growth tier at $49-79/month to stay well under the $700 consultant anchor.
+
+---
+
+### New Environment Variables Required
+
+```
+GOOGLE_CALENDAR_CLIENT_ID=
+GOOGLE_CALENDAR_CLIENT_SECRET=
+SERPER_API_KEY=          # web search for event research
+# SUPERMEMORY_API_KEY already exists in codebase
+```
 
 ---
 
