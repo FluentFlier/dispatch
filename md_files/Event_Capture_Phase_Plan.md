@@ -6,6 +6,157 @@
 
 ---
 
+## Main Goal
+
+**Turn a real event you attended into 3 published, platform-native, voice-matched drafts in under 5 minutes — without you having to stare at a blank page.**
+
+You go to a meetup, a conference talk, a YC session, a customer call, a hackathon. You get back. Instead of forgetting to post about it (or writing a generic "great event, learned a lot" post), Content OS detects it happened, does the research, and gets out of your way until you need to answer a few quick questions or review the drafts.
+
+This is the feature that turns Content OS from "a better Buffer" into something no competitor can copy: content that starts from your real life, not from a prompt or a brand URL.
+
+---
+
+## Workflow Options — Pick One Before We Build
+
+There are 5 ways to design how this works. Each has a different tradeoff between friction and output quality.
+
+---
+
+### Option A: Full Auto — No User Input Until Review
+
+**How it works:**
+Event ends → cron detects it → researches it online → generates all 3 drafts immediately using only public event info + calendar context → drafts appear in your inbox for review.
+
+No questions. No input from you until you read the drafts.
+
+**Pros:**
+- Zero friction. You don't have to do anything.
+- Drafts appear whether or not you had time to think about the event.
+- Great for high-volume event periods (YC batch weeks, conference season).
+
+**Cons:**
+- Without your personal angle, the drafts are event summaries — could've been written by anyone who read the event page.
+- LinkedIn's 2026 algorithm specifically rewards personal reflection and penalizes generic-sounding content. A research-only draft won't score well on authenticity.
+- No "what surprised me" or "what I personally took away" — the part that actually gets engagement.
+
+**Real situation if you pick this:**
+You get a well-researched LinkedIn post that says something like "Attended the NVIDIA AI meetup last night. Key topics were X, Y, Z. Great discussions about [topic]." It's accurate. It's publishable. But it sounds like a press release, not a founder talking. Open rates are lower. Comments are fewer. LinkedIn shows it to fewer people over time.
+
+---
+
+### Option B: Detect + 5 Targeted Q&A + Draft (Current Plan)
+
+**How it works:**
+Event ends → cron detects → researches → 5 event-specific questions appear in your inbox → you answer (3-5 min) → 3 platform-native drafts generated from your answers + research.
+
+**Pros:**
+- Drafts have your personal angle baked in. Authenticity the algorithm rewards.
+- 5 questions surface 5 different content angles: the surprising moment, the key insight, the story, the contrarian take, the action. Each question could become a different post.
+- Voice pipeline has strong raw material — your words + research = best possible output.
+- This is what a good human consultant does (Nina Berglund charges $70/hr for this exact flow).
+
+**Cons:**
+- 5 questions feels like homework if not designed well. Abandonment risk if the form looks like a survey.
+- If you attended 4 events in a week, inbox has 20 unanswered questions. Could feel overwhelming.
+- Users who don't see the value yet might skip it and miss why the drafts are better.
+
+**Real situation if you pick this:**
+When you actually do it, the drafts are noticeably better — they sound like you, they have your specific reaction to a specific moment. The LinkedIn post doesn't say "great event," it says "I asked the speaker about X and they said something I didn't expect." That's the post that gets 3x more comments. But it only works if the user answers.
+
+---
+
+### Option C: Detect + 1 Power Question + Draft
+
+**How it works:**
+Event ends → cron detects → researches → 1 single question in your inbox ("What's the one thing from this event you'd actually tell a friend?") → 30-second answer → drafts generated.
+
+**Pros:**
+- Extremely low friction. 30 seconds of effort.
+- Still captures your personal angle — the algorithm still gets something authentic to work with.
+- Almost no abandonment risk. One question = one quick tap.
+
+**Cons:**
+- 1 question = 1 content angle. You might get a great hook but miss the story, the insight, the contrarian take that would've made the thread shareable.
+- LinkedIn long-form (1200+ chars) needs more than one angle to fill well.
+- The drafts will feel thinner. Good for X/Threads, weaker for LinkedIn.
+
+**Real situation if you pick this:**
+You get drafts with a clear personal hook but not much depth. The X thread is solid (short and punchy works there). The LinkedIn post will be around 600-800 chars — shorter than optimal, and it'll read more like a reflection than a story. Decent, but not the best the product can do.
+
+---
+
+### Option D: Manual Trigger Only
+
+**How it works:**
+Nothing is automatic. User opens calendar in the app, sees their past events, clicks "Capture this event" on any event they want to turn into content. Then Q&A starts.
+
+**Pros:**
+- User always intended to capture that event — higher engagement when they do.
+- No inbox spam. No unwanted captures.
+- Full control.
+
+**Cons:**
+- "I'll do it later" = never. The value prop is passive capture — the product should handle it while you're driving home from the event, not wait for you to remember.
+- The whole point is removing the "blank page + trying to remember what happened" problem. Manual trigger doesn't solve this.
+
+**Real situation if you pick this:**
+Most events never get captured. The ones that do get captured are the ones the user was already going to post about anyway. You've added convenience but not solved the core problem. The product doesn't feel magical.
+
+---
+
+### Option E: Hybrid — Research Draft Immediately + Optional Q&A Upgrade
+
+**How it works:**
+Event ends → cron detects + researches → generates a "quick draft" immediately based on research only → also shows 5 questions. User can either: (a) use and publish the quick draft, or (b) answer questions to get a personalized story draft.
+
+**Pros:**
+- Best of all worlds — zero friction option AND full depth option.
+- User chooses their investment level per event.
+- High-value events (YC Demo Day) → do the full Q&A. Routine meetup → use the quick draft.
+
+**Cons:**
+- More complex UX — two modes might confuse users who don't know which to pick.
+- "Quick draft" sets the wrong expectation — users might always take the easy path and never experience the better output.
+- Could split the product's value proposition: are we a quick-draft tool or a deep-capture tool?
+
+**Real situation if you pick this:**
+Some users always use the quick draft. Some always do the full Q&A. The product ends up being two different things to two different users. Harder to explain in marketing. Harder to build a tight user habit around.
+
+---
+
+## My Opinion
+
+**Go with Option B, but fix the UX so it doesn't feel like a survey.**
+
+Here's why:
+
+The LinkedIn algorithm research is clear: personal, specific, authentic content wins. A draft that doesn't have your personal angle is an event summary that anyone could have written — the algorithm knows it and shows it to fewer people. Option A saves 3 minutes and costs you reach.
+
+The human consultant comparison makes this even clearer. Nina Berglund charges $70/hour specifically to interview founders about events and extract their personal angle ("what happened," "what surprised you," "what did you take away"). That interview process is what Option B automates. The output quality difference between a research-only draft and a Q&A draft is exactly the difference between a $0 automated summary and a $70/hr human-crafted post.
+
+**The problem with 5 questions isn't the number — it's the UX format.**
+
+If the inbox shows a form with 5 blank text fields, it looks like homework. Nobody wants to fill out a form after a long event.
+
+If the inbox shows a conversational flow — one question at a time, displayed like a message, with a free-text reply box — it feels like texting your notes to someone. That's a 90-second interaction, not a 5-minute form.
+
+**Fix:**
+- Questions appear one at a time in a conversational thread UI
+- Questions are short and casual: "What surprised you most?" not "Please describe your key takeaways from attending this event"
+- Expected answer: 1-3 sentences, not paragraphs
+- "Skip this" button on each question (answer is left empty, draft generated with what you gave)
+- "Use research draft" escape hatch at the top for when you genuinely have no personal angle
+
+**Result:** The user experience feels like a quick voice note to yourself. Total time: 2-3 minutes. Draft quality: noticeably better than anything competitors produce. Authenticity: real. Algorithm rewards: maximized.
+
+---
+
+## Decision: [TO BE LOCKED IN — see step-by-step walkthrough below]
+
+Once you confirm the approach, the implementation plan continues below.
+
+---
+
 ## Why This Phase Matters
 
 The single feature that separates Content OS from every other tool on the market.
