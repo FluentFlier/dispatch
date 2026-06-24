@@ -55,12 +55,33 @@ BUG-10: Direct-mode publish jobs get stuck in `processing` forever. BUG-11: No s
 
 | Competitor | Target | Threat Level |
 |------------|--------|-------------|
-| Fastlane | Brand/ecommerce, short-form video, UGC | Low -- different ICP |
+| Fastlane | Brand/ecommerce, short-form video, UGC volume | Low -- different ICP |
 | Buffer/Hootsuite/Sprout | Scheduling-only, no voice, no generation | These are what we replace |
 | FeedHive | Multi-platform + some AI, no voice identity | Medium -- closest feature overlap |
 | VoiceMoat | Single-platform voice | Medium -- we win on multi-platform |
+| **Human consultants ($70/hr, 10-15h/month)** | Manual version of Content OS for founders | **Highest relevance** |
 
-**The gap nobody fills:** Calendar-event-driven generation + voice fidelity + multi-platform native tailoring + growth intelligence feedback loop. Content OS owns this if the RL loop and event capture actually work.
+### The real competition is human consultants
+
+The ICP (technical founders, builders) currently hire LinkedIn consultants at $700-1050/month to do manually what Content OS does automatically: content ideation, event recap writing, story capture, YC/Demo Day planning, analytics tracking, viral content research.
+
+This is validated by a real consulting proposal for ADA/Dispatch (the product itself). The consultant's scope includes "event recap content," "story capture and documentation," "YC Startup School content planning," and "daily content opportunities." Content OS replaces all of this, does it in seconds instead of days, does it in the user's voice, and costs less.
+
+**Price anchor:** Content OS growth tier should be clearly below $700/month. If it delivers the same output as a 10hr/month consultant, the value proposition is immediate.
+
+### Corrected positioning
+
+**Wrong framing (too narrow):** "Competitors solve 'what to post.' We solve 'I just lived something worth posting.'"
+
+**Correct framing:** Content OS does both:
+
+1. **Proactive suggestion** — tells you what to post next, informed by: your trained voice + content pillars + hook intelligence (what converts in your vertical) + your own performance data + what's missing from your recent content mix. Not generic suggestions. Voice-matched, market-informed, pillar-aware.
+
+2. **Reactive capture** — when you live something real (event, customer call, hackathon win, Demo Day), the system captures it in 3 minutes and generates 3 platform-native drafts before the memory fades.
+
+The differentiation is not THAT we suggest content — everyone does. It's HOW: our suggestions sound like you, are grounded in what actually performs in your niche, and our captures start from real human experiences not brand URLs.
+
+**The gap nobody fills:** Voice-matched proactive suggestions + calendar-event-driven capture + multi-platform native tailoring + growth intelligence feedback loop. Content OS owns this if the RL loop and event capture actually work.
 
 ---
 

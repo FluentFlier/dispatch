@@ -10,11 +10,40 @@
 
 The single feature that separates Content OS from every other tool on the market.
 
-Buffer, Hootsuite, FeedHive, Fastlane — all assume you already have content. Fastlane starts from a brand URL and generates batches of generic short-form videos. None of them starts from a real human experience.
+### What Content OS actually does (corrected positioning)
 
-Event Capture starts from a real event in your life: a meetup, a conference talk, a customer call, a demo day, a hackathon. You lived it. The system asks 5 targeted questions. You answer in 3 minutes. It generates 3 platform-native, voice-matched drafts.
+Content OS does two things simultaneously:
 
-This is the wedge.
+**1. Proactive suggestion** — Content OS tells you what to post next. But unlike Fastlane (volume-driven, brand-level, no voice) or Buffer (scheduling only, no suggestions), our suggestions are informed by:
+- Your trained voice profile and content pillars
+- Hook intelligence: what's converting in your vertical right now
+- What's been performing in your own analytics
+- What's missing from your recent content mix (so you don't repeat pillars)
+- Market trends relevant to your niche
+
+**2. Reactive capture** — when you live something real (a meetup, a call, a hackathon, Demo Day), Content OS captures it before it fades. 5 targeted questions. 3 minutes to answer. 3 platform-native, voice-matched drafts.
+
+The difference from every competitor: our suggestions sound like you, not like generic AI content. And our captures are grounded in what actually happened, not invented from a URL.
+
+### The real competitive gap
+
+Buffer, Hootsuite, FeedHive: scheduling tools. No voice, no suggestions, no capture.
+
+Fastlane: brand-level video content generation from URLs. No voice identity, not designed for founders, not event-driven.
+
+**Human consultant (e.g. $70/hr, 10-15 hrs/month = $700-1050/month):** This is the real alternative our ICP uses today. A human consultant doing manually what Content OS does automatically:
+- LinkedIn content ideation and writing
+- Event recap content (literally listed as a service)
+- Story capture and documentation
+- YC/Demo Day content planning
+- Weekly analytics tracking
+- Viral content research
+
+Content OS should replace this entirely and do it faster, in the user's voice, informed by real data, at a fraction of the cost.
+
+### Event Capture is the proof point
+
+Event Capture is where the two modes converge: a real experience triggers the system, the system does the research, asks the questions, generates the drafts in your voice, and suggests the optimal posting time based on what LinkedIn rewards. No consultant needed.
 
 ---
 
@@ -47,9 +76,22 @@ LinkedIn's 2026 algorithm runs a Generative Recommender model that explicitly de
 - Can be single post if the insight is sharp enough
 - No hashtags needed
 
-### Competitor context (Fastlane)
+### Competitor context
 
-Fastlane's strength: volume and distribution velocity for brand marketing. Their weakness: no voice identity, no real human experience as input, not for personal brands or founders. Event Capture is the inverse: one real experience, maximum authenticity, minimum friction. They do not compete on this axis.
+**Fastlane:** Volume and distribution velocity for brand marketing. No voice identity, not event-driven, not for personal brands. Different axis entirely.
+
+**Human consultants ($70/hr, 10-15hrs/month):** This is the real competition. Consultants manually do event recap content, story capture, YC/Demo Day content planning, analytics tracking. Content OS should cost less and do it in seconds, not days. Price anchor: if a human consultant is $700-1050/month, Content OS's growth tier should be clearly below that while delivering 10x the output.
+
+### YC / Demo Day as the flagship Event Capture use case
+
+YC Startup School and Demo Day are exactly what Event Capture is built for. High-signal period, multiple daily events, critical visibility window. What Event Capture does for a YC batch founder:
+
+- YC talks and workshops → detected as high-signal events → 5 targeted questions each
+- Customer discovery calls during batch → captured and turned into building-in-public posts
+- Demo Day itself → research pulls the YC Demo Day agenda, questions tailored to "what pitch moment worked, what surprised you, what did investors say"
+- Post-Demo Day follow-ups → captured as a sequence
+
+This is the exact workflow described in Nina Berglund's consulting proposal under "Y Combinator & Demo Day Strategy: Daily content opportunities, Story capture and documentation, Demo Day visibility strategy, Post-event content planning." Content OS automates all of it.
 
 ---
 
