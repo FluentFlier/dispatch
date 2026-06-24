@@ -61,11 +61,23 @@ User submits answers
 → 3 posts created with event_capture_id, workspace_id, status: scripted
 ```
 
+### Algorithm-Informed Decisions (from LinkedIn/X research)
+- **LinkedIn drafts = 1200-2500 chars** — dwell time is a top ranking signal. Short posts underperform.
+- **X = thread format** — hook tweet + 4-6 tweets, each ≤280 chars, use `---TWEET---` delimiter
+- **Threads = conversational, ≤500 chars** — raw and informal
+- **Golden hour** — suggest posting within 24-48h of event, timed to Tue-Thu 8-10am or 12-1pm user timezone
+- **Tag suggestions** — extract speaker/organizer names from web research, suggest tagging on LinkedIn (+20% reach)
+- **Web research is non-negotiable** — event-specific specificity (names, announcements, quotes) is what LinkedIn's LLM retrieval rewards. Generic posts without specifics get buried.
+- **Authenticity over speed** — always use `generateWithVoicePipeline`, never raw Claude. LinkedIn 2026 suppresses AI-sounding content.
+
 ### Hard Constraints
 - Google Calendar only (Notion = later)
 - Text answers only (Whisper mic = future wave)
 - LinkedIn + X + Threads only (Instagram needs image logic, Reddit = Horizon 3)
 - Must use `generateWithVoicePipeline` not raw `generateContent`
+- No auto-posting — all drafts require user approval
+
+Full plan: `md_files/Event_Capture_Phase_Plan.md`
 
 ---
 
