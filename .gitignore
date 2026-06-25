@@ -28,3 +28,14 @@ node_modules/
 # build + tooling artifacts
 tsconfig.tsbuildinfo
 .playwright-mcp/
+
+# graphify temp files
+.graphify_ast.json
+.graphify_detect.json
+.graphify_python
+.graphify_uncached.txt
+graphify-out/
+
+# Graphify & CodeGraph
+graphify-out/
+.codegraph/
