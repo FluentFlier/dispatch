@@ -10,12 +10,13 @@ node_modules/
 .vercel
 .gstack/
 
-# InsForge & AI agent skills
+# AI agent tool folders — never expose these in repo
 .insforge
 .agent
 .agents
 .augment
 .claude
+.claude/
 .cline
 .github/copilot*
 .kilocode
@@ -24,6 +25,20 @@ node_modules/
 .roo
 .trae
 .windsurf
+.cursor/
+.aider/
+memory/
+.memory/
+
+# graphify / code-graph / analysis agent artifacts
+graphify-out/
+.graphify_ast.json
+.graphify_detect.json
+.graphify_python
+.graphify_uncached.txt
+.graphify_uncached.txt
+.codegraph/
+.antigravity/
 
 # build + tooling artifacts
 tsconfig.tsbuildinfo
@@ -36,10 +51,12 @@ tsconfig.tsbuildinfo
 .graphify_uncached.txt
 graphify-out/
 
+# markdown files — never commit (README.md is the only exception)
+*.md
+!README.md
+
 # local planning docs — never commit
 md_files/
 docs/superpowers/
-
-# Graphify & CodeGraph
-graphify-out/
-.codegraph/
+docs/*.pdf
+scripts/generate_*.py

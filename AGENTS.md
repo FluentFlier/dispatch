@@ -4,6 +4,21 @@ globs: *
 alwaysApply: true
 ---
 
+## Git Rules — HARD RULES, No Exceptions
+
+**NEVER commit these — they are permanently gitignored:**
+- Any `.md` file except `README.md` (CLAUDE.md, planning docs, architecture docs, analysis files — all stay local)
+- `.claude/` folder or anything inside it (project memory, skills, session data)
+- Agent tool folders: `.cursor/`, `.aider/`, `.antigravity/`, `graphify-out/`, `.codegraph/`, `memory/`
+- Graphify temp files: `.graphify_*.json`, `.graphify_python`
+- `md_files/`, `docs/superpowers/`, `docs/*.pdf`
+- Any `scripts/generate_*.py` scripts
+
+**Before every `git add`:** run `git status` and verify none of the above appear in the staged list.
+**If you see them staged:** `git reset HEAD <file>` before committing.
+
+These rules apply to every agent, every session, every PR. Not negotiable.
+
 # InsForge SDK Documentation - Overview
 
 ## What is InsForge?
