@@ -36,6 +36,10 @@ tsconfig.tsbuildinfo
 .graphify_uncached.txt
 graphify-out/
 
+# local planning docs — never commit
+md_files/
+docs/superpowers/
+
 # Graphify & CodeGraph
 graphify-out/
 .codegraph/
