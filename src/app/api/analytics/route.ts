@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getActiveWorkspaceId } from '@/lib/workspace';
 import { usage } from '@/lib/hooks-intelligence/usage-tracker';
 
 export async function GET(): Promise<NextResponse> {
@@ -7,22 +8,32 @@ export async function GET(): Promise<NextResponse> {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const client = getServerClient();
+  const workspaceId = await getActiveWorkspaceId(user.id);
 
-  const [postsRes, setsRes, reviewsRes, leadsRes] = await Promise.all([
-    client.database.from('posts')
+  let postsQuery = client.database.from('posts')
     .select('*')
     .eq('user_id', user.id)
     .eq('status', 'posted')
     .order('posted_date', { ascending: false })
-    .limit(30),
-    client.database.from('hashtag_sets')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false }),
-    client.database.from('weekly_reviews')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('week_start', { ascending: false }),
+    .limit(30);
+  if (workspaceId) postsQuery = postsQuery.eq('workspace_id', workspaceId);
+
+  let setsQuery = client.database.from('hashtag_sets')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+  if (workspaceId) setsQuery = setsQuery.eq('workspace_id', workspaceId);
+
+  let reviewsQuery = client.database.from('weekly_reviews')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('week_start', { ascending: false });
+  if (workspaceId) reviewsQuery = reviewsQuery.eq('workspace_id', workspaceId);
+
+  const [postsRes, setsRes, reviewsRes, leadsRes] = await Promise.all([
+    postsQuery,
+    setsQuery,
+    reviewsQuery,
     client.database.from('lead_categories')
       .select('category')
       .eq('user_id', user.id),

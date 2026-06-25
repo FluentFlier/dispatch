@@ -87,10 +87,19 @@ export async function syncBrainFromProfile(
   if (!profileRow) return;
 
   const profile = profileRow as ProfileRow;
-  const pillars =
-    typeof profile.content_pillars === 'string'
-      ? JSON.parse(profile.content_pillars)
-      : profile.content_pillars;
+
+  // Guard against malformed JSON in content_pillars — a parse error here would
+  // crash the entire brain sync silently, leaving voice context stale with no
+  // indication of why it stopped updating.
+  let pillars: unknown = profile.content_pillars;
+  if (typeof profile.content_pillars === 'string') {
+    try {
+      pillars = JSON.parse(profile.content_pillars);
+    } catch {
+      console.warn('[brain/sync] content_pillars JSON parse failed for user', userId, '— using empty array');
+      pillars = [];
+    }
+  }
 
   await putBrainPage(client, userId, {
     slug: BRAIN_SLUG.voice,
@@ -163,7 +172,9 @@ export async function syncBrainPublishedPost(
     ),
   });
 
-  await syncBrainWins(client, userId);
+  // syncBrainWins is intentionally NOT called here — it runs a top-5 query and
+  // was previously called inside this per-post function, causing N top-5 queries
+  // when publishing N posts. Call it once at the end of syncCreatorBrainFull().
 }
 
 async function syncBrainWins(client: InsforgeClient, userId: string): Promise<void> {
@@ -218,6 +229,10 @@ export async function syncCreatorBrainFull(
     await syncBrainPublishedPost(client, userId, row.id as string);
     synced++;
   }
+
+  // Run syncBrainWins once here after all posts are synced, not inside each
+  // syncBrainPublishedPost call (which caused N redundant top-5 queries).
+  await syncBrainWins(client, userId);
 
   return { synced_posts: synced };
 }

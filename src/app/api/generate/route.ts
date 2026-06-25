@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getActiveWorkspaceId } from '@/lib/workspace';
 import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { z } from 'zod';
@@ -21,10 +22,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-  // Monetization + usage tracking for intelligence layer
-  const { usage } = await import('@/lib/hooks-intelligence/usage-tracker');
-  await usage.track(user.id, 'generate');
-
+  // Parse body before the guard so we can return a 400 before consuming quota.
   let body: unknown;
   try { body = await request.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
 
@@ -35,8 +33,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
   const client = getServerClient();
+  const workspaceId = await getActiveWorkspaceId(user.id);
   const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {
     memoryQuery: parsed.data.topic ?? parsed.data.prompt.slice(0, 200),
+    workspaceId: workspaceId ?? undefined,
   });
 
   try {

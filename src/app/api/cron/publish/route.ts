@@ -5,6 +5,7 @@ import {
   listDuePublishJobs,
   processPublishJob,
   enqueuePublishJob,
+  resetStuckProcessingJobs,
 } from '@/lib/publish-queue';
 import { logInfo, logError } from '@/lib/logger';
 import { trackEvent } from '@/lib/analytics';
@@ -24,6 +25,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const client = getServiceClient();
     const results: Array<{ type: string; id: string; success: boolean; error?: string }> = [];
+
+    // 0. Reset any jobs stuck in 'processing' from a previous timed-out run
+    //    so they re-enter the queue as 'failed' and get retried.
+    const resetCount = await resetStuckProcessingJobs(10);
+    if (resetCount > 0) logInfo('cron.publish.reset_stuck', { resetCount });
 
     // 1. Process durable publish_jobs queue
     const jobs = await listDuePublishJobs(25);

@@ -36,13 +36,16 @@ export async function listWorkspaces(userId: string): Promise<Workspace[]> {
   const ids = new Set(memberList.map((m) => m.workspace_id));
   const roleById = new Map(memberList.map((m) => [m.workspace_id, m.role]));
 
+  // Filter by id IN the user's workspace set at the DB level — the previous
+  // version fetched ALL workspaces from all users and filtered in JS, which
+  // was both a performance issue and a data privacy concern as the platform grows.
   const { data: ws } = await client.database
     .from('workspaces')
     .select('id, name, type, owner_user_id')
+    .in('id', Array.from(ids))
     .order('created_at', { ascending: true });
 
   return ((ws ?? []) as Omit<Workspace, 'role'>[])
-    .filter((w) => ids.has(w.id))
     .map((w) => ({ ...w, role: roleById.get(w.id) }));
 }
 

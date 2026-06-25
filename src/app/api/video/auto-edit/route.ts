@@ -99,11 +99,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  return NextResponse.json({
-    status: 'processing',
-    jobId,
-    message: 'Video processing job submitted',
-    videoUrl,
-    options,
-  });
+  // Non-caption video processing (silence removal, smart cuts, format conversion)
+  // is not yet implemented. Return 501 so the UI can show an honest "coming soon"
+  // state instead of faking a job submission that never resolves.
+  return NextResponse.json(
+    {
+      status: 'not_available',
+      message:
+        'Video processing features (silence removal, smart cuts, format conversion) are not yet available. Caption generation is the only supported option.',
+    },
+    { status: 501 }
+  );
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getActiveWorkspaceId } from '@/lib/workspace';
 import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
 
@@ -11,12 +12,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!key) return NextResponse.json({ error: 'Missing key parameter' }, { status: 400 });
 
   const client = getServerClient();
-  const { data, error } = await client
-    .database.from('user_settings')
+  const workspaceId = await getActiveWorkspaceId(user.id);
+
+  let query = client.database.from('user_settings')
     .select('*')
     .eq('user_id', user.id)
-    .eq('key', key)
-    .single();
+    .eq('key', key);
+  if (workspaceId) query = query.eq('workspace_id', workspaceId);
+
+  const { data, error } = await query.single();
 
   if (error) return errorResponse('Setting not found.', 404, error);
   return NextResponse.json({ setting: data });
@@ -40,10 +44,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { key, value } = parsed.data;
 
   const client = getServerClient();
+  const workspaceId = await getActiveWorkspaceId(user.id);
+
   const { data, error } = await client
     .database.from('user_settings')
     .upsert(
-      { user_id: user.id, key, value },
+      { user_id: user.id, workspace_id: workspaceId ?? null, key, value },
       { onConflict: 'user_id,key' }
     )
     .select()

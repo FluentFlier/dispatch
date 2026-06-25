@@ -177,9 +177,14 @@ export async function getEngagementInbox(
     if (flags.sent) group.stats.sent++;
   }
 
-  const groups = Array.from(groupsMap.values()).sort((a, b) =>
-    b.comments[0]?.comment.synced_at.localeCompare(a.comments[0]?.comment.synced_at ?? '') ?? 0,
-  );
+  // Fixed operator precedence: the previous expression applied ?? 0 to the
+  // entire localeCompare chain, which silently returned 0 when either synced_at
+  // was undefined — treating unequal items as equal and producing random sort order.
+  const groups = Array.from(groupsMap.values()).sort((a, b) => {
+    const bDate = b.comments[0]?.comment.synced_at ?? '';
+    const aDate = a.comments[0]?.comment.synced_at ?? '';
+    return bDate.localeCompare(aDate);
+  });
 
   return {
     groups,

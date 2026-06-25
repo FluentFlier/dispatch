@@ -31,19 +31,9 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // Authenticated user hitting /login -> redirect to /dashboard
-  if (pathname === '/login' && token && request.nextUrl.searchParams.get('expired') === '1') {
-    const response = NextResponse.next({ request: { headers: requestHeaders } });
-    response.cookies.set('content-os-token', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 0,
-    });
-    return response;
-  }
-
+  // Authenticated user hitting /login -> redirect to /dashboard.
+  // Token expiry is handled server-side in getAuthenticatedUser(), never via
+  // a client-supplied query param — that pattern allowed CSRF-style force-logout.
   if (pathname === '/login' && token) {
     const dashboardUrl = new URL('/dashboard', request.url);
     return NextResponse.redirect(dashboardUrl, 307);

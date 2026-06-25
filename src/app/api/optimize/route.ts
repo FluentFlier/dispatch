@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getActiveWorkspaceId } from '@/lib/workspace';
 import { generateContent } from '@/lib/claude';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { guardAiRequest } from '@/lib/ai-guard';
@@ -265,8 +266,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
   const client = getServerClient();
+  const workspaceId = await getActiveWorkspaceId(user.id);
   const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {
     memoryQuery: content.slice(0, 200),
+    workspaceId: workspaceId ?? undefined,
   });
 
   // Generate optimized content for each target platform

@@ -11,13 +11,17 @@ import { getServerClient } from '@/lib/insforge/server';
 
 export class UsageTracker {
   /**
-   * Track an intelligence/monetized action.
-   * Throws (or returns {allowed:false}) when over plan limit.
+   * Logs an intelligence/monetized action and increments the usage counter.
+   *
+   * NOTE: This is a logging-only tracker — it does NOT enforce plan limits and
+   * always returns `{allowed: true}`. Plan limit enforcement is handled by
+   * `guardAiRequest()` in src/lib/ai-guard.ts, which calls `assertCanGenerate()`.
+   * Do not rely on the return value of this method for access control.
    */
   async track(
     userId: string,
     action: 'research' | 'generate' | 'analytics' | 'agent_call',
-    metadata: Record<string, any> = {}
+    metadata: Record<string, unknown> = {}
   ): Promise<{ allowed: boolean; remaining?: number }> {
     console.log(`[Usage] ${userId} → ${action}`, metadata);
 

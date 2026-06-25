@@ -1,0 +1,66 @@
+{
+  "_meta": {
+    "captured": "2026-06-25",
+    "source": "InsForge dashboard SQL query — information_schema.columns",
+    "note": "Source of truth for live DB state. Do not trust db/schema.sql over this file."
+  },
+  "tables": {
+    "analytics_snapshots": ["id", "org_id", "snapshot_date", "metric", "value", "metadata", "created_at"],
+    "ayrshare_profiles": ["id", "user_id", "profile_key", "title", "created_at", "workspace_id"],
+    "comment_reply_queue": ["id", "user_id", "post_comment_id", "draft_reply", "status", "voice_match_score", "evaluation", "sent_at", "provider_reply_id", "last_error", "created_at", "updated_at", "workspace_id"],
+    "content_ideas": ["id", "user_id", "idea", "pillar", "priority", "notes", "converted", "created_at", "workspace_id"],
+    "creator_brain_pages": ["id", "user_id", "slug", "title", "tags", "body", "created_at", "updated_at", "workspace_id"],
+    "creator_profile": ["id", "user_id", "display_name", "bio_facts", "voice_description", "voice_rules", "content_pillars", "platform_config", "onboarding_complete", "created_at", "updated_at", "workspace_id"],
+    "detected_trends": ["id", "user_id", "topic", "why_trending", "angle", "best_platform", "urgency", "draft_hook", "confidence", "detected_at", "workspace_id"],
+    "hashtag_sets": ["id", "user_id", "name", "tags", "pillar", "use_count", "created_at", "workspace_id"],
+    "hook_examples": ["id", "text", "author", "platform", "verticals", "engagement", "score_total", "score_details", "mined_at", "last_reinforced_at", "performance_delta", "created_at"],
+    "lead_categories": ["id", "user_id", "post_id", "category", "engager_handle", "reason", "created_at", "workspace_id"],
+    "media_attachments": ["id", "user_id", "post_id", "bucket_path", "file_name", "file_type", "file_size", "created_at", "workspace_id"],
+    "post_comments": ["id", "user_id", "post_id", "platform", "provider_comment_id", "author_name", "author_handle", "author_headline", "comment_text", "commented_at", "parent_comment_id", "synced_at", "workspace_id"],
+    "post_distributions": ["id", "post_id", "platform", "platform_post_id", "optimized_caption", "optimized_hashtags", "status", "posted_at", "metrics", "created_at"],
+    "posts": ["id", "user_id", "title", "pillar", "platform", "status", "script", "caption", "hashtags", "hook", "notes", "scheduled_date", "posted_date", "views", "likes", "saves", "comments", "shares", "follows_gained", "series_id", "series_position", "created_at", "updated_at", "variant_group_id", "source_platform", "scheduled_publish_at", "image_url", "publish_job_id", "voice_match_score", "ai_score", "voice_evaluation", "workspace_id"],
+    "publish_jobs": ["id", "user_id", "post_id", "platform", "status", "idempotency_key", "scheduled_for", "attempts", "max_attempts", "last_error", "provider", "provider_post_id", "provider_url", "created_at", "updated_at", "workspace_id"],
+    "research_posts": ["id", "text", "author", "platform", "url", "engagement", "verticals", "mined_at"],
+    "series": ["id", "user_id", "name", "description", "pillar", "total_parts", "created_at", "workspace_id"],
+    "social_accounts": ["id", "user_id", "platform", "account_name", "account_id", "access_token", "refresh_token", "token_expires_at", "connected_at", "connection_method", "provider", "provider_profile_key", "provider_meta", "health_status", "workspace_id"],
+    "social_listening_runs": ["id", "accounts_checked", "new_hooks_found", "run_at"],
+    "story_bank": ["id", "user_id", "raw_memory", "mined_angle", "mined_hook", "mined_script", "mined_caption_line", "pillar", "used", "used_post_id", "created_at", "workspace_id"],
+    "subscriptions": ["id", "user_id", "plan", "status", "stripe_customer_id", "stripe_subscription_id", "current_period_start", "current_period_end", "created_at", "updated_at", "workspace_id"],
+    "usage_counters": ["id", "user_id", "metric", "period_key", "count", "updated_at", "workspace_id"],
+    "usage_events": ["id", "user_id", "action", "metadata", "created_at", "workspace_id"],
+    "user_settings": ["id", "user_id", "key", "value", "updated_at", "workspace_id"],
+    "weekly_reviews": ["id", "user_id", "week_start", "posts_published", "total_views", "total_followers_gained", "top_post_id", "what_worked", "what_to_double_down", "what_to_cut", "next_week_focus", "created_at", "workspace_id"],
+    "workspace_members": ["id", "workspace_id", "user_id", "role", "created_at"],
+    "workspaces": ["id", "owner_user_id", "name", "type", "created_at", "updated_at"]
+  },
+  "rls_status": {
+    "enabled_on": ["ayrshare_profiles", "content_ideas", "creator_profile", "hashtag_sets", "posts", "publish_jobs", "series", "story_bank", "subscriptions", "usage_counters", "user_settings", "weekly_reviews"],
+    "policy_type": "user_id = auth.uid() per operation + project_admin bypass",
+    "upgrade_needed": "Replace user_id policies with workspace_id via workspace_members join when workspace migration is live"
+  },
+  "missing_for_new_wave": {
+    "CREATE_new_tables": [
+      "calendar_connections",
+      "event_captures",
+      "event_research",
+      "hook_performance",
+      "workspace_voice_metrics",
+      "jobs",
+      "feature_flags",
+      "daily_ai_usage"
+    ],
+    "ALTER_existing_tables": {
+      "posts": ["used_hook_ids jsonb", "rl_processed_at timestamptz", "event_capture_id uuid"],
+      "post_comments": ["is_content_signal boolean DEFAULT false", "content_angle text", "signal_processed_at timestamptz"],
+      "content_ideas": ["source text DEFAULT 'manual'", "source_comment_id uuid", "status text DEFAULT 'active'"]
+    },
+    "already_done": {
+      "creator_brain_pages.workspace_id": "EXISTS — L3 Fix 2 already partially complete",
+      "posts.voice_match_score": "EXISTS — L4 base ready",
+      "posts.ai_score": "EXISTS — L4 base ready",
+      "posts.voice_evaluation": "EXISTS — L4 base ready",
+      "workspace_members": "EXISTS — future RLS upgrade can proceed",
+      "workspaces": "EXISTS — workspace migration foundation is live"
+    }
+  }
+}

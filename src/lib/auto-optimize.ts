@@ -48,25 +48,20 @@ export async function triggerAutoOptimize({
     return;
   }
 
-  // 3. Generate a variant_group_id and assign it to the source post
   const variantGroupId = crypto.randomUUID();
 
-  await client.database
-    .from('posts')
-    .update({
-      variant_group_id: variantGroupId,
-      source_platform: sourcePlatform,
-    })
-    .eq('id', postId)
-    .eq('user_id', userId);
-
-  // 4. Call POST /api/optimize to generate variants
+  // 3. Call POST /api/optimize using the internal service token instead of the
+  //    original request cookies. The previous approach passed Cookie: requestCookies
+  //    into a background fetch — if the serverless function completed before the
+  //    background task ran, the session cookie was gone and the call returned 401.
+  //    The CRON_SECRET header lets /api/optimize identify internal callers.
   try {
     const optimizeRes = await fetch(`${origin}/api/optimize`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Cookie: requestCookies,
+        'x-internal-user-id': userId,
+        Authorization: `Bearer ${process.env.CRON_SECRET ?? ''}`,
       },
       body: JSON.stringify({
         content,
@@ -78,10 +73,7 @@ export async function triggerAutoOptimize({
     });
 
     if (!optimizeRes.ok) {
-      console.error(
-        '[auto-optimize] Optimization request failed:',
-        optimizeRes.status
-      );
+      console.error('[auto-optimize] Optimization request failed:', optimizeRes.status);
       return;
     }
 
@@ -91,7 +83,7 @@ export async function triggerAutoOptimize({
       return;
     }
 
-    // 5. Fetch the source post to inherit title and pillar
+    // 4. Fetch the source post to inherit title and pillar
     const { data: sourcePost } = await client.database
       .from('posts')
       .select('title, pillar')
@@ -101,7 +93,9 @@ export async function triggerAutoOptimize({
 
     if (!sourcePost) return;
 
-    // 6. Create variant posts
+    // 5. Create variant posts and assign variant_group_id to source post only
+    //    AFTER variants are confirmed — setting it before meant the source post
+    //    appeared in a group with no siblings when the optimize call failed.
     const variantPosts = variants.map(
       (v: { platform: string; content: string }) => ({
         user_id: userId,
@@ -116,6 +110,13 @@ export async function triggerAutoOptimize({
     );
 
     await client.database.from('posts').insert(variantPosts);
+
+    // Update source post with variant_group_id only after variants are created.
+    await client.database
+      .from('posts')
+      .update({ variant_group_id: variantGroupId, source_platform: sourcePlatform })
+      .eq('id', postId)
+      .eq('user_id', userId);
   } catch (err) {
     console.error('[auto-optimize] Background optimization error:', err);
   }

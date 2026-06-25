@@ -3,9 +3,13 @@ import { incrementUsage } from '@/lib/usage';
 
 /**
  * Abuse + cost protection for AI-invoking endpoints. Two layers:
- *  1. Per-instance burst limit (short window) to blunt rapid hammering.
- *  2. Monthly plan cap (DB-backed via usage_counters + entitlements) which is
- *     the real, durable cost ceiling and works across serverless instances.
+ *  1. Per-instance in-memory burst limit (15 req/60s). IMPORTANT: this Map is
+ *     reset on every cold start and is NOT shared across serverless instances —
+ *     a user can bypass it by hitting different function instances or waiting for
+ *     a new cold start. It blunts rapid hammering on a single instance only.
+ *     Replace with Upstash Redis sliding window for true cross-instance enforcement.
+ *  2. Monthly plan cap (DB-backed via usage_counters + entitlements) which IS
+ *     the real, durable cost ceiling and works across all instances.
  * On success it records one ai_generate unit. Infra errors fail open (only the
  * burst limit applies) so a transient DB blip never takes generation down.
  */
@@ -50,6 +54,13 @@ export async function guardAiRequest(userId: string): Promise<AiGuardResult> {
     // entitlement lookup failed (infra): fall through, burst limit still applied
   }
 
-  incrementUsage(userId, 'ai_generate', 1).catch(() => {});
+  // Await the increment so failures are observable. We still return ok:true on
+  // DB errors (fail-open policy) but we log the failure so ops can detect
+  // systematic issues — silently swallowing meant quotas never tracked under load.
+  try {
+    await incrementUsage(userId, 'ai_generate', 1);
+  } catch (err) {
+    console.error('[ai-guard] Usage increment failed — quota not tracked:', err);
+  }
   return { ok: true };
 }

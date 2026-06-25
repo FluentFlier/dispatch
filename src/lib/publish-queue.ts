@@ -118,6 +118,11 @@ export async function processPublishJob(
     scheduledAt: job.scheduled_for,
   };
 
+  // Track the incremented attempt count in one place so the failure path
+  // uses the same value — previously it recomputed job.attempts+1 a second
+  // time, causing an off-by-one that burned retries too fast.
+  const incrementedAttempts = job.attempts + 1;
+
   try {
     const provider = getSocialProvider();
     let result;
@@ -125,17 +130,20 @@ export async function processPublishJob(
     if (provider.name === 'ayrshare') {
       result = await provider.publish(job.user_id, payload);
     } else {
-      return {
-        ...job,
-        status: 'failed',
-        last_error: 'Direct publish must run via /api/publish or cron',
-      };
+      // Direct-mode jobs must go through /api/publish. Update DB to 'failed'
+      // before returning — previously we returned without updating, leaving the
+      // job permanently stuck in 'processing' (zombie job).
+      const errorMsg = 'Direct publish must run via /api/publish or cron';
+      await client.database
+        .from('publish_jobs')
+        .update({ status: 'failed', last_error: errorMsg, updated_at: new Date().toISOString() })
+        .eq('id', jobId);
+      return { ...job, status: 'failed', last_error: errorMsg, attempts: incrementedAttempts };
     }
 
     if (!result.success) {
-      const attempts = job.attempts + 1;
       const status: PublishJobStatus =
-        attempts >= job.max_attempts ? 'dead' : 'failed';
+        incrementedAttempts >= job.max_attempts ? 'dead' : 'failed';
 
       await client.database
         .from('publish_jobs')
@@ -146,7 +154,7 @@ export async function processPublishJob(
         })
         .eq('id', jobId);
 
-      return { ...job, status, last_error: result.error ?? null, attempts };
+      return { ...job, status, last_error: result.error ?? null, attempts: incrementedAttempts };
     }
 
     await client.database
@@ -191,8 +199,7 @@ export async function processPublishJob(
     const message = err instanceof Error ? err.message : 'Unknown error';
     logError('publish_job.error', { jobId }, err);
 
-    const attempts = job.attempts + 1;
-    const status: PublishJobStatus = attempts >= job.max_attempts ? 'dead' : 'failed';
+    const status: PublishJobStatus = incrementedAttempts >= job.max_attempts ? 'dead' : 'failed';
 
     await client.database
       .from('publish_jobs')
@@ -203,7 +210,7 @@ export async function processPublishJob(
       })
       .eq('id', jobId);
 
-    return { ...job, status, last_error: message, attempts };
+    return { ...job, status, last_error: message, attempts: incrementedAttempts };
   }
 }
 
@@ -220,6 +227,32 @@ export async function listDuePublishJobs(limit = 25): Promise<PublishJobRow[]> {
     .limit(limit);
 
   return (data ?? []) as PublishJobRow[];
+}
+
+/**
+ * Resets jobs stuck in 'processing' state past the given threshold.
+ * Serverless functions can time out mid-job, leaving rows permanently in
+ * 'processing' with no mechanism to re-queue them. Call at the start of each
+ * cron run to surface stuck jobs as 'failed' so they can be retried.
+ *
+ * @param stuckAfterMinutes - Minutes after updated_at before a processing job is considered stuck
+ */
+export async function resetStuckProcessingJobs(stuckAfterMinutes = 10): Promise<number> {
+  const client = getServerClient();
+  const stuckBefore = new Date(Date.now() - stuckAfterMinutes * 60 * 1000).toISOString();
+
+  const { data } = await client.database
+    .from('publish_jobs')
+    .update({
+      status: 'failed',
+      last_error: `Job stuck in processing for >${stuckAfterMinutes}m — reset by watchdog`,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('status', 'processing')
+    .lt('updated_at', stuckBefore)
+    .select('id');
+
+  return data?.length ?? 0;
 }
 
 export async function retryPublishJob(jobId: string, userId: string): Promise<boolean> {

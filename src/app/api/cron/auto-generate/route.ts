@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/insforge/server';
 import { generateContent, buildSystemPrompt } from '@/lib/claude';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { assertCanGenerate } from '@/lib/entitlements';
+import { incrementUsage } from '@/lib/usage';
+import { ensureSoloWorkspace } from '@/lib/workspace';
 import { createClient } from '@insforge/sdk';
 
 /**
@@ -75,8 +78,27 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         continue;
       }
 
+      // Enforce per-user quota before generating — previously this cron used the
+      // admin client with no limit check, giving free-plan users unlimited AI daily.
+      const quota = await assertCanGenerate(userId);
+      if (!quota.ok) {
+        results.push({ userId, status: 'quota_exceeded', postsGenerated: 0 });
+        continue;
+      }
+
+      // Resolve the user's solo workspace for workspace-scoped voice context.
+      // ensureSoloWorkspace creates one if it doesn't exist yet (post-migration signups).
+      let workspaceId: string | undefined;
+      try {
+        const ws = await ensureSoloWorkspace(userId);
+        workspaceId = ws.id;
+      } catch {
+        workspaceId = undefined;
+      }
+
       const { profile, contextAdditions } = await loadCreatorVoiceContext(adminClient, userId, {
         memoryQuery: todaysPillar,
+        workspaceId,
       });
 
       if (!profile) {
@@ -131,6 +153,7 @@ Return ONLY the post text, no JSON, no formatting.`;
 
       await adminClient.database.from('posts').insert([{
         user_id: userId,
+        workspace_id: workspaceId ?? null,
         title: cleaned.split('\n')[0].slice(0, 80),
         pillar: todaysPillar,
         platform: defaultPlatform,
@@ -142,6 +165,9 @@ Return ONLY the post text, no JSON, no formatting.`;
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }]);
+
+      // Track usage after successful generation so the quota is consumed.
+      await incrementUsage(userId, 'ai_generate', 1);
 
       results.push({ userId, status: 'generated', postsGenerated: 1 });
     } catch (err) {

@@ -33,6 +33,12 @@ interface LoadVoiceContextOptions {
   memoryQuery?: string;
   /** Max few-shot samples injected into the prompt */
   maxSamples?: number;
+  /**
+   * Active workspace ID. When set, profile + settings queries are scoped
+   * to the workspace so each client workspace has its own trained voice.
+   * Falls back to user_id-only lookup when null (pre-migration rows).
+   */
+  workspaceId?: string;
 }
 
 function parseJsonSetting<T>(value: string | null | undefined): T | undefined {
@@ -149,13 +155,14 @@ export async function loadCreatorVoiceContext(
   let userContext: string | undefined;
 
   try {
-    const { data: profileRow } = await client.database
+    // Scope profile lookup to workspace when available — each workspace has its
+    // own trained voice. Falls back to user_id only for pre-migration rows.
+    let profileQuery = client.database
       .from('creator_profile')
-      .select(
-        'display_name, bio, bio_facts, content_pillars, voice_description, voice_rules',
-      )
-      .eq('user_id', userId)
-      .maybeSingle();
+      .select('display_name, bio, bio_facts, content_pillars, voice_description, voice_rules')
+      .eq('user_id', userId);
+    if (options.workspaceId) profileQuery = profileQuery.eq('workspace_id', options.workspaceId);
+    const { data: profileRow } = await profileQuery.maybeSingle();
 
     if (profileRow) {
       const contentPillars =
@@ -178,17 +185,13 @@ export async function loadCreatorVoiceContext(
   }
 
   try {
-    const { data: settingsRows } = await client.database
+    let settingsQuery = client.database
       .from('user_settings')
       .select('key, value')
       .eq('user_id', userId)
-      .in('key', [
-        'context_additions',
-        'vocabulary_fingerprint',
-        'structural_patterns',
-        'sample_posts',
-        'persona_prompt_export',
-      ]);
+      .in('key', ['context_additions', 'vocabulary_fingerprint', 'structural_patterns', 'sample_posts', 'persona_prompt_export']);
+    if (options.workspaceId) settingsQuery = settingsQuery.eq('workspace_id', options.workspaceId);
+    const { data: settingsRows } = await settingsQuery;
 
     if (settingsRows) {
       for (const row of settingsRows) {
