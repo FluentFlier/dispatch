@@ -1,14 +1,14 @@
 /**
  * RL / Training Layer for Hook Intelligence (closed loop from Imagine architecture patterns + our gstack mining)
- * 
+ *
  * - Base "policy": Scorer (multi-signal)
- * - Rewards: 
+ * - Rewards:
  *   - Human edits (via edit-feedback: negative for heavy rewrites of weak patterns)
  *   - Performance (engagement rates, categorized leads from our engagement-categorizer)
  *   - Implicit: Usage in successful generations
  * - Training: Update scores, extract patterns for RAG/few-shots, evolve prompts.
  * - Optimizer: Cluster winning mined data, feed back to voice pipeline + agents.
- * 
+ *
  * This + continuous GStack mining + RAG retriever = the "training" that makes Content-OS amazing.
  * No direct Imagine code; better, multi-platform, gstack-powered, integrated with existing Creator Brain/voice-eval.
  */
@@ -17,6 +17,9 @@ import { loadHookDataset, saveHookDataset } from './index';
 import { retrieveBestExamples } from './retriever';
 import { bucketEngagers } from './categorize';
 import type { ExtractedHook } from './types';
+import type { createClient } from '@insforge/sdk';
+
+type InsforgeClient = ReturnType<typeof createClient>;
 
 export interface PerformanceSignal {
   hookId?: string;
@@ -113,4 +116,47 @@ export function runTrainingStep(performanceSignals: PerformanceSignal[] = [], ed
   const patterns = extractWinningPatterns();
   // Future: Feed patterns back to voice-prompts or agent system prompts via InsForge
   return { patternsUpdated: patterns.length };
+}
+
+/**
+ * Write EMA RL score to hook_performance DB table for a single (hook_id, vertical) pair.
+ * EMA alpha=0.3: new_ema = 0.3 * new_score + 0.7 * existing. Called by intelligence-sync nightly cron.
+ * Never writes to the in-memory dataset — DB is the durable source of truth for learned scores.
+ */
+export async function updateFromPerformanceDB(
+  client: InsforgeClient,
+  hookId: string,
+  vertical: string,
+  saveRate: number,
+  success: boolean,
+): Promise<void> {
+  const alpha = 0.3;
+  const newScore = success
+    ? Math.min(100, saveRate * 100 + 10)
+    : Math.max(0, saveRate * 100);
+
+  const { data: existing } = await client.database
+    .from('hook_performance')
+    .select('rl_score, rl_confidence, sample_count')
+    .eq('hook_id', hookId)
+    .eq('vertical', vertical)
+    .maybeSingle();
+
+  if (existing) {
+    await client.database.from('hook_performance').update({
+      rl_score: alpha * newScore + (1 - alpha) * Number(existing.rl_score),
+      rl_confidence: Math.min(0.99, Number(existing.rl_confidence) + 0.02),
+      sample_count: Number(existing.sample_count) + 1,
+      rl_updated_at: new Date().toISOString(),
+    }).eq('hook_id', hookId).eq('vertical', vertical);
+  } else {
+    await client.database.from('hook_performance').insert({
+      hook_id: hookId,
+      vertical,
+      rl_score: newScore,
+      rl_confidence: 0.5,
+      sample_count: 1,
+      rl_updated_at: new Date().toISOString(),
+    });
+  }
 }
