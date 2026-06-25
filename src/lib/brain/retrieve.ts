@@ -49,17 +49,21 @@ function scorePageRelevance(body: string, query: string): number {
 /**
  * Retrieves creator brain context for AI generation.
  * Always includes core pages; adds relevant published posts when query provided.
+ * When workspaceId is provided, all page lookups are scoped to that workspace
+ * so agency clients only see their own brain content.
  */
 export async function retrieveBrainContext(
   client: InsforgeClient,
   userId: string,
   query?: string,
+  workspaceId?: string,
 ): Promise<string[]> {
   const snippets: string[] = [];
 
   const coreSlugs = [BRAIN_SLUG.voice, BRAIN_SLUG.profile, BRAIN_SLUG.wins];
   for (const slug of coreSlugs) {
-    const page = await getBrainPage(client, userId, slug);
+    // Pass workspaceId so the page fetch is scoped to the correct workspace.
+    const page = await getBrainPage(client, userId, slug, workspaceId);
     if (!page?.body || page.body.includes('"status":"pending"')) continue;
     const snippet = pageToSnippet(slug, page.body);
     if (snippet.trim()) {
@@ -68,7 +72,8 @@ export async function retrieveBrainContext(
   }
 
   if (query?.trim()) {
-    const pages = await listBrainPages(client, userId);
+    // Scope list to workspace so post lookups don't bleed across clients.
+    const pages = await listBrainPages(client, userId, workspaceId);
     const postPages = pages
       .filter((p) => p.slug.startsWith('post/'))
       .map((p) => ({ page: p, score: scorePageRelevance(p.body, query) }))

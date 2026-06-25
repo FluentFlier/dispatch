@@ -62,7 +62,7 @@ export async function addMemory(params: AddMemoryParams): Promise<MemoryDocument
 export async function searchMemories(
   query: string,
   containerTags?: string[],
-  limit = 5
+  limit = 5,
 ): Promise<{ results: SearchResult[] }> {
   return smFetch<{ results: SearchResult[] }>('/search', {
     method: 'POST',
@@ -77,7 +77,7 @@ export async function searchMemories(
 export async function listMemories(
   containerTags?: string[],
   limit = 20,
-  page = 1
+  page = 1,
 ): Promise<{ memories: MemoryDocument[] }> {
   return smFetch<{ memories: MemoryDocument[] }>('/documents/list', {
     method: 'POST',
@@ -91,16 +91,24 @@ export async function deleteMemory(id: string): Promise<void> {
 
 /**
  * Store a user's persona in Supermemory for semantic retrieval.
- * containerTags scopes it to the user. customId prevents duplicates.
+ * When workspaceId is provided the persona is scoped to that workspace's
+ * container tag (`workspace_${workspaceId}`) so agency clients maintain
+ * independent voice profiles. Without workspaceId falls back to the
+ * legacy `user_${userId}` tag for backwards compatibility.
+ * customId prevents duplicate entries on re-run.
  */
 export async function storePersona(
   userId: string,
   personaContent: string,
-  metadata?: Record<string, string | number | boolean>
+  metadata?: Record<string, string | number | boolean>,
+  workspaceId?: string,
 ): Promise<MemoryDocument> {
+  // Use workspace-scoped container tag when available; fall back to user tag
+  // so personal/legacy accounts continue to work without changes.
+  const scopeTag = workspaceId ? `workspace_${workspaceId}` : `user_${userId}`;
   return addMemory({
     content: personaContent,
-    containerTags: [`user_${userId}`, 'persona'],
+    containerTags: [scopeTag, 'persona'],
     customId: `persona_${userId}`,
     metadata: { type: 'persona', userId, ...metadata },
   });
@@ -108,12 +116,19 @@ export async function storePersona(
 
 /**
  * Search a user's stored memories for context relevant to content generation.
+ * When workspaceId is provided searches the workspace-scoped container tag
+ * so results are isolated to the correct agency client. Without workspaceId
+ * falls back to the legacy `user_${userId}` tag for personal accounts.
  */
 export async function searchUserContext(
   userId: string,
   query: string,
-  limit = 5
+  limit = 5,
+  workspaceId?: string,
 ): Promise<SearchResult[]> {
-  const { results } = await searchMemories(query, [`user_${userId}`], limit);
+  // Resolve the correct container tag — workspace-scoped for agency clients,
+  // user-scoped for personal/legacy accounts.
+  const scopeTag = workspaceId ? `workspace_${workspaceId}` : `user_${userId}`;
+  const { results } = await searchMemories(query, [scopeTag], limit);
   return results;
 }
