@@ -4,6 +4,15 @@ import { getEngagementInbox, type InboxFilter } from '@/lib/engagement/inbox';
 
 const FILTERS: InboxFilter[] = ['all', 'needs_reply', 'drafted', 'sent'];
 
+/**
+ * GET /api/engagement/inbox
+ *
+ * Returns comment groups for the authenticated user's engagement inbox.
+ * Each comment row includes L5 signal fields — is_content_signal and content_angle —
+ * so the frontend can render the lightbulb indicator on comments that generated a content idea.
+ * These fields come through the select('*') in getEngagementInbox and require no
+ * additional join: they are columns on post_comments added in the L5 DB migration.
+ */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

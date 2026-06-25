@@ -13,6 +13,12 @@ export interface PostCommentRow {
   commented_at: string | null;
   parent_comment_id: string | null;
   synced_at: string;
+  // --- L5: Engagement Signal Detection ---
+  // Set by draftEngagementReplies after Haiku signal check.
+  // Drives the 💡 indicator in the inbox UI.
+  is_content_signal: boolean | null;
+  content_angle: string | null;
+  signal_processed_at: string | null;
 }
 
 export interface CommentReplyQueueRow {

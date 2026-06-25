@@ -14,6 +14,10 @@ import type {
 } from '@/lib/engagement/types';
 import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { isEnabled } from '@/lib/feature-flags';
+import { checkAndIncrementUsage } from '@/lib/ai-budget';
+import { generateContent } from '@/lib/claude';
+import { getActiveWorkspaceId } from '@/lib/workspace';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -198,6 +202,18 @@ export async function getEngagementInbox(
   };
 }
 
+/** Maximum Haiku signal-detection calls allowed per workspace per engagement-draft run.
+ * Dual-cap pattern: this per-run cap prevents any single cron execution from burning the
+ * full daily Haiku budget. The daily hard cap in ai-budget.ts is the absolute ceiling.
+ * Both guards must be present — per-run for spike protection, per-day for total cost control.
+ */
+const MAX_HAIKU_PER_RUN = 25;
+
+/** Generic comment phrases that never contain actionable content signals.
+ * Pre-filtered client-side before any Haiku call to eliminate noise LLM calls.
+ */
+const GENERIC_PHRASES = ['great post', 'so true', 'love this', 'thanks for sharing', 'well said'];
+
 export async function draftEngagementReplies(
   client: InsforgeClient,
   userId: string,
@@ -244,6 +260,9 @@ export async function draftEngagementReplies(
 
   const { profile, contextAdditions } = await loadCreatorVoiceContext(client, userId);
 
+  // Resolve workspace once for the entire run — needed for signal detection budget checks
+  const workspaceId = await getActiveWorkspaceId(userId);
+
   const postIds = Array.from(new Set(commentRows.map((c) => c.post_id)));
   const { data: posts } = await client.database
     .from('posts')
@@ -254,6 +273,16 @@ export async function draftEngagementReplies(
     ((posts ?? []) as Array<{ id: string; title: string }>).map((p) => [p.id, p.title]),
   );
 
+  // --- L5: Per-Run Signal Detection Cap ---
+  // Declared outside the loop so it persists across all comment iterations.
+  // Dual-cap pattern: this resets per engagement-draft invocation, not per day.
+  let haikusUsed = 0;
+
+  // Check feature flag once per run — avoids N async flag reads inside the loop
+  const signalsEnabled = workspaceId
+    ? await isEnabled(client, 'layer5_engagement_signals')
+    : false;
+
   for (const comment of commentRows) {
     if (drafted >= limit) break;
     if (blocked.has(comment.id)) {
@@ -261,9 +290,11 @@ export async function draftEngagementReplies(
       continue;
     }
 
+    const postTitle = titleByPost.get(comment.post_id) ?? 'Post';
+
     try {
       const result = await generateWithVoicePipeline({
-        userPrompt: buildReplyPrompt(comment, titleByPost.get(comment.post_id) ?? 'Post'),
+        userPrompt: buildReplyPrompt(comment, postTitle),
         profile,
         contextAdditions: contextAdditions || undefined,
         platform: comment.platform,
@@ -299,6 +330,72 @@ export async function draftEngagementReplies(
         draft_reply: result.text,
         voice_match_score: result.voice_match_score,
       });
+
+      // --- L5: Comment Signal Detection (Step 2) ---
+      // Runs after the reply draft succeeds — never blocks or delays the reply path.
+      // Dual-cap guard: feature flag + per-run Haiku cap. Daily hard cap enforced inside
+      // checkAndIncrementUsage. Both caps must be satisfied before any LLM call fires.
+      if (signalsEnabled && workspaceId && haikusUsed < MAX_HAIKU_PER_RUN) {
+        const budget = await checkAndIncrementUsage(client, workspaceId, 'haiku');
+
+        if (budget === 'blocked') {
+          // Mark processed even when budget is exhausted — prevents re-scan on next cron run
+          await client.database
+            .from('post_comments')
+            .update({ signal_processed_at: new Date().toISOString() })
+            .eq('id', comment.id);
+        } else {
+          const text = comment.comment_text ?? '';
+          const isGeneric =
+            text.length < 50 ||
+            GENERIC_PHRASES.some((p) => text.toLowerCase().includes(p));
+
+          if (!isGeneric) {
+            try {
+              const signalPrompt = `Is this comment asking a question worth a full post? Does it reveal a perspective worth addressing? Could it serve as a hook for a follow-up post?\n\nCOMMENT: "${text.slice(0, 500)}"\n\nReturn ONLY valid JSON: {"is_signal": boolean, "angle": "string or empty", "pillar": "general|ai|tech|founder_story|hot_take|event_recap|other"}`;
+              const raw = await generateContent(signalPrompt, undefined, undefined, null);
+              const parsed = JSON.parse(
+                raw.replace(/```json|```/g, '').trim(),
+              ) as { is_signal: boolean; angle: string; pillar: string };
+
+              if (parsed.is_signal && parsed.angle) {
+                await client.database
+                  .from('post_comments')
+                  .update({
+                    is_content_signal: true,
+                    content_angle: parsed.angle,
+                    signal_processed_at: new Date().toISOString(),
+                  })
+                  .eq('id', comment.id);
+
+                await client.database.from('content_ideas').insert({
+                  user_id: userId,
+                  workspace_id: workspaceId,
+                  idea: parsed.angle,
+                  pillar: parsed.pillar,
+                  source: 'from_comment',
+                  source_comment_id: comment.id,
+                  status: 'suggested',
+                  notes: `From reply to "${postTitle}" — @${comment.author_handle ?? 'unknown'}`,
+                  converted: false,
+                });
+              } else {
+                await client.database
+                  .from('post_comments')
+                  .update({ signal_processed_at: new Date().toISOString() })
+                  .eq('id', comment.id);
+              }
+              haikusUsed++;
+            } catch (err) {
+              console.error('[l5/signal] detection failed (non-blocking):', err);
+              await client.database
+                .from('post_comments')
+                .update({ signal_processed_at: new Date().toISOString() })
+                .eq('id', comment.id);
+            }
+          }
+        }
+      }
     } catch (e) {
       errors.push(e instanceof Error ? e.message : 'Draft failed');
       skipped++;
