@@ -17,7 +17,26 @@ export type HookVertical =
   | 'copywriting'
   | 'ai'
   | 'tech'
+  | 'event_recap'
+  | 'founder_story'
+  | 'product_launch'
+  | 'customer_story'
+  | 'hot_take'
   | 'general';
+
+export const PILLAR_TO_VERTICAL: Record<string, HookVertical> = {
+  'ai':          'ai',
+  'tech':        'tech',
+  'hot-take':    'hot_take',
+  'founder':     'founder_story',
+  'hackathon':   'founder_story',
+  'explainer':   'ai',
+  'research':    'ai',
+  'event_recap': 'event_recap',
+  'product':     'product_launch',
+  'customer':    'customer_story',
+  'general':     'general',
+};
 
 export interface ExtractedHook {
   id: string;                    // hash of text + author

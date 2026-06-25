@@ -277,6 +277,11 @@ const VERT_TOPICS: Record<HookVertical, string[]> = {
   ai: ['my workflow', 'a custom GPT', 'an AI agent', 'my prompts', 'my content pipeline', 'my support inbox'],
   tech: ['my app', 'our backend', 'my database', 'our infra', 'my codebase', 'our API'],
   copywriting: ['my copy', 'my headlines', 'my CTAs', 'my emails', 'my hooks'],
+  event_recap: ['my event', 'the conference', 'the meetup', 'the talk', 'the panel'],
+  founder_story: ['my startup', 'my founder journey', 'building in public', 'my company'],
+  product_launch: ['my product', 'our launch', 'shipping', 'our new feature'],
+  customer_story: ['my client', 'our customer', 'the case study', 'the win'],
+  hot_take: ['my opinion', 'the truth', 'unpopular take', 'the real reason'],
   general: ['my business', 'my work', 'my career', 'my decisions', 'my routine'],
 };
 

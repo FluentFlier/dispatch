@@ -171,5 +171,10 @@ export const VERTICAL_LABELS: Record<HookVertical, string> = {
   copywriting: 'Copywriting',
   ai: 'AI & Tech',
   tech: 'Technology',
+  event_recap: 'Event Recap',
+  founder_story: 'Founder Story',
+  product_launch: 'Product Launch',
+  customer_story: 'Customer Story',
+  hot_take: 'Hot Take',
   general: 'General',
 };
