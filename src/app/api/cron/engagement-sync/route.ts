@@ -3,18 +3,18 @@ import { getServiceClient } from '@/lib/insforge/server';
 import { syncEngagementComments } from '@/lib/engagement/sync';
 import { logError, logInfo } from '@/lib/logger';
 import { bucketEngagers } from '@/lib/hooks-intelligence/categorize';
-import { runTrainingStep } from '@/lib/hooks-intelligence/rl-trainer';
 import { prodMining } from '@/lib/hooks-intelligence/prod-mining';
 import { usage } from '@/lib/hooks-intelligence/usage-tracker';
 
 /**
  * GET /api/cron/engagement-sync: pull comments for users with published posts.
  * Protected by CRON_SECRET Bearer token.
- * 
+ *
  * Also triggers closed-loop intelligence:
  *  - Categorize engagers (ICP / leads etc for actionable analytics)
- *  - Run RL training step (performance + edit signals)
  *  - Scheduled prod mining (Apify in prod, gstack fallback in dev)
+ *
+ * Note: RL hook scoring (Layer 2) is handled separately by /api/cron/intelligence-sync.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization');
@@ -54,9 +54,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         // Placeholder: if sync returned engagers we would do:
         // const buckets = bucketEngagers(engagersFromSync, orgKeywords);
         // then pass leads count into PerformanceSignal for RL
-
-        // 3. Run training step (edits + any performance from this sync)
-        runTrainingStep([], []); // Will grow as we wire real signals from inbox + edit-feedback
+        //
+        // Note: RL training (hook scoring) is handled by the nightly intelligence-sync
+        // cron (/api/cron/intelligence-sync). This cron stays fast — engagement only.
       } catch (err) {
         logError('engagement-sync user failed', {
           userId,
@@ -75,7 +75,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (process.env.USE_PROD_MINING === 'true' || process.env.NODE_ENV === 'production') {
       try {
         await prodMining.scheduledMineForOrg('system'); // multi-tenant: loop over orgs with watchlists in future
-        logInfo('[Cron] Prod mining + RL cycle triggered');
+        logInfo('[Cron] Prod mining triggered');
       } catch (mineErr) {
         logError('prod-mining in cron failed', { message: String(mineErr) });
       }

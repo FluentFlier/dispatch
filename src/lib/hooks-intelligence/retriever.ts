@@ -1,6 +1,6 @@
 /**
  * Hook/Post Retriever + RAG Layer (core for agents/generation)
- * 
+ *
  * Now with proper RAG over mined gstack data + scores + categories.
  * Semantic + scored retrieval for best real-world examples.
  * This + RL (scorer + edit/performance feedback) + Imagine eval loop = the training/intelligence.
@@ -10,6 +10,9 @@
 import { loadHookDataset } from './index';
 import { bucketEngagers } from './categorize'; // Imagine-inspired categorization
 import type { ExtractedHook, HookVertical } from './types';
+import type { createClient } from '@insforge/sdk';
+
+type InsforgeClient = ReturnType<typeof createClient>;
 
 export interface RetrieveOptions {
   query?: string;
@@ -35,7 +38,7 @@ export function retrieveBestExamples(options: RetrieveOptions = {}): ExtractedHo
     const q = options.query.toLowerCase().split(/\s+/);
     candidates = candidates.filter(h => {
       const text = (h.text + ' ' + h.author).toLowerCase();
-      return q.some(word => text.includes(word)) || 
+      return q.some(word => text.includes(word)) ||
              (h.verticals || []).some(v => v.includes(options.query!.toLowerCase()));
     });
   }
@@ -86,3 +89,41 @@ export function getHookContextForAgent(options: RetrieveOptions = {}): string {
  * For full RAG training: This function + mined dataset = the knowledge.
  * Future: Embed all hooks, retrieve by cosine. For now, this + scorer = working intelligence.
  */
+
+/**
+ * DB-first hook retrieval: reads hook_performance learned scores, fills remaining
+ * slots with static scorer fallback. Called by voice pipeline for generation context.
+ * DB scores = real engagement signal. Static = bundled dataset heuristics.
+ */
+export async function getBestHooksForVerticalDB(
+  client: InsforgeClient,
+  vertical: HookVertical,
+  limit = 8,
+): Promise<Array<{ hookId: string; score: number; source: 'db' | 'static' }>> {
+  const { data: dbScores } = await client.database
+    .from('hook_performance')
+    .select('hook_id, rl_score')
+    .eq('vertical', vertical)
+    .order('rl_score', { ascending: false })
+    .limit(limit * 2);
+
+  const dbHookIds = new Set((dbScores ?? []).map(r => r.hook_id as string));
+  const results: Array<{ hookId: string; score: number; source: 'db' | 'static' }> =
+    (dbScores ?? []).map(r => ({
+      hookId: r.hook_id as string,
+      score: Number(r.rl_score),
+      source: 'db' as const,
+    }));
+
+  if (results.length < limit) {
+    const dataset = loadHookDataset();
+    const staticHooks = dataset.hooks
+      .filter(h => h.verticals?.includes(vertical) && !dbHookIds.has(h.id))
+      .sort((a, b) => (dataset.scores[b.id]?.total ?? 70) - (dataset.scores[a.id]?.total ?? 70))
+      .slice(0, limit - results.length);
+    for (const h of staticHooks) {
+      results.push({ hookId: h.id, score: dataset.scores[h.id]?.total ?? 70, source: 'static' });
+    }
+  }
+  return results.slice(0, limit);
+}

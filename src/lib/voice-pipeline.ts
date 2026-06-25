@@ -25,10 +25,12 @@ export interface VoicePipelineResult {
   flags: string[];
   evaluation?: VoiceEvaluationMatrix;
   iterations: number;
+  /** IDs of hooks injected into the generation prompt, stored on the post for nightly RL scoring. */
+  usedHookIds?: string[];
 }
 
 function stripEmDashes(text: string): string {
-  return text.replace(/\u2014/g, ' - ').replace(/\u2013/g, '-');
+  return text.replace(/—/g, ' - ').replace(/–/g, '-');
 }
 
 /**
@@ -51,7 +53,8 @@ export async function generateWithVoicePipeline(
   // Pull real, ranked, high-conversion hooks mined via gstack from the best creators.
   // This is how we make posts *actually* amazing instead of generic.
   const topHooks = getBestHooksForContext(undefined as any, 6); // can be made vertical-aware later
-  const hookExamples = topHooks.length > 0 
+  const usedHookIds = topHooks.map(h => h.id);
+  const hookExamples = topHooks.length > 0
     ? `\n\nREAL HIGH-CONVERTING HOOK EXAMPLES (use these structures + adapt to voice):\n${topHooks.map((h, i) => `${i+1}. "${h.text}" (@${h.author})`).join('\n')}`
     : '';
 
@@ -115,7 +118,7 @@ Return ONLY the new text.`;
   const ai_score = evaluation ? evaluation.ai_slop * 10 : 0;
   const flags: string[] = evaluation && !evaluation.pass
     ? ['below_voice_threshold']
-  : [];
+    : [];
 
   return {
     text,
@@ -125,5 +128,6 @@ Return ONLY the new text.`;
     flags,
     evaluation,
     iterations,
+    usedHookIds: usedHookIds.length > 0 ? usedHookIds : undefined,
   };
 }
