@@ -406,11 +406,38 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .eq('id', postId)
       .eq('user_id', user.id);
 
+    // Resolve workspace for L3/L4 post-publish hooks
+    const { getActiveWorkspaceId } = await import('@/lib/workspace');
+    const workspaceId = await getActiveWorkspaceId(user.id);
+
+    // L3: sync published post to Creator Brain + Supermemory (non-blocking)
+    // workspaceId param available after L3 branch merged — function accepts it as optional 4th arg
     try {
       const { syncBrainPublishedPost } = await import('@/lib/brain/sync');
-      await syncBrainPublishedPost(client, user.id, postId);
+      await (syncBrainPublishedPost as (c: typeof client, u: string, p: string, w?: string) => Promise<void>)(
+        client, user.id, postId, workspaceId ?? undefined
+      );
     } catch (err) {
-      console.warn('Brain post sync failed (non-critical):', err);
+      console.warn('[publish] brain sync failed (non-critical):', err);
+    }
+
+    // L4: update voice quality EMA metrics (non-blocking, fire-and-forget)
+    // voice-metrics module available after L4 branch merged
+    if (workspaceId) {
+      const { data: postData } = await client.database
+        .from('posts')
+        .select('voice_match_score, ai_score, voice_evaluation')
+        .eq('id', postId)
+        .maybeSingle();
+
+      if (postData?.voice_match_score && postData.voice_evaluation) {
+        import('@/lib/voice-metrics' as string).then((mod: Record<string, unknown>) => {
+          const fn = mod['updateVoiceMetrics'] as Function;
+          if (typeof fn === 'function') {
+            return fn(client, workspaceId, user.id, platform, postData.voice_evaluation, Number(postData.voice_match_score), Number(postData.ai_score ?? 0), postId);
+          }
+        }).catch(() => {});
+      }
     }
   }
 

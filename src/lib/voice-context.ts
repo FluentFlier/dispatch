@@ -39,6 +39,11 @@ interface LoadVoiceContextOptions {
    * Falls back to user_id-only lookup when null (pre-migration rows).
    */
   workspaceId?: string;
+  /**
+   * Publishing platform (linkedin|twitter|threads). When set alongside workspaceId,
+   * L4 voice metrics baseline is injected so generation targets the user's own score.
+   */
+  platform?: string;
 }
 
 function parseJsonSetting<T>(value: string | null | undefined): T | undefined {
@@ -244,7 +249,7 @@ export async function loadCreatorVoiceContext(
     }
   }
 
-  const contextAdditions = buildVoiceContextAdditions({
+  let contextAdditions = buildVoiceContextAdditions({
     bioFacts,
     vocabulary,
     structural,
@@ -253,6 +258,51 @@ export async function loadCreatorVoiceContext(
     memorySnippets,
     userContext,
   });
+
+  // L3: inject unused Story Bank angles so captured memories inform new drafts
+  if (options.workspaceId) {
+    try {
+      const { data: storyRows } = await client.database
+        .from('story_bank')
+        .select('mined_angle, pillar')
+        .eq('user_id', userId)
+        .eq('workspace_id', options.workspaceId)
+        .eq('used', false)
+        .not('mined_angle', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(3);
+
+      if (storyRows?.length) {
+        contextAdditions +=
+          '\n\nUNUSED STORY BANK ANGLES (consider weaving into this draft):\n' +
+          storyRows.map((s, i) => `${i + 1}. ${s.mined_angle}`).join('\n');
+      }
+    } catch {
+      // Story bank optional
+    }
+  }
+
+  // L4: inject voice quality baseline so generation targets the user's own standard
+  if (options.workspaceId && options.platform) {
+    try {
+      const { data: metrics } = await client.database
+        .from('workspace_voice_metrics')
+        .select('avg_voice_match_score, avg_ai_score, post_count')
+        .eq('workspace_id', options.workspaceId)
+        .eq('platform', options.platform)
+        .maybeSingle();
+
+      if (metrics && Number(metrics.post_count) >= 3) {
+        contextAdditions +=
+          `\n\nYour recent ${options.platform} performance: ` +
+          `${Number(metrics.avg_voice_match_score).toFixed(0)}/100 voice match, ` +
+          `${Number(metrics.avg_ai_score).toFixed(0)}/100 AI detection ` +
+          `(${metrics.post_count} posts). Maintain or beat these scores.`;
+      }
+    } catch {
+      // Metrics optional
+    }
+  }
 
   return { profile, contextAdditions };
 }
