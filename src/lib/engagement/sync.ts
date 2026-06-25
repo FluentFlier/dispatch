@@ -253,66 +253,10 @@ export async function syncEngagementComments(
 
   const synced = inserted + updated;
 
-  // === CLOSED LOOP: RL Training + Real Lead Categorization (Imagine architecture, gstack-powered) ===
-  // Now with full persistence to lead_categories for actionable consumer analytics.
-  try {
-    const { runTrainingStep } = await import('@/lib/hooks-intelligence/rl-trainer');
-    const { bucketEngagers } = await import('@/lib/hooks-intelligence/categorize');
-
-    // Query the comments we just synced for this user and categorize for real leads/ICP
-    const { data: recentComments } = await client.database
-      .from('post_comments')
-      .select('author_name, author_handle, comment_text')
-      .eq('user_id', userId)
-      .order('commented_at', { ascending: false })
-      .limit(100);
-
-    let realLeadsGenerated = 0;
-    if (recentComments && recentComments.length > 0) {
-      const engagers = recentComments.map((c: any) => ({
-        name: c.author_name,
-        handle: c.author_handle,
-        bio: c.comment_text || '',
-        engagementType: 'comment' as const,
-      }));
-
-      const buckets = bucketEngagers(engagers, ['founder', 'ceo', 'builder', 'indie', 'startup', 'investor']);
-
-      realLeadsGenerated = (buckets.ICP?.length || 0) + (buckets['Potential Lead']?.length || 0);
-
-      // Persist to lead_categories table for real analytics UI and value proof
-      const inserts = [];
-      for (const cat of ['ICP', 'Potential Lead', 'Community', 'Other'] as const) {
-        for (const e of buckets[cat] || []) {
-          inserts.push({
-            user_id: userId,
-            category: cat,
-            engager_handle: e.handle,
-            reason: `Categorized from engagement sync as ${cat} (bio/handle match)`,
-            created_at: new Date().toISOString(),
-          });
-        }
-      }
-      if (inserts.length > 0) {
-        // Fire and forget persistence for leads (table may need RLS or migration in real InsForge)
-        void client.database.from('lead_categories').insert(inserts as any);
-      }
-    }
-
-    // RL signals now use real lead counts
-    const signals = synced > 0 ? [{
-      engagementRate: Math.min(0.15, synced / 200),
-      leadsGenerated: realLeadsGenerated || Math.floor(synced / 3),
-      success: synced > 5,
-    }] : [];
-
-    if (signals.length) {
-      runTrainingStep(signals);
-      console.log(`[Content-OS Closed Loop] RL + real lead categorization complete. Intelligence evolving.`);
-    }
-  } catch (e) {
-    console.warn('RL training + lead categorization step skipped:', e);
-  }
+  // RL training removed from sync — Layer 2 intelligence-sync handles it with real signals.
+  // Proxy signals (synced_count / 200) would double-count once L2 nightly cron runs.
+  // Lead categorization via bucketEngagers still runs during draftEngagementReplies where
+  // it has access to the full comment context. Sync stays fast and single-purpose.
 
   return {
     synced,

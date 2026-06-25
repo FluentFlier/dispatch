@@ -4,21 +4,39 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
 import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const client = getServerClient();
   const workspaceId = await getActiveWorkspaceId(user.id);
 
+  // Optional status filter: ?status=suggested returns the Suggested pile.
+  // When absent, return active ideas only (default workspace behaviour).
+  const VALID_STATUSES = ['active', 'suggested', 'dismissed'] as const;
+  type IdeaStatus = (typeof VALID_STATUSES)[number];
+  const rawStatus = request.nextUrl.searchParams.get('status');
+  const statusFilter: IdeaStatus | null = VALID_STATUSES.includes(rawStatus as IdeaStatus)
+    ? (rawStatus as IdeaStatus)
+    : null;
+
   let query = client
     .database.from('content_ideas')
-    .select('*')
+    .select('id, idea, pillar, source, source_comment_id, status, notes, priority, created_at, converted, workspace_id, user_id')
     .eq('user_id', user.id)
     .order('priority', { ascending: false })
     .order('created_at', { ascending: false });
+
   // Scope to the active workspace (rows are backfilled with workspace_id).
   if (workspaceId) query = query.eq('workspace_id', workspaceId);
+
+  // Apply status filter — default to 'active' when no param provided so the
+  // Ideas page doesn't surface suggested/dismissed rows in the main list.
+  if (statusFilter) {
+    query = query.eq('status', statusFilter);
+  } else {
+    query = query.eq('status', 'active');
+  }
 
   const { data, error } = await query;
   if (error) return errorResponse('Could not load ideas.', 500, error);
