@@ -1,5 +1,5 @@
 import { cookies } from 'next/headers';
-import { getServerClient } from '@/lib/insforge/server';
+import { getServerClient, getServiceClient } from '@/lib/insforge/server';
 import { getUserEntitlements } from '@/lib/entitlements';
 
 export const WORKSPACE_COOKIE = 'content-os-workspace';
@@ -70,8 +70,13 @@ export async function ensureSoloWorkspace(userId: string): Promise<Workspace> {
   const list = await listWorkspaces(userId);
   if (list.length) return list.find((w) => w.type === 'solo') ?? list[0];
 
-  const client = getServerClient();
-  const { data, error } = await client.database
+  // Use the service-role client for these two inserts. ensureSoloWorkspace is
+  // called during the login flow before the session cookie has been written, so
+  // getServerClient() would produce an anonymous DB connection that fails the
+  // RLS WITH CHECK on the workspaces table. The service key bypasses RLS only
+  // for this provisioning step; all reads still use the user-scoped client.
+  const adminClient = getServiceClient();
+  const { data, error } = await adminClient.database
     .from('workspaces')
     .insert([{ owner_user_id: userId, name: 'My workspace', type: 'solo' }])
     .select('id, name, type, owner_user_id')
@@ -79,7 +84,7 @@ export async function ensureSoloWorkspace(userId: string): Promise<Workspace> {
   if (error || !data) throw new Error('Could not create workspace');
 
   const w = data as Workspace;
-  await client.database
+  await adminClient.database
     .from('workspace_members')
     .insert([{ workspace_id: w.id, user_id: userId, role: 'owner' }]);
   return { ...w, role: 'owner' };

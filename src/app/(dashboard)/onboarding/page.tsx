@@ -131,6 +131,17 @@ export default function OnboardingPage() {
       if (!userData?.user) throw new Error('Not logged in');
       const userId = userData.user.id;
 
+      // Resolve the workspace created during login (ensureSoloWorkspace).
+      // Both upserts must carry workspace_id so rows are workspace-scoped
+      // from day one and ready for the future workspace-based RLS upgrade.
+      const { data: memberRows } = await insforge.database
+        .from('workspace_members')
+        .select('workspace_id')
+        .eq('user_id', userId)
+        .limit(1);
+      const workspaceId: string | null = memberRows?.[0]?.workspace_id ?? null;
+      if (!workspaceId) throw new Error('No workspace found — please sign out and sign back in.');
+
       // Filter out empty pillars
       const validPillars = pillars.filter((p) => p.name.trim().length > 0);
 
@@ -140,6 +151,7 @@ export default function OnboardingPage() {
         .upsert(
           {
             user_id: userId,
+            workspace_id: workspaceId,
             display_name: displayName.trim(),
             bio: bio.trim() || null,
             bio_facts: bio.trim(),
@@ -160,6 +172,7 @@ export default function OnboardingPage() {
           .upsert(
             {
               user_id: userId,
+              workspace_id: workspaceId,
               key: 'context_additions',
               value: contextAdditions.trim(),
               updated_at: new Date().toISOString(),
