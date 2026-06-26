@@ -35,9 +35,15 @@ describe('getSocialProviderMode', () => {
     expect(getSocialProviderMode()).toBe('direct');
   });
 
-  it('uses ayrshare when an Ayrshare key is present', () => {
+  it('uses unipile when UNIPILE_API_KEY is present', () => {
     vi.stubEnv('SOCIAL_PROVIDER_MODE', '');
-    vi.stubEnv('AYRSHARE_API_KEY', 'key');
-    expect(getSocialProviderMode()).toBe('ayrshare');
+    vi.stubEnv('UNIPILE_API_KEY', 'key');
+    expect(getSocialProviderMode()).toBe('unipile');
+  });
+
+  it('defaults to direct when no provider key set', () => {
+    vi.stubEnv('SOCIAL_PROVIDER_MODE', '');
+    vi.stubEnv('UNIPILE_API_KEY', '');
+    expect(getSocialProviderMode()).toBe('direct');
   });
 });
