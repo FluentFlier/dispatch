@@ -115,6 +115,24 @@ describe('ensureSoloWorkspace — creates solo workspace on first call', () => {
           }),
         },
       }),
+      getServiceClient: vi.fn().mockReturnValue({
+        database: {
+          from: vi.fn().mockImplementation((table: string) => {
+            if (table === 'workspace_members') {
+              return {
+                select: vi.fn().mockReturnThis(),
+                eq: vi.fn().mockReturnThis(),
+                limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+                insert: memberInsertMock,
+              };
+            }
+            if (table === 'workspaces') {
+              return { insert: insertMock };
+            }
+            return {};
+          }),
+        },
+      }),
     }));
     vi.doMock('next/headers', () => ({
       cookies: vi.fn().mockReturnValue({ get: vi.fn().mockReturnValue(null) }),

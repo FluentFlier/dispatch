@@ -127,7 +127,19 @@ describe('P3-3: syncBrainPublishedPost — syncBrainWins not called per post', (
           limit: topFiveQueryMock,
         };
       }
-      return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis() };
+      // Default: covers creator_brain_pages, feature_flags, and any other table
+      const singleMock = vi.fn().mockResolvedValue({ data: { id: 'bp-1', enabled: false }, error: null });
+      const selectAfterUpsert = vi.fn().mockReturnValue({ single: singleMock });
+      return {
+        select: vi.fn().mockReturnValue({
+          eq: vi.fn().mockReturnValue({
+            single: singleMock,
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+          }),
+        }),
+        eq: vi.fn().mockReturnThis(),
+        upsert: vi.fn().mockReturnValue({ select: selectAfterUpsert }),
+      };
     });
 
     vi.doMock('@/lib/brain/pages', () => ({

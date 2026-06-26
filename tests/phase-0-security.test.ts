@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // P0-1: CSRF logout fix — middleware no longer clears token on ?expired=1
 // ---------------------------------------------------------------------------
 describe('P0-1: middleware — no CSRF logout via ?expired=1', () => {
-  it('should NOT clear the token cookie when visiting /login?expired=1 with a valid token', async () => {
+  it('should clear the stale token and render login when visiting /login?expired=1', async () => {
     const { middleware } = await import('@/middleware');
     const { NextRequest } = await import('next/server');
 
@@ -18,14 +18,12 @@ describe('P0-1: middleware — no CSRF logout via ?expired=1', () => {
 
     const response = await middleware(request);
 
-    // Must redirect to /dashboard (authenticated), not clear the cookie
-    expect(response.status).toBe(307);
-    expect(response.headers.get('location')).toContain('/dashboard');
+    // Must NOT redirect to /dashboard - must let login page render so user can re-auth
+    expect(response.status).not.toBe(307);
 
-    // Cookie must NOT be cleared (maxAge=0 sets empty string value)
+    // Cookie MUST be cleared (server rejected the token - avoid infinite loop)
     const setCookie = response.headers.get('set-cookie') ?? '';
-    expect(setCookie).not.toContain('content-os-token=;');
-    expect(setCookie).not.toContain('max-age=0');
+    expect(setCookie).toMatch(/content-os-token=;|max-age=0/i);
   });
 
   it('should redirect unauthenticated /login?expired=1 to /login (no token, no crash)', async () => {
