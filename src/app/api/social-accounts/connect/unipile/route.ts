@@ -14,27 +14,27 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const apiKey = process.env.UNIPILE_API_KEY;
-  if (!apiKey) {
+  const dsn = process.env.UNIPILE_DSN;
+
+  if (!apiKey || !dsn) {
     return NextResponse.json(
-      { error: 'Unipile API not configured' },
+      { error: 'Unipile is not configured. Set UNIPILE_API_KEY and UNIPILE_DSN in environment variables.' },
       { status: 500 },
     );
   }
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
-  // Build the Unipile hosted connect URL.
-  // The success_redirect and failure_redirect must be pre-registered with Unipile.
+  // Unipile hosted-connect URL uses the DSN host, not the API base.
+  // DSN format: api54.unipile.com:18402
+  const hostedConnectBase = `https://${dsn.replace(/\/$/, '')}/hosted-connect`;
+
   const params = new URLSearchParams({
-    // Unipile uses the API key in the URL for hosted connect flows.
     api_key: apiKey,
-    success_redirect: `${appUrl}/settings/social?connected=true`,
-    failure_redirect: `${appUrl}/settings/social?error=unipile_failed`,
-    // Pass the user ID as state so the webhook knows which user to associate the account with.
+    success_redirect: `${appUrl}/settings?tab=connections&connected=true`,
+    failure_redirect: `${appUrl}/settings?tab=connections&error=unipile_failed`,
     state: user.id,
   });
 
-  const unipileConnectUrl = `https://api54.unipile.com:18402/hosted-connect?${params.toString()}`;
-
-  return NextResponse.redirect(unipileConnectUrl);
+  return NextResponse.redirect(`${hostedConnectBase}?${params.toString()}`);
 }
