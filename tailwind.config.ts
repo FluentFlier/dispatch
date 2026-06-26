@@ -9,6 +9,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // --- Editorial palette (Swiss-editorial light theme; landing + reskin) ---
+        paper: '#FBFAF7',
+        paper2: '#F4F2EC',
+        ink: '#171717',
+        ink2: '#56544F',
+        ink3: '#908D87',
+        hair: 'rgba(23, 23, 23, 0.10)',
+        hair2: 'rgba(23, 23, 23, 0.16)',
+        blue: { DEFAULT: '#2563EB', dark: '#1D4FD7' },
+        teal: '#0F766E',
+        flame: '#E8543A',
         bg: {
           primary: '#F6F7F4',
           secondary: '#FFFFFF',
@@ -106,6 +117,14 @@ const config: Config = {
           '0%': { backgroundPosition: '200% center' },
           '100%': { backgroundPosition: '-200% center' },
         },
+        'ed-blink': {
+          '0%, 49%': { opacity: '1' },
+          '50%, 100%': { opacity: '0' },
+        },
+        'ed-pulse': {
+          '0%, 100%': { opacity: '0.4' },
+          '50%': { opacity: '1' },
+        },
       },
       animation: {
         'os-marquee': 'os-marquee 46s linear infinite',
@@ -113,6 +132,8 @@ const config: Config = {
         'os-aurora-slower': 'os-aurora 38s ease-in-out infinite',
         'os-pulse-dot': 'os-pulse-dot 2.4s ease-in-out infinite',
         'os-shimmer': 'os-shimmer 6s linear infinite',
+        'ed-blink': 'ed-blink 1s step-end infinite',
+        'ed-pulse': 'ed-pulse 2s ease-in-out infinite',
       },
     },
   },

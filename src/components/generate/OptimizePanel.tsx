@@ -306,8 +306,8 @@ function VariantCard({
           </span>
         </div>
         <span
-          className={`font-body text-[12px] font-medium ${
-            isOverLimit ? 'text-[#F87171]' : 'text-[#4ADE80]'
+          className={`font-mono text-[12px] ${
+            isOverLimit ? 'text-flame' : 'text-teal'
           }`}
         >
           {variant.characterCount}/{charLimit} chars
@@ -326,15 +326,15 @@ function VariantCard({
         <div className="space-y-2">
           {variant.threadParts.map((part, i) => (
             <div key={i} className="bg-bg-secondary rounded-[8px] p-3">
-              <p className="font-body text-[11px] text-text-secondary mb-1">
+              <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink3 mb-1">
                 Part {i + 1}
               </p>
               <pre className="whitespace-pre-wrap font-body text-[13px] text-text-primary leading-[1.55]">
                 {part}
               </pre>
               <p
-                className={`font-body text-[10px] mt-1 ${
-                  part.length > 280 ? 'text-[#F87171]' : 'text-text-secondary'
+                className={`font-mono text-[10px] mt-1 ${
+                  part.length > 280 ? 'text-flame' : 'text-ink3'
                 }`}
               >
                 {part.length}/280

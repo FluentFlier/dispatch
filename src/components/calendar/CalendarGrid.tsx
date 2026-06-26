@@ -146,7 +146,7 @@ export default function CalendarGrid({
                 ref={provided.innerRef}
                 {...provided.droppableProps}
                 onClick={() => onDayCellClick(day)}
-                className={`rounded-lg border border-border bg-bg-secondary p-3 cursor-pointer transition-colors ${
+                className={`rounded-lg border border-hair bg-bg-secondary p-3 cursor-pointer transition-colors ${
                   isToday ? 'ring-1 ring-inset ring-accent-primary' : ''
                 } ${isPickMode ? 'hover:ring-1 hover:ring-accent-primary/60' : ''} ${
                   snapshot.isDraggingOver
@@ -155,12 +155,12 @@ export default function CalendarGrid({
                 }`}
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="text-[12px] text-text-secondary font-medium">
+                  <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink3">
                     {dayLabel}
                   </span>
                   <span
-                    className={`text-[14px] font-medium ${
-                      isToday ? 'text-accent-primary' : 'text-text-primary'
+                    className={`font-mono text-[14px] ${
+                      isToday ? 'text-accent-primary' : 'text-ink'
                     }`}
                   >
                     {viewMode === 'month'
@@ -168,7 +168,7 @@ export default function CalendarGrid({
                       : day.getDate()}
                   </span>
                   {dayPosts.length === 0 && (
-                    <span className="text-[11px] text-text-secondary ml-auto">No posts</span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-ink3 ml-auto">No posts</span>
                   )}
                 </div>
                 <div className="space-y-1.5">
@@ -210,7 +210,7 @@ export default function CalendarGrid({
           {DAY_HEADERS_MON.map((d) => (
             <div
               key={d}
-              className="font-body text-center text-[10px] font-medium text-text-secondary py-2 uppercase tracking-[0.1em]"
+              className="font-mono text-center text-[10px] text-ink3 py-2 uppercase tracking-[0.12em]"
             >
               {d}
             </div>
@@ -218,7 +218,7 @@ export default function CalendarGrid({
         </div>
 
         {/* Day cells */}
-        <div className="grid grid-cols-7 border border-border rounded-lg overflow-hidden">
+        <div className="grid grid-cols-7 border border-hair rounded-lg overflow-hidden">
           {days.map((day, i) => {
             const key = toDateKey(day);
             const isCurrentMonth =
@@ -233,7 +233,7 @@ export default function CalendarGrid({
             const borderClasses = [
               col < 6 ? 'border-r-[0.5px]' : '',
               row < totalRows - 1 ? 'border-b-[0.5px]' : '',
-              'border-border',
+              'border-hair',
             ].join(' ');
 
             return (
@@ -255,12 +255,12 @@ export default function CalendarGrid({
                   >
                     {isWeekView ? (
                       <div className="mb-2">
-                        <span className="text-[11px] text-text-secondary font-medium">
+                        <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink3">
                           {DAY_HEADERS_MON[i]}
                         </span>
                         <span
-                          className={`ml-1 text-[13px] font-medium ${
-                            isToday ? 'text-accent-primary' : 'text-text-primary'
+                          className={`ml-1 font-mono text-[13px] ${
+                            isToday ? 'text-accent-primary' : 'text-ink'
                           }`}
                         >
                           {day.getDate()}
@@ -268,8 +268,8 @@ export default function CalendarGrid({
                       </div>
                     ) : (
                       <span
-                        className={`text-[11px] font-medium ${
-                          isCurrentMonth ? 'text-text-primary' : 'text-text-secondary'
+                        className={`font-mono text-[11px] ${
+                          isCurrentMonth ? 'text-ink' : 'text-ink3'
                         }`}
                       >
                         {day.getDate()}

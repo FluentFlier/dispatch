@@ -120,7 +120,7 @@ No labels. Just caption, blank line, hashtags.`;
   return (
     <div className="space-y-5">
       <div>
-        <label className="block font-body text-[13px] text-text-tertiary mb-2">
+        <label className="block section-label mb-2">
           Script or video idea
         </label>
         <textarea

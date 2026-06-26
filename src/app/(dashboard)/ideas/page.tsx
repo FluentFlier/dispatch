@@ -231,6 +231,7 @@ export default function IdeasPage() {
   return (
     <div className="page-shell space-y-6">
       <PageHeader
+        eyebrow="IDEAS"
         title="Ideas"
         subtitle={
           !loading && ideas.length > 0
@@ -265,7 +266,7 @@ export default function IdeasPage() {
             <button
               key={mode}
               onClick={() => setFilterMode(mode)}
-              className={`px-3 py-2 min-h-[44px] text-[11px] font-medium transition-colors ${
+              className={`px-3 py-2 min-h-[44px] font-mono text-[11px] uppercase tracking-[0.08em] transition-colors ${
                 filterMode === mode
                   ? "bg-coral-light text-accent-primary"
                   : "text-text-secondary hover:text-text-primary"
@@ -306,7 +307,7 @@ export default function IdeasPage() {
           {ideas.length === 0 && (
             <Lightbulb className="w-12 h-12 text-text-secondary mb-4" />
           )}
-          <h2 className="font-heading text-[16px] font-semibold text-text-primary mb-1">
+          <h2 className="font-serif font-normal tracking-[-0.025em] text-ink text-[20px] mb-1">
             {ideas.length === 0 ? "Nothing queued" : "No ideas match your filters"}
           </h2>
           <p className="text-text-secondary text-[13px]">

@@ -75,12 +75,24 @@ select:focus {
     @apply max-w-6xl mx-auto space-y-6 pt-1 pb-8;
   }
 
+  /* Editorial page title: Fraunces display, tight tracking. Every page using
+     .page-title inherits the Swiss-editorial headline treatment. */
   .page-title {
-    @apply text-[28px] font-semibold text-text-primary;
+    @apply font-serif text-[32px] font-normal leading-[1.05] tracking-[-0.025em] text-ink;
   }
 
   .page-subtitle {
-    @apply mt-1 text-[15px] text-text-secondary leading-relaxed;
+    @apply mt-2 max-w-2xl text-[15px] leading-relaxed text-ink2;
+  }
+
+  /* Mono eyebrow above a page/section title (e.g. "02 / THE PROBLEM"). */
+  .page-eyebrow {
+    @apply font-mono text-[11.5px] uppercase tracking-[0.12em] text-flame;
+  }
+
+  /* Hairline rule used to separate major sections on the editorial grid. */
+  .hairline {
+    @apply border-t border-hair;
   }
 
   .card-surface {
@@ -116,7 +128,7 @@ select:focus {
   }
 
   .section-label {
-    @apply text-[11px] font-semibold uppercase tracking-wide text-text-tertiary;
+    @apply font-mono text-[11px] uppercase tracking-[0.12em] text-ink3;
   }
 
   .empty-state {
@@ -243,6 +255,40 @@ select:focus {
 @media (prefers-reduced-motion: reduce) {
   .os-shimmer-text,
   .os-landing [class*='animate-os-'] {
+    animation: none !important;
+  }
+}
+
+/* ───────────────────────── Editorial theme (Swiss-editorial light) ───────────────────────── */
+/* Scoped theme for the marketing landing and the editorial app reskin. Off-white
+   paper, ink type, hairline rules, Fraunces display. Mirrors the design handoff
+   tokens so the look stays consistent between landing and product surfaces. */
+.editorial {
+  background: #fbfaf7;
+  color: #171717;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  font-size: 16px;
+  line-height: 1.6;
+}
+
+.editorial ::selection {
+  background: #171717;
+  color: #fbfaf7;
+}
+
+/* Fraunces display + JetBrains mono helpers (use alongside Tailwind font-serif/mono) */
+.ed-serif {
+  font-family: var(--font-fraunces), Georgia, serif;
+  font-optical-sizing: auto;
+}
+.ed-mono {
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editorial [class*='animate-ed-'] {
     animation: none !important;
   }
 }

@@ -57,7 +57,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${dmSans.variable} ${fraunces.variable} ${hanken.variable} ${jetbrains.variable}`}
+      className={`scroll-smooth ${dmSans.variable} ${fraunces.variable} ${hanken.variable} ${jetbrains.variable}`}
     >
       <body className={dmSans.className}>{children}</body>
     </html>

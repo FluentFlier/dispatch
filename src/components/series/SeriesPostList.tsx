@@ -57,8 +57,8 @@ export default function SeriesPostList({
               key={`empty-${position}`}
               className="flex items-center justify-between px-3 py-2.5 rounded-md border border-dashed border-border"
             >
-              <span className="text-[13px] text-text-secondary">
-                Part {position} - Not started
+              <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink3">
+                Part {position} — Not started
               </span>
               <button
                 onClick={() => onAddPart(position)}
@@ -80,7 +80,7 @@ export default function SeriesPostList({
             className="flex items-center gap-3 px-3 py-2.5 rounded-md bg-bg-tertiary hover:bg-bg-tertiary transition-colors"
           >
             {/* Position number */}
-            <span className="text-[11px] font-medium text-text-secondary w-6 text-center shrink-0">
+            <span className="font-mono text-[11px] text-ink3 w-6 text-center shrink-0">
               {position}
             </span>
 

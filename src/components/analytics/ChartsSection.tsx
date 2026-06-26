@@ -20,18 +20,20 @@ function truncate(s: string, len: number) {
 }
 
 const CHART_TOOLTIP = {
-  backgroundColor: '#FFFFFF',
-  border: '1px solid rgba(28, 25, 23, 0.12)',
-  color: '#1C1917',
+  backgroundColor: '#FBFAF7', // paper
+  border: '1px solid rgba(23, 23, 23, 0.16)', // hair2
+  color: '#171717', // ink
   borderRadius: 8,
 };
 
+// Chart palette aligned to the Swiss-editorial tokens (flame / gold / teal on ink hairlines).
+// Presentational only — chart data and computations are unchanged.
 const CHART_COLORS = {
-  coral: '#E07A5F',
+  coral: '#E8543A', // flame
   yellow: '#D4A054',
-  green: '#3D8B7A',
-  grid: 'rgba(28, 25, 23, 0.08)',
-  text: '#78716C',
+  green: '#0F766E', // teal
+  grid: 'rgba(23, 23, 23, 0.08)',
+  text: '#908D87', // ink3
 };
 
 interface ChartsSectionProps {
@@ -63,8 +65,8 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
 
   return (
     <section className="bg-bg-secondary border border-border rounded-lg p-6 space-y-8">
-      <h2 className="font-heading text-[18px] font-semibold text-text-primary flex items-center gap-2">
-        <TrendingUp size={20} /> Performance Overview
+      <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
+        <TrendingUp size={20} className="text-ink3" /> Performance Overview
       </h2>
 
       {posts.length === 0 ? (
@@ -73,7 +75,7 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
         <>
           {/* Views by post */}
           <div>
-            <h3 className="text-sm text-text-secondary mb-2 font-heading">Views by Post</h3>
+            <h3 className="section-label mb-3">Views by Post</h3>
             <div className="bg-bg-secondary border border-border rounded-lg p-4">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={viewsData}>
@@ -89,7 +91,7 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
 
           {/* Saves by post */}
           <div>
-            <h3 className="text-sm text-text-secondary mb-2 font-heading">Saves by Post</h3>
+            <h3 className="section-label mb-3">Saves by Post</h3>
             <div className="bg-bg-secondary border border-border rounded-lg p-4">
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={savesData}>
@@ -106,7 +108,7 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
           {/* Follows gained */}
           {followsData.length > 0 && (
             <div>
-              <h3 className="text-sm text-text-secondary mb-2 font-heading">Follows Gained Over Time</h3>
+              <h3 className="section-label mb-3">Follows Gained Over Time</h3>
               <div className="bg-bg-secondary border border-border rounded-lg p-4">
                 <ResponsiveContainer width="100%" height={300}>
                   <LineChart data={followsData}>
@@ -124,27 +126,27 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
           {/* Pillar breakdown */}
           {Object.keys(pillarMap).length > 0 && (
             <div>
-              <h3 className="text-sm text-text-secondary mb-2 font-heading">Pillar Breakdown</h3>
+              <h3 className="section-label mb-3">Pillar Breakdown</h3>
               <div className="bg-bg-secondary border border-border rounded-lg overflow-x-auto">
                 <table className="w-full text-sm min-w-[300px]">
                   <thead>
-                    <tr className="border-b-[0.5px] border-border">
-                      <th className="text-left px-4 py-2.5 text-text-secondary font-medium">Pillar</th>
-                      <th className="text-right px-4 py-2.5 text-text-secondary font-medium">Posts</th>
-                      <th className="text-right px-4 py-2.5 text-text-secondary font-medium">Avg Views</th>
+                    <tr className="border-b border-hair">
+                      <th className="text-left px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium">Pillar</th>
+                      <th className="text-right px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium">Posts</th>
+                      <th className="text-right px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium">Avg Views</th>
                     </tr>
                   </thead>
                   <tbody>
                     {Object.entries(pillarMap).map(([pillar, { total, count }]) => (
-                      <tr key={pillar} className="border-b-[0.5px] border-border/50">
+                      <tr key={pillar} className="border-b border-hair/60">
                         <td className="px-4 py-2.5">
                           <span className="flex items-center gap-2">
                             <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: getColor(pillar) }} />
-                            <span className="text-text-primary">{getLabel(pillar)}</span>
+                            <span className="text-ink">{getLabel(pillar)}</span>
                           </span>
                         </td>
-                        <td className="text-right px-4 py-2.5 text-text-primary">{count}</td>
-                        <td className="text-right px-4 py-2.5 text-text-primary">{Math.round(total / count)}</td>
+                        <td className="text-right px-4 py-2.5 font-mono tabular-nums text-ink">{count}</td>
+                        <td className="text-right px-4 py-2.5 font-mono tabular-nums text-ink">{Math.round(total / count)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -155,14 +157,14 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
 
           {/* Top 5 by saves */}
           <div>
-            <h3 className="text-sm text-text-secondary mb-2 font-heading">Best Performers (Top 5 by Saves)</h3>
+            <h3 className="section-label mb-3">Best Performers (Top 5 by Saves)</h3>
             <div className="space-y-2">
               {topBySaves.map((p, i) => (
                 <div key={p.id} className="flex items-center gap-3 bg-bg-tertiary border border-border rounded-lg px-4 py-3">
-                  <span className="text-accent-primary font-heading text-lg w-6">{i + 1}</span>
+                  <span className="text-flame font-mono text-lg tabular-nums w-6">{i + 1}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-text-primary text-sm truncate">{p.title}</p>
-                    <p className="text-text-secondary text-xs">{p.views ?? 0} views / {p.saves ?? 0} saves</p>
+                    <p className="text-ink text-sm truncate">{p.title}</p>
+                    <p className="font-mono text-[11px] tracking-[0.02em] text-ink3">{p.views ?? 0} views / {p.saves ?? 0} saves</p>
                   </div>
                   <PillarDot pillar={p.pillar} showLabel />
                 </div>

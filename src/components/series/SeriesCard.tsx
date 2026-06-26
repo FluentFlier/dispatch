@@ -46,7 +46,7 @@ export default function SeriesCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-heading text-[16px] font-semibold text-text-primary truncate">
+              <h3 className="font-serif text-[18px] font-normal tracking-[-0.02em] text-ink truncate">
                 {series.name}
               </h3>
               <span
@@ -75,7 +75,7 @@ export default function SeriesCard({
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <p className="text-[11px] text-text-secondary">
+              <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink3">
                 {completedParts} of {total} parts complete
               </p>
             </div>
@@ -89,7 +89,7 @@ export default function SeriesCard({
 
       {/* Expanded view */}
       {isExpanded && (
-        <div className="border-t-[0.5px] border-border p-[13px_14px] space-y-4">
+        <div className="border-t border-hair p-[13px_14px] space-y-4">
           {series.description && (
             <p className="text-[13px] text-text-tertiary leading-[1.55]">{series.description}</p>
           )}

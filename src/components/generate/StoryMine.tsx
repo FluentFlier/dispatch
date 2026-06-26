@@ -179,7 +179,7 @@ Use every specific detail from the memory. Never genericize. No em dashes.`;
   return (
     <div className="space-y-5">
       <div>
-        <label className="block font-body text-[13px] text-text-tertiary mb-2">
+        <label className="block section-label mb-2">
           Describe any memory or experience.
         </label>
         <textarea

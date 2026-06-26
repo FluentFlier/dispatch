@@ -82,7 +82,7 @@ export default function TodaysPrompt({ postsSummary }: TodaysPromptProps) {
   return (
     <section className="rounded-lg border border-border bg-bg-secondary p-4 shadow-card">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-semibold uppercase tracking-wide text-text-tertiary">
+        <p className="section-label">
           Idea for today
         </p>
         <button

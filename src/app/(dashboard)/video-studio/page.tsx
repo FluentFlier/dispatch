@@ -12,6 +12,7 @@ import {
 } from '@/components/video-studio';
 import type { TemplateId } from '@/components/video-studio';
 import type { CaptionWord } from '@/components/video-studio/compositions';
+import { PageHeader } from '@/components/layout/PageHeader';
 
 interface VideoFile {
   name: string;
@@ -161,14 +162,11 @@ export default function VideoStudioPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="font-heading text-[22px] font-semibold text-text-primary leading-[1.2] tracking-[-0.02em]">
-          Video Studio
-        </h1>
-        <p className="font-body text-[13px] text-text-secondary mt-1">
-          Upload, apply templates, and export your videos with Remotion-powered compositions.
-        </p>
-      </div>
+      <PageHeader
+        eyebrow="VIDEO STUDIO"
+        title="Video Studio"
+        subtitle="Upload, apply templates, and export your videos with Remotion-powered compositions."
+      />
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         {/* Main column */}
@@ -182,7 +180,7 @@ export default function VideoStudioPage() {
               {showPreview && selectedTemplate ? (
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
-                    <h3 className="font-heading text-[15px] font-semibold text-text-primary">
+                    <h3 className="section-label">
                       Template Preview
                     </h3>
                     <button
@@ -241,7 +239,7 @@ export default function VideoStudioPage() {
 
           {/* Video list */}
           <div className="space-y-3">
-            <h3 className="font-heading text-[15px] font-semibold text-text-primary">
+            <h3 className="section-label">
               Your Videos
             </h3>
             {videos.length === 0 ? (

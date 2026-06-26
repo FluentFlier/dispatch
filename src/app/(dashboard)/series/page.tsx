@@ -7,6 +7,7 @@ import { getInsforge } from "@/lib/insforge/client";
 import type { Series, Post } from "@/lib/types";
 import SeriesCard from "@/components/series/SeriesCard";
 import SeriesPostList from "@/components/series/SeriesPostList";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 export default function SeriesPage() {
   const router = useRouter();
@@ -199,18 +200,19 @@ export default function SeriesPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="font-heading text-[22px] font-semibold text-text-primary leading-[1.2] tracking-[-0.02em]">
-          Series
-        </h1>
-        <button
-          onClick={() => router.push("/generate?tab=series")}
-          className="flex items-center gap-1.5 bg-accent-primary hover:opacity-90 text-white text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-md transition-opacity"
-        >
-          <Plus size={16} />
-          Create Series
-        </button>
-      </div>
+      <PageHeader
+        eyebrow="SERIES"
+        title="Series"
+        action={
+          <button
+            onClick={() => router.push("/generate?tab=series")}
+            className="flex items-center gap-1.5 bg-accent-primary hover:opacity-90 text-white text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-md transition-opacity"
+          >
+            <Plus size={16} />
+            Create Series
+          </button>
+        }
+      />
 
       {/* Content */}
       {loading ? (
@@ -229,7 +231,7 @@ export default function SeriesPage() {
       ) : seriesList.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Layers className="w-12 h-12 text-text-secondary mb-4" />
-          <h2 className="font-heading text-[16px] font-semibold text-text-primary mb-1">
+          <h2 className="font-serif text-[20px] font-normal tracking-[-0.02em] text-ink mb-1">
             No series yet
           </h2>
           <p className="text-text-secondary text-[13px] mb-4">

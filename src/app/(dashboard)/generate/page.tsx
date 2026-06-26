@@ -84,7 +84,7 @@ export default function GeneratePage() {
     <Suspense
       fallback={
         <div className="page-shell">
-          <PageHeader title="Write" subtitle="AI drafts in your voice." />
+          <PageHeader eyebrow="GENERATE" title="Write" subtitle="AI drafts in your voice." />
           <div className="card-surface">
             <SkeletonLines count={3} />
           </div>
@@ -158,20 +158,21 @@ function GeneratePageInner() {
 
   return (
     <div className="page-shell-wide">
-      <section className="rounded-lg border border-border bg-bg-secondary p-6 shadow-card">
+      <section className="rounded-lg border border-hair bg-paper2 p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="inline-flex items-center gap-2 rounded-badge bg-accent-light px-2.5 py-1 text-xs font-medium text-accent-primary">
+            <div className="mb-3 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-ink3">
               <Sparkles className="h-3.5 w-3.5" />
               Voice-aware writing desk
             </div>
             <PageHeader
+              eyebrow="GENERATE"
               title="Write"
               subtitle="Choose the job, give it context, then edit before anything leaves the building."
             />
           </div>
-          <div className="rounded-lg border border-border bg-bg-elevated px-4 py-3 text-sm text-text-secondary lg:max-w-sm">
-            <span className="font-medium text-text-primary">{TAB_DETAILS[activeTab].title}:</span>{' '}
+          <div className="rounded-lg border border-hair bg-paper px-4 py-3 text-sm text-ink2 lg:max-w-sm">
+            <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink">{TAB_DETAILS[activeTab].title}:</span>{' '}
             {TAB_DETAILS[activeTab].outcome}
           </div>
         </div>
@@ -189,23 +190,23 @@ function GeneratePageInner() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
         <section className="card-surface min-h-[360px]">{renderTab()}</section>
         <aside className="space-y-4">
-          <section className="rounded-lg border border-border bg-bg-secondary p-5 shadow-card">
+          <section className="rounded-lg border border-hair bg-paper2 p-5">
             <p className="section-label">Current tool</p>
-            <h2 className="mt-2 text-lg font-semibold text-text-primary">{TAB_DETAILS[activeTab].title}</h2>
-            <p className="mt-2 text-sm leading-6 text-text-secondary">{TAB_DETAILS[activeTab].description}</p>
+            <h2 className="mt-2 font-serif text-lg font-normal tracking-[-0.025em] text-ink">{TAB_DETAILS[activeTab].title}</h2>
+            <p className="mt-2 text-sm leading-6 text-ink2">{TAB_DETAILS[activeTab].description}</p>
           </section>
-          <section className="rounded-lg border border-border bg-bg-secondary p-5 shadow-card">
+          <section className="rounded-lg border border-hair bg-paper2 p-5">
             <p className="section-label">Quality gate</p>
-            <ul className="mt-4 space-y-3 text-sm text-text-secondary">
+            <ul className="mt-4 space-y-3 text-sm text-ink2">
               {['Specific point of view', 'Matches your voice', 'Has a next action'].map((item) => (
                 <li key={item} className="flex items-center gap-2">
-                  <CheckCircle2 className="h-4 w-4 text-accent-secondary" />
+                  <CheckCircle2 className="h-4 w-4 text-teal" />
                   {item}
                 </li>
               ))}
             </ul>
           </section>
-          <a href="/library" className="group flex items-center justify-between rounded-lg border border-border bg-[#101312] p-4 text-sm font-medium text-white shadow-card">
+          <a href="/library" className="group flex items-center justify-between rounded-lg border border-hair bg-ink p-4 text-sm font-medium text-white">
             Review saved drafts
             <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
           </a>

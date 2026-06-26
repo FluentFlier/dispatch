@@ -1,41 +1,39 @@
-'use client';
-
-import { MotionConfig } from 'motion/react';
-import SmoothScroll from './SmoothScroll';
-import ScrollProgress from './ScrollProgress';
-import LandingNav from './LandingNav';
-import Hero from './Hero';
-import PostReceipts from './PostReceipts';
-import TheLoop from './TheLoop';
-import ProductShowcase from './ProductShowcase';
-import VoiceFingerprint from './VoiceFingerprint';
-import NativeEverywhere from './NativeEverywhere';
-import WhatCompounds from './WhatCompounds';
-import FinalCTA from './FinalCTA';
-import SiteFooter from './SiteFooter';
+import Nav from './editorial/Nav';
+import Hero from './editorial/Hero';
+import Problem from './editorial/Problem';
+import Loop from './editorial/Loop';
+import Voice from './editorial/Voice';
+import Distribution from './editorial/Distribution';
+import Week from './editorial/Week';
+import Different from './editorial/Different';
+import Icp from './editorial/Icp';
+import Beta from './editorial/Beta';
+import Footer from './editorial/Footer';
 
 interface Props {
   loggedIn: boolean;
 }
 
+/**
+ * Marketing landing — light Swiss-editorial theme. Composes the section-per-component
+ * layout under a single `.editorial` scope so the light theme is isolated and the page
+ * reads top-to-bottom: nav → hero → problem → loop → voice → distribution → week (the
+ * one dark moment) → different → ICP → private beta → footer.
+ */
 export default function LandingPageContent({ loggedIn }: Props) {
   return (
-    <MotionConfig reducedMotion="user">
-      <SmoothScroll>
-        <main className="os-landing os-grain relative min-h-screen overflow-x-hidden">
-          <ScrollProgress />
-          <LandingNav loggedIn={loggedIn} />
-          <Hero loggedIn={loggedIn} />
-          <PostReceipts />
-          <TheLoop />
-          <ProductShowcase />
-          <VoiceFingerprint />
-          <NativeEverywhere />
-          <WhatCompounds />
-          <FinalCTA loggedIn={loggedIn} />
-          <SiteFooter />
-        </main>
-      </SmoothScroll>
-    </MotionConfig>
+    <main className="editorial relative min-h-screen overflow-x-hidden">
+      <Nav loggedIn={loggedIn} />
+      <Hero loggedIn={loggedIn} />
+      <Problem />
+      <Loop />
+      <Voice />
+      <Distribution />
+      <Week />
+      <Different />
+      <Icp />
+      <Beta />
+      <Footer />
+    </main>
   );
 }

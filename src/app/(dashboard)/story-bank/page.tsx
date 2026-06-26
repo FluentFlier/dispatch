@@ -8,6 +8,7 @@ import { getInsforge } from "@/lib/insforge/client";
 import type { StoryBankEntry } from "@/lib/types";
 import { usePillars } from "@/hooks/usePillars";
 import StoryGrid from "@/components/story-bank/StoryGrid";
+import { PageHeader } from "@/components/layout/PageHeader";
 
 type UsedFilter = "all" | "unused" | "used";
 
@@ -215,18 +216,19 @@ export default function StoryBankPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <h1 className="font-heading text-[22px] font-semibold text-text-primary leading-[1.2] tracking-[-0.02em]">
-          Story Bank
-        </h1>
-        <a
-          href="/generate?tab=story-mine"
-          className="flex items-center gap-1.5 bg-accent-primary text-white text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-md hover:opacity-90 transition-opacity"
-        >
-          <Pickaxe className="w-4 h-4" />
-          Mine a Story
-        </a>
-      </div>
+      <PageHeader
+        eyebrow="STORY BANK"
+        title="Story Bank"
+        action={
+          <a
+            href="/generate?tab=story-mine"
+            className="flex items-center gap-1.5 bg-accent-primary text-white text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-md hover:opacity-90 transition-opacity"
+          >
+            <Pickaxe className="w-4 h-4" />
+            Mine a Story
+          </a>
+        }
+      />
 
       {/* Filter bar */}
       <div className="flex flex-wrap items-center gap-3">
@@ -262,7 +264,7 @@ export default function StoryBankPage() {
           <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-secondary pointer-events-none" />
         </div>
 
-        <span className="text-[13px] text-text-secondary ml-auto">
+        <span className="section-label ml-auto">
           {filtered.length} {filtered.length === 1 ? "story" : "stories"}
         </span>
       </div>
@@ -271,7 +273,7 @@ export default function StoryBankPage() {
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Pickaxe className="w-12 h-12 text-text-secondary mb-4" />
-          <h2 className="font-heading text-[16px] font-semibold text-text-primary mb-1">
+          <h2 className="font-serif text-[20px] font-normal tracking-[-0.02em] text-ink mb-1">
             {stories.length === 0 ? "Mine your first memory" : "No stories match your filters"}
           </h2>
           <p className="text-text-secondary text-[13px] mb-2">

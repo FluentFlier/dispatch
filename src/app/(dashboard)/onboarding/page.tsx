@@ -212,7 +212,7 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display font-semibold text-[20px] text-text-primary mb-1">
+              <h2 className="font-serif font-normal text-[24px] tracking-[-0.025em] text-ink mb-1">
                 {"Let's start with the basics"}
               </h2>
               <p className="font-body text-[13px] text-text-secondary">
@@ -250,7 +250,7 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display font-semibold text-[20px] text-text-primary mb-1">
+              <h2 className="font-serif font-normal text-[24px] tracking-[-0.025em] text-ink mb-1">
                 Define your content pillars
               </h2>
               <p className="font-body text-[13px] text-text-secondary">
@@ -333,7 +333,7 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display font-semibold text-[20px] text-text-primary mb-1">
+              <h2 className="font-serif font-normal text-[24px] tracking-[-0.025em] text-ink mb-1">
                 Describe your voice
               </h2>
               <p className="font-body text-[13px] text-text-secondary">
@@ -373,7 +373,7 @@ export default function OnboardingPage() {
         return (
           <div className="space-y-5">
             <div>
-              <h2 className="font-display font-semibold text-[20px] text-text-primary mb-1">
+              <h2 className="font-serif font-normal text-[24px] tracking-[-0.025em] text-ink mb-1">
                 Add your context
               </h2>
               <p className="font-body text-[13px] text-text-secondary">
@@ -406,10 +406,8 @@ export default function OnboardingPage() {
 
   return (
     <div className="max-w-lg mx-auto py-12 px-4">
-      <h1 className="font-semibold text-[18px] text-text-primary tracking-[0.16em] mb-2">
-        CONTENT OS
-      </h1>
-      <p className="font-body text-[13px] text-text-secondary mb-6">
+      <p className="page-eyebrow mb-3">CONTENT OS</p>
+      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-ink3 mb-6">
         Step {step + 1} of {TOTAL_STEPS}
       </p>
 
