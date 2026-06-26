@@ -1,8 +1,8 @@
-import { getServerClient } from './insforge/server';
+import OpenAI from 'openai';
 
 /**
  * Default template used to seed new creator profiles during onboarding.
- * Never rendered directly in AI calls - use buildSystemPrompt() instead.
+ * Never rendered directly in AI calls — use buildSystemPrompt() instead.
  */
 export const DEFAULT_SYSTEM_PROMPT_TEMPLATE = `You are a content strategist. You help creators write authentic, specific content for their social media. Follow the creator's voice and context provided below. Never use em dashes. If no creator context is provided, write direct, honest, punchy content.
 
@@ -85,27 +85,38 @@ export function buildSystemPrompt(
   return parts.join('\n');
 }
 
+function getOpenAIClient(): OpenAI {
+  const key = process.env.AI_API_KEY;
+  if (!key) throw new Error('AI_API_KEY is not configured');
+  return new OpenAI({ apiKey: key });
+}
+
+/**
+ * Generates content using GPT-5.4-mini via OpenAI API.
+ * Pass modelOverride to use gpt-5.4 for quality-sensitive paths (e.g. voice lab).
+ */
 export async function generateContent(
   prompt: string,
   contextAdditions?: string,
   systemOverride?: string,
-  profile?: CreatorProfileForPrompt | null
+  profile?: CreatorProfileForPrompt | null,
+  modelOverride?: string
 ): Promise<string> {
   const systemPrompt = systemOverride
     ? systemOverride
     : buildSystemPrompt(profile, contextAdditions);
 
-  const client = getServerClient();
-  const completion = await client.ai.chat.completions.create({
-    model: 'anthropic/claude-sonnet-4.5',
+  const openai = getOpenAIClient();
+  const completion = await openai.chat.completions.create({
+    model: modelOverride ?? 'gpt-5.4-mini',
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: prompt },
     ],
-    maxTokens: 2048,
+    max_tokens: 2048,
   });
 
   const content = completion.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Empty response from InsForge AI');
+  if (!content) throw new Error('Empty response from OpenAI');
   return content;
 }

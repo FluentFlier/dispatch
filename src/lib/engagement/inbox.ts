@@ -1,5 +1,5 @@
 import type { createClient } from '@insforge/sdk';
-import { sendAyrshareCommentReply, ayrshareCommentsAvailable } from '@/lib/engagement/ayrshare-comments';
+import { sendUnipileCommentReply, unipileCommentsAvailable } from '@/lib/engagement/unipile-comments';
 import type {
   CommentReplyQueueRow,
   DraftRepliesInput,
@@ -16,7 +16,7 @@ import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { isEnabled } from '@/lib/feature-flags';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
-import { generateContent } from '@/lib/claude';
+import { generateContent } from '@/lib/ai';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -448,7 +448,7 @@ export async function sendEngagementReplies(
     ((comments ?? []) as PostCommentRow[]).map((c) => [c.id, c]),
   );
 
-  const useAyrshare = ayrshareCommentsAvailable();
+  const useUnipile = unipileCommentsAvailable();
 
   for (const queueRow of rows) {
     let row = queueRow;
@@ -481,13 +481,13 @@ export async function sendEngagementReplies(
       let provider_reply_id: string | null = null;
       let wasStubbed = false;
 
-      if (useAyrshare) {
-        const reply = await sendAyrshareCommentReply({
+      if (useUnipile) {
+        const reply = await sendUnipileCommentReply({
           userId,
+          socialPostId: comment.provider_comment_id,
           providerCommentId: comment.provider_comment_id,
           platform: comment.platform,
           replyText: row.draft_reply,
-          searchPlatformId: true,
         });
         provider_reply_id = reply.provider_reply_id;
         wasStubbed = reply.stubbed;

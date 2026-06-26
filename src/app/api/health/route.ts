@@ -16,8 +16,8 @@ export async function GET(): Promise<NextResponse> {
           : 'missing'
         : 'ok',
     cron: process.env.CRON_SECRET ? 'ok' : 'missing',
-    social: getSocialProviderMode() === 'ayrshare'
-      ? process.env.AYRSHARE_API_KEY
+    social: getSocialProviderMode() === 'unipile'
+      ? process.env.UNIPILE_API_KEY && process.env.UNIPILE_DSN
         ? 'ok'
         : 'missing'
       : 'ok',

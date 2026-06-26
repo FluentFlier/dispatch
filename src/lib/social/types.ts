@@ -12,7 +12,7 @@ export interface PublishResult {
   platformPostId?: string;
   url?: string;
   error?: string;
-  provider: 'ayrshare' | 'direct';
+  provider: 'unipile' | 'direct';
 }
 
 export interface ConnectedSocialAccount {
@@ -20,11 +20,11 @@ export interface ConnectedSocialAccount {
   accountName: string | null;
   accountId: string | null;
   healthStatus: string;
-  provider: 'ayrshare' | 'direct';
+  provider: 'unipile' | 'direct';
 }
 
 export interface SocialProvider {
-  readonly name: 'ayrshare' | 'direct';
+  readonly name: 'unipile' | 'direct';
   listAccounts(userId: string): Promise<ConnectedSocialAccount[]>;
   publish(userId: string, payload: PublishPayload): Promise<PublishResult>;
   getConnectUrl?(userId: string, platform?: SocialPlatform): Promise<string | null>;

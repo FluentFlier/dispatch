@@ -1,5 +1,5 @@
-import type { createClient } from '@insforge/sdk';
-import type { CreatorProfileForPrompt } from '@/lib/claude';
+﻿import type { createClient } from '@insforge/sdk';
+import type { CreatorProfileForPrompt } from '@/lib/ai';
 import { retrieveBrainContext } from '@/lib/brain/retrieve';
 import { searchUserContext } from '@/lib/supermemory';
 

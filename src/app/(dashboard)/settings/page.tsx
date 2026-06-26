@@ -161,7 +161,7 @@ export default function SettingsPage() {
     limits: { publishesPerMonth: number };
   } | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
-  const [useAyrshare, setUseAyrshare] = useState(false);
+  const [useUnipile, setUseUnipile] = useState(false);
 
   /* ---- Helpers ---- */
 
@@ -276,10 +276,8 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    if (searchParams.get('ayrshare') === '1') {
-      fetch('/api/social-accounts/ayrshare/sync', { method: 'POST' })
-        .then(() => refreshAccounts())
-        .catch(() => undefined);
+    if (searchParams.get('connected') === 'true') {
+      refreshAccounts();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -291,7 +289,7 @@ export default function SettingsPage() {
       .catch(() => undefined);
     fetch('/api/health')
       .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setUseAyrshare(data?.provider === 'ayrshare'))
+      .then((data) => setUseUnipile(data?.provider === 'unipile'))
       .catch(() => undefined);
   }, []);
 
@@ -512,7 +510,7 @@ export default function SettingsPage() {
               onDisconnect={disconnectAccount}
               disconnecting={disconnecting}
               onAccountsRefresh={refreshAccounts}
-              useAyrshare={useAyrshare}
+              useUnipile={useUnipile}
             />
           </Section>
 

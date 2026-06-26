@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Direct platform integrations (existing OAuth/BYOK flow).
- * Used when SOCIAL_PROVIDER_MODE=direct or AYRSHARE_API_KEY is unset.
+ * Used when SOCIAL_PROVIDER_MODE=direct or UNIPILE_API_KEY is unset.
  */
 import type { SocialProvider, PublishPayload, PublishResult } from '@/lib/social/types';
 

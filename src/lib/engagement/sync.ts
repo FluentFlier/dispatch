@@ -1,9 +1,9 @@
 import type { createClient } from '@insforge/sdk';
 import {
-  ayrshareCommentsAvailable,
-  fetchAyrsharePostComments,
-  type AyrshareFetchedComment,
-} from '@/lib/engagement/ayrshare-comments';
+  unipileCommentsAvailable,
+  fetchUnipilePostComments,
+  type UnipileFetchedComment,
+} from '@/lib/engagement/unipile-comments';
 import type {
   ManualSyncComment,
   SyncEngagementInput,
@@ -150,7 +150,7 @@ async function ingestManualComments(
 async function ingestProviderComments(
   client: InsforgeClient,
   userId: string,
-  fetched: AyrshareFetchedComment[],
+  fetched: UnipileFetchedComment[],
   postId: string,
   defaultPlatform: string,
 ): Promise<Pick<SyncEngagementResult, 'inserted' | 'updated' | 'skipped' | 'errors'>> {
@@ -182,7 +182,7 @@ async function ingestProviderComments(
 }
 
 /**
- * Sync comments from manual dev payload and/or Ayrshare for published posts.
+ * Sync comments from manual dev payload and/or Unipile for published posts.
  */
 export async function syncEngagementComments(
   client: InsforgeClient,
@@ -204,7 +204,7 @@ export async function syncEngagementComments(
   }
 
   const shouldFetch =
-    input.fetchFromProvider !== false && ayrshareCommentsAvailable();
+    input.fetchFromProvider !== false && unipileCommentsAvailable();
 
   if (shouldFetch) {
     let jobsQuery = client.database
@@ -225,7 +225,7 @@ export async function syncEngagementComments(
       for (const job of (jobs ?? []) as PublishJobRow[]) {
         if (!job.provider_post_id) continue;
         try {
-          const fetched = await fetchAyrsharePostComments(
+          const fetched = await fetchUnipilePostComments(
             userId,
             job.provider_post_id,
             job.platform,
@@ -244,7 +244,7 @@ export async function syncEngagementComments(
           errors.push(...r.errors);
         } catch (e) {
           errors.push(
-            `Post ${job.post_id}: ${e instanceof Error ? e.message : 'Ayrshare fetch failed'}`,
+            `Post ${job.post_id}: ${e instanceof Error ? e.message : 'Unipile fetch failed'}`,
           );
         }
       }

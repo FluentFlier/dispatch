@@ -1,4 +1,4 @@
-import { buildSystemPrompt, type CreatorProfileForPrompt } from '@/lib/claude';
+﻿import { buildSystemPrompt, type CreatorProfileForPrompt } from '@/lib/ai';
 import { generateContentHF } from '@/lib/huggingface';
 import { humanize } from '@/lib/humanizer';
 import { evaluateDraft, evaluationPasses, type VoiceEvaluationMatrix } from '@/lib/voice-evaluator';

@@ -86,7 +86,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     const { data: aiResponse } = await client.ai.chat.completions.create({
-      model: 'anthropic/claude-sonnet-4.5',
+      model: 'gpt-5.4-mini',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },

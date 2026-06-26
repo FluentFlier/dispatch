@@ -66,7 +66,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    // 2. Legacy: posts with scheduled_publish_at (enqueue then process in ayrshare mode)
+    // 2. Legacy: posts with scheduled_publish_at (enqueue then process in unipile mode)
     const now = new Date().toISOString();
     const { data: duePosts } = await client.database
       .from('posts')
@@ -83,13 +83,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const userId = post.user_id as string;
       const platform = post.platform as 'twitter' | 'linkedin' | 'instagram' | 'threads';
 
-      if (providerMode === 'ayrshare') {
+      if (providerMode === 'unipile') {
         const { job, error } = await enqueuePublishJob({
           userId,
           postId,
           platform,
           scheduledFor: null,
-          provider: 'ayrshare',
+          provider: 'unipile',
         });
 
         if (!job) {
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           type: 'post',
           id: postId,
           success: false,
-          error: 'Direct scheduled publish: use publish API or enable Ayrshare',
+          error: 'Direct scheduled publish: use publish API or enable Unipile',
         });
       }
     }

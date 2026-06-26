@@ -215,7 +215,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const publishContent = caption || content;
 
   // Ayrshare path: durable queue + aggregator publish
-  if (getSocialProviderMode() === 'ayrshare') {
+  if (getSocialProviderMode() === 'unipile') {
     const resolvedPostId = postId ?? randomUUID();
 
     if (!postId) {
@@ -245,7 +245,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       postId: resolvedPostId,
       platform,
       scheduledFor: scheduledAt ?? null,
-      provider: 'ayrshare',
+      provider: 'unipile',
     });
 
     if (!job) {

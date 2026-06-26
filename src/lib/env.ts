@@ -14,11 +14,11 @@ export function isProduction(): boolean {
   return process.env.NODE_ENV === 'production';
 }
 
-export function getSocialProviderMode(): 'ayrshare' | 'direct' {
+export function getSocialProviderMode(): 'unipile' | 'direct' {
   const mode = process.env.SOCIAL_PROVIDER_MODE?.toLowerCase();
   if (mode === 'direct') return 'direct';
-  if (process.env.AYRSHARE_API_KEY) return 'ayrshare';
-  return mode === 'ayrshare' ? 'ayrshare' : 'direct';
+  if (process.env.UNIPILE_API_KEY) return 'unipile';
+  return mode === 'unipile' ? 'unipile' : 'direct';
 }
 
 export function assertProductionEnv(): void {

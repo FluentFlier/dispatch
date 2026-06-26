@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { generateContent, buildSystemPrompt } from '@/lib/claude';
+import { generateContent, buildSystemPrompt } from '@/lib/ai';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { errorResponse } from '@/lib/api-errors';

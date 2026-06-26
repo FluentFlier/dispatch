@@ -1,4 +1,4 @@
-export type ReplyQueueStatus = 'draft' | 'approved' | 'sent' | 'skipped' | 'failed';
+﻿export type ReplyQueueStatus = 'draft' | 'approved' | 'sent' | 'skipped' | 'failed';
 
 export interface PostCommentRow {
   id: string;
@@ -81,7 +81,7 @@ export interface ManualSyncComment {
 export interface SyncEngagementInput {
   postIds?: string[];
   manual?: ManualSyncComment[];
-  /** Attempt Ayrshare GET /comments for published jobs (default true when AYRSHARE_API_KEY set) */
+  /** Attempt Unipile GET /comments for published jobs (default true when UNIPILE_API_KEY set) */
   fetchFromProvider?: boolean;
 }
 
