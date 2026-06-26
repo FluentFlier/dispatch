@@ -70,7 +70,7 @@ Numbered 1-8. One per line. No explanation. No em dashes.`;
   return (
     <div className="space-y-5">
       <div>
-        <label className="block font-body text-[13px] text-text-tertiary mb-2">
+        <label className="block section-label mb-2">
           Topic (optional)
         </label>
         <input

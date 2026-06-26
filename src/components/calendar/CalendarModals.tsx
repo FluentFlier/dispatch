@@ -23,9 +23,9 @@ export function ScheduleModal({
 }: ScheduleModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-bg-secondary border border-border rounded-lg w-full max-w-md mx-4 max-h-[80vh] flex flex-col">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h3 className="font-heading text-[16px] font-semibold text-text-primary">
+      <div className="bg-bg-secondary border border-hair rounded-lg w-full max-w-md mx-4 max-h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-hair">
+          <h3 className="font-serif text-[18px] font-normal tracking-[-0.025em] text-ink">
             Schedule for{" "}
             {date.toLocaleDateString("en-US", {
               month: "long",
@@ -97,9 +97,9 @@ export function FillWeekModal({
 }: FillWeekModalProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-bg-secondary border border-border rounded-lg w-full max-w-lg mx-4">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h3 className="font-heading text-[16px] font-semibold text-text-primary">
+      <div className="bg-bg-secondary border border-hair rounded-lg w-full max-w-lg mx-4">
+        <div className="flex items-center justify-between p-4 border-b border-hair">
+          <h3 className="font-serif text-[18px] font-normal tracking-[-0.025em] text-ink">
             Fill This Week
           </h3>
           <button
@@ -137,7 +137,7 @@ export function FillWeekModal({
                       {getLabel(s.pillar)}
                     </p>
                   </div>
-                  <span className="text-[11px] text-text-secondary whitespace-nowrap">
+                  <span className="font-mono text-[11px] text-ink3 whitespace-nowrap">
                     {new Date(s.date + "T12:00:00").toLocaleDateString(
                       "en-US",
                       { weekday: "short", month: "short", day: "numeric" }
@@ -149,7 +149,7 @@ export function FillWeekModal({
           )}
         </div>
         {suggestions.length > 0 && !loading && (
-          <div className="flex items-center justify-end gap-2 p-4 border-t border-border">
+          <div className="flex items-center justify-end gap-2 p-4 border-t border-hair">
             <button
               onClick={onClose}
               className="px-[14px] py-[7px] text-[13px] text-text-secondary hover:text-text-primary border border-border rounded-md transition-colors"

@@ -143,7 +143,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-10 pb-20">
-      <PageHeader title="Stats" subtitle="See what’s working and log performance on your posts." />
+      <PageHeader eyebrow="ANALYTICS" title="Stats" subtitle="See what’s working and log performance on your posts." />
 
       {/* Section 1 */}
       <LogPerformanceSection posts={posts} userId={userId} onSaved={fetchData} />
@@ -159,7 +159,7 @@ export default function AnalyticsPage() {
       <section id="intelligence" className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-text-primary flex items-center gap-2">
+            <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
               <Sparkles className="h-5 w-5 text-accent-primary" />
               Intelligence & Research Lab
             </h2>
@@ -267,9 +267,9 @@ export default function AnalyticsPage() {
               { label: 'Other', count: realLeadCounts?.Other || 0, color: 'text-text-tertiary', desc: 'Casual engagers' },
             ].map((bucket, i) => (
               <div key={i} className="rounded-lg border border-border/60 p-4 bg-bg">
-                <div className={`text-3xl font-semibold tabular-nums ${bucket.color}`}>{bucket.count}</div>
+                <div className={`font-mono text-3xl font-semibold tabular-nums tracking-tight ${bucket.color}`}>{bucket.count}</div>
                 <div className="font-medium text-sm mt-1">{bucket.label}</div>
-                <div className="text-xs text-text-tertiary mt-0.5">{bucket.desc}</div>
+                <div className="font-mono text-[10px] uppercase tracking-[0.06em] text-text-tertiary mt-1">{bucket.desc}</div>
               </div>
             ))}
           </div>
@@ -366,8 +366,8 @@ function LogPerformanceSection({
 
   return (
     <section className="bg-bg-secondary border border-border rounded-lg p-6">
-      <h2 className="font-heading text-[18px] font-semibold text-text-primary mb-4 flex items-center gap-2">
-        <BarChart3 size={20} /> Log Performance
+      <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink mb-4 flex items-center gap-2.5">
+        <BarChart3 size={20} className="text-ink3" /> Log Performance
       </h2>
 
       <div className="mb-4">
@@ -542,8 +542,8 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
   return (
     <section className="bg-bg-secondary border border-border rounded-lg p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-heading text-[18px] font-semibold text-text-primary flex items-center gap-2">
-          <Sparkles size={20} /> Weekly Review
+        <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
+          <Sparkles size={20} className="text-ink3" /> Weekly Review
         </h2>
         {!showForm && (
           <button
@@ -678,7 +678,7 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
       {/* Past reviews */}
       {reviews.length > 0 && (
         <div className="space-y-2">
-          <h3 className="text-sm text-text-secondary font-heading">Past Reviews</h3>
+          <h3 className="section-label">Past Reviews</h3>
           {reviews.map((r) => {
             const expanded = expandedReview === r.id;
             return (
@@ -695,7 +695,7 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
                       year: "numeric",
                     })}
                   </span>
-                  <span className="text-text-secondary flex items-center gap-2 text-xs">
+                  <span className="text-text-secondary flex items-center gap-2 font-mono text-[11px] tracking-[0.02em]">
                     {r.posts_published} posts / {r.total_views} views
                     {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </span>
@@ -873,8 +873,8 @@ Which tags should I keep and which should I cut? Be specific and blunt. Suggest 
   return (
     <section className="bg-bg-secondary border border-border rounded-lg p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-heading text-[18px] font-semibold text-text-primary flex items-center gap-2">
-          <Hash size={20} /> Hashtag Vault
+        <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
+          <Hash size={20} className="text-ink3" /> Hashtag Vault
         </h2>
         {!showCreate && !editingId && (
           <button

@@ -66,7 +66,7 @@ function TeleprompterContent() {
   // Manual entry mode - dark exception for recording context
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-6 bg-black px-4">
-      <h1 className="font-display text-[22px] font-semibold text-white leading-[1.2] tracking-[-0.02em]">Teleprompter</h1>
+      <h1 className="font-serif text-[28px] font-normal text-white leading-[1.1] tracking-[-0.025em]">Teleprompter</h1>
       <textarea
         value={script}
         onChange={(e) => setScript(e.target.value)}

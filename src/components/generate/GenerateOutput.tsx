@@ -32,9 +32,9 @@ interface GenerateOutputProps {
 function scoreColor(value: number, invert = false): string {
   const good = invert ? value <= 30 : value >= 80;
   const mid = invert ? value <= 60 : value >= 60;
-  if (good) return 'text-[#6EE7B7]';
-  if (mid) return 'text-[#FCD34D]';
-  return 'text-[#FCA5A5]';
+  if (good) return 'text-teal';
+  if (mid) return 'text-ink2';
+  return 'text-flame';
 }
 
 function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
@@ -56,12 +56,12 @@ function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
   ];
 
   return (
-    <div className="bg-bg-secondary border border-border rounded-[10px] p-3 space-y-2">
-      <p className="font-body text-[11px] uppercase tracking-wide text-text-secondary">
+    <div className="bg-paper2 border border-hair rounded-[10px] p-3 space-y-2">
+      <p className="section-label">
         Voice QA
       </p>
       {hasHeader && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 font-body text-[12px]">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[12px]">
           {voice_match_score !== undefined && (
             <span className={scoreColor(voice_match_score)}>
               Voice match: {voice_match_score}%
@@ -73,13 +73,13 @@ function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
             </span>
           )}
           {iterations !== undefined && (
-            <span className="text-text-secondary">
+            <span className="text-ink3">
               Passes: {iterations}
               {revised ? ' (revised)' : ''}
             </span>
           )}
           {evaluation?.pass !== undefined && (
-            <span className={evaluation.pass ? 'text-[#6EE7B7]' : 'text-[#FCD34D]'}>
+            <span className={evaluation.pass ? 'text-teal' : 'text-ink2'}>
               {evaluation.pass ? 'Passed' : 'Below threshold'}
             </span>
           )}
@@ -94,17 +94,17 @@ function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
             const pct = invert ? (10 - raw) * 10 : raw * 10;
             return (
               <div key={key} className="text-center">
-                <p className={`font-body text-[13px] font-medium ${scoreColor(pct, invert)}`}>
+                <p className={`font-mono text-[13px] font-medium ${scoreColor(pct, invert)}`}>
                   {display}
                 </p>
-                <p className="font-body text-[10px] text-text-secondary">{label}</p>
+                <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-ink3">{label}</p>
               </div>
             );
           })}
         </div>
       )}
       {evaluation?.revision_notes && !evaluation.pass && (
-        <p className="font-body text-[11px] text-text-secondary leading-snug">
+        <p className="font-mono text-[11px] text-ink3 leading-snug">
           {evaluation.revision_notes}
         </p>
       )}
@@ -208,7 +208,7 @@ export function GenerateOutput({
             loading={scoring}
           >
             {aiScore !== null ? (
-              <span className={aiScore > 60 ? 'text-[#FCA5A5]' : aiScore > 30 ? 'text-[#FCD34D]' : 'text-[#6EE7B7]'}>
+              <span className={`font-mono ${aiScore > 60 ? 'text-flame' : aiScore > 30 ? 'text-ink2' : 'text-teal'}`}>
                 AI Score: {aiScore}/100
               </span>
             ) : 'Check AI Score'}

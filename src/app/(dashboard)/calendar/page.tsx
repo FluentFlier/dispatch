@@ -346,6 +346,7 @@ Respond ONLY with a JSON array of objects: [{"postId":"...","date":"YYYY-MM-DD"}
         {/* Main calendar area */}
         <div className="flex-1 space-y-4 min-w-0">
           <PageHeader
+            eyebrow="CALENDAR"
             title="Schedule"
             subtitle="Drag posts onto days. Tap a post to edit or publish."
             action={
@@ -357,7 +358,7 @@ Respond ONLY with a JSON array of objects: [{"postId":"...","date":"YYYY-MM-DD"}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <span className="text-[13px] text-text-primary font-medium min-w-[140px] text-center">
+                <span className="font-mono text-[12px] uppercase tracking-[0.08em] text-ink min-w-[140px] text-center">
                   {viewMode === "month"
                     ? `${MONTH_NAMES[currentMonth]} ${currentYear}`
                     : `Week of ${weekDaysForLabel[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
@@ -370,23 +371,23 @@ Respond ONLY with a JSON array of objects: [{"postId":"...","date":"YYYY-MM-DD"}
                 </button>
               </div>
 
-              <div className="flex border border-border rounded-md overflow-hidden">
+              <div className="flex border border-hair rounded-md overflow-hidden">
                 <button
                   onClick={() => setViewMode("month")}
-                  className={`px-3 py-2 min-h-[44px] text-[11px] font-medium transition-colors ${
+                  className={`px-3 py-2 min-h-[44px] font-mono text-[11px] uppercase tracking-[0.08em] transition-colors ${
                     viewMode === "month"
                       ? "bg-accent-primary text-text-inverse"
-                      : "text-text-secondary hover:text-text-primary"
+                      : "text-ink3 hover:text-ink"
                   }`}
                 >
                   Month
                 </button>
                 <button
                   onClick={() => setViewMode("week")}
-                  className={`px-3 py-2 min-h-[44px] text-[11px] font-medium transition-colors ${
+                  className={`px-3 py-2 min-h-[44px] font-mono text-[11px] uppercase tracking-[0.08em] transition-colors ${
                     viewMode === "week"
                       ? "bg-accent-primary text-text-inverse"
-                      : "text-text-secondary hover:text-text-primary"
+                      : "text-ink3 hover:text-ink"
                   }`}
                 >
                   Week

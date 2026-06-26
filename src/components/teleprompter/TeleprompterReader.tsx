@@ -162,7 +162,7 @@ export default function TeleprompterReader({ script, onExit }: TeleprompterReade
       {showPaused && (
         <div className="pointer-events-none fixed inset-0 z-[65] flex items-center justify-center">
           <span
-            className="font-display rounded-lg px-8 py-4 text-[22px] font-semibold tracking-widest text-white"
+            className="font-mono rounded-lg px-8 py-4 text-[18px] font-medium uppercase tracking-[0.3em] text-white"
             style={{ backgroundColor: 'rgba(0,0,0,0.7)' }}
           >
             PAUSED
@@ -183,7 +183,7 @@ export default function TeleprompterReader({ script, onExit }: TeleprompterReade
         <div className="mx-auto flex max-w-xl flex-col gap-4 px-4 pb-8 pt-12">
           {/* Speed slider */}
           <div className="flex items-center gap-3">
-            <span className="font-body min-w-[60px] text-[13px] text-white/60">
+            <span className="font-mono min-w-[60px] text-[11px] uppercase tracking-[0.12em] text-white/60">
               Speed {speed}
             </span>
             <input

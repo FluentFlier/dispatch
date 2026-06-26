@@ -156,7 +156,7 @@ CTA: One direct question.`;
   return (
     <div className="space-y-5">
       <div>
-        <label className="block font-body text-[13px] text-text-tertiary mb-2">Content Pillar</label>
+        <label className="block section-label mb-2">Content Pillar</label>
         <div className="flex flex-wrap gap-2">
           {pillarList.map((p) => (
             <button
@@ -178,7 +178,7 @@ CTA: One direct question.`;
       </div>
 
       <div>
-        <label className="block font-body text-[13px] text-text-tertiary mb-2">
+        <label className="block section-label mb-2">
           Topic (optional)
         </label>
         <textarea
@@ -191,7 +191,7 @@ CTA: One direct question.`;
       </div>
 
       <div>
-        <label className="block font-body text-[13px] text-text-tertiary mb-2">
+        <label className="block section-label mb-2">
           Target Platform
         </label>
         <div className="flex flex-wrap gap-2">

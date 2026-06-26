@@ -1,0 +1,36 @@
+{
+  "projectId": "b39bb9a2-7e92-4f22-bb72-cb8696a760b1",
+  "shape": "package",
+  "pkg": "content-os",
+  "globalName": "ContentOS",
+  "entry": ".design-sync/ds-entry.ts",
+  "srcDir": "src/components/ui",
+  "tsconfig": "./tsconfig.json",
+  "cssEntry": ".design-sync/.cache/ds-compiled.css",
+  "guidelinesGlob": ["DESIGN.md"],
+  "readmeHeader": ".design-sync/conventions.md",
+  "overrides": {
+    "Modal": { "cardMode": "single", "viewport": "560x400" },
+    "Drawer": { "cardMode": "single", "viewport": "560x500" }
+  },
+  "buildCmd": "sh -c 'cat .design-sync/fonts.css src/app/globals.css > .design-sync/.cache/tw-input.css && npx tailwindcss -i .design-sync/.cache/tw-input.css -o .design-sync/.cache/ds-compiled.css --content \"./src/**/*.{ts,tsx}\",\"./.design-sync/previews/**/*.tsx\" --minify'",
+  "componentSrcMap": {
+    "Button": "src/components/ui/Button.tsx",
+    "Badge": "src/components/ui/Badge.tsx",
+    "Card": "src/components/ui/Card.tsx",
+    "Input": "src/components/ui/Input.tsx",
+    "Textarea": "src/components/ui/Textarea.tsx",
+    "Select": "src/components/ui/Select.tsx",
+    "Modal": "src/components/ui/Modal.tsx",
+    "Drawer": "src/components/ui/Drawer.tsx",
+    "Skeleton": "src/components/ui/Skeleton.tsx",
+    "SkeletonLines": "src/components/ui/Skeleton.tsx",
+    "CopyButton": "src/components/ui/CopyButton.tsx",
+    "Tabs": "src/components/ui/Tabs.tsx",
+    "ToastProvider": "src/components/ui/Toast.tsx",
+    "ErrorBoundary": "src/components/ui/ErrorBoundary.tsx",
+    "CharCount": "src/components/ui/CharCount.tsx",
+    "StatusBadge": "src/components/ui/StatusBadge.tsx",
+    "PillarBadge": "src/components/ui/PillarBadge.tsx"
+  }
+}

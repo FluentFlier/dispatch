@@ -1,0 +1,14 @@
+/* Brand fonts loaded by the app via next/font/google. For the design-system
+   bundle (which has no Next runtime) we load the same families from Google Fonts
+   so previews and agent-built designs render in the real typefaces.
+   DM Sans = body/display/heading; Fraunces = serif; Hanken Grotesk = grotesk;
+   JetBrains Mono = mono. */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+/* next/font normally injects these CSS variables; define them to the real
+   Google family names so the serif/grotesk/mono Tailwind utilities resolve. */
+:root {
+  --font-fraunces: 'Fraunces';
+  --font-hanken: 'Hanken Grotesk';
+  --font-jetbrains: 'JetBrains Mono';
+}

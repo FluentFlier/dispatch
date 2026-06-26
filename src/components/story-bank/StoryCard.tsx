@@ -61,7 +61,7 @@ export default function StoryCard({
       {/* Card header */}
       <div className="p-[13px_14px]" onClick={onToggleExpand}>
         <div className="flex items-start justify-between gap-2 mb-2">
-          <p className="text-[13px] text-text-tertiary leading-[1.55] italic">
+          <p className="font-serif text-[15px] text-ink2 leading-[1.5]">
             {isExpanded
               ? story.raw_memory
               : story.raw_memory.length > 100
@@ -90,10 +90,10 @@ export default function StoryCard({
         <div className="flex items-center gap-[6px]">
           {story.pillar && <StoryPillarBadge pillar={story.pillar} />}
           <span
-            className={`text-[10px] px-[7px] py-[2px] rounded-[3px] font-medium tracking-[0.01em] ${
+            className={`font-mono text-[10px] px-[7px] py-[2px] rounded-[3px] uppercase tracking-[0.08em] ${
               story.used
                 ? 'bg-[rgba(16,185,129,0.15)] text-[#3B6D11]'
-                : 'bg-bg-tertiary text-text-secondary'
+                : 'bg-bg-tertiary text-ink3'
             }`}
           >
             {story.used ? 'Used' : 'Unused'}
@@ -103,18 +103,18 @@ export default function StoryCard({
 
       {/* Expanded section */}
       {isExpanded && (
-        <div className="border-t-[0.5px] border-border px-[14px] py-4 space-y-4">
+        <div className="border-t border-hair px-[14px] py-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <h4 className="font-body text-[10px] font-medium text-text-secondary uppercase tracking-[0.1em] mb-1">
+              <h4 className="section-label mb-1">
                 Raw Memory
               </h4>
-              <p className="text-[13px] text-text-primary leading-[1.55]">
+              <p className="font-serif text-[15px] text-ink leading-[1.5]">
                 {story.raw_memory}
               </p>
             </div>
             <div>
-              <h4 className="font-body text-[10px] font-medium text-text-secondary uppercase tracking-[0.1em] mb-1">
+              <h4 className="section-label mb-1">
                 Mined Angle
               </h4>
               <p className="text-[13px] text-accent-primary font-medium">
@@ -122,7 +122,7 @@ export default function StoryCard({
               </p>
             </div>
             <div>
-              <h4 className="font-body text-[10px] font-medium text-text-secondary uppercase tracking-[0.1em] mb-1">
+              <h4 className="section-label mb-1">
                 Mined Hook
               </h4>
               <p className="text-[13px] text-text-primary">
@@ -130,7 +130,7 @@ export default function StoryCard({
               </p>
             </div>
             <div>
-              <h4 className="font-body text-[10px] font-medium text-text-secondary uppercase tracking-[0.1em] mb-1">
+              <h4 className="section-label mb-1">
                 Caption Line
               </h4>
               <p className="text-[13px] text-text-primary">
@@ -141,7 +141,7 @@ export default function StoryCard({
 
           {story.mined_script && (
             <div>
-              <h4 className="font-body text-[10px] font-medium text-text-secondary uppercase tracking-[0.1em] mb-1">
+              <h4 className="section-label mb-1">
                 Mined Script
               </h4>
               <div className="bg-bg-tertiary border border-border rounded-lg p-3">
@@ -159,7 +159,7 @@ export default function StoryCard({
 
           {story.pillar && (
             <div>
-              <h4 className="font-body text-[10px] font-medium text-text-secondary uppercase tracking-[0.1em] mb-1">
+              <h4 className="section-label mb-1">
                 Pillar
               </h4>
               <StoryPillarBadge pillar={story.pillar} />
@@ -167,7 +167,7 @@ export default function StoryCard({
           )}
 
           {/* Action buttons */}
-          <div className="flex flex-wrap gap-2 pt-2 border-t-[0.5px] border-border">
+          <div className="flex flex-wrap gap-2 pt-2 border-t border-hair">
             <button
               onClick={onConvert}
               disabled={converting || story.used}

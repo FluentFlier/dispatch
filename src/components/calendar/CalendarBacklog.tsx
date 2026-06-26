@@ -22,9 +22,9 @@ export default function CalendarBacklog({
   fillDisabled,
 }: CalendarBacklogProps) {
   return (
-    <div className="lg:w-[280px] lg:border-l lg:border-border lg:pl-4 shrink-0">
+    <div className="lg:w-[280px] lg:border-l lg:border-hair lg:pl-4 shrink-0">
       <div className="flex items-center justify-between mb-3">
-        <h2 className="font-heading text-[16px] font-semibold text-text-primary">
+        <h2 className="section-label">
           Unscheduled
         </h2>
         <button

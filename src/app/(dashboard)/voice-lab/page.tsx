@@ -220,6 +220,7 @@ export default function VoiceLabPage() {
           <Mic className="w-5 h-5 text-accent-primary" />
         </div>
         <div>
+          <p className="page-eyebrow mb-2">VOICE LAB</p>
           <h1 className="page-title">Your voice</h1>
           <p className="page-subtitle">Paste your best posts. We learn how you write so every draft sounds like you.</p>
         </div>
@@ -262,7 +263,7 @@ export default function VoiceLabPage() {
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="font-heading text-[16px] font-semibold text-text-primary">
+                <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">
                   Import from public links
                 </h2>
                 <p className="mt-1 text-[13px] text-text-secondary">
@@ -299,10 +300,10 @@ export default function VoiceLabPage() {
 
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
             <div className="flex items-center justify-between">
-              <h2 className="font-heading text-[16px] font-semibold text-text-primary">
+              <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">
                 Paste or edit samples
               </h2>
-              <span className="text-[12px] text-text-tertiary">{validSamples.length} valid samples</span>
+              <span className="section-label">{validSamples.length} valid samples</span>
             </div>
             <p className="text-[13px] text-text-secondary">
               Add 5-15 posts that represent your voice at its best. Mix platforms for a richer profile.
@@ -381,7 +382,7 @@ export default function VoiceLabPage() {
         <div className="space-y-4">
           {/* Analysis Summary */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
-            <h2 className="font-heading text-[16px] font-semibold text-text-primary">Voice Snapshot</h2>
+            <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Voice Snapshot</h2>
             <p className="text-[13px] text-text-tertiary leading-relaxed">{analysis.voice_summary}</p>
             <div className="flex flex-wrap gap-1.5 mt-2">
               {analysis.voice_rules.slice(0, 6).map((rule, i) => (
@@ -398,7 +399,7 @@ export default function VoiceLabPage() {
 
           {/* Gap Questions */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
-            <h2 className="font-heading text-[16px] font-semibold text-text-primary">Quick Voice Interview</h2>
+            <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Quick Voice Interview</h2>
             <p className="text-[13px] text-text-secondary">
               Answer these to fill in what the AI could not tell from your writing alone. Skip any you want.
             </p>
@@ -444,13 +445,13 @@ export default function VoiceLabPage() {
         <div className="space-y-4">
           {/* Voice Description */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
-            <h2 className="font-heading text-[16px] font-semibold text-text-primary">Your Voice</h2>
-            <p className="text-[13px] text-text-tertiary leading-relaxed">{persona.voice_description}</p>
+            <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Your Voice</h2>
+            <p className="font-serif text-[17px] text-ink2 leading-[1.5]">{persona.voice_description}</p>
           </div>
 
           {/* Voice Rules */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
-            <h2 className="font-heading text-[16px] font-semibold text-text-primary">Voice Rules</h2>
+            <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Voice Rules</h2>
             <pre className="text-[12px] text-text-tertiary whitespace-pre-wrap leading-relaxed font-mono bg-bg-tertiary rounded-lg p-4">
               {persona.voice_rules}
             </pre>
@@ -458,10 +459,10 @@ export default function VoiceLabPage() {
 
           {/* Vocabulary */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
-            <h2 className="font-heading text-[16px] font-semibold text-text-primary">Vocabulary Fingerprint</h2>
+            <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Vocabulary Fingerprint</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
-                <p className="text-[11px] text-text-tertiary mb-1.5 uppercase tracking-wider">Uses Often</p>
+                <p className="section-label mb-1.5">Uses Often</p>
                 <div className="flex flex-wrap gap-1">
                   {persona.vocabulary_fingerprint.uses_often?.map((w) => (
                     <span key={w} className="text-[11px] px-2 py-0.5 rounded-full bg-coral-light text-accent-primary">{w}</span>
@@ -469,7 +470,7 @@ export default function VoiceLabPage() {
                 </div>
               </div>
               <div>
-                <p className="text-[11px] text-text-tertiary mb-1.5 uppercase tracking-wider">Never Uses</p>
+                <p className="section-label mb-1.5">Never Uses</p>
                 <div className="flex flex-wrap gap-1">
                   {persona.vocabulary_fingerprint.never_uses?.map((w) => (
                     <span key={w} className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-800">{w}</span>
@@ -477,7 +478,7 @@ export default function VoiceLabPage() {
                 </div>
               </div>
               <div>
-                <p className="text-[11px] text-text-tertiary mb-1.5 uppercase tracking-wider">Signature Phrases</p>
+                <p className="section-label mb-1.5">Signature Phrases</p>
                 <div className="flex flex-wrap gap-1">
                   {persona.vocabulary_fingerprint.signature_phrases?.map((w) => (
                     <span key={w} className="text-[11px] px-2 py-0.5 rounded-full bg-sage-light text-accent-secondary">{w}</span>
@@ -490,7 +491,7 @@ export default function VoiceLabPage() {
           {/* Exportable Prompt */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="font-heading text-[16px] font-semibold text-text-primary">Exportable Persona Prompt</h2>
+              <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Exportable Persona Prompt</h2>
               <button
                 onClick={copyExportPrompt}
                 className="flex items-center gap-1.5 text-[12px] text-text-secondary hover:text-text-tertiary transition-colors"

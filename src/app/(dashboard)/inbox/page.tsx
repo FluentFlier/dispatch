@@ -7,6 +7,7 @@ export default function InboxPage() {
   return (
     <div className="page-shell">
       <PageHeader
+        eyebrow="INBOX"
         title="Comments"
         subtitle="Replies on your posts, in one place. Draft in your voice, then approve to send."
       />

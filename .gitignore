@@ -60,3 +60,12 @@ md_files/
 docs/superpowers/
 docs/*.pdf
 scripts/generate_*.py
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+
+# design-sync durable inputs (override global *.md ignore)
+!.design-sync/NOTES.md
+!.design-sync/conventions.md

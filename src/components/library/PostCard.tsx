@@ -60,7 +60,7 @@ export default function PostCard({ post, selected, onSelect, onClick }: PostCard
         )}
 
         {/* Footer */}
-        <div className="flex items-center justify-between text-[11px] text-text-secondary">
+        <div className="flex items-center justify-between font-mono text-[11px] text-ink3">
           <span>{formatDateShort(post.scheduled_date)}</span>
           {post.status === 'posted' && (post.views !== null || post.saves !== null) && (
             <span className="flex gap-2">

@@ -55,7 +55,7 @@ function Section({
 }) {
   return (
     <div className="bg-bg-secondary border border-border rounded-lg p-6 shadow-card">
-      <h2 className="font-heading text-[16px] font-semibold text-text-primary mb-4">{title}</h2>
+      <h2 className="section-label mb-4 border-b border-hair pb-3">{title}</h2>
       {children}
     </div>
   );
@@ -483,7 +483,7 @@ export default function SettingsPage() {
 
   return (
     <div className="page-shell space-y-6">
-      <PageHeader title="Settings" subtitle="Profile, connected accounts, and how Content OS writes for you." />
+      <PageHeader eyebrow="SETTINGS" title="Settings" subtitle="Profile, connected accounts, and how Content OS writes for you." />
 
       {/* Tab bar */}
       <div className="flex gap-1 bg-bg-tertiary rounded-[10px] p-1">

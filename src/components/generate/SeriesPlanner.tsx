@@ -133,7 +133,7 @@ Each part works standalone but rewards watching all. Part 1 must be the stronges
   return (
     <div className="space-y-5">
       <div>
-        <label className="block font-body text-[13px] text-text-tertiary mb-2">
+        <label className="block section-label mb-2">
           Series concept
         </label>
         <input
@@ -145,7 +145,7 @@ Each part works standalone but rewards watching all. Part 1 must be the stronges
       </div>
 
       <div>
-        <label className="block font-body text-[13px] text-text-tertiary mb-2">
+        <label className="block section-label mb-2">
           Number of parts
         </label>
         <input

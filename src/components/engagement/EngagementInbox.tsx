@@ -226,7 +226,7 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
   return (
     <div className={compact ? 'space-y-4' : 'space-y-6'}>
       {summary && !isEmpty && !compact && (
-        <p className="text-sm text-text-secondary">
+        <p className="font-mono text-[12px] tracking-[0.02em] text-ink3">
           {summary.comments} comment{summary.comments === 1 ? '' : 's'} across {summary.posts}{' '}
           post{summary.posts === 1 ? '' : 's'} · {summary.needs_reply} need
           {summary.needs_reply === 1 ? 's' : ''} a reply · {summary.drafted} drafted · {summary.sent}{' '}
@@ -272,7 +272,7 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-md bg-coral-light text-accent-primary mb-5">
             <MessageCircle className="h-7 w-7" strokeWidth={1.75} />
           </div>
-          <h2 className="text-lg font-semibold text-text-primary">No comments yet</h2>
+          <h2 className="font-serif font-normal tracking-[-0.025em] text-ink text-[22px]">No comments yet</h2>
           <p className="mt-2 text-sm text-text-secondary max-w-sm mx-auto leading-relaxed">
             {postId
               ? 'Sync comments on this post after you publish, or connect a social account in settings.'
@@ -332,9 +332,9 @@ function PostCommentGroup({
 
   return (
     <section className="rounded-lg border border-border bg-bg-secondary shadow-card overflow-hidden">
-      <div className="px-4 py-3 border-b border-border bg-bg-tertiary/60">
-        <h2 className="font-semibold text-text-primary text-[15px]">{group.post_title}</h2>
-        <p className="mt-1 text-sm text-text-secondary capitalize">
+      <div className="px-4 py-3 border-b border-hair bg-bg-tertiary/60">
+        <h2 className="font-serif font-normal tracking-[-0.025em] text-ink text-[18px] leading-tight">{group.post_title}</h2>
+        <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-ink3">
           {group.post_platform} · {group.stats.total} comment
           {group.stats.total === 1 ? '' : 's'}
           {needs > 0 && ` · ${needs} waiting for you`}
@@ -342,7 +342,7 @@ function PostCommentGroup({
         </p>
       </div>
 
-      <ul className={`divide-y divide-border ${compact ? '' : ''}`}>
+      <ul className={`divide-y divide-hair ${compact ? '' : ''}`}>
         {group.comments.map((item) => (
           <CommentRow
             key={item.comment.id}
@@ -383,9 +383,9 @@ function CommentRow({
     <li className="p-4 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="text-sm font-medium text-text-primary">{authorLabel(item)}</p>
+          <p className="font-mono text-[13px] font-medium text-ink">{authorLabel(item)}</p>
           {comment.author_headline && (
-            <p className="text-xs text-text-tertiary mt-0.5 line-clamp-1">{comment.author_headline}</p>
+            <p className="font-mono text-[11px] text-ink3 mt-0.5 line-clamp-1">{comment.author_headline}</p>
           )}
         </div>
         <span
@@ -409,7 +409,7 @@ function CommentRow({
       {!isSent && (
         <div className="space-y-2">
           <label className="block">
-            <span className="text-xs font-medium text-text-secondary tracking-wide uppercase">
+            <span className="section-label">
               Your reply
             </span>
             <Textarea

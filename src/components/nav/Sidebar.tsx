@@ -45,12 +45,16 @@ export default function Sidebar() {
     <aside className="hidden md:flex md:flex-col fixed left-0 top-0 bottom-0 w-[264px] h-screen z-40 bg-[#101312] text-white border-r border-black/10">
       <div className="px-4 pt-5 pb-4">
         <Link href="/dashboard" className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/5 transition-colors">
-          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-white text-[#101312] text-sm font-semibold">
-            D
+          <span className="flex h-8 w-8 items-center justify-center rounded-md bg-white font-mono text-sm text-[#101312]">
+            /
           </span>
           <span>
-            <span className="block text-sm font-semibold leading-tight">Content OS</span>
-            <span className="block text-[11px] text-white/45 leading-tight">Creator operating system</span>
+            <span className="block font-mono text-[13px] font-medium tracking-[0.16em] leading-tight">
+              CONTENT&nbsp;OS
+            </span>
+            <span className="block font-mono text-[10px] tracking-[0.06em] text-white/45 leading-tight">
+              Creator operating system
+            </span>
           </span>
         </Link>
         <WorkspaceSwitcher />
@@ -79,7 +83,7 @@ export default function Sidebar() {
       </nav>
 
       <div className="px-3 pb-4 border-t border-white/10 pt-4 mx-3">
-        <p className="px-3 mb-2 text-[11px] font-semibold text-white/35 uppercase tracking-wide">
+        <p className="px-3 mb-2 font-mono text-[10px] text-white/35 uppercase tracking-[0.16em]">
           More
         </p>
         {moreNav.map((item) => {

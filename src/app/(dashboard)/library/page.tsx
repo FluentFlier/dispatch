@@ -237,6 +237,7 @@ export default function LibraryPage() {
   return (
     <div className="page-shell-wide space-y-4">
       <PageHeader
+        eyebrow="LIBRARY"
         title="Posts"
         subtitle="All your drafts, scheduled posts, and published content."
         action={
@@ -314,8 +315,8 @@ export default function LibraryPage() {
 
       {/* Bulk actions */}
       {selected.size > 0 && (
-        <div className="flex items-center gap-3 bg-bg-tertiary border border-border rounded-lg px-4 py-2">
-          <span className="text-[13px] text-text-secondary">{selected.size} selected</span>
+        <div className="flex items-center gap-3 bg-bg-tertiary border border-hair rounded-lg px-4 py-2">
+          <span className="font-mono text-[12px] text-ink3">{selected.size} selected</span>
           <button onClick={handleBulkDelete} className="flex items-center gap-1 text-[13px] text-accent-primary hover:opacity-80">
             <Trash2 className="w-3.5 h-3.5" /> Delete
           </button>
@@ -344,7 +345,7 @@ export default function LibraryPage() {
           {posts.length === 0 && (
             <FileText className="w-12 h-12 text-text-secondary mb-4" />
           )}
-          <h2 className="font-heading text-[16px] font-semibold text-text-primary mb-1">
+          <h2 className="font-serif text-[22px] font-normal tracking-[-0.025em] text-ink mb-1">
             {posts.length === 0 ? 'Nothing scripted yet' : 'No posts match your filters'}
           </h2>
           <p className="text-text-secondary text-[13px] mb-4">
@@ -389,8 +390,8 @@ export default function LibraryPage() {
       )}
 
       {/* Publish timeline */}
-      <section className="bg-bg-secondary border border-border rounded-lg p-4 mt-6 shadow-card">
-        <h2 className="text-[12px] font-medium uppercase tracking-[0.1em] text-text-secondary mb-3">
+      <section className="bg-bg-secondary border border-hair rounded-lg p-4 mt-6 shadow-card">
+        <h2 className="section-label mb-3">
           Publish activity
         </h2>
         <PublishTimeline limit={10} />

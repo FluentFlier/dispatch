@@ -84,8 +84,9 @@ export default async function DashboardPage() {
     // No server-side auth -- show welcome state
     return (
       <div className="max-w-lg mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-        <h2 className="text-2xl font-semibold text-text-primary mb-2">Welcome to Content OS</h2>
-        <p className="text-[15px] text-text-secondary mb-6 leading-relaxed">
+        <p className="section-label mb-3">CONTENT OS</p>
+        <h2 className="font-serif text-[28px] font-normal tracking-[-0.025em] leading-tight text-ink mb-2">Welcome to Content OS</h2>
+        <p className="text-[15px] text-ink2 mb-6 leading-relaxed">
           Write in your voice, schedule posts, and reply to comments, all in one place.
         </p>
         <a
@@ -204,6 +205,7 @@ export default async function DashboardPage() {
       <section className="rounded-lg border border-border bg-bg-secondary shadow-card overflow-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.65fr]">
           <div className="p-6 md:p-8">
+            <p className="section-label mb-3">DASHBOARD</p>
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-1.5 rounded-badge bg-sage-light px-2.5 py-1 text-xs font-medium text-accent-secondary">
                 <Radio className="h-3.5 w-3.5" />
@@ -216,12 +218,12 @@ export default async function DashboardPage() {
                 </span>
               )}
             </div>
-            <h1 className="mt-5 max-w-2xl text-[34px] font-semibold leading-tight text-text-primary">
+            <h1 className="mt-5 max-w-2xl font-serif text-[40px] font-normal leading-[1.05] tracking-[-0.02em] text-ink">
               {creatorProfile?.display_name
                 ? `${creatorProfile.display_name.split(' ')[0]}, your content system is ready for the next move.`
                 : 'Your content system is ready for the next move.'}
             </h1>
-            <p className="mt-3 max-w-xl text-[15px] leading-6 text-text-secondary">
+            <p className="mt-3 max-w-xl text-[15px] leading-6 text-ink2">
               Draft the next post, schedule the week, or turn replies into leads. Content OS should feel like a command center, not a folder of half-finished tools.
             </p>
             <div className="mt-6 flex flex-col gap-3 sm:flex-row">
@@ -267,7 +269,7 @@ export default async function DashboardPage() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="section-label">Publishing pipeline</p>
-                <h2 className="mt-2 text-lg font-semibold text-text-primary">Coming up</h2>
+                <h2 className="mt-2 font-serif text-[22px] font-normal tracking-[-0.02em] text-ink">Coming up</h2>
               </div>
               <Link href="/calendar" className="btn-ghost min-h-[40px] px-3">
                 Plan week <ArrowRight size={14} />
@@ -297,7 +299,7 @@ export default async function DashboardPage() {
                         />
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-text-primary group-hover:text-accent-primary">{post.title}</p>
-                          <p className="mt-0.5 text-xs text-text-tertiary capitalize">{post.platform}</p>
+                          <p className="mt-0.5 font-mono text-xs text-ink3 capitalize">{post.platform}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0 pl-4 sm:pl-0">
@@ -305,7 +307,7 @@ export default async function DashboardPage() {
                           {STATUS_LABELS[post.status]}
                         </span>
                         {post.scheduled_date && (
-                          <span className="text-xs text-text-tertiary">{formatDateShort(post.scheduled_date)}</span>
+                          <span className="font-mono text-xs text-ink3">{formatDateShort(post.scheduled_date)}</span>
                         )}
                       </div>
                     </Link>
@@ -319,7 +321,7 @@ export default async function DashboardPage() {
             <div className="flex items-center justify-between gap-4">
               <div>
                 <p className="section-label">Backlog</p>
-                <h2 className="mt-2 text-lg font-semibold text-text-primary">Ideas to turn into posts</h2>
+                <h2 className="mt-2 font-serif text-[22px] font-normal tracking-[-0.02em] text-ink">Ideas to turn into posts</h2>
               </div>
               <Link href="/ideas" className="btn-ghost min-h-[40px] px-3">
                 See all <ArrowRight size={14} />
@@ -417,7 +419,7 @@ export default async function DashboardPage() {
                     />
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-text-primary">{post.title}</p>
-                      <p className="mt-0.5 text-xs text-text-tertiary">{STATUS_LABELS[post.status]} · {formatRelative(post.updated_at)}</p>
+                      <p className="mt-0.5 font-mono text-xs text-ink3">{STATUS_LABELS[post.status]} · {formatRelative(post.updated_at)}</p>
                     </div>
                   </li>
                 ))}
@@ -445,8 +447,8 @@ function MetricTile({
 }) {
   return (
     <div className="rounded-lg border border-border bg-white p-3">
-      <p className={`text-2xl font-semibold tabular-nums ${accent ? 'text-accent-primary' : 'text-text-primary'}`}>{value}</p>
-      <p className="mt-1 text-xs text-text-secondary">{label}</p>
+      <p className={`font-mono text-2xl font-semibold tabular-nums ${accent ? 'text-flame' : 'text-ink'}`}>{value}</p>
+      <p className="mt-1 text-xs text-ink2">{label}</p>
     </div>
   );
 }

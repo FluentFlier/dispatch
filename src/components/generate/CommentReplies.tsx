@@ -116,7 +116,7 @@ REPLY 2: (your reply)
       </div>
 
       <div>
-        <label className="block font-body text-[13px] text-text-tertiary mb-2">
+        <label className="block section-label mb-2">
           Paste comments (one per line)
         </label>
         <textarea
@@ -149,7 +149,7 @@ REPLY 2: (your reply)
             >
               {/* Original comment */}
               <div className="flex items-start gap-2">
-                <span className="text-[10px] font-medium tracking-[0.08em] uppercase text-text-tertiary shrink-0 mt-0.5">
+                <span className="font-mono text-[10px] tracking-[0.08em] uppercase text-ink3 shrink-0 mt-0.5">
                   Comment
                 </span>
                 <p className="font-body text-[12px] text-text-secondary leading-relaxed flex-1">
@@ -158,7 +158,7 @@ REPLY 2: (your reply)
               </div>
               {/* Generated reply */}
               <div className="flex items-start gap-2 pt-2 border-t border-border">
-                <span className="text-[10px] font-medium tracking-[0.08em] uppercase text-accent-primary shrink-0 mt-0.5">
+                <span className="font-mono text-[10px] tracking-[0.08em] uppercase text-flame shrink-0 mt-0.5">
                   Reply
                 </span>
                 <p className="font-body text-[13px] text-text-primary leading-[1.55] flex-1">

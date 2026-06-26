@@ -66,7 +66,7 @@ Match the voice, keep every specific detail, adapt only the format and length. N
   return (
     <div className="space-y-5">
       <div>
-        <label className="block font-body text-[13px] text-text-tertiary mb-2">Paste script</label>
+        <label className="block section-label mb-2">Paste script</label>
         <textarea
           value={script}
           onChange={(e) => setScript(e.target.value)}
@@ -78,7 +78,7 @@ Match the voice, keep every specific detail, adapt only the format and length. N
 
       <div className="flex gap-4 flex-wrap">
         <div>
-          <label className="block font-body text-[11px] text-text-secondary mb-1">From</label>
+          <label className="block section-label mb-1">From</label>
           <select
             value={fromPlatform}
             onChange={(e) => setFromPlatform(e.target.value as Platform)}
@@ -92,7 +92,7 @@ Match the voice, keep every specific detail, adapt only the format and length. N
           </select>
         </div>
         <div>
-          <label className="block font-body text-[11px] text-text-secondary mb-1">To</label>
+          <label className="block section-label mb-1">To</label>
           <select
             value={toPlatform}
             onChange={(e) => setToPlatform(e.target.value as Platform)}
