@@ -236,7 +236,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       ((aiResult.hook + aiResult.depth + aiResult.platform_fit + aiResult.resonance) / 4) * 10;
     aiBreakdown = Math.round(aiAvg);
     finalScore = Math.round(det.score * 0.5 + aiAvg * 0.5);
-    allSignals = [...new Set([...det.signals, ...aiResult.signals])].slice(0, 4);
+    allSignals = Array.from(new Set([...det.signals, ...aiResult.signals])).slice(0, 4);
     suggestion = aiResult.suggestion;
   } else {
     aiBreakdown = det.score;

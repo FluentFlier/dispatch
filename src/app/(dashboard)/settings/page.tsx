@@ -161,7 +161,9 @@ export default function SettingsPage() {
     limits: { publishesPerMonth: number };
   } | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
-  const [useUnipile, setUseUnipile] = useState(false);
+  // Unipile is the only supported social provider. Default true so the
+  // correct connect flow shows immediately without waiting on /api/health.
+  const [useUnipile, setUseUnipile] = useState(true);
 
   /* ---- Helpers ---- */
 
@@ -276,7 +278,9 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    // Unipile success redirect lands on /settings?tab=connections&connected=true
     if (searchParams.get('connected') === 'true') {
+      setActiveTab('connections');
       refreshAccounts();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
