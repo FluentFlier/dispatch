@@ -38,7 +38,7 @@ export async function enqueuePublishJob(params: {
   postId: string;
   platform: SocialPlatform;
   scheduledFor?: string | null;
-  provider?: 'ayrshare' | 'direct';
+  provider?: 'unipile' | 'direct';
 }): Promise<{ job: PublishJobRow | null; duplicate: boolean; error?: string }> {
   const client = getServerClient();
   const idempotencyKey = buildIdempotencyKey(
@@ -127,7 +127,7 @@ export async function processPublishJob(
     const provider = getSocialProvider();
     let result;
 
-    if (provider.name === 'ayrshare') {
+    if (provider.name === 'unipile') {
       result = await provider.publish(job.user_id, payload);
     } else {
       // Direct-mode jobs must go through /api/publish. Update DB to 'failed'

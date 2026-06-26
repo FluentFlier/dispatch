@@ -1,6 +1,6 @@
-import { generateContent } from '@/lib/claude';
+﻿import { generateContent } from '@/lib/ai';
 import type { EventType } from '@/lib/event-capture/filter';
-import type { CreatorProfileForPrompt } from '@/lib/claude';
+import type { CreatorProfileForPrompt } from '@/lib/ai';
 
 // --- Input / Output types ---
 

@@ -1,4 +1,4 @@
-import { type CreatorProfileForPrompt } from '@/lib/claude';
+﻿import { type CreatorProfileForPrompt } from '@/lib/ai';
 import { generateContentHF } from '@/lib/huggingface';
 
 /** Mirrors Imagine Content Writer internal matrix (1-10 each). */

@@ -27,8 +27,8 @@ interface PlatformConnectionsProps {
   onDisconnect: (platform: string) => void;
   disconnecting: string | null;
   onAccountsRefresh: () => void;
-  /** When true, show unified Ayrshare connect (all platforms at once) */
-  useAyrshare?: boolean;
+  /** When true, show unified Unipile connect (all platforms at once) */
+  useUnipile?: boolean;
 }
 
 const PLATFORM_META: Record<
@@ -61,9 +61,9 @@ export default function PlatformConnections({
   onDisconnect,
   disconnecting,
   onAccountsRefresh,
-  useAyrshare = false,
+  useUnipile = false,
 }: PlatformConnectionsProps) {
-  const [ayrshareLoading, setAyrshareLoading] = useState(false);
+  const [unipileLoading, setUnipileLoading] = useState(false);
   const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
   const [byokValues, setByokValues] = useState<ByokState>({});
   const [savingPlatform, setSavingPlatform] = useState<string | null>(null);
@@ -168,59 +168,41 @@ export default function PlatformConnections({
     }
   }
 
-  async function connectAllViaAyrshare() {
-    setAyrshareLoading(true);
+  async function connectAllViaUnipile() {
+    setUnipileLoading(true);
     try {
-      window.location.href = '/api/social-accounts/ayrshare/connect';
+      window.location.href = '/api/social-accounts/connect/unipile';
     } finally {
-      setAyrshareLoading(false);
-    }
-  }
-
-  async function syncAyrshareAccounts() {
-    setAyrshareLoading(true);
-    try {
-      const res = await fetch('/api/social-accounts/ayrshare/sync', { method: 'POST' });
-      if (res.ok) onAccountsRefresh();
-    } finally {
-      setAyrshareLoading(false);
+      setUnipileLoading(false);
     }
   }
 
   return (
     <>
-      {useAyrshare && (
+      {useUnipile && (
         <div className="mb-6 p-4 rounded-lg border border-accent-primary/25 bg-coral-light">
           <p className="text-[13px] text-text-primary font-medium mb-1">Connect all platforms at once</p>
           <p className="text-[11px] text-text-secondary mb-3">
-            Powered by Ayrshare. Link X, LinkedIn, Instagram, and Threads in one secure flow.
+            Powered by Unipile. Link X, LinkedIn, Instagram, and Threads in one secure flow.
           </p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
-              disabled={ayrshareLoading}
-              onClick={connectAllViaAyrshare}
+              disabled={unipileLoading}
+              onClick={connectAllViaUnipile}
               className="px-4 py-2 text-[12px] text-white bg-accent-primary rounded-md hover:bg-accent-primary/90 disabled:opacity-60 flex items-center gap-2"
             >
-              {ayrshareLoading && <Loader2 size={12} className="animate-spin" />}
+              {unipileLoading && <Loader2 size={12} className="animate-spin" />}
               Connect accounts
-            </button>
-            <button
-              type="button"
-              disabled={ayrshareLoading}
-              onClick={syncAyrshareAccounts}
-              className="px-4 py-2 text-[12px] text-text-primary border border-border rounded-md hover:border-border-hover"
-            >
-              Sync status
             </button>
           </div>
         </div>
       )}
 
       <p className="text-sm text-text-secondary mb-2">
-        {useAyrshare ? 'Per-platform status and manual API key fallback.' : 'Connect accounts via OAuth or enter API keys manually.'}
+        {useUnipile ? 'Per-platform status and manual API key fallback.' : 'Connect accounts via OAuth or enter API keys manually.'}
       </p>
-      {!useAyrshare && (
+      {!useUnipile && (
         <p className="text-[11px] text-text-tertiary mb-4">
           OAuth requires platform developer app credentials. If OAuth fails, use the API Keys option below each platform instead.
         </p>

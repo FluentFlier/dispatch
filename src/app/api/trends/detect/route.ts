@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { generateContent } from '@/lib/claude';
-import type { CreatorProfileForPrompt } from '@/lib/claude';
+import { generateContent } from '@/lib/ai';
+import type { CreatorProfileForPrompt } from '@/lib/ai';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { errorResponse } from '@/lib/api-errors';
 

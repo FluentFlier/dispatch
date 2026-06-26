@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
-import { generateContent } from '@/lib/claude';
+import { generateContent } from '@/lib/ai';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { z } from 'zod';

@@ -1,5 +1,5 @@
-import { generateContent } from './claude';
-import type { CreatorProfileForPrompt } from './claude';
+﻿import { generateContent } from './ai';
+import type { CreatorProfileForPrompt } from './ai';
 
 /**
  * Humanizer: Detects and removes 29 AI writing patterns to make content
