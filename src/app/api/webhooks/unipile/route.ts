@@ -136,9 +136,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             user_id: userId,
             platform,
             unipile_account_id: account.id,
-            username: account.username ?? account.name ?? null,
+            account_name: account.name ?? account.username ?? null,
+            account_id: account.username ?? null,
+            access_token: '',
+            connection_method: 'unipile',
+            connected_at: new Date().toISOString(),
           },
-          { onConflict: 'workspace_id,platform' },
+          { onConflict: 'user_id,platform' },
         );
     }
   }
