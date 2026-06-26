@@ -278,10 +278,15 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
-    // Unipile success redirect lands on /settings?tab=connections&connected=true
+    // Unipile success redirect lands on /settings?tab=connections&connected=true.
+    // Call /api/social-accounts/sync first — this is the fallback for local dev
+    // where the Unipile webhook can't reach localhost. In production the webhook
+    // already stored the account, so the sync is a fast no-op (accounts already exist).
     if (searchParams.get('connected') === 'true') {
       setActiveTab('connections');
-      refreshAccounts();
+      fetch('/api/social-accounts/sync', { method: 'POST' })
+        .catch(() => undefined)
+        .finally(() => refreshAccounts());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);

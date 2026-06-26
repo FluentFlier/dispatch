@@ -37,15 +37,16 @@ export async function GET(): Promise<NextResponse> {
     },
     body: JSON.stringify({
       type: 'create',
-      // Only show LinkedIn and X — add more providers here as needed.
       providers_filter: ['LINKEDIN', 'TWITTER'],
-      // The webhook URL Unipile calls after the user authenticates.
-      api_url: `${appUrl}/api/webhooks/unipile`,
+      // Only set api_url when running in a publicly reachable environment.
+      // On localhost the webhook can't be reached — the success redirect
+      // calls /api/social-accounts/sync instead to poll Unipile for accounts.
+      ...(appUrl.includes('localhost') ? {} : {
+        api_url: `${appUrl}/api/webhooks/unipile`,
+      }),
       success_redirect_url: `${appUrl}/settings?tab=connections&connected=true`,
       failure_redirect_url: `${appUrl}/settings?tab=connections&error=unipile_failed`,
-      // Embed the user ID so the webhook knows which user to associate.
       name: user.id,
-      // Link expires in 10 minutes.
       expiresOn: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     }),
   });
