@@ -20,7 +20,7 @@ export function getInsforgeClient(): ReturnType<typeof createClient> {
     );
   }
 
-  client = createClient({ baseUrl: url, anonKey });
+  client = createClient({ baseUrl: url.replace(/\/+$/, ''), anonKey });
   return client;
 }
 

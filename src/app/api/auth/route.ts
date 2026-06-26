@@ -39,12 +39,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Ensure every authenticated user has a solo workspace on their first login.
-    // Non-blocking: failure to create workspace must not block login.
-    try {
-      await ensureSoloWorkspace(validation.userId);
-    } catch (err) {
-      logWarn('auth.workspace_provision_failed', { userId: validation.userId, err });
-    }
+    // Non-blocking: failure never blocks login. Called before the response cookie
+    // is written so getServerClient() runs anon (RLS blocks the membership read).
+    // ensureSoloWorkspace falls through to getServiceClient() for the INSERT —
+    // if the workspace already exists the INSERT may fail, which is fine.
+    ensureSoloWorkspace(validation.userId).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      // Suppress expected duplicate-workspace errors on repeat logins
+      if (!msg.includes('duplicate') && !msg.includes('unique') && !msg.includes('already exists')) {
+        logWarn('auth.workspace_provision_failed', { userId: validation.userId, error: msg });
+      }
+    });
 
     const response = NextResponse.json({ ok: true, userId: validation.userId });
     response.cookies.set('content-os-token', parsed.data.token, COOKIE_OPTS);

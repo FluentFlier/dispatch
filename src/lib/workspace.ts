@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { getServerClient, getServiceClient } from '@/lib/insforge/server';
 import { getUserEntitlements } from '@/lib/entitlements';
+import { logWarn } from '@/lib/logger';
 
 export const WORKSPACE_COOKIE = 'content-os-workspace';
 
@@ -25,10 +26,14 @@ const WORKSPACE_LIMIT: Record<string, number> = {
 /** All workspaces the user belongs to (RLS already restricts to their own). */
 export async function listWorkspaces(userId: string): Promise<Workspace[]> {
   const client = getServerClient();
-  const { data: members } = await client.database
+  const { data: members, error: membersError } = await client.database
     .from('workspace_members')
     .select('workspace_id, role')
     .eq('user_id', userId);
+
+  if (membersError) {
+    logWarn('workspace.list_members_failed', { userId, dbError: membersError.message ?? membersError, hint: membersError.hint });
+  }
 
   const memberList = (members ?? []) as { workspace_id: string; role: string }[];
   if (memberList.length === 0) return [];
@@ -81,7 +86,10 @@ export async function ensureSoloWorkspace(userId: string): Promise<Workspace> {
     .insert([{ owner_user_id: userId, name: 'My workspace', type: 'solo' }])
     .select('id, name, type, owner_user_id')
     .single();
-  if (error || !data) throw new Error('Could not create workspace');
+  if (error || !data) {
+    logWarn('workspace.provision_insert_failed', { userId, dbError: error?.message ?? error, hint: error?.hint });
+    throw new Error('Could not create workspace');
+  }
 
   const w = data as Workspace;
   await adminClient.database

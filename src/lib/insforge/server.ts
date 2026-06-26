@@ -4,7 +4,7 @@ import { isProduction } from '@/lib/env';
 
 /** Service-role client for cron/background jobs (no user cookie). */
 export function getServiceClient(): ReturnType<typeof createClient> {
-  const url = process.env.NEXT_PUBLIC_INSFORGE_URL;
+  const rawUrl = process.env.NEXT_PUBLIC_INSFORGE_URL;
   const serviceKey = process.env.INSFORGE_SERVICE_ROLE_KEY?.trim();
 
   // In production the real service-role key is mandatory. Never silently fall
@@ -16,9 +16,11 @@ export function getServiceClient(): ReturnType<typeof createClient> {
   }
 
   const key = serviceKey ?? process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY;
-  if (!url || !key) {
+  if (!rawUrl || !key) {
     throw new Error('Missing InsForge env vars for service client');
   }
+
+  const url = rawUrl.replace(/\/+$/, '');
 
   return createClient({
     baseUrl: url,
@@ -28,13 +30,14 @@ export function getServiceClient(): ReturnType<typeof createClient> {
 }
 
 export function getServerClient(): ReturnType<typeof createClient> {
-  const url = process.env.NEXT_PUBLIC_INSFORGE_URL;
+  const rawUrl = process.env.NEXT_PUBLIC_INSFORGE_URL;
   const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY;
 
-  if (!url || !anonKey) {
+  if (!rawUrl || !anonKey) {
     throw new Error('Missing InsForge env vars');
   }
 
+  const url = rawUrl.replace(/\/+$/, '');
   const cookieStore = cookies();
   const token = cookieStore.get('content-os-token')?.value;
 
