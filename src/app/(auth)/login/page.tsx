@@ -9,6 +9,7 @@ async function syncTokenToCookie(): Promise<boolean> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const client = getInsforgeClient();
     const token = getClientAccessToken(client);
+    
     if (token) {
       try {
         const res = await fetch("/api/auth", {

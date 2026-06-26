@@ -145,7 +145,7 @@ Use every specific detail from the memory. Never genericize. No em dashes.`;
           caption: captionMatch?.[1]?.trim() || '',
           pillar: validPillar,
           status: 'scripted',
-          platform: 'instagram',
+          platform: 'linkedin',
         }),
       });
 

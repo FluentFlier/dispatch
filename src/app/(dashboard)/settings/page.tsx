@@ -105,7 +105,7 @@ export default function SettingsPage() {
   const [scheduleSaved, setScheduleSaved] = useState(false);
 
   // Section 4: Platform defaults
-  const [defaultPlatform, setDefaultPlatform] = useState<Platform>("instagram");
+  const [defaultPlatform, setDefaultPlatform] = useState<Platform>("linkedin");
   const [crossPostReminders, setCrossPostReminders] = useState(false);
   const [platformDefaultsSaving, setPlatformDefaultsSaving] = useState(false);
   const [platformDefaultsSaved, setPlatformDefaultsSaved] = useState(false);
