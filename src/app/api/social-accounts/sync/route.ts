@@ -73,6 +73,9 @@ export async function POST(): Promise<NextResponse> {
           unipile_account_id: account.id,
           account_name: account.name ?? account.username ?? null,
           account_id: account.username ?? null,
+          // access_token is NOT NULL in schema; Unipile accounts have no OAuth token
+          // (Unipile manages auth internally) so store empty string as placeholder.
+          access_token: '',
           connection_method: 'unipile',
           connected_at: new Date().toISOString(),
         },

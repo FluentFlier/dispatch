@@ -9,6 +9,10 @@ ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFA
 ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS provider_profile_key text;
 ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS provider_meta jsonb NOT NULL DEFAULT '{}'::jsonb;
 ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS health_status text NOT NULL DEFAULT 'unknown';
+-- Unipile integration: stores the Unipile-internal account ID used for publishing/reading.
+-- access_token becomes optional for Unipile accounts (Unipile manages auth internally).
+ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS unipile_account_id text;
+ALTER TABLE social_accounts ALTER COLUMN access_token SET DEFAULT '';
 
 ALTER TABLE social_accounts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE social_accounts FORCE ROW LEVEL SECURITY;
