@@ -285,10 +285,14 @@ export default function PlatformConnections({
                       ) : (
                         <button
                           type="button"
-                          onClick={() => onConnect(platform)}
+                          onClick={() =>
+                            useUnipile
+                              ? (window.location.href = '/api/social-accounts/connect/unipile')
+                              : onConnect(platform)
+                          }
                           className="px-4 py-2 text-[12px] text-white bg-accent-primary rounded-md hover:bg-accent-primary/90 transition-colors"
                         >
-                          Connect with {meta.label}
+                          {useUnipile ? `Connect ${meta.label} via Unipile` : `Connect with ${meta.label}`}
                         </button>
                       )}
                     </div>
