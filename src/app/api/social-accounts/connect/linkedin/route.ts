@@ -21,7 +21,7 @@ export async function GET(): Promise<NextResponse> {
   const callbackUrl = `${appUrl}/api/social-accounts/callback/linkedin`;
   const state = crypto.randomUUID();
 
-  const scopes = ['openid', 'profile', 'w_member_social'].join(' ');
+  const scopes = ['openid', 'profile', 'w_member_social', 'r_member_social'].join(' ');
   const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${state}&scope=${encodeURIComponent(scopes)}`;
 
   const response = NextResponse.redirect(authUrl);
