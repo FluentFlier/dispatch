@@ -99,7 +99,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // --- Handle account.connected: store the new social account ---
   if (payload.event === 'account.connected' && payload.account) {
     const account = payload.account;
-    const userId = payload.state ?? payload.user_id;
+    // notify_url sends the user_id back in account.name (what we passed as `name`).
+    // Fallback to state and user_id for legacy/reconnect events.
+    const userId = account.name ?? payload.state ?? payload.user_id;
 
     if (!userId) {
       console.warn('[webhooks/unipile] account.connected missing user_id/state');

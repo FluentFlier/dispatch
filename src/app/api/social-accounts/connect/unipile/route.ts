@@ -31,17 +31,25 @@ export async function GET(): Promise<NextResponse> {
   const apiBase = `https://${dsn.replace(/\/$/, '')}/api/v1`;
   const isLocalhost = appUrl.includes('localhost') || appUrl.includes('127.0.0.1');
 
+  // api_url = the Unipile server URL (required). notify_url = our webhook (optional).
   const requestBody: Record<string, unknown> = {
     type: 'create',
-    // LINKEDIN and TWITTER_V2 are the correct provider identifiers in Unipile.
-    providers_filter: ['LINKEDIN', 'TWITTER_V2'],
+    // Required: Unipile server URL — not our webhook, the Unipile API base.
+    api_url: `https://${dsn.replace(/\/$/, '')}`,
+    // Required: link expiry (ISO 8601 UTC). Unipile also expires on daily restart.
+    expiresOn: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
+    // Providers to show (schema enum: LINKEDIN | TWITTER | INSTAGRAM | MESSENGER | TELEGRAM | GOOGLE | OUTLOOK | MAIL)
+    providers: ['LINKEDIN', 'TWITTER'],
     success_redirect_url: `${appUrl}/settings?tab=connections&connected=true`,
     failure_redirect_url: `${appUrl}/settings?tab=connections&error=unipile_failed`,
+    // name gets sent back in notify_url payload so we can match user
+    name: user.id,
   };
 
-  // Only register the webhook in deployed environments — localhost is unreachable.
+  // notify_url = our webhook, only set in deployed environments (localhost unreachable).
+  // On localhost the success_redirect calls /api/social-accounts/sync as fallback.
   if (!isLocalhost) {
-    requestBody.api_url = `${appUrl}/api/webhooks/unipile`;
+    requestBody.notify_url = `${appUrl}/api/webhooks/unipile`;
   }
 
   console.log('[unipile/connect] POST', `${apiBase}/hosted/accounts/link`, JSON.stringify(requestBody));
