@@ -3,20 +3,21 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getInsforgeClient } from "@/lib/insforge/client";
-import { getClientAccessToken } from "@/lib/auth-client";
+import { getClientTokens } from "@/lib/auth-client";
 
 async function syncTokenToCookie(): Promise<boolean> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const client = getInsforgeClient();
-    const token = getClientAccessToken(client);
-    
-    if (token) {
+    const { accessToken, refreshToken } = getClientTokens(client);
+
+
+    if (accessToken) {
       try {
         const res = await fetch("/api/auth", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
-          body: JSON.stringify({ token }),
+          body: JSON.stringify({ token: accessToken, refreshToken }),
         });
         if (res.ok) return true;
       } catch {
@@ -52,21 +53,29 @@ export default function LoginPage() {
   }, []);
 
   async function handleAuth() {
+    // IMPORTANT: read URL params BEFORE constructing the InsForge client.
+    // SDK's detectAuthCallback() strips ?insforge_code from the URL synchronously
+    // in the constructor, so by the time getInsforgeClient() returns the param is gone.
     const params = new URLSearchParams(window.location.search);
     const hasOAuthCode = params.has("insforge_code");
+
     const client = getInsforgeClient();
 
     if (hasOAuthCode) {
       setStatus("Completing sign-in...");
+      // authCallbackHandled is the SDK promise that exchanges the code for tokens.
+      // It resolves (or rejects) when the PKCE exchange is done.
       const authReady = (client.auth as unknown as { authCallbackHandled?: Promise<void> }).authCallbackHandled;
       if (authReady) {
         try {
           await authReady;
         } catch {
-          /* handled below */
+          /* exchange error — fall through to getCurrentUser check */
         }
       }
-      await new Promise((r) => setTimeout(r, 600));
+
+      // Small buffer to allow token propagation into http.refreshToken
+      await new Promise((r) => setTimeout(r, 300));
 
       try {
         const { data } = await client.auth.getCurrentUser();

@@ -5,8 +5,8 @@ import { HfInference } from '@huggingface/inference';
 const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
 
 /**
- * Generates text using Mistral-Nemo-Instruct-2407 via Hugging Face Serverless API.
- * Mistral-Nemo is an excellent, large-context free model for following instructions.
+ * Generates text using Llama-3.1-8B-Instruct via Hugging Face Serverless API.
+ * Verified working with HF router chat completions endpoint on free tier.
  */
 export async function generateContentHF(
   systemPrompt: string,
@@ -23,10 +23,10 @@ export async function generateContentHF(
     { role: 'user', content: userPrompt }
   ];
 
-  // We use mistralai/Mistral-Nemo-Instruct-2407 as our default free generation model
-  // It provides a great balance of speed, capability, and instruction following.
+  // Mistral-Nemo-Instruct-2407 is not a chat model on HF router (/v1/chat/completions returns 400).
+  // Llama-3.1-8B-Instruct is verified working on HF router with chat completions endpoint.
   const response = await hf.chatCompletion({
-    model: 'mistralai/Mistral-Nemo-Instruct-2407',
+    model: 'meta-llama/Llama-3.1-8B-Instruct',
     messages,
     max_tokens: 1024,
     temperature: 0.7,

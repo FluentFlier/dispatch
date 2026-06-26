@@ -7,6 +7,7 @@ import { logInfo, logWarn } from '@/lib/logger';
 
 const AuthTokenSchema = z.object({
   token: z.string().min(1, 'Token is required'),
+  refreshToken: z.string().nullish().transform((v) => v ?? undefined),
 });
 
 const COOKIE_OPTS = {
@@ -53,6 +54,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const response = NextResponse.json({ ok: true, userId: validation.userId });
     response.cookies.set('content-os-token', parsed.data.token, COOKIE_OPTS);
+    if (parsed.data.refreshToken) {
+      response.cookies.set('content-os-refresh', parsed.data.refreshToken, COOKIE_OPTS);
+    }
     logInfo('auth.session_created', { userId: validation.userId });
     return response;
   } catch {
@@ -64,5 +68,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 export async function DELETE(): Promise<NextResponse> {
   const response = NextResponse.json({ ok: true });
   response.cookies.set('content-os-token', '', { ...COOKIE_OPTS, maxAge: 0 });
+  response.cookies.set('content-os-refresh', '', { ...COOKIE_OPTS, maxAge: 0 });
   return response;
 }
