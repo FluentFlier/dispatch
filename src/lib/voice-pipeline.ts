@@ -1,4 +1,5 @@
-import { generateContent, buildSystemPrompt, type CreatorProfileForPrompt } from '@/lib/claude';
+import { buildSystemPrompt, type CreatorProfileForPrompt } from '@/lib/claude';
+import { generateContentHF } from '@/lib/huggingface';
 import { humanize } from '@/lib/humanizer';
 import { evaluateDraft, evaluationPasses, type VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 import { buildVoiceComposeHints } from '@/lib/voice-prompts';
@@ -88,7 +89,7 @@ ${evaluation?.revision_notes ?? 'Sound more like the creator. Less generic.'}
 Return ONLY the new text.`;
 
     text = stripEmDashes(
-      await generateContent(draftPrompt, undefined, systemPrompt, input.profile),
+      await generateContentHF(systemPrompt, draftPrompt),
     );
 
     if (input.fast) break;

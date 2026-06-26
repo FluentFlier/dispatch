@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@hello-pangea/dnd": "^17.0.0",
+    "@huggingface/inference": "^4.13.20",
     "@insforge/sdk": "^1.2.2",
     "@remotion/player": "^4.0.443",
     "apify-client": "^2.23.3",
