@@ -34,7 +34,7 @@ export async function GET(): Promise<NextResponse> {
     state: user.id,
   });
 
-  const unipileConnectUrl = `https://api2.unipile.com/hosted-connect?${params.toString()}`;
+  const unipileConnectUrl = `https://api54.unipile.com:18402/hosted-connect?${params.toString()}`;
 
   return NextResponse.redirect(unipileConnectUrl);
 }
