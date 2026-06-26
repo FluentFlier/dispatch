@@ -35,12 +35,22 @@ export default function Nav({ loggedIn }: { loggedIn: boolean }) {
           ))}
         </div>
 
-        <Link
-          href={loggedIn ? '/dashboard' : '#beta'}
-          className="inline-flex items-center gap-2 rounded-md bg-ink px-[17px] py-[10px] text-[13.5px] font-medium text-paper transition-colors hover:bg-black"
-        >
-          {loggedIn ? 'Open Content OS' : 'Join private beta'}
-        </Link>
+        <div className="flex items-center gap-3">
+          {!loggedIn && (
+            <Link
+              href="/login"
+              className="font-mono text-[12px] tracking-[0.04em] text-ink2 transition-colors hover:text-ink"
+            >
+              Sign in
+            </Link>
+          )}
+          <Link
+            href={loggedIn ? '/dashboard' : '#beta'}
+            className="inline-flex items-center gap-2 rounded-md bg-ink px-[17px] py-[10px] text-[13.5px] font-medium text-paper transition-colors hover:bg-black"
+          >
+            {loggedIn ? 'Open Content OS' : 'Join private beta'}
+          </Link>
+        </div>
       </div>
     </nav>
   );
