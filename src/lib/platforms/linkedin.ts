@@ -115,15 +115,17 @@ export async function refreshAccessToken(
 
 export async function getProfile(accessToken: string): Promise<ProfileResult | null> {
   try {
-    const res = await fetch('https://api.linkedin.com/v2/me', {
+    // /v2/userinfo is the OIDC endpoint — works with openid + profile scopes.
+    // /v2/me requires r_liteprofile which is not in our scope set.
+    const res = await fetch('https://api.linkedin.com/v2/userinfo', {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
     if (!res.ok) return null;
     const data = await res.json();
     return {
-      id: data.id,
-      name: `${data.localizedFirstName} ${data.localizedLastName}`,
-      username: data.id,
+      id: data.sub,
+      name: data.name ?? `${data.given_name ?? ''} ${data.family_name ?? ''}`.trim(),
+      username: data.sub,
     };
   } catch {
     return null;

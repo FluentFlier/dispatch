@@ -173,7 +173,7 @@ export default function LibraryPage() {
       body: JSON.stringify({
         title: 'Untitled',
         pillar: pillarList[0]?.value || 'general',
-        platform: 'instagram',
+        platform: 'linkedin',
         status: 'idea',
       }),
     });

@@ -38,7 +38,7 @@ export default function Sidebar() {
   const handleSignOut = async () => {
     await getInsforgeClient().auth.signOut();
     await fetch('/api/auth', { method: 'DELETE', credentials: 'same-origin' });
-    router.push('/login');
+    window.location.href = '/login';
   };
 
   return (

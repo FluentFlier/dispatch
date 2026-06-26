@@ -1,4 +1,5 @@
-import { generateContent, type CreatorProfileForPrompt } from '@/lib/claude';
+import { type CreatorProfileForPrompt } from '@/lib/claude';
+import { generateContentHF } from '@/lib/huggingface';
 
 /** Mirrors Imagine Content Writer internal matrix (1-10 each). */
 export interface VoiceEvaluationMatrix {
@@ -77,7 +78,7 @@ ${draft}
   };
 
   try {
-    const raw = await generateContent(prompt, contextAdditions, EVALUATOR_PROMPT, profile);
+    const raw = await generateContentHF(EVALUATOR_PROMPT, prompt);
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return fallback;
 

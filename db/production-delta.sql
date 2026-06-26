@@ -1,5 +1,8 @@
 -- Dispatch production readiness delta (idempotent)
 
+-- creator_profile: bio column missing from InsForge schema cache on older deployments
+ALTER TABLE creator_profile ADD COLUMN IF NOT EXISTS bio text;
+
 -- social_accounts extensions
 ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS connection_method text NOT NULL DEFAULT 'oauth';
 ALTER TABLE social_accounts ADD COLUMN IF NOT EXISTS provider text NOT NULL DEFAULT 'direct';

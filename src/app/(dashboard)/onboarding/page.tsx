@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { getInsforgeClient } from '@/lib/insforge/client';
+import { completeOnboarding } from './actions';
 import type { ContentPillarConfig } from '@/types/database';
 
 /* ------------------------------------------------------------------ */
@@ -126,61 +126,16 @@ export default function OnboardingPage() {
     setError('');
 
     try {
-      const insforge = getInsforgeClient();
-      const { data: userData } = await insforge.auth.getCurrentUser();
-      if (!userData?.user) throw new Error('Not logged in');
-      const userId = userData.user.id;
-
-      // Resolve the workspace created during login (ensureSoloWorkspace).
-      // Both upserts must carry workspace_id so rows are workspace-scoped
-      // from day one and ready for the future workspace-based RLS upgrade.
-      const { data: memberRows } = await insforge.database
-        .from('workspace_members')
-        .select('workspace_id')
-        .eq('user_id', userId)
-        .limit(1);
-      const workspaceId: string | null = memberRows?.[0]?.workspace_id ?? null;
-      if (!workspaceId) throw new Error('No workspace found — please sign out and sign back in.');
-
-      // Filter out empty pillars
       const validPillars = pillars.filter((p) => p.name.trim().length > 0);
 
-      // Upsert creator_profile
-      const { error: profileError } = await insforge.database
-        .from('creator_profile')
-        .upsert(
-          {
-            user_id: userId,
-            workspace_id: workspaceId,
-            display_name: displayName.trim(),
-            bio: bio.trim() || null,
-            bio_facts: bio.trim(),
-            voice_description: voiceDescription.trim(),
-            voice_rules: voiceRules.trim(),
-            content_pillars: JSON.stringify(validPillars),
-            onboarding_complete: true,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: 'user_id' }
-        );
-      if (profileError) throw profileError;
-
-      // Seed user_settings with context_additions
-      if (contextAdditions.trim()) {
-        const { error: settingsError } = await insforge.database
-          .from('user_settings')
-          .upsert(
-            {
-              user_id: userId,
-              workspace_id: workspaceId,
-              key: 'context_additions',
-              value: contextAdditions.trim(),
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: 'user_id,key' }
-          );
-        if (settingsError) throw settingsError;
-      }
+      await completeOnboarding({
+        displayName,
+        bio,
+        voiceDescription,
+        voiceRules,
+        pillars: validPillars,
+        contextAdditions,
+      });
 
       try {
         await fetch('/api/brain/provision', { method: 'POST' });
@@ -190,7 +145,12 @@ export default function OnboardingPage() {
 
       router.push('/dashboard');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to save profile');
+      const msg = e instanceof Error
+        ? e.message
+        : (typeof e === 'object' && e !== null && 'message' in e)
+          ? String((e as { message: unknown }).message)
+          : JSON.stringify(e);
+      setError(msg || 'Failed to save profile');
     } finally {
       setLoading(false);
     }
