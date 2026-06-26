@@ -12,6 +12,61 @@ import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 import { usePillars } from '@/hooks/usePillars';
 import { OptimizePanel } from './OptimizePanel';
 
+interface PredictResult {
+  tier: 'strong' | 'average' | 'weak';
+  score: number;
+  hook_score: number;
+  signals: string[];
+  suggestion: string;
+  breakdown: { deterministic: number; ai: number };
+}
+
+const TIER_COLOR: Record<PredictResult['tier'], string> = {
+  strong: 'text-teal',
+  average: 'text-ink2',
+  weak: 'text-flame',
+};
+
+const TIER_BG: Record<PredictResult['tier'], string> = {
+  strong: 'bg-[rgba(var(--color-teal-rgb,110,231,183),0.12)]',
+  average: 'bg-[rgba(var(--color-ink2-rgb,252,211,77),0.12)]',
+  weak: 'bg-[rgba(var(--color-flame-rgb,252,165,165),0.12)]',
+};
+
+function PredictPanel({ result }: { result: PredictResult }) {
+  return (
+    <div className="bg-bg-secondary border border-border rounded-[10px] p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="font-body text-[11px] uppercase tracking-wide text-text-secondary">
+          Performance Prediction
+        </p>
+        <span
+          className={`font-body text-[11px] font-medium px-2 py-0.5 rounded-full border ${TIER_COLOR[result.tier]} border-current/20`}
+        >
+          {result.tier.charAt(0).toUpperCase() + result.tier.slice(1)} - {result.score}/100
+        </span>
+      </div>
+      <div className="space-y-1">
+        {result.signals.map((signal, i) => (
+          <p key={i} className="font-body text-[12px] text-text-secondary leading-snug">
+            - {signal}
+          </p>
+        ))}
+      </div>
+      {result.suggestion && (
+        <div className="pt-1 border-t border-border">
+          <p className="font-body text-[11px] text-text-tertiary">
+            Suggestion: {result.suggestion}
+          </p>
+        </div>
+      )}
+      <p className="font-body text-[10px] text-text-tertiary">
+        Deterministic: {result.breakdown.deterministic}/100 - AI: {result.breakdown.ai}/100
+      </p>
+    </div>
+  );
+}
+
 export interface GenerateVoiceMetrics {
   voice_match_score?: number;
   ai_score?: number;
@@ -124,6 +179,8 @@ export function GenerateOutput({
   const [humanizing, setHumanizing] = useState(false);
   const [aiScore, setAiScore] = useState<number | null>(null);
   const [scoring, setScoring] = useState(false);
+  const [prediction, setPrediction] = useState<PredictResult | null>(null);
+  const [predicting, setPredicting] = useState(false);
 
   async function handleHumanize() {
     setHumanizing(true);
@@ -161,6 +218,30 @@ export function GenerateOutput({
     }
   }
 
+  async function handlePredict() {
+    setPredicting(true);
+    setPrediction(null);
+    try {
+      const res = await fetch('/api/posts/predict', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text,
+          platform: sourcePlatform ?? 'linkedin',
+          voice_match_score: voiceMetrics?.voice_match_score ?? null,
+          ai_score: voiceMetrics?.ai_score ?? null,
+        }),
+      });
+      if (!res.ok) throw new Error('Prediction failed');
+      const data: PredictResult = await res.json();
+      setPrediction(data);
+    } catch (err) {
+      console.error('Predict error:', err);
+    } finally {
+      setPredicting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-3">
@@ -180,6 +261,7 @@ export function GenerateOutput({
   return (
     <div className="space-y-4">
       {showVoiceMetrics && <VoiceMetricsPanel metrics={voiceMetrics} />}
+      {prediction && <PredictPanel result={prediction} />}
       <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-4">
         <pre className="whitespace-pre-wrap font-body text-[13px] text-text-primary leading-[1.55]">
           {text}
@@ -200,6 +282,14 @@ export function GenerateOutput({
             loading={humanizing}
           >
             Humanize
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={handlePredict}
+            loading={predicting}
+          >
+            {predicting ? 'Predicting...' : 'Predict'}
           </Button>
           <Button
             variant="ghost"

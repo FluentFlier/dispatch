@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Loader2, Plus, X, Copy, Check, ChevronRight, Sparkles, Mic, FileText, Download, Link2 } from "lucide-react";
 
 type Step = "samples" | "analyzing" | "interview" | "synthesizing" | "result";
@@ -56,6 +56,60 @@ export default function VoiceLabPage() {
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
+  const [importingAccount, setImportingAccount] = useState<string | null>(null);
+  const [accountImportMessage, setAccountImportMessage] = useState("");
+
+  useEffect(() => {
+    fetch("/api/social-accounts")
+      .then((r) => r.json())
+      .then((data) => {
+        const platforms = (data.accounts ?? [])
+          .filter((a: { platform: string }) => ["linkedin", "twitter"].includes(a.platform))
+          .map((a: { platform: string }) => a.platform);
+        setConnectedPlatforms(platforms);
+      })
+      .catch(() => {/* non-critical */});
+  }, []);
+
+  async function importFromConnectedAccount(platform: "linkedin" | "twitter") {
+    setImportingAccount(platform);
+    setError(null);
+    setAccountImportMessage("");
+
+    try {
+      const res = await fetch("/api/voice-lab/import-from-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ platform }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Import failed");
+        return;
+      }
+
+      const imported = (data.samples ?? []) as Sample[];
+      if (imported.length === 0) {
+        setAccountImportMessage("No posts found. Make sure your account has public posts.");
+        return;
+      }
+
+      setSamples((prev) => {
+        const nonEmpty = prev.filter((s) => s.content.trim().length > 0);
+        return [...nonEmpty, ...imported].slice(0, 20);
+      });
+
+      const label = platform === "linkedin" ? "LinkedIn" : "X";
+      setAccountImportMessage(`Imported ${imported.length} posts from ${label}.`);
+    } catch {
+      setError("Failed to import posts. Try again.");
+    } finally {
+      setImportingAccount(null);
+    }
+  }
 
   const addSample = useCallback(() => {
     if (samples.length >= 20) return;
@@ -260,6 +314,48 @@ export default function VoiceLabPage() {
       {/* Step 1: Paste Samples */}
       {step === "samples" && (
         <div className="space-y-4">
+          {connectedPlatforms.length > 0 && (
+            <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
+              <div>
+                <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">
+                  Import from connected accounts
+                </h2>
+                <p className="mt-1 text-[13px] text-text-secondary">
+                  Pull your recent posts directly from LinkedIn or X to train your voice profile.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {connectedPlatforms.includes("linkedin") && (
+                  <button
+                    type="button"
+                    onClick={() => importFromConnectedAccount("linkedin")}
+                    disabled={importingAccount !== null}
+                    className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-md border border-border bg-bg-tertiary px-4 text-[13px] font-medium text-text-primary transition-colors hover:border-border-hover disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {importingAccount === "linkedin" && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {importingAccount === "linkedin" ? "Importing..." : "Import LinkedIn posts"}
+                  </button>
+                )}
+                {connectedPlatforms.includes("twitter") && (
+                  <button
+                    type="button"
+                    onClick={() => importFromConnectedAccount("twitter")}
+                    disabled={importingAccount !== null}
+                    className="inline-flex min-h-[40px] items-center justify-center gap-2 rounded-md border border-border bg-bg-tertiary px-4 text-[13px] font-medium text-text-primary transition-colors hover:border-border-hover disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {importingAccount === "twitter" && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {importingAccount === "twitter" ? "Importing..." : "Import X posts"}
+                  </button>
+                )}
+              </div>
+              {accountImportMessage && (
+                <p className="rounded-md bg-sage-light px-3 py-2 text-[12px] text-accent-secondary">
+                  {accountImportMessage}
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
