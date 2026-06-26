@@ -5,9 +5,11 @@ import { getAuthenticatedUser } from '@/lib/insforge/server';
  * GET /api/social-accounts/connect/unipile
  *
  * Calls Unipile POST /api/v1/hosted/accounts/link to generate a hosted
- * connect session URL, then redirects the user there. Unipile handles the
- * OAuth for LinkedIn and X; on success it fires our webhook
- * (/api/webhooks/unipile) with the connected account_id.
+ * connect session URL, then redirects the user there.
+ *
+ * Webhook (api_url) is only set in production — on localhost Unipile can't
+ * reach the server, so the success redirect instead calls
+ * POST /api/social-accounts/sync to poll and store accounts.
  */
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -25,52 +27,65 @@ export async function GET(): Promise<NextResponse> {
     );
   }
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
   const apiBase = `https://${dsn.replace(/\/$/, '')}/api/v1`;
+  const isLocalhost = appUrl.includes('localhost') || appUrl.includes('127.0.0.1');
 
-  // Step 1: ask Unipile to create a hosted auth session and return a link_url.
+  const requestBody: Record<string, unknown> = {
+    type: 'create',
+    // LINKEDIN and TWITTER_V2 are the correct provider identifiers in Unipile.
+    providers_filter: ['LINKEDIN', 'TWITTER_V2'],
+    success_redirect_url: `${appUrl}/settings?tab=connections&connected=true`,
+    failure_redirect_url: `${appUrl}/settings?tab=connections&error=unipile_failed`,
+  };
+
+  // Only register the webhook in deployed environments — localhost is unreachable.
+  if (!isLocalhost) {
+    requestBody.api_url = `${appUrl}/api/webhooks/unipile`;
+  }
+
+  console.log('[unipile/connect] POST', `${apiBase}/hosted/accounts/link`, JSON.stringify(requestBody));
+
   const res = await fetch(`${apiBase}/hosted/accounts/link`, {
     method: 'POST',
     headers: {
       'X-API-KEY': apiKey,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({
-      type: 'create',
-      providers_filter: ['LINKEDIN', 'TWITTER'],
-      // Only set api_url when running in a publicly reachable environment.
-      // On localhost the webhook can't be reached — the success redirect
-      // calls /api/social-accounts/sync instead to poll Unipile for accounts.
-      ...(appUrl.includes('localhost') ? {} : {
-        api_url: `${appUrl}/api/webhooks/unipile`,
-      }),
-      success_redirect_url: `${appUrl}/settings?tab=connections&connected=true`,
-      failure_redirect_url: `${appUrl}/settings?tab=connections&error=unipile_failed`,
-      name: user.id,
-      expiresOn: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
-    }),
+    body: JSON.stringify(requestBody),
   });
 
+  const rawBody = await res.text();
+
   if (!res.ok) {
-    const body = await res.text().catch(() => '');
-    console.error('[unipile/connect] hosted link creation failed:', res.status, body.slice(0, 300));
+    console.error('[unipile/connect] failed:', res.status, rawBody);
+    // Return the raw Unipile error so we can see exactly what's wrong.
     return NextResponse.json(
-      { error: `Unipile hosted connect failed (${res.status}). Check UNIPILE_API_KEY and UNIPILE_DSN.` },
+      {
+        error: `Unipile hosted connect failed (${res.status})`,
+        unipile_error: rawBody,
+      },
       { status: 502 },
     );
   }
 
-  const data = (await res.json()) as { url?: string; link_url?: string };
+  let data: { url?: string; link_url?: string };
+  try {
+    data = JSON.parse(rawBody);
+  } catch {
+    console.error('[unipile/connect] invalid JSON response:', rawBody);
+    return NextResponse.json({ error: 'Unipile returned invalid JSON', raw: rawBody }, { status: 502 });
+  }
+
   const linkUrl = data.url ?? data.link_url;
 
   if (!linkUrl) {
-    console.error('[unipile/connect] no url in response:', JSON.stringify(data));
+    console.error('[unipile/connect] no url in response:', rawBody);
     return NextResponse.json(
-      { error: 'Unipile did not return a connect URL. Check API key permissions.' },
+      { error: 'Unipile did not return a connect URL', response: data },
       { status: 502 },
     );
   }
 
-  // Step 2: redirect user to the Unipile-hosted connect page.
   return NextResponse.redirect(linkUrl);
 }
