@@ -7,9 +7,10 @@ import { useToast } from '@/components/ui/Toast';
 import { GenerateOutput } from './GenerateOutput';
 import { getInsforgeClient } from '@/lib/insforge/client';
 import { usePillars } from '@/hooks/usePillars';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 async function callGenerate(prompt: string): Promise<string> {
-  const res = await fetch('/api/generate', {
+  const res = await fetchWithAuth('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt }),
@@ -135,7 +136,7 @@ Use every specific detail from the memory. Never genericize. No em dashes.`;
         ? pillarRaw
         : (pillarValues[0] ?? '');
 
-      const res = await fetch('/api/posts', {
+      const res = await fetchWithAuth('/api/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

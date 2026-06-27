@@ -6,6 +6,7 @@ import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
 import { usePillars } from '@/hooks/usePillars';
 import { PLATFORMS } from '@/lib/constants';
 import type { Platform } from '@/lib/constants';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 const PILLAR_PROMPTS: Record<string, string> = {
   'hot-take': `Generate a hot take Reel script.
@@ -63,7 +64,7 @@ async function callGenerate(
   prompt: string,
   platform: Platform,
 ): Promise<{ text: string; voiceMetrics: GenerateVoiceMetrics }> {
-  const res = await fetch('/api/generate', {
+  const res = await fetchWithAuth('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt, platform, topic: prompt.slice(0, 200) }),

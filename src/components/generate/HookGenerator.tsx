@@ -4,9 +4,10 @@ import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { SkeletonLines } from '@/components/ui/Skeleton';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 async function callGenerate(prompt: string): Promise<string> {
-  const res = await fetch('/api/generate', {
+  const res = await fetchWithAuth('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ prompt }),
