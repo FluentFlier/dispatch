@@ -61,11 +61,29 @@ export async function getAuthenticatedUser(): Promise<{ id: string; email: strin
     const { data, error } = await client.auth.getCurrentUser();
     if (data?.user) return { id: data.user.id, email: data.user.email ?? '' };
 
-    // Access token expired or invalid — attempt silent refresh.
     if (error) {
+      console.warn('[auth] getCurrentUser error:', {
+        message: (error as { message?: string }).message,
+        code: (error as { error?: string }).error,
+        statusCode: (error as { statusCode?: number }).statusCode,
+      });
+    } else if (!data?.user) {
+      // InsForge returned null user with no error — token is likely missing or expired.
+      const cookieStore = cookies();
+      const hasToken = !!cookieStore.get('content-os-token')?.value;
+      console.warn('[auth] getCurrentUser returned null user (no error). token cookie present:', hasToken);
+    }
+
+    // Access token expired or invalid — attempt silent refresh.
+    // Try refresh on BOTH error AND null-user-no-error paths (InsForge returns null
+    // without an error when the access token is expired in some configurations).
+    if (error || !data?.user) {
       const cookieStore = cookies();
       const refreshToken = cookieStore.get('content-os-refresh')?.value;
-      if (!refreshToken) return null;
+      if (!refreshToken) {
+        console.warn('[auth] No refresh token cookie — cannot refresh session.');
+        return null;
+      }
 
       const rawUrl = process.env.NEXT_PUBLIC_INSFORGE_URL;
       const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY;
