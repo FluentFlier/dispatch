@@ -52,7 +52,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   let query = client.database
     .from('social_accounts')
-    .select('unipile_account_id, account_name')
+    .select('unipile_account_id, account_id, account_name')
     .eq('user_id', user.id)
     .eq('platform', platform)
     .not('unipile_account_id', 'is', null);
@@ -70,11 +70,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const accountId = account.unipile_account_id;
+  // account_id = LinkedIn's own provider user ID (used in path).
+  // unipile_account_id = Unipile's internal account ID (used as auth query param).
+  if (!account.account_id) {
+    const label = platform === 'linkedin' ? 'LinkedIn' : 'X';
+    return NextResponse.json(
+      {
+        error: `${label} account missing provider ID. Disconnect and reconnect via Settings.`,
+      },
+      { status: 404 },
+    );
+  }
+
+  const providerUserId = account.account_id;
+  const unipileAccountId = account.unipile_account_id;
 
   try {
     const res = await unipoleFetch(
-      `/users/${encodeURIComponent(accountId)}/posts?limit=25`,
+      `/users/${encodeURIComponent(providerUserId)}/posts?account_id=${encodeURIComponent(unipileAccountId)}&limit=25`,
       { method: 'GET' },
     );
 

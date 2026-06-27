@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { unipoleFetch } from '@/lib/social/unipile';
 
@@ -19,13 +19,19 @@ interface UnipileAccount {
 /**
  * POST /api/social-accounts/sync
  *
- * Polls Unipile GET /accounts, then upserts any connected accounts into
- * social_accounts for the current user.
+ * Polls Unipile GET /accounts, then stores connected accounts for the current user.
  *
  * This is the fallback path for local development where the Unipile webhook
  * cannot reach localhost. In production the webhook (/api/webhooks/unipile)
  * fires automatically and stores accounts — this endpoint is called on the
  * success_redirect so localhost dev works without ngrok.
+ *
+ * Security: Unipile's GET /accounts returns ALL accounts for the shared API key
+ * (all Content OS users). We cross-check against the service client to skip any
+ * account already claimed by a different user — preventing cross-user contamination.
+ *
+ * Workspace preservation: on UPDATE we never overwrite workspace_id so users who
+ * switch active workspaces between syncs don't lose their account association.
  */
 export async function POST(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -63,6 +69,22 @@ export async function POST(): Promise<NextResponse> {
   const client = getServerClient();
   const workspaceId = await getActiveWorkspaceId(user.id);
 
+  // --- Build set of unipile_account_ids owned by OTHER users ---
+  // Service client bypasses RLS so we can see all users' rows.
+  // This prevents claiming an account that already belongs to someone else.
+  const serviceClient = getServiceClient();
+  const { data: allClaimed } = await serviceClient.database
+    .from('social_accounts')
+    .select('unipile_account_id, user_id')
+    .not('unipile_account_id', 'is', null)
+    .neq('user_id', user.id);
+
+  const claimedByOthers = new Set(
+    (allClaimed ?? [])
+      .map((r) => (r as { unipile_account_id: string }).unipile_account_id)
+      .filter(Boolean),
+  );
+
   // Deduplicate by id — Unipile can return the same account twice if reconnected.
   const seen = new Set<string>();
   const dedupedAccounts = accounts.filter((a) => {
@@ -73,6 +95,12 @@ export async function POST(): Promise<NextResponse> {
 
   let synced = 0;
   for (const account of dedupedAccounts) {
+    // Skip accounts already owned by another user — prevents cross-user data leakage.
+    if (claimedByOthers.has(account.id)) {
+      console.warn('[sync/unipile] Skipping account owned by another user:', account.id.slice(0, 8) + '...');
+      continue;
+    }
+
     // API list response uses 'type'; webhook payload uses 'provider'.
     const providerRaw = (account.type ?? account.provider ?? '').toLowerCase();
     const platform =
@@ -84,14 +112,38 @@ export async function POST(): Promise<NextResponse> {
 
     if (!platform) continue;
 
-    // Extract display name and username from nested connection_params if available.
     const accountName = account.name ?? account.connection_params?.im?.username ?? null;
+    // publicIdentifier is the LinkedIn provider user ID used in /users/{id}/posts.
     const accountId = account.connection_params?.im?.publicIdentifier ?? account.username ?? null;
 
-    await client.database
+    // Temp: log what publicIdentifier returns so we can verify it's the right LinkedIn ID format.
+    console.log(`[sync/unipile] ${platform} account_id (publicIdentifier):`, accountId, '| unipile_id:', account.id.slice(0, 8) + '...');
+
+    // Check if user already has a row for this platform.
+    // UPDATE preserves workspace_id (user may have switched active workspace since last sync).
+    // INSERT sets workspace_id from the currently active workspace.
+    const { data: existing } = await client.database
       .from('social_accounts')
-      .upsert(
-        {
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('platform', platform)
+      .maybeSingle();
+
+    if (existing) {
+      await client.database
+        .from('social_accounts')
+        .update({
+          unipile_account_id: account.id,
+          account_name: accountName,
+          account_id: accountId,
+          connection_method: 'unipile',
+          connected_at: new Date().toISOString(),
+        })
+        .eq('id', (existing as { id: string }).id);
+    } else {
+      await client.database
+        .from('social_accounts')
+        .insert({
           user_id: user.id,
           workspace_id: workspaceId,
           platform,
@@ -102,9 +154,8 @@ export async function POST(): Promise<NextResponse> {
           access_token: '',
           connection_method: 'unipile',
           connected_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,platform' },
-      );
+        });
+    }
     synced++;
   }
 

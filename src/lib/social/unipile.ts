@@ -126,4 +126,30 @@ export const unipileProvider: SocialProvider = {
   },
 };
 
+interface UnipileFullAccount {
+  id: string;
+  username?: string;
+  name?: string;
+  connection_params?: {
+    im?: { username?: string; publicIdentifier?: string };
+  };
+}
+
+/**
+ * Fetches full account details from Unipile including connection_params.
+ * Webhook payloads only carry a bare account object (no connection_params),
+ * so account_id stored there is just `username`. Calling this after webhook
+ * upsert gives us publicIdentifier — the LinkedIn provider user ID required
+ * for GET /users/{id}/posts.
+ */
+export async function fetchUnipileAccountDetails(unipileAccountId: string): Promise<UnipileFullAccount | null> {
+  try {
+    const res = await unipoleFetch(`/accounts/${encodeURIComponent(unipileAccountId)}`, { method: 'GET' });
+    if (!res.ok) return null;
+    return res.json() as Promise<UnipileFullAccount>;
+  } catch {
+    return null;
+  }
+}
+
 export { unipoleFetch, mapPlatform };
