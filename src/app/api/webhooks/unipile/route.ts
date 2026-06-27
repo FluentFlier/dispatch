@@ -9,7 +9,8 @@ interface UnipileWebhookPayload {
   account_id?: string;
   account?: {
     id: string;
-    provider: string;
+    provider?: string;
+    type?: string;
     username?: string;
     name?: string;
   };
@@ -108,12 +109,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ ok: true });
     }
 
-    const providerLower = account.provider?.toLowerCase() ?? '';
+    // Webhook payload may use 'provider' or 'type' depending on Unipile version.
+    const providerLower = (account.provider ?? account.type ?? '').toLowerCase();
     // Map Unipile provider names to our canonical platform names.
     const platform =
       providerLower === 'linkedin' ? 'linkedin' :
-        providerLower === 'twitter' || providerLower === 'x' ? 'twitter' :
-          providerLower;
+        providerLower === 'twitter' || providerLower === 'x' || providerLower === 'twitter_v2' ? 'twitter' :
+          providerLower === 'instagram' ? 'instagram' :
+            providerLower === 'threads' ? 'threads' :
+              providerLower;
 
     // Resolve workspace for this user.
     const { data: memberRow } = await client.database

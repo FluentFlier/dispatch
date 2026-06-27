@@ -5,10 +5,15 @@ import { unipoleFetch } from '@/lib/social/unipile';
 
 interface UnipileAccount {
   id: string;
-  provider: string;
+  // API list response uses 'type'; webhook payload uses 'provider'.
+  type?: string;
+  provider?: string;
   username?: string;
   name?: string;
   connection_status?: string;
+  connection_params?: {
+    im?: { username?: string; publicIdentifier?: string };
+  };
 }
 
 /**
@@ -41,8 +46,16 @@ export async function POST(): Promise<NextResponse> {
     );
   }
 
-  const data = (await res.json()) as { items?: UnipileAccount[] };
-  const accounts = data.items ?? [];
+  const rawData = await res.json() as Record<string, unknown>;
+  console.log('[sync/unipile] raw response:', JSON.stringify(rawData).slice(0, 1000));
+
+  // Unipile may use 'items', 'accounts', or 'data' depending on API version.
+  const accounts: UnipileAccount[] = (
+    (rawData.items as UnipileAccount[] | undefined) ??
+    (rawData.accounts as UnipileAccount[] | undefined) ??
+    (rawData.data as UnipileAccount[] | undefined) ??
+    []
+  );
 
   if (accounts.length === 0) {
     return NextResponse.json({ synced: 0, message: 'No accounts found in Unipile' });
@@ -51,17 +64,30 @@ export async function POST(): Promise<NextResponse> {
   const client = getServerClient();
   const workspaceId = await getActiveWorkspaceId(user.id);
 
+  // Deduplicate by id — Unipile can return the same account twice if reconnected.
+  const seen = new Set<string>();
+  const dedupedAccounts = accounts.filter((a) => {
+    if (seen.has(a.id)) return false;
+    seen.add(a.id);
+    return true;
+  });
+
   let synced = 0;
-  for (const account of accounts) {
-    const providerLower = account.provider?.toLowerCase() ?? '';
+  for (const account of dedupedAccounts) {
+    // API list response uses 'type'; webhook payload uses 'provider'.
+    const providerRaw = (account.type ?? account.provider ?? '').toLowerCase();
     const platform =
-      providerLower === 'linkedin' ? 'linkedin' :
-        providerLower === 'twitter' || providerLower === 'x' || providerLower === 'twitter_v2' ? 'twitter' :
-          providerLower === 'instagram' ? 'instagram' :
-            providerLower === 'threads' ? 'threads' :
+      providerRaw === 'linkedin' ? 'linkedin' :
+        providerRaw === 'twitter' || providerRaw === 'x' || providerRaw === 'twitter_v2' ? 'twitter' :
+          providerRaw === 'instagram' ? 'instagram' :
+            providerRaw === 'threads' ? 'threads' :
               null;
 
     if (!platform) continue;
+
+    // Extract display name and username from nested connection_params if available.
+    const accountName = account.name ?? account.connection_params?.im?.username ?? null;
+    const accountId = account.connection_params?.im?.publicIdentifier ?? account.username ?? null;
 
     await client.database
       .from('social_accounts')
@@ -71,10 +97,9 @@ export async function POST(): Promise<NextResponse> {
           workspace_id: workspaceId,
           platform,
           unipile_account_id: account.id,
-          account_name: account.name ?? account.username ?? null,
-          account_id: account.username ?? null,
-          // access_token is NOT NULL in schema; Unipile accounts have no OAuth token
-          // (Unipile manages auth internally) so store empty string as placeholder.
+          account_name: accountName,
+          account_id: accountId,
+          // access_token is NOT NULL in schema; Unipile manages auth internally.
           access_token: '',
           connection_method: 'unipile',
           connected_at: new Date().toISOString(),
