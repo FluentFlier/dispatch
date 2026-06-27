@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Loader2,
   KeyRound,
+  RefreshCw,
 } from "lucide-react";
 
 interface ConnectedAccount {
@@ -64,6 +65,8 @@ export default function PlatformConnections({
   useUnipile = false,
 }: PlatformConnectionsProps) {
   const [unipileLoading, setUnipileLoading] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
   const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
   const [byokValues, setByokValues] = useState<ByokState>({});
   const [savingPlatform, setSavingPlatform] = useState<string | null>(null);
@@ -177,6 +180,25 @@ export default function PlatformConnections({
     }
   }
 
+  async function syncFromUnipile() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch('/api/social-accounts/sync', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setSyncResult(data.synced > 0 ? `Synced ${data.synced} account(s)` : 'No accounts found in Unipile');
+        onAccountsRefresh();
+      } else {
+        setSyncResult(data.error ?? 'Sync failed');
+      }
+    } catch {
+      setSyncResult('Network error');
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <>
       {useUnipile && (
@@ -195,7 +217,19 @@ export default function PlatformConnections({
               {unipileLoading && <Loader2 size={12} className="animate-spin" />}
               Connect accounts
             </button>
+            <button
+              type="button"
+              disabled={syncing}
+              onClick={syncFromUnipile}
+              className="px-4 py-2 text-[12px] text-text-primary border border-border rounded-md hover:border-border-hover disabled:opacity-60 flex items-center gap-2 transition-colors"
+            >
+              <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
+              {syncing ? 'Syncing...' : 'Sync from Unipile'}
+            </button>
           </div>
+          {syncResult && (
+            <p className="text-[11px] text-text-secondary mt-2">{syncResult}</p>
+          )}
         </div>
       )}
 
