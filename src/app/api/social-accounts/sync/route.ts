@@ -56,10 +56,10 @@ export async function POST(): Promise<NextResponse> {
     const providerLower = account.provider?.toLowerCase() ?? '';
     const platform =
       providerLower === 'linkedin' ? 'linkedin' :
-      providerLower === 'twitter' || providerLower === 'x' || providerLower === 'twitter_v2' ? 'twitter' :
-      providerLower === 'instagram' ? 'instagram' :
-      providerLower === 'threads' ? 'threads' :
-      null;
+        providerLower === 'twitter' || providerLower === 'x' || providerLower === 'twitter_v2' ? 'twitter' :
+          providerLower === 'instagram' ? 'instagram' :
+            providerLower === 'threads' ? 'threads' :
+              null;
 
     if (!platform) continue;
 

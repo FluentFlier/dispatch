@@ -99,9 +99,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // --- Handle account.connected: store the new social account ---
   if (payload.event === 'account.connected' && payload.account) {
     const account = payload.account;
-    // notify_url sends the user_id back in account.name (what we passed as `name`).
-    // Fallback to state and user_id for legacy/reconnect events.
-    const userId = account.name ?? payload.state ?? payload.user_id;
+    // state is the user.id UUID we injected during hosted link creation.
+    // account.name is the LinkedIn display name — do NOT use it for user resolution.
+    const userId = payload.state ?? payload.user_id;
 
     if (!userId) {
       console.warn('[webhooks/unipile] account.connected missing user_id/state');
@@ -112,8 +112,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Map Unipile provider names to our canonical platform names.
     const platform =
       providerLower === 'linkedin' ? 'linkedin' :
-      providerLower === 'twitter' || providerLower === 'x' ? 'twitter' :
-      providerLower;
+        providerLower === 'twitter' || providerLower === 'x' ? 'twitter' :
+          providerLower;
 
     // Resolve workspace for this user.
     const { data: memberRow } = await client.database

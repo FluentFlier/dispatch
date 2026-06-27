@@ -32,16 +32,15 @@ export function middleware(request: NextRequest): NextResponse {
   }
 
   // Authenticated user hitting /login -> redirect to /dashboard.
-  // Exception: if the dashboard sent them here with ?expired=1 it means the
-  // server rejected the token — clear the stale cookie and let login render so
-  // the user can re-authenticate. Without this the middleware and dashboard
-  // redirect each other indefinitely (cookie present but token invalid = loop).
+  // Exception: ?expired=1 or ?error means the server rejected the token — let
+  // the login page render so the user can re-authenticate.
+  // We do NOT clear the cookie here: any URL (/login?expired=1) could be used
+  // to force-logout a user (CSRF). getAuthenticatedUser() handles stale/expired
+  // tokens gracefully server-side — the cookie will be replaced on next sign-in.
   if (pathname === '/login' && token) {
     const { searchParams } = request.nextUrl;
     if (searchParams.get('expired') === '1' || searchParams.has('error')) {
-      const response = NextResponse.next({ request: { headers: requestHeaders } });
-      response.cookies.set('content-os-token', '', { httpOnly: true, path: '/', maxAge: 0 });
-      return response;
+      return NextResponse.next({ request: { headers: requestHeaders } });
     }
     const dashboardUrl = new URL('/dashboard', request.url);
     return NextResponse.redirect(dashboardUrl, 307);
