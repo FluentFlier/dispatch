@@ -21,7 +21,9 @@ export default function TokenRefreshGate() {
     function goToLogin() {
       sessionStorage.removeItem(RETRY_KEY);
       setStatus('failed');
-      setTimeout(() => { window.location.href = '/login'; }, 800);
+      // Must use ?expired=1 — middleware redirects plain /login back to /dashboard
+      // when the content-os-token cookie still exists (even if expired).
+      setTimeout(() => { window.location.href = '/login?expired=1'; }, 800);
     }
 
     async function tryRefresh() {
