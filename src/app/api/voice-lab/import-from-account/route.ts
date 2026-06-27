@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
-import { unipoleFetch } from '@/lib/social/unipile';
+import { unipoleFetch, fetchUnipileAccountDetails } from '@/lib/social/unipile';
 import { z } from 'zod';
 
 const RequestSchema = z.object({
@@ -70,20 +70,43 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  // account_id = LinkedIn's own provider user ID (used in path).
-  // unipile_account_id = Unipile's internal account ID (used as auth query param).
-  if (!account.account_id) {
+  const unipileAccountId = account.unipile_account_id;
+
+  // Fetch full account details from Unipile to get the LinkedIn provider member ID.
+  // The DB stores publicIdentifier (vanity URL slug like "rudheerreddy") but Unipile's
+  // /users/{id}/posts endpoint needs the LinkedIn internal member ID (numeric or ACo... format).
+  // We fetch fresh from Unipile each time until we confirm which field holds the right ID.
+  let providerUserId: string | null = null;
+  try {
+    const fullAccount = await fetchUnipileAccountDetails(unipileAccountId);
+    const im = fullAccount?.connection_params?.im;
+
+    // Log the full im object so we can see all available fields — remove once confirmed.
+    console.log('[import-from-account] Unipile connection_params.im:', JSON.stringify(im ?? {}));
+
+    // Try fields in order of most-likely-to-be LinkedIn member ID.
+    // memberId / id may hold the numeric or ACo... encoded member ID.
+    providerUserId =
+      im?.memberId ??
+      im?.id ??
+      im?.objectUrn ??
+      im?.publicIdentifier ??
+      account.account_id ??
+      null;
+
+    console.log('[import-from-account] resolved providerUserId:', providerUserId);
+  } catch {
+    // Fall back to stored account_id if enrichment fails.
+    providerUserId = account.account_id ?? null;
+  }
+
+  if (!providerUserId) {
     const label = platform === 'linkedin' ? 'LinkedIn' : 'X';
     return NextResponse.json(
-      {
-        error: `${label} account missing provider ID. Disconnect and reconnect via Settings.`,
-      },
+      { error: `${label} account missing provider ID. Disconnect and reconnect via Settings.` },
       { status: 404 },
     );
   }
-
-  const providerUserId = account.account_id;
-  const unipileAccountId = account.unipile_account_id;
 
   try {
     const res = await unipoleFetch(
