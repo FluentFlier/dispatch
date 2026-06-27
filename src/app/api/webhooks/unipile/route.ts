@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { getServiceClient } from '@/lib/insforge/server';
+import { fetchUnipileAccountDetails } from '@/lib/social/unipile';
 
 // --- Unipile webhook payload types ---
 
@@ -131,6 +132,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     if (memberRow) {
       const workspaceId = (memberRow as { workspace_id: string }).workspace_id;
 
+      // Fetch full account details to get connection_params.im.publicIdentifier.
+      // Webhook payloads carry only a bare account object — no connection_params —
+      // so account.username is just a display name, not the LinkedIn provider user ID.
+      // publicIdentifier is required for GET /users/{id}/posts.
+      let enrichedAccountId: string | null = account.username ?? null;
+      try {
+        const full = await fetchUnipileAccountDetails(account.id);
+        if (full?.connection_params?.im?.publicIdentifier) {
+          enrichedAccountId = full.connection_params.im.publicIdentifier;
+        }
+      } catch {
+        // Enrichment is best-effort — fall back to username.
+        console.warn('[webhooks/unipile] Could not enrich account_id for', account.id);
+      }
+
       // Upsert the social account — if user reconnects, update the account_id.
       await client.database
         .from('social_accounts')
@@ -141,7 +157,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             platform,
             unipile_account_id: account.id,
             account_name: account.name ?? account.username ?? null,
-            account_id: account.username ?? null,
+            account_id: enrichedAccountId,
             access_token: '',
             connection_method: 'unipile',
             connected_at: new Date().toISOString(),

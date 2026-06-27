@@ -122,6 +122,11 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
+-- workspaces: prevent duplicate solo workspaces per user (race condition on concurrent logins)
+CREATE UNIQUE INDEX IF NOT EXISTS workspaces_unique_solo
+  ON workspaces (owner_user_id)
+  WHERE type = 'solo';
+
 -- indexes
 CREATE INDEX IF NOT EXISTS posts_scheduled_publish ON posts (scheduled_publish_at) WHERE status != 'posted';
 CREATE INDEX IF NOT EXISTS publish_jobs_status_scheduled ON publish_jobs (status, scheduled_for);

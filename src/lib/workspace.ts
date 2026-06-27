@@ -100,8 +100,39 @@ export async function ensureSoloWorkspace(userId: string): Promise<Workspace> {
     .insert([{ owner_user_id: userId, name: 'My workspace', type: 'solo' }])
     .select('id, name, type, owner_user_id')
     .single();
-  if (error || !data) {
+
+  if (error) {
+    // Unique violation: another concurrent call already created the workspace (race condition).
+    // Fetch and return the existing one instead of throwing.
+    const isUnique = error.code === '23505'
+      || error.message?.toLowerCase().includes('duplicate')
+      || error.message?.toLowerCase().includes('unique')
+      || error.message?.toLowerCase().includes('already exists');
+
+    if (isUnique) {
+      const { data: existingWs } = await adminClient.database
+        .from('workspaces')
+        .select('id, name, type, owner_user_id')
+        .eq('owner_user_id', userId)
+        .eq('type', 'solo')
+        .limit(1)
+        .single();
+      if (existingWs) {
+        const existing = existingWs as Workspace;
+        // Ensure membership row exists for this workspace.
+        await adminClient.database
+          .from('workspace_members')
+          .upsert([{ workspace_id: existing.id, user_id: userId, role: 'owner' }], { onConflict: 'workspace_id,user_id' });
+        return { ...existing, role: 'owner' };
+      }
+    }
+
     logWarn('workspace.provision_insert_failed', { userId, dbError: error?.message ?? error, hint: error?.hint });
+    throw new Error('Could not create workspace');
+  }
+
+  if (!data) {
+    logWarn('workspace.provision_insert_failed', { userId, dbError: 'no data returned' });
     throw new Error('Could not create workspace');
   }
 

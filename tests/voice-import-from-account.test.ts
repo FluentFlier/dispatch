@@ -21,7 +21,7 @@ import { unipoleFetch } from '@/lib/social/unipile';
 import { NextRequest } from 'next/server';
 
 const mockUser = { id: 'user_123' };
-const mockAccount = { unipile_account_id: 'unipile_abc123', account_name: 'Test User' };
+const mockAccount = { unipile_account_id: 'unipile_abc123', account_id: 'ACoAABcDEFgH', account_name: 'Test User' };
 
 const UNIPILE_POSTS_RESPONSE = {
   items: [
@@ -90,13 +90,24 @@ describe('POST /api/voice-lab/import-from-account', () => {
     expect(body.error).toContain('No connected LinkedIn');
   });
 
-  it('calls Unipile /users/{account_id}/posts with correct account ID', async () => {
+  it('calls Unipile /users/{provider_id}/posts with provider ID in path and unipile ID as query param', async () => {
     const { POST } = await import('@/app/api/voice-lab/import-from-account/route');
     await POST(makeRequest({ platform: 'linkedin' }));
     expect(unipoleFetch).toHaveBeenCalledWith(
-      expect.stringContaining('/users/unipile_abc123/posts'),
+      expect.stringMatching(/\/users\/ACoAABcDEFgH\/posts\?account_id=unipile_abc123/),
       expect.objectContaining({ method: 'GET' }),
     );
+  });
+
+  it('returns 404 when account_id (provider user ID) is missing', async () => {
+    (getServerClient as ReturnType<typeof vi.fn>).mockReturnValue({
+      database: { from: vi.fn().mockReturnValue(mockDbChain({ unipile_account_id: 'unipile_abc123', account_id: null, account_name: 'Test' })) },
+    });
+    const { POST } = await import('@/app/api/voice-lab/import-from-account/route');
+    const res = await POST(makeRequest({ platform: 'linkedin' }));
+    expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body.error).toContain('provider ID');
   });
 
   it('filters out reposts and replies, returns only original posts', async () => {
