@@ -16,21 +16,34 @@ export default function TokenRefreshGate() {
   const [status, setStatus] = useState<'refreshing' | 'failed'>('refreshing');
 
   useEffect(() => {
+    const RETRY_KEY = 'token_refresh_attempts';
+
+    function goToLogin() {
+      sessionStorage.removeItem(RETRY_KEY);
+      setStatus('failed');
+      setTimeout(() => { window.location.href = '/login'; }, 800);
+    }
+
     async function tryRefresh() {
+      // Break infinite reload loop: if we've already tried twice, give up.
+      const attempts = Number(sessionStorage.getItem(RETRY_KEY) ?? '0');
+      if (attempts >= 2) {
+        goToLogin();
+        return;
+      }
+      sessionStorage.setItem(RETRY_KEY, String(attempts + 1));
+
       try {
         const client = getInsforgeClient();
         const { data, error } = await client.auth.refreshSession();
 
         if (error || !data?.accessToken) {
-          setStatus('failed');
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 1500);
+          goToLogin();
           return;
         }
 
         // Sync new token to server-side httpOnly cookie.
-        const res = await fetch('/api/auth', {
+        const syncRes = await fetch('/api/auth', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'same-origin',
@@ -40,21 +53,24 @@ export default function TokenRefreshGate() {
           }),
         });
 
-        if (!res.ok) {
-          setStatus('failed');
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 1500);
+        if (!syncRes.ok) {
+          goToLogin();
           return;
         }
 
-        // Hard reload so layout re-runs server-side auth with the new cookie.
+        // Verify the new token actually passes server-side auth before reloading.
+        // If it fails here, reloading would just loop — go to login instead.
+        const verifyRes = await fetch('/api/auth/session', { credentials: 'same-origin' });
+        const verifyData = await verifyRes.json().catch(() => ({}));
+        if (!verifyRes.ok || !verifyData?.authenticated) {
+          goToLogin();
+          return;
+        }
+
+        sessionStorage.removeItem(RETRY_KEY);
         window.location.reload();
       } catch {
-        setStatus('failed');
-        setTimeout(() => {
-          window.location.href = '/login';
-        }, 1500);
+        goToLogin();
       }
     }
 

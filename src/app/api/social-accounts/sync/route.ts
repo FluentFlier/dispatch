@@ -47,7 +47,6 @@ export async function POST(): Promise<NextResponse> {
   }
 
   const rawData = await res.json() as Record<string, unknown>;
-  console.log('[sync/unipile] raw response:', JSON.stringify(rawData).slice(0, 1000));
 
   // Unipile may use 'items', 'accounts', or 'data' depending on API version.
   const accounts: UnipileAccount[] = (
