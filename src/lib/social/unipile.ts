@@ -126,12 +126,21 @@ export const unipileProvider: SocialProvider = {
   },
 };
 
-interface UnipileFullAccount {
+export interface UnipileFullAccount {
   id: string;
   username?: string;
   name?: string;
   connection_params?: {
-    im?: { username?: string; publicIdentifier?: string };
+    im?: {
+      username?: string;
+      publicIdentifier?: string;
+      /** LinkedIn numeric member ID (used in /users/{id}/posts path) */
+      memberId?: string;
+      /** LinkedIn internal ID — may be numeric or ACo... encoded */
+      id?: string;
+      objectUrn?: string;
+      entityUrn?: string;
+    };
   };
 }
 
