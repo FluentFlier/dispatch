@@ -1,10 +1,11 @@
-import { headers } from 'next/headers';
+import { headers, cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import Sidebar from '@/components/nav/Sidebar';
 import BottomBar from '@/components/nav/BottomBar';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import TokenRefreshGate from '@/components/auth/TokenRefreshGate';
 
 export default async function DashboardLayout({
   children,
@@ -16,7 +17,15 @@ export default async function DashboardLayout({
   const user = await getAuthenticatedUser();
 
   if (!user) {
-    redirect('/login?expired=1');
+    // If no cookie at all, they're definitely not logged in.
+    const cookieStore = cookies();
+    const hasToken = !!cookieStore.get('content-os-token')?.value;
+    if (!hasToken) {
+      redirect('/login');
+    }
+    // Cookie exists but server-side validation failed (expired token).
+    // Let the client attempt a browser-side refresh via InsForge's session cookie.
+    return <TokenRefreshGate />;
   }
 
   const isOnboarding = pathname === '/onboarding' || pathname.startsWith('/onboarding/');

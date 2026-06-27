@@ -11,6 +11,7 @@ import type { Platform } from '@/lib/constants';
 import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 import { usePillars } from '@/hooks/usePillars';
 import { OptimizePanel } from './OptimizePanel';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 interface PredictResult {
   tier: 'strong' | 'average' | 'weak';
@@ -185,7 +186,7 @@ export function GenerateOutput({
   async function handleHumanize() {
     setHumanizing(true);
     try {
-      const res = await fetch('/api/humanize', {
+      const res = await fetchWithAuth('/api/humanize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
@@ -203,7 +204,7 @@ export function GenerateOutput({
   async function handleScore() {
     setScoring(true);
     try {
-      const res = await fetch('/api/humanize', {
+      const res = await fetchWithAuth('/api/humanize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, scoreOnly: true }),
@@ -222,7 +223,7 @@ export function GenerateOutput({
     setPredicting(true);
     setPrediction(null);
     try {
-      const res = await fetch('/api/posts/predict', {
+      const res = await fetchWithAuth('/api/posts/predict', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

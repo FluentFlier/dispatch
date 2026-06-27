@@ -1,4 +1,4 @@
-import OpenAI from 'openai';
+import { generateContentHF } from '@/lib/huggingface';
 
 /**
  * Default template used to seed new creator profiles during onboarding.
@@ -85,38 +85,21 @@ export function buildSystemPrompt(
   return parts.join('\n');
 }
 
-function getOpenAIClient(): OpenAI {
-  const key = process.env.AI_API_KEY;
-  if (!key) throw new Error('AI_API_KEY is not configured');
-  return new OpenAI({ apiKey: key });
-}
-
 /**
- * Generates content using GPT-5.4-mini via OpenAI API.
- * Pass modelOverride to use gpt-5.4 for quality-sensitive paths (e.g. voice lab).
+ * Generates content via HuggingFace (Llama-3.1-8B-Instruct).
+ * Accepts the same signature as the old OpenAI generateContent so all call
+ * sites work without changes. modelOverride is ignored (HF uses a fixed model).
  */
 export async function generateContent(
   prompt: string,
   contextAdditions?: string,
   systemOverride?: string,
   profile?: CreatorProfileForPrompt | null,
-  modelOverride?: string
+  _modelOverride?: string
 ): Promise<string> {
   const systemPrompt = systemOverride
     ? systemOverride
     : buildSystemPrompt(profile, contextAdditions);
 
-  const openai = getOpenAIClient();
-  const completion = await openai.chat.completions.create({
-    model: modelOverride ?? 'gpt-5.4-mini',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: prompt },
-    ],
-    max_tokens: 2048,
-  });
-
-  const content = completion.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Empty response from OpenAI');
-  return content;
+  return generateContentHF(systemPrompt, prompt);
 }

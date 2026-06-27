@@ -42,8 +42,10 @@ export async function GET(): Promise<NextResponse> {
     providers: ['LINKEDIN', 'TWITTER'],
     success_redirect_url: `${appUrl}/settings?tab=connections&connected=true`,
     failure_redirect_url: `${appUrl}/settings?tab=connections&error=unipile_failed`,
-    // name gets sent back in notify_url payload so we can match user
+    // state is returned as payload.state in the account.connected webhook — used to identify the user.
+    // name is a display label only; account.name in the webhook payload is the LinkedIn display name, not this value.
     name: user.id,
+    state: user.id,
   };
 
   // notify_url = our webhook, only set in deployed environments (localhost unreachable).

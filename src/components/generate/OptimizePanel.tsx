@@ -7,6 +7,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import { useToast } from '@/components/ui/Toast';
 import { CopyButton } from '@/components/ui/CopyButton';
 import type { Platform } from '@/lib/constants';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 interface SocialAccount {
   id: string;
@@ -48,7 +49,7 @@ export function OptimizePanel({ content, sourcePlatform = 'instagram' }: Optimiz
 
   const fetchAccounts = useCallback(async () => {
     try {
-      const res = await fetch('/api/social-accounts');
+      const res = await fetchWithAuth('/api/social-accounts');
       if (res.ok) {
         const data = await res.json();
         setAccounts(data.accounts ?? []);
@@ -73,7 +74,7 @@ export function OptimizePanel({ content, sourcePlatform = 'instagram' }: Optimiz
     setActiveTab('');
 
     try {
-      const res = await fetch('/api/optimize', {
+      const res = await fetchWithAuth('/api/optimize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -123,7 +124,7 @@ export function OptimizePanel({ content, sourcePlatform = 'instagram' }: Optimiz
         ? variant.threadParts.join('\n\n')
         : variant.content;
 
-      const res = await fetch('/api/posts', {
+      const res = await fetchWithAuth('/api/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -158,7 +159,7 @@ export function OptimizePanel({ content, sourcePlatform = 'instagram' }: Optimiz
         ? variant.threadParts.join('\n\n')
         : variant.content;
 
-      const res = await fetch('/api/publish', {
+      const res = await fetchWithAuth('/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
