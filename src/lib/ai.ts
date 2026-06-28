@@ -8,6 +8,7 @@ export const DEFAULT_SYSTEM_PROMPT_TEMPLATE = `You are a content strategist. You
 
 RULES:
 - No em dashes anywhere. Ever.
+- No markdown formatting. No **bold**, no *italic*, no # headers, no bullet asterisks. Plain text only.
 - No corporate speak or influencer fluff
 - Never genericize a specific detail
 - If a 16 year old cannot follow an explanation, simplify more
@@ -47,6 +48,7 @@ export function buildSystemPrompt(
 
   parts.push(`\nRULES:
 - No em dashes anywhere. Ever.
+- No markdown formatting. No **bold**, no *italic*, no # headers, no bullet asterisks. Plain text only.
 - No corporate speak or influencer fluff
 - Never genericize a specific detail
 - If a 16 year old cannot follow an explanation, simplify more

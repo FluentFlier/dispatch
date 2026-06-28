@@ -5,7 +5,7 @@ import { CopyButton } from '@/components/ui/CopyButton';
 import { SkeletonLines } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
-import { getInsforgeClient } from '@/lib/insforge/client';
+import { useToast } from '@/components/ui/Toast';
 import { PLATFORMS } from '@/lib/constants';
 import type { Platform } from '@/lib/constants';
 import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
@@ -176,6 +176,7 @@ export function GenerateOutput({
   children,
   onTextUpdate,
 }: GenerateOutputProps) {
+  const { toast } = useToast();
   const [showSave, setShowSave] = useState(false);
   const [humanizing, setHumanizing] = useState(false);
   const [aiScore, setAiScore] = useState<number | null>(null);
@@ -191,11 +192,17 @@ export function GenerateOutput({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       });
-      if (!res.ok) throw new Error('Humanization failed');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg = (body as { error?: string }).error ?? 'Humanization failed';
+        toast(res.status === 402 ? 'Monthly AI limit reached. Upgrade your plan.' : msg, 'error');
+        return;
+      }
       const { text: humanized } = await res.json();
       if (onTextUpdate) onTextUpdate(humanized);
     } catch (err) {
       console.error('Humanize error:', err);
+      toast('Humanization failed', 'error');
     } finally {
       setHumanizing(false);
     }
@@ -233,11 +240,17 @@ export function GenerateOutput({
           ai_score: voiceMetrics?.ai_score ?? null,
         }),
       });
-      if (!res.ok) throw new Error('Prediction failed');
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg = (body as { error?: string }).error ?? 'Prediction failed';
+        toast(res.status === 402 ? 'Monthly AI limit reached. Upgrade your plan.' : msg, 'error');
+        return;
+      }
       const data: PredictResult = await res.json();
       setPrediction(data);
     } catch (err) {
       console.error('Predict error:', err);
+      toast('Prediction failed', 'error');
     } finally {
       setPredicting(false);
     }
@@ -316,6 +329,7 @@ export function GenerateOutput({
         onClose={() => setShowSave(false)}
         script={text}
         voiceMetrics={voiceMetrics}
+        sourcePlatform={sourcePlatform}
       />
     </div>
   );
@@ -327,18 +341,24 @@ function SaveToLibraryModal({
   onClose,
   script,
   voiceMetrics,
+  sourcePlatform,
 }: {
   open: boolean;
   onClose: () => void;
   script: string;
   voiceMetrics?: GenerateVoiceMetrics;
+  sourcePlatform?: Platform;
 }) {
+  const { toast } = useToast();
   const { pillars: pillarList, loading: pillarsLoading } = usePillars();
   const [title, setTitle] = useState(() => {
     const firstLine = script.split('\n').find((l) => l.trim())?.trim() ?? '';
-    return firstLine.replace(/^[#*\->\s]+/, '').slice(0, 120);
+    const cleaned = firstLine.replace(/^[#*\->\s]+/, '').slice(0, 120);
+    // Don't use AI label lines as title
+    const isLabel = /^here.?s the (rewritten|revised|updated|final)/i.test(cleaned);
+    return isLabel ? '' : cleaned;
   });
-  const [platform, setPlatform] = useState<Platform>('instagram');
+  const [platform, setPlatform] = useState<Platform>(sourcePlatform ?? 'instagram');
   const [pillar, setPillar] = useState<string>('');
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -359,13 +379,10 @@ function SaveToLibraryModal({
     setSaving(true);
     setError('');
     try {
-      const insforge = getInsforgeClient();
-      const { data: userData } = await insforge.auth.getCurrentUser();
-      if (!userData?.user) throw new Error('Not logged in');
-      const { error: dbError } = await insforge.database
-        .from('posts')
-        .insert([{
-          user_id: userData.user.id,
+      const res = await fetchWithAuth('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           title: title.trim(),
           pillar,
           script,
@@ -374,10 +391,13 @@ function SaveToLibraryModal({
           voice_match_score: voiceMetrics?.voice_match_score ?? null,
           ai_score: voiceMetrics?.ai_score ?? null,
           voice_evaluation: voiceMetrics?.evaluation ?? null,
-        }])
-        .select()
-        .single();
-      if (dbError) throw dbError;
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? 'Failed to save');
+      }
+      toast('Saved to library');
       onClose();
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Failed to save');

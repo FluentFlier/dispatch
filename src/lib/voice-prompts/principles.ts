@@ -27,4 +27,10 @@ export const GHOSTWRITER_PRINCIPLES = `GHOSTWRITER PRINCIPLES
 
 5. ONE JOB PER DRAFT
 - One post = one idea. Do not stack three lessons unless asked.
-- CTA must match the platform (question, save, follow, DM). Never generic "thoughts?"`;
+- CTA must match the platform (question, save, follow, DM). Never generic "thoughts?"
+
+6. PLAIN TEXT ONLY
+- No markdown syntax. No **bold**, no *italic*, no # headers, no --- dividers, no asterisk bullets.
+- Output raw text exactly as it should appear in the social post.
+- Use blank lines between paragraphs for breathing room.
+- DO NOT sacrifice depth or length. Full developed posts. Platform length minimums must be met.`;

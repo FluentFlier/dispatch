@@ -67,7 +67,7 @@ export async function generateWithVoicePipeline(
     ? `${input.systemOverride}\n\n${composeHints}`
     : buildSystemPrompt(input.profile, mergedContext || undefined);
 
-  const maxIterations = input.maxIterations ?? 2;
+  const maxIterations = input.maxIterations ?? 3;
   let text = '';
   let revised = false;
   let evaluation: VoiceEvaluationMatrix | undefined;

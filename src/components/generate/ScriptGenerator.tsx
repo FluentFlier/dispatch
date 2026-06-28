@@ -7,6 +7,7 @@ import { usePillars } from '@/hooks/usePillars';
 import { PLATFORMS } from '@/lib/constants';
 import type { Platform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
+import { useCreatorPreferences, POST_LENGTH_CONFIG, type PostLength } from '@/hooks/useCreatorPreferences';
 
 const PILLAR_PROMPTS: Record<string, string> = {
   'hot-take': `Generate a hot take Reel script.
@@ -100,10 +101,17 @@ export function ScriptGenerator({
   initialPlatform,
 }: ScriptGeneratorProps) {
   const { pillars: pillarList, loading: pillarsLoading, getLabel, getColor } = usePillars();
+  const { preferredPostLength, loading: prefLoading } = useCreatorPreferences();
 
   const [pillar, setPillar] = useState<string>(initialPillar);
   const [topic, setTopic] = useState(initialTopic);
   const [platform, setPlatform] = useState<Platform>(initialPlatform ?? 'instagram');
+  const [postLength, setPostLength] = useState<PostLength>('standard');
+
+  // Sync to profile default once loaded, if user hasn't manually changed it
+  useEffect(() => {
+    if (!prefLoading) setPostLength(preferredPostLength);
+  }, [prefLoading, preferredPostLength]);
 
   // Sync pillar state when custom pillars finish loading asynchronously
   useEffect(() => {
@@ -118,8 +126,17 @@ export function ScriptGenerator({
       setPillar(pillarList[0].value);
     }
   }, [pillarsLoading, pillarList, pillar]);
-  const [output, setOutput] = useState(initialResult);
+  const DRAFT_KEY = 'generate:script:draft';
+  const [output, setOutput] = useState(() => {
+    // Priority: prop (from URL params or Ideas page) > sessionStorage draft > empty
+    if (initialResult) return initialResult;
+    try { return sessionStorage.getItem(DRAFT_KEY) ?? ''; } catch { return ''; }
+  });
   const [voiceMetrics, setVoiceMetrics] = useState<GenerateVoiceMetrics | undefined>();
+
+  useEffect(() => {
+    try { sessionStorage.setItem(DRAFT_KEY, output); } catch {}
+  }, [output]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -136,7 +153,15 @@ export function ScriptGenerator({
       } else if (PILLAR_PROMPTS[pillar]) {
         prompt = PILLAR_PROMPTS[pillar];
       } else {
-        prompt = `Write a script for a "${getLabel(pillar)}" post. The creator's voice only. Under 60 seconds when spoken. No em dashes.
+        const isLongForm = platform === 'linkedin';
+        prompt = isLongForm
+          ? `Write a LinkedIn post for a "${getLabel(pillar)}" angle. Creator's voice only. 200-350 words. No em dashes.
+Hook: One strong first line.
+Setup: 2-3 sentences of context or stakes.
+Story or data: 2-4 sentences of specific detail.
+Insight: 2-3 sentences of real takeaway.
+CTA: One direct question.`
+          : `Write a script for a "${getLabel(pillar)}" post. The creator's voice only. Under 60 seconds when spoken. No em dashes.
 HOOK: One bold first line.
 BODY: 3-4 beats, each one sentence.
 CTA: One direct question.`;
@@ -144,6 +169,7 @@ CTA: One direct question.`;
       if (topic.trim()) {
         prompt += `\n\nTopic: ${topic.trim()}`;
       }
+      prompt += `\n\n${POST_LENGTH_CONFIG[postLength].hint}`;
       const result = await callGenerate(prompt, platform);
       setOutput(result.text);
       setVoiceMetrics(result.voiceMetrics);
@@ -215,6 +241,34 @@ CTA: One direct question.`;
         </div>
       </div>
 
+      <div>
+        <label className="block section-label mb-2">
+          Post Length
+          <span className="ml-2 text-text-tertiary font-normal normal-case tracking-normal">
+            (from your profile default — override per post)
+          </span>
+        </label>
+        <div className="flex gap-2">
+          {(Object.keys(POST_LENGTH_CONFIG) as PostLength[]).map((len) => (
+            <button
+              key={len}
+              onClick={() => setPostLength(len)}
+              className="px-4 py-1.5 rounded-[20px] font-body text-[13px] font-medium transition-all duration-100"
+              style={{
+                backgroundColor: '#F3EDE4',
+                color: postLength === len ? '#1C1917' : '#78716C',
+                border: postLength === len
+                  ? '1.5px solid rgba(28, 25, 23, 0.28)'
+                  : '1px solid rgba(28, 25, 23, 0.1)',
+              }}
+            >
+              {POST_LENGTH_CONFIG[len].label}
+              <span className="ml-1 text-[11px] opacity-60">~{POST_LENGTH_CONFIG[len].words}w</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <Button onClick={generate} loading={loading}>
         Generate Script
       </Button>
@@ -226,6 +280,7 @@ CTA: One direct question.`;
         loading={loading}
         sourcePlatform={platform}
         voiceMetrics={voiceMetrics}
+        onTextUpdate={(newText) => setOutput(newText)}
       />
     </div>
   );

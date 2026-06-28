@@ -11,11 +11,19 @@ export async function GET(): Promise<NextResponse> {
 
   const entitlements = await getUserEntitlements(user.id);
   const client = getServerClient();
-  const { data: profile } = await client.database
-    .from('creator_profile')
-    .select('display_name, content_pillars, onboarding_complete')
-    .eq('user_id', user.id)
-    .maybeSingle();
+  const [{ data: profile }, { data: prefRow }] = await Promise.all([
+    client.database
+      .from('creator_profile')
+      .select('display_name, content_pillars, onboarding_complete')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+    client.database
+      .from('user_settings')
+      .select('value')
+      .eq('user_id', user.id)
+      .eq('key', 'preferred_post_length')
+      .maybeSingle(),
+  ]);
 
   return NextResponse.json({
     authenticated: true,
@@ -28,5 +36,6 @@ export async function GET(): Promise<NextResponse> {
         }
       : null,
     entitlements,
+    preferredPostLength: (prefRow?.value ?? 'standard') as 'short' | 'standard' | 'long',
   });
 }

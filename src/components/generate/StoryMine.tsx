@@ -190,10 +190,6 @@ Use every specific detail from the memory. Never genericize. No em dashes.`;
           placeholder="A pivotal moment from your work. Something that happened while building your product. The day you almost quit. A real experience that shaped how you think. Anything that felt real."
           className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover resize-none transition-colors duration-100"
         />
-        <p className="font-body text-[11px] text-text-secondary mt-1">
-          A pivotal moment from your work. Something that happened while building your product.
-          The day you almost quit. A real experience that shaped how you think. Anything that felt real.
-        </p>
       </div>
 
       <button
