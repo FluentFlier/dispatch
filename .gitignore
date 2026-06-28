@@ -36,9 +36,22 @@ graphify-out/
 .graphify_detect.json
 .graphify_python
 .graphify_uncached.txt
-.graphify_uncached.txt
+.graphify_chunk_files_*.txt
+.graphify_ast_script.py
+.graphify_cached.json
+.graphify_semantic.json
+.graphify_semantic_new.json
+.graphify_extract.json
+.graphify_transcripts.json
 .codegraph/
 .antigravity/
+
+# QA screenshots and root-level images — never commit
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.webp
 
 # build + tooling artifacts
 tsconfig.tsbuildinfo
