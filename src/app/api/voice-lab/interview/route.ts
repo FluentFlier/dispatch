@@ -16,10 +16,12 @@ const InterviewSchema = z.object({
 
 const SYNTHESIZE_PROMPT = `You are a voice synthesis expert. Given a voice analysis and interview answers, produce the final persona profile.
 
+Return ONLY valid JSON. Critical: all string values must be single-line — use \\n for line breaks, never actual newlines inside string values.
+
 Return JSON:
 {
   "voice_description": "A rich 3-4 sentence description of how this person writes. Be specific, cite patterns.",
-  "voice_rules": "Line-separated rules the AI MUST follow when writing as this person. Format: DO: x / NEVER: y. At least 8 rules.",
+  "voice_rules": "Line-separated rules the AI MUST follow when writing as this person. Format: DO: x / NEVER: y. At least 8 rules. Use \\n between rules.",
   "vocabulary_fingerprint": {
     "uses_often": ["word1", "word2"],
     "never_uses": ["word1", "word2"],
@@ -31,8 +33,28 @@ Return JSON:
     "hook_pattern": "description",
     "closing_pattern": "description"
   },
-  "exportable_prompt": "A complete system prompt (200-400 words) that any LLM can use to write in this person's voice. Include voice rules, vocabulary guidance, structural patterns, and tone. Make it self-contained and portable."
+  "exportable_prompt": "A complete system prompt (200-400 words) that any LLM can use to write in this person's voice. Include voice rules, vocabulary guidance, structural patterns, and tone. Make it self-contained and portable. Use \\n for line breaks."
 }`;
+
+/**
+ * Escapes raw control characters inside JSON string values so JSON.parse doesn't throw.
+ * AI models occasionally emit literal newlines/tabs inside JSON strings instead of \\n/\\t,
+ * which is invalid JSON. Targets only content inside double-quoted strings.
+ */
+function sanitizeJsonControlChars(raw: string): string {
+  return raw.replace(
+    /"((?:[^"\\]|\\[\s\S])*)"/g,
+    (_, content: string) =>
+      '"' +
+      content
+        .replace(/\r\n/g, '\\n')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '\\r')
+        .replace(/\t/g, '\\t')
+        .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '') +
+      '"',
+  );
+}
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -57,7 +79,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ error: 'Failed to parse synthesis' }, { status: 500 });
     }
 
-    const persona = JSON.parse(jsonMatch[0]);
+    let persona: unknown;
+    try {
+      persona = JSON.parse(jsonMatch[0]);
+    } catch {
+      // AI emitted literal control characters inside JSON string values (common with long
+      // multiline fields like exportable_prompt). Sanitize then retry.
+      persona = JSON.parse(sanitizeJsonControlChars(jsonMatch[0]));
+    }
+
     return NextResponse.json(persona);
   } catch (err) {
     return errorResponse('Synthesis failed.', 500, err);
