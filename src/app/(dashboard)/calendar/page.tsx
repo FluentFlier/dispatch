@@ -2,23 +2,18 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  CalendarDays,
   ChevronLeft,
   ChevronRight,
-  X,
-  Calendar as CalendarIcon,
+  Menu,
 } from "lucide-react";
-import {
-  DragDropContext,
-  type DropResult,
-} from "@hello-pangea/dnd";
+import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { getInsforge } from "@/lib/insforge/client";
 import type { Post } from "@/lib/types";
 import { usePillars } from "@/hooks/usePillars";
 import CalendarGrid from "@/components/calendar/CalendarGrid";
-import CalendarBacklog from "@/components/calendar/CalendarBacklog";
+import CalendarSidebar from "@/components/calendar/CalendarSidebar";
 import { ScheduleModal, FillWeekModal } from "@/components/calendar/CalendarModals";
-import { PageHeader } from "@/components/layout/PageHeader";
+import PostDetailModal from "@/components/calendar/PostDetailModal";
 import { ClientOnly } from "@/components/ClientOnly";
 import { useRouter } from "next/navigation";
 
@@ -48,10 +43,6 @@ function toDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-function truncate(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max) + "..." : s;
-}
-
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -62,13 +53,19 @@ const MONTH_NAMES = [
 /* ------------------------------------------------------------------ */
 
 export default function CalendarPage() {
-  const { getLabel } = usePillars();
+  const { pillars, getLabel } = usePillars();
   const router = useRouter();
   const today = useMemo(() => new Date(), []);
+
+  // Data
   const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
 
+  // Layout
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // View state
   const [viewMode, setViewMode] = useState<ViewMode>(() => {
     if (typeof window !== "undefined" && window.innerWidth < 640) return "week";
     return "month";
@@ -77,14 +74,26 @@ export default function CalendarPage() {
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [weekBase, setWeekBase] = useState(today);
 
-  // Modals
+  // Pillar filters — all visible by default (populated once pillars load)
+  const [visiblePillars, setVisiblePillars] = useState<Set<string>>(new Set());
+
+  // Modal state
   const [scheduleModalDate, setScheduleModalDate] = useState<Date | null>(null);
   const [backlogPickPost, setBacklogPickPost] = useState<Post | null>(null);
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [fillWeekOpen, setFillWeekOpen] = useState(false);
   const [fillSuggestions, setFillSuggestions] = useState<
     { postId: string; date: string; title: string; pillar: string }[]
   >([]);
   const [fillLoading, setFillLoading] = useState(false);
+
+  /* ---- Pillar init ---- */
+
+  useEffect(() => {
+    if (pillars.length > 0 && visiblePillars.size === 0) {
+      setVisiblePillars(new Set(pillars.map((p) => p.value)));
+    }
+  }, [pillars, visiblePillars.size]);
 
   /* ---- Data fetching ---- */
 
@@ -100,9 +109,7 @@ export default function CalendarPage() {
       try {
         const wsRes = await fetch("/api/workspaces", { cache: "no-store", credentials: "same-origin" });
         if (wsRes.ok) wsId = (await wsRes.json()).activeId ?? null;
-      } catch {
-        /* fall back to user scope */
-      }
+      } catch { /* fall back to user scope */ }
 
       let query = insforge.database
         .from("posts")
@@ -111,7 +118,6 @@ export default function CalendarPage() {
         .order("scheduled_date", { ascending: true });
       if (wsId) query = query.eq("workspace_id", wsId);
       const { data } = await query;
-
       setPosts((data as Post[]) ?? []);
     } catch (err) {
       console.error("Failed to fetch posts", err);
@@ -120,9 +126,7 @@ export default function CalendarPage() {
     }
   }, []);
 
-  useEffect(() => {
-    fetchPosts();
-  }, [fetchPosts]);
+  useEffect(() => { fetchPosts(); }, [fetchPosts]);
 
   /* ---- Derived data ---- */
 
@@ -131,52 +135,99 @@ export default function CalendarPage() {
     [posts]
   );
 
-  const hasScheduledPosts = useMemo(
-    () => posts.some((p) => p.scheduled_date),
-    [posts]
-  );
+  // Posts filtered by visible pillars — passed to the calendar grid
+  const filteredPosts = useMemo(() => {
+    if (visiblePillars.size === 0) return posts;
+    return posts.filter((p) => visiblePillars.has(p.pillar));
+  }, [posts, visiblePillars]);
+
+  // Set of date keys that have at least one post — used by mini-calendar dots
+  const postDates = useMemo(() => {
+    const s = new Set<string>();
+    for (const p of posts) {
+      if (p.scheduled_date) s.add(p.scheduled_date.slice(0, 10));
+    }
+    return s;
+  }, [posts]);
 
   /* ---- Navigation ---- */
 
-  const goToPrevMonth = () => {
-    if (currentMonth === 0) {
-      setCurrentMonth(11);
-      setCurrentYear((y) => y - 1);
+  function goToPrev() {
+    if (viewMode === "month") {
+      if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear((y) => y - 1); }
+      else setCurrentMonth((m) => m - 1);
     } else {
-      setCurrentMonth((m) => m - 1);
+      const d = new Date(weekBase);
+      d.setDate(d.getDate() - 7);
+      setWeekBase(d);
     }
-  };
+  }
 
-  const goToNextMonth = () => {
-    if (currentMonth === 11) {
-      setCurrentMonth(0);
-      setCurrentYear((y) => y + 1);
+  function goToNext() {
+    if (viewMode === "month") {
+      if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear((y) => y + 1); }
+      else setCurrentMonth((m) => m + 1);
     } else {
-      setCurrentMonth((m) => m + 1);
+      const d = new Date(weekBase);
+      d.setDate(d.getDate() + 7);
+      setWeekBase(d);
     }
-  };
+  }
 
-  const goToPrevWeek = () => {
-    const d = new Date(weekBase);
-    d.setDate(d.getDate() - 7);
-    setWeekBase(d);
-  };
+  function goToToday() {
+    setCurrentYear(today.getFullYear());
+    setCurrentMonth(today.getMonth());
+    setWeekBase(today);
+  }
 
-  const goToNextWeek = () => {
-    const d = new Date(weekBase);
-    d.setDate(d.getDate() + 7);
-    setWeekBase(d);
-  };
+  // Navigate main view to a specific date (called from mini-calendar clicks)
+  function handleDateSelect(date: Date) {
+    setCurrentYear(date.getFullYear());
+    setCurrentMonth(date.getMonth());
+    setWeekBase(date);
+  }
+
+  /* ---- Pillar toggle ---- */
+
+  function handlePillarToggle(slug: string) {
+    setVisiblePillars((prev) => {
+      const next = new Set(prev);
+      if (next.has(slug)) next.delete(slug);
+      else next.add(slug);
+      return next;
+    });
+  }
+
+  /* ---- Period label ---- */
+
+  const periodLabel = useMemo(() => {
+    if (viewMode === "month") return `${MONTH_NAMES[currentMonth]} ${currentYear}`;
+    const weekDays = getWeekDays(weekBase);
+    const start = weekDays[0];
+    const end = weekDays[6];
+    const startStr = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    const endStr = end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    return `${startStr} – ${endStr}`;
+  }, [viewMode, currentMonth, currentYear, weekBase]);
 
   /* ---- Schedule a post ---- */
 
-  const schedulePost = async (postId: string, date: Date) => {
+  /**
+   * Writes scheduled_date + scheduled_publish_at onto a post.
+   * time is HH:MM in UTC.
+   */
+  const schedulePost = async (postId: string, date: Date, time: string = "12:00") => {
     if (!userId) return;
     const insforge = getInsforge();
+    const dateKey = toDateKey(date);
+    const [hours, minutes] = time.split(":").map(Number);
+    const dt = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes, 0));
+
     await insforge.database
       .from("posts")
       .update({
-        scheduled_date: toDateKey(date),
+        scheduled_date: dateKey,
+        scheduled_publish_at: dt.toISOString(),
         updated_at: new Date().toISOString(),
       })
       .eq("id", postId)
@@ -189,15 +240,11 @@ export default function CalendarPage() {
   const handleDragEnd = async (result: DropResult) => {
     const { draggableId, destination } = result;
     if (!destination) return;
-
     const droppableId = destination.droppableId;
     if (!droppableId.startsWith("day-") && !droppableId.startsWith("mday-")) return;
-
     const dateStr = droppableId.replace("day-", "").replace("mday-", "");
     const [year, month, day] = dateStr.split("-").map(Number);
-    const targetDate = new Date(year, month - 1, day);
-
-    await schedulePost(draggableId, targetDate);
+    await schedulePost(draggableId, new Date(year, month - 1, day));
   };
 
   /* ---- Backlog click-to-assign flow ---- */
@@ -215,11 +262,72 @@ export default function CalendarPage() {
     }
   };
 
+  /* ---- Post card click → PostDetailModal ---- */
+
   const handlePostClick = (post: Post) => {
-    router.push(`/library?post=${post.id}`);
+    setSelectedPost(post);
   };
 
-  /* ---- Fill This Week ---- */
+  /* ---- Publish Now from calendar ---- */
+
+  /**
+   * Calls /api/publish to immediately publish a scheduled post.
+   * Throws on failure so PostDetailModal can display the error.
+   */
+  const handlePublishNow = async (post: Post) => {
+    const content = post.caption ?? post.script ?? post.hook ?? post.title ?? "";
+    const res = await fetch("/api/publish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        postId: post.id,
+        platform: post.platform,
+        content,
+        imageUrl: post.image_url ?? undefined,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Publish failed");
+    await fetchPosts();
+  };
+
+  /* ---- Unschedule ---- */
+
+  /**
+   * Clears the post's schedule and cancels any pending publish job.
+   */
+  const handleUnschedule = async (postId: string) => {
+    const res = await fetch(`/api/posts/${postId}/unschedule`, { method: "POST" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error ?? "Unschedule failed");
+    await fetchPosts();
+  };
+
+  /* ---- Reschedule ---- */
+
+  /**
+   * Updates the scheduled date+time for an already-scheduled post.
+   * date is YYYY-MM-DD, time is HH:MM (UTC).
+   */
+  const handleReschedule = async (postId: string, date: string, time: string) => {
+    const [year, month, day] = date.split("-").map(Number);
+    const [hours, minutes] = time.split(":").map(Number);
+    const dt = new Date(Date.UTC(year, month - 1, day, hours, minutes, 0));
+    const insforge = getInsforge();
+    const { error } = await insforge.database
+      .from("posts")
+      .update({
+        scheduled_date: date,
+        scheduled_publish_at: dt.toISOString(),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", postId)
+      .eq("user_id", userId!);
+    if (error) throw new Error(error.message);
+    await fetchPosts();
+  };
+
+  /* ---- AI Fill This Week ---- */
 
   const handleFillWeek = async () => {
     if (!userId || backlog.length === 0) return;
@@ -259,27 +367,14 @@ Respond ONLY with a JSON array of objects: [{"postId":"...","date":"YYYY-MM-DD"}
       const raw = result.text || result.content || "";
       const jsonMatch = raw.match(/\[[\s\S]*?\]/);
       if (jsonMatch) {
-        const suggestions = JSON.parse(jsonMatch[0]) as {
-          postId: string;
-          date: string;
-        }[];
+        const suggestions = JSON.parse(jsonMatch[0]) as { postId: string; date: string }[];
         const enriched = suggestions
           .map((s) => {
             const post = backlog.find((p) => p.id === s.postId);
             if (!post) return null;
-            return {
-              postId: s.postId,
-              date: s.date,
-              title: post.title,
-              pillar: post.pillar,
-            };
+            return { postId: s.postId, date: s.date, title: post.title, pillar: post.pillar };
           })
-          .filter(Boolean) as {
-          postId: string;
-          date: string;
-          title: string;
-          pillar: string;
-        }[];
+          .filter(Boolean) as { postId: string; date: string; title: string; pillar: string }[];
         setFillSuggestions(enriched);
       }
     } catch (err) {
@@ -297,6 +392,7 @@ Respond ONLY with a JSON array of objects: [{"postId":"...","date":"YYYY-MM-DD"}
         .from("posts")
         .update({
           scheduled_date: s.date,
+          scheduled_publish_at: `${s.date}T12:00:00.000Z`,
           updated_at: new Date().toISOString(),
         })
         .eq("id", s.postId)
@@ -307,170 +403,184 @@ Respond ONLY with a JSON array of objects: [{"postId":"...","date":"YYYY-MM-DD"}
     await fetchPosts();
   };
 
-  const closeFillWeek = () => {
-    setFillWeekOpen(false);
-    setFillSuggestions([]);
-  };
-
   /* ---- Loading skeleton ---- */
 
   if (loading) {
     return (
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
-          <div className="h-8 w-40 bg-bg-tertiary rounded-md animate-pulse" />
-          <div className="h-9 w-28 bg-bg-tertiary rounded-md animate-pulse" />
-        </div>
-        <div className="grid grid-cols-7 gap-px">
-          {Array.from({ length: 35 }).map((_, i) => (
-            <div key={i} className="h-20 bg-bg-tertiary rounded animate-pulse" />
-          ))}
+      <div className="flex h-full animate-pulse">
+        <div className="w-[260px] bg-bg-tertiary border-r border-hair" />
+        <div className="flex-1 flex flex-col gap-px">
+          <div className="h-14 bg-bg-tertiary border-b border-hair" />
+          <div className="flex-1 bg-bg-tertiary" />
         </div>
       </div>
     );
   }
 
-  const weekDaysForLabel = getWeekDays(weekBase);
+  /* ---- Render ---- */
 
   const calendarSkeleton = (
-    <div className="space-y-4">
-      <div className="h-10 w-64 bg-bg-tertiary rounded-md animate-pulse" />
-      <div className="h-[420px] bg-bg-tertiary rounded-lg animate-pulse" />
-    </div>
+    <div className="flex-1 bg-bg-tertiary rounded-lg animate-pulse" />
   );
 
   return (
     <ClientOnly fallback={calendarSkeleton}>
-    <DragDropContext onDragEnd={handleDragEnd}>
-      <div className="flex flex-col lg:flex-row gap-4 min-h-0">
-        {/* Main calendar area */}
-        <div className="flex-1 space-y-4 min-w-0">
-          <PageHeader
-            eyebrow="CALENDAR"
-            title="Schedule"
-            subtitle="Drag posts onto days. Tap a post to edit or publish."
-            action={
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex items-center gap-1">
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <div className="flex h-full -m-4 lg:-m-6 overflow-hidden">
+
+          {/* ── LEFT SIDEBAR ── */}
+          {sidebarOpen && (
+            <CalendarSidebar
+              today={today}
+              currentYear={currentYear}
+              currentMonth={currentMonth}
+              postDates={postDates}
+              pillars={pillars}
+              visiblePillars={visiblePillars}
+              onPillarToggle={handlePillarToggle}
+              backlog={backlog}
+              selectedPostId={backlogPickPost?.id ?? null}
+              onBacklogPostClick={handleBacklogClick}
+              onDateSelect={handleDateSelect}
+              onCreateScheduled={() => setScheduleModalDate(today)}
+              onFillWeek={handleFillWeek}
+              fillDisabled={backlog.length === 0}
+            />
+          )}
+
+          {/* ── MAIN AREA ── */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+
+            {/* ── Toolbar ── */}
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-hair bg-bg-secondary shrink-0 flex-wrap">
+
+              {/* Hamburger */}
+              <button
+                onClick={() => setSidebarOpen((o) => !o)}
+                className="p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors lg:flex hidden"
+              >
+                <Menu className="w-4 h-4" />
+              </button>
+
+              {/* Today button */}
+              <button
+                onClick={goToToday}
+                className="px-3 py-1.5 text-[13px] font-medium border border-border rounded-md text-ink hover:border-border-hover transition-colors"
+              >
+                Today
+              </button>
+
+              {/* Prev / Next */}
+              <div className="flex items-center gap-0.5">
                 <button
-                  onClick={viewMode === "month" ? goToPrevMonth : goToPrevWeek}
-                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md border border-border text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors"
+                  onClick={goToPrev}
+                  className="p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <span className="font-mono text-[12px] uppercase tracking-[0.08em] text-ink min-w-[140px] text-center">
-                  {viewMode === "month"
-                    ? `${MONTH_NAMES[currentMonth]} ${currentYear}`
-                    : `Week of ${weekDaysForLabel[0].toLocaleDateString("en-US", { month: "short", day: "numeric" })}`}
-                </span>
                 <button
-                  onClick={viewMode === "month" ? goToNextMonth : goToNextWeek}
-                  className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-md border border-border text-text-secondary hover:text-text-primary hover:border-border-hover transition-colors"
+                  onClick={goToNext}
+                  className="p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
               </div>
 
-              <div className="flex border border-hair rounded-md overflow-hidden">
-                <button
-                  onClick={() => setViewMode("month")}
-                  className={`px-3 py-2 min-h-[44px] font-mono text-[11px] uppercase tracking-[0.08em] transition-colors ${
-                    viewMode === "month"
-                      ? "bg-accent-primary text-text-inverse"
-                      : "text-ink3 hover:text-ink"
-                  }`}
-                >
-                  Month
-                </button>
-                <button
-                  onClick={() => setViewMode("week")}
-                  className={`px-3 py-2 min-h-[44px] font-mono text-[11px] uppercase tracking-[0.08em] transition-colors ${
-                    viewMode === "week"
-                      ? "bg-accent-primary text-text-inverse"
-                      : "text-ink3 hover:text-ink"
-                  }`}
-                >
-                  Week
-                </button>
-              </div>
-            </div>
-            }
-          />
-
-          {/* Empty state guidance */}
-          {!hasScheduledPosts && !backlogPickPost && (
-            <div className="flex items-center gap-3 bg-bg-secondary border border-border rounded-lg px-4 py-3 text-[13px] shadow-card">
-              <CalendarDays className="w-5 h-5 text-accent-primary shrink-0" />
-              <div>
-                <p className="text-text-primary font-medium">No content scheduled yet</p>
-                <p className="text-text-secondary text-[12px]">
-                  Drag posts from the backlog onto a day, or click a day to schedule content.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Backlog pick banner */}
-          {backlogPickPost && (
-            <div className="flex items-center gap-2 bg-bg-secondary border border-accent-primary/40 rounded-lg px-4 py-2 text-[13px] text-text-primary">
-              <CalendarIcon className="w-4 h-4 text-accent-primary shrink-0" />
-              Click a day to schedule{" "}
-              <span className="font-medium">
-                &quot;{truncate(backlogPickPost.title, 30)}&quot;
+              {/* Period label */}
+              <span className="font-mono text-[13px] uppercase tracking-[0.06em] text-ink font-medium">
+                {periodLabel}
               </span>
-              <button
-                onClick={() => setBacklogPickPost(null)}
-                className="ml-auto text-text-secondary hover:text-text-primary"
-              >
-                <X className="w-4 h-4" />
-              </button>
+
+              {/* View switcher (right-aligned) */}
+              <div className="ml-auto flex border border-hair rounded-md overflow-hidden">
+                {(["month", "week"] as ViewMode[]).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setViewMode(v)}
+                    className={`px-3 py-2 text-[11px] font-mono uppercase tracking-[0.08em] transition-colors ${
+                      viewMode === v
+                        ? "bg-accent-primary text-white"
+                        : "text-ink3 hover:text-ink hover:bg-bg-tertiary"
+                    }`}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
             </div>
-          )}
 
-          <CalendarGrid
-            viewMode={viewMode}
-            currentYear={currentYear}
-            currentMonth={currentMonth}
-            weekBase={weekBase}
-            posts={posts}
-            today={today}
-            isPickMode={!!backlogPickPost}
-            onDayCellClick={handleDayCellClick}
-            onPostClick={handlePostClick}
-          />
+            {/* ── Backlog pick banner ── */}
+            {backlogPickPost && (
+              <div className="flex items-center gap-2 mx-4 mt-3 bg-bg-secondary border border-accent-primary/40 rounded-lg px-4 py-2 text-[13px] text-text-primary shrink-0">
+                <span className="text-accent-primary">→</span>
+                Click a day to schedule{" "}
+                <span className="font-medium">
+                  &quot;{backlogPickPost.title.slice(0, 40)}{backlogPickPost.title.length > 40 ? "…" : ""}&quot;
+                </span>
+                <button
+                  onClick={() => setBacklogPickPost(null)}
+                  className="ml-auto text-text-secondary hover:text-text-primary text-[12px]"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+
+            {/* ── Calendar grid ── */}
+            <div className="flex-1 overflow-auto p-4">
+              <CalendarGrid
+                viewMode={viewMode}
+                currentYear={currentYear}
+                currentMonth={currentMonth}
+                weekBase={weekBase}
+                posts={filteredPosts}
+                today={today}
+                isPickMode={!!backlogPickPost}
+                onDayCellClick={handleDayCellClick}
+                onPostClick={handlePostClick}
+              />
+            </div>
+          </div>
         </div>
+      </DragDropContext>
 
-        <CalendarBacklog
+      {/* ── Modals ── */}
+
+      {scheduleModalDate && !backlogPickPost && (
+        <ScheduleModal
+          date={scheduleModalDate}
           backlog={backlog}
-          selectedPostId={backlogPickPost?.id ?? null}
-          onPostClick={handleBacklogClick}
-          onFillWeek={handleFillWeek}
-          fillDisabled={backlog.length === 0}
+          onSchedule={async (postId, time) => {
+            await schedulePost(postId, scheduleModalDate, time);
+            setScheduleModalDate(null);
+          }}
+          onClose={() => setScheduleModalDate(null)}
         />
+      )}
 
-        {scheduleModalDate && !backlogPickPost && (
-          <ScheduleModal
-            date={scheduleModalDate}
-            backlog={backlog}
-            onSchedule={async (postId) => {
-              await schedulePost(postId, scheduleModalDate);
-              setScheduleModalDate(null);
-            }}
-            onClose={() => setScheduleModalDate(null)}
-          />
-        )}
+      {fillWeekOpen && (
+        <FillWeekModal
+          loading={fillLoading}
+          suggestions={fillSuggestions}
+          getLabel={getLabel}
+          onConfirm={confirmFillWeek}
+          onClose={() => { setFillWeekOpen(false); setFillSuggestions([]); }}
+        />
+      )}
 
-        {fillWeekOpen && (
-          <FillWeekModal
-            loading={fillLoading}
-            suggestions={fillSuggestions}
-            getLabel={getLabel}
-            onConfirm={confirmFillWeek}
-            onClose={closeFillWeek}
-          />
-        )}
-      </div>
-    </DragDropContext>
+      {selectedPost && (
+        <PostDetailModal
+          post={selectedPost}
+          onClose={() => setSelectedPost(null)}
+          onPublishNow={handlePublishNow}
+          onReschedule={handleReschedule}
+          onUnschedule={handleUnschedule}
+          onEdit={(p) => {
+            setSelectedPost(null);
+            router.push(`/library?post=${p.id}`);
+          }}
+        />
+      )}
     </ClientOnly>
   );
 }
