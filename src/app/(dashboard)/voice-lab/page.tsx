@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from "react";
 import { Loader2, Plus, X, Copy, Check, ChevronRight, Sparkles, Mic, FileText, Download, Link2 } from "lucide-react";
+import { useCreatorPreferences, POST_LENGTH_CONFIG, type PostLength } from "@/hooks/useCreatorPreferences";
 
 type Step = "samples" | "analyzing" | "interview" | "synthesizing" | "result";
 
@@ -44,6 +45,18 @@ interface Persona {
 const PLATFORMS = ["Twitter/X", "LinkedIn", "Instagram", "Threads", "Other"];
 
 export default function VoiceLabPage() {
+  const { preferredPostLength, savePreferredPostLength } = useCreatorPreferences();
+  const [localPostLength, setLocalPostLength] = useState<PostLength>('standard');
+
+  useEffect(() => {
+    setLocalPostLength(preferredPostLength);
+  }, [preferredPostLength]);
+
+  async function handleLengthChange(len: PostLength) {
+    setLocalPostLength(len);
+    await savePreferredPostLength(len);
+  }
+
   const [step, setStep] = useState<Step>("samples");
   const [samples, setSamples] = useState<Sample[]>([{ content: "", platform: "Twitter/X" }]);
   const [importUrls, setImportUrls] = useState("");
@@ -600,6 +613,31 @@ export default function VoiceLabPage() {
             <pre className="text-[12px] text-text-tertiary whitespace-pre-wrap leading-relaxed font-mono bg-bg-tertiary border border-border rounded-lg p-4 max-h-[300px] overflow-y-auto">
               {persona.exportable_prompt}
             </pre>
+          </div>
+
+          {/* Default Post Length */}
+          <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
+            <div>
+              <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Default Post Length</h2>
+              <p className="text-[12px] text-text-tertiary mt-1">Used as the default in Generate. Override per post anytime.</p>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {(Object.keys(POST_LENGTH_CONFIG) as PostLength[]).map((len) => (
+                <button
+                  key={len}
+                  onClick={() => handleLengthChange(len)}
+                  className="px-4 py-2 rounded-lg font-body text-[13px] font-medium transition-all duration-100 border"
+                  style={{
+                    backgroundColor: localPostLength === len ? 'rgba(28,25,23,0.06)' : 'transparent',
+                    borderColor: localPostLength === len ? 'rgba(28,25,23,0.28)' : 'rgba(28,25,23,0.1)',
+                    color: localPostLength === len ? '#1C1917' : '#78716C',
+                  }}
+                >
+                  {POST_LENGTH_CONFIG[len].label}
+                  <span className="ml-1.5 text-[11px] opacity-60">~{POST_LENGTH_CONFIG[len].words}w</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Actions */}

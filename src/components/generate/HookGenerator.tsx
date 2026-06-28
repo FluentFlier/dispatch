@@ -20,6 +20,15 @@ async function callGenerate(prompt: string): Promise<string> {
   return text;
 }
 
+/**
+ * Strips a leading @ from a social handle string.
+ * Handles any type since intelHooks is typed as any[].
+ */
+function stripLeadingAt(author: unknown): string {
+  const s = String(author ?? '');
+  return s.startsWith('@') ? s.slice(1) : s;
+}
+
 export function HookGenerator() {
   const [topic, setTopic] = useState('');
   const [hooks, setHooks] = useState<string[]>([]);
@@ -59,7 +68,17 @@ Numbered 1-8. One per line. No explanation. No em dashes.`;
         .split('\n')
         .map((l: string) => l.trim())
         .filter((l: string) => /^\d/.test(l))
-        .map((l: string) => l.replace(/^\d+[\.\)]\s*/, ''));
+        .map((l: string) => {
+          const stripped = l.replace(/^\d+[\.\)]\s*/, '');
+          // Take only first sentence — prevents AI multi-sentence blobs becoming one hook card
+          const periodIdx = stripped.indexOf('. ');
+          const exclamIdx = stripped.indexOf('! ');
+          const questIdx = stripped.indexOf('? ');
+          const candidates = [periodIdx, exclamIdx, questIdx].filter(i => i > 20);
+          const cutAt = candidates.length > 0 ? Math.min(...candidates) + 1 : -1;
+          return cutAt > 0 ? stripped.slice(0, cutAt) : stripped.slice(0, 200);
+        })
+        .filter((l: string) => l.length > 5);
       setHooks(lines.length > 0 ? lines : [text]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Generation failed');
@@ -123,7 +142,10 @@ Numbered 1-8. One per line. No explanation. No em dashes.`;
           <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-2 text-sm">
             {intelHooks.slice(0, 5).map((h, i) => (
               <div key={i} className="flex items-start justify-between gap-2 py-1 border-b border-border last:border-0">
-                <p className="flex-1 text-text-primary">“{h.text}” <span className="text-text-secondary">(@{h.author})</span></p>
+                <p className="flex-1 text-text-primary">
+                  {'"'}{h.text}{'"'}{' '}
+                  <span className="text-text-secondary">(@{stripLeadingAt(h.author)})</span>
+                </p>
                 <CopyButton text={h.text} />
               </div>
             ))}

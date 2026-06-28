@@ -1,5 +1,6 @@
-﻿import { generateContent } from './ai';
+import { generateContent } from './ai';
 import type { CreatorProfileForPrompt } from './ai';
+import { HfInference } from '@huggingface/inference';
 
 /**
  * Humanizer: Detects and removes 29 AI writing patterns to make content
@@ -63,6 +64,7 @@ RULES:
 - Use contractions where natural
 - Don't add new information
 - Don't make it longer than the original
+- No markdown formatting. No **bold**, no *italic*, no # headers. Plain text only.
 
 Return ONLY the rewritten text. No explanations, no meta-commentary.`;
 
@@ -88,27 +90,20 @@ export async function humanize(
 }
 
 /**
- * Quick check: score how "AI-sounding" a piece of text is.
- * Returns 0-100 where 100 = obviously AI, 0 = sounds human.
+ * Score how "AI-sounding" text is using HuggingFace's chatgpt-detector-roberta.
+ * Free, no quota drain, returns 0-100 (100 = obviously AI).
  */
 export async function aiScore(text: string): Promise<{ score: number; flags: string[] }> {
-  const result = await generateContent(
-    `Score this text 0-100 on how AI-generated it sounds. 0 = fully human, 100 = obviously AI.
-
-Text:
-${text}
-
-Return JSON only: {"score": number, "flags": ["pattern1", "pattern2"]}`,
-    undefined,
-    'You are an AI detection expert. Analyze the text for the 29 known AI writing patterns. Be precise and honest. Return ONLY valid JSON.',
-  );
-
-  const jsonMatch = result.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return { score: 50, flags: ['analysis_failed'] };
-
+  const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
   try {
-    return JSON.parse(jsonMatch[0]);
+    const result = await hf.textClassification({
+      model: 'Hello-SimpleAI/chatgpt-detector-roberta',
+      inputs: text.slice(0, 512),
+    });
+    const aiLabel = result.find((r: { label: string; score: number }) => r.label === 'ChatGPT');
+    const score = aiLabel ? Math.round(aiLabel.score * 100) : 50;
+    return { score, flags: score > 70 ? ['detected_as_ai'] : [] };
   } catch {
-    return { score: 50, flags: ['parse_failed'] };
+    return { score: 50, flags: ['detection_failed'] };
   }
 }

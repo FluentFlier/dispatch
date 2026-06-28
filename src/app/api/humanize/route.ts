@@ -21,9 +21,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const parsed = HumanizeSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
-  const guard = await guardAiRequest(user.id);
-  if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
-
+  // scoreOnly uses HF classifier (free, no quota) — skip guard entirely
   if (parsed.data.scoreOnly) {
     try {
       const result = await aiScore(parsed.data.text);
@@ -32,6 +30,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return errorResponse('Scoring failed.', 500, err);
     }
   }
+
+  const guard = await guardAiRequest(user.id);
+  if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
   const client = getServerClient();
   const { profile } = await loadCreatorVoiceContext(client, user.id);
