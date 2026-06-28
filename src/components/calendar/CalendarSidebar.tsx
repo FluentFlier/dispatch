@@ -182,7 +182,7 @@ export default function CalendarSidebar({
   const [backlogOpen, setBacklogOpen] = useState(true);
 
   return (
-    <aside className="hidden lg:flex flex-col w-[260px] shrink-0 border-r border-hair bg-bg-secondary overflow-y-auto">
+    <aside className="hidden lg:flex flex-col w-[260px] shrink-0 border-l border-hair bg-bg-secondary overflow-y-auto">
       <div className="p-4 space-y-5">
 
         {/* ── + Schedule Post ── */}

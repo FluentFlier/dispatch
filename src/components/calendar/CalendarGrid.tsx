@@ -1,6 +1,7 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { X } from 'lucide-react';
 import { Droppable } from '@hello-pangea/dnd';
 import type { Post } from '@/lib/types';
 import { usePillars } from '@/hooks/usePillars';
@@ -48,11 +49,9 @@ function toDateKey(d: Date): string {
 }
 
 function isSameDay(a: Date, b: Date): boolean {
-  return (
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate()
-  );
+  return a.getFullYear() === b.getFullYear()
+    && a.getMonth() === b.getMonth()
+    && a.getDate() === b.getDate();
 }
 
 function truncateText(s: string, max: number): string {
@@ -80,6 +79,47 @@ interface CalendarGridProps {
 }
 
 /* ------------------------------------------------------------------ */
+/*  +N More Popover                                                    */
+/* ------------------------------------------------------------------ */
+
+interface MorePopoverProps {
+  posts: Post[];
+  dateLabel: string;
+  onPostClick: (post: Post) => void;
+  onClose: () => void;
+}
+
+function MorePopover({ posts, dateLabel, onPostClick, onClose }: MorePopoverProps) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-bg-secondary border border-hair rounded-xl w-full max-w-xs mx-4 shadow-2xl">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-hair">
+          <span className="text-[13px] font-medium text-ink">{dateLabel}</span>
+          <button onClick={onClose} className="p-1 text-text-secondary hover:text-text-primary rounded">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <div className="p-2 space-y-1 max-h-[50vh] overflow-y-auto">
+          {posts.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => { onPostClick(p); onClose(); }}
+              className="w-full text-left flex items-center gap-2 rounded-md px-2 py-2 hover:bg-bg-tertiary transition-colors"
+            >
+              <PillarDot pillar={p.pillar} />
+              <span className="text-[13px] text-text-primary font-medium truncate flex-1">
+                {p.title}
+              </span>
+              <StatusBadge status={p.status} />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /*  Component                                                          */
 /* ------------------------------------------------------------------ */
 
@@ -95,6 +135,7 @@ export default function CalendarGrid({
   onPostClick,
 }: CalendarGridProps) {
   const { getColor, getLabel } = usePillars();
+  const [morePopover, setMorePopover] = useState<{ key: string; date: Date } | null>(null);
 
   const postsByDate = useMemo(() => {
     const map: Record<string, Post[]> = {};
@@ -114,12 +155,9 @@ export default function CalendarGrid({
   );
 
   const weekDays = useMemo(() => getWeekDays(weekBase), [weekBase]);
-
   const days = viewMode === 'month' ? calendarDays : weekDays;
 
-  /* Mobile list view - shows days as a list on small screens.
-     For month view: only show days with posts (and today) to avoid a huge list.
-     For week view: show all 7 days. */
+  /* Mobile list view */
   const mobileDays = viewMode === 'week'
     ? days
     : days.filter((day) => {
@@ -155,14 +193,8 @@ export default function CalendarGrid({
                 }`}
               >
                 <div className="flex items-center gap-2 mb-2">
-                  <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink3">
-                    {dayLabel}
-                  </span>
-                  <span
-                    className={`font-mono text-[14px] ${
-                      isToday ? 'text-accent-primary' : 'text-ink'
-                    }`}
-                  >
+                  <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink3">{dayLabel}</span>
+                  <span className={`font-mono text-[14px] ${isToday ? 'text-accent-primary' : 'text-ink'}`}>
                     {viewMode === 'month'
                       ? `${day.toLocaleDateString('en-US', { month: 'short' })} ${day.getDate()}`
                       : day.getDate()}
@@ -175,10 +207,7 @@ export default function CalendarGrid({
                   {dayPosts.map((p) => (
                     <div
                       key={p.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onPostClick(p);
-                      }}
+                      onClick={(e) => { e.stopPropagation(); onPostClick(p); }}
                       className="rounded-md border border-border bg-bg-tertiary p-2.5 min-h-[44px] cursor-pointer hover:border-border-hover transition-colors flex items-center gap-2"
                     >
                       <PillarDot pillar={p.pillar} />
@@ -200,18 +229,14 @@ export default function CalendarGrid({
 
   return (
     <div>
-      {/* Mobile list view for week mode */}
       {mobileListView}
 
-      {/* Desktop grid view - hidden on mobile */}
+      {/* Desktop grid - hidden on mobile */}
       <div className="hidden sm:block">
         {/* Day headers */}
         <div className="grid grid-cols-7 gap-px mb-px">
           {DAY_HEADERS_MON.map((d) => (
-            <div
-              key={d}
-              className="font-mono text-center text-[10px] text-ink3 py-2 uppercase tracking-[0.12em]"
-            >
+            <div key={d} className="font-mono text-center text-[10px] text-ink3 py-2 uppercase tracking-[0.12em]">
               {d}
             </div>
           ))}
@@ -221,11 +246,11 @@ export default function CalendarGrid({
         <div className="grid grid-cols-7 border border-hair rounded-lg overflow-hidden">
           {days.map((day, i) => {
             const key = toDateKey(day);
-            const isCurrentMonth =
-              viewMode === 'month' ? day.getMonth() === currentMonth : true;
+            const isCurrentMonth = viewMode === 'month' ? day.getMonth() === currentMonth : true;
             const isToday = isSameDay(day, today);
             const dayPosts = postsByDate[key] || [];
             const isWeekView = viewMode === 'week';
+            const overflow = !isWeekView && dayPosts.length > 3 ? dayPosts.length - 3 : 0;
 
             const col = i % 7;
             const row = Math.floor(i / 7);
@@ -258,20 +283,12 @@ export default function CalendarGrid({
                         <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-ink3">
                           {DAY_HEADERS_MON[i]}
                         </span>
-                        <span
-                          className={`ml-1 font-mono text-[13px] ${
-                            isToday ? 'text-accent-primary' : 'text-ink'
-                          }`}
-                        >
+                        <span className={`ml-1 font-mono text-[13px] ${isToday ? 'text-accent-primary' : 'text-ink'}`}>
                           {day.getDate()}
                         </span>
                       </div>
                     ) : (
-                      <span
-                        className={`font-mono text-[11px] ${
-                          isCurrentMonth ? 'text-ink' : 'text-ink3'
-                        }`}
-                      >
+                      <span className={`font-mono text-[11px] ${isCurrentMonth ? 'text-ink' : 'text-ink3'}`}>
                         {day.getDate()}
                       </span>
                     )}
@@ -281,10 +298,7 @@ export default function CalendarGrid({
                         isWeekView ? (
                           <div
                             key={p.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onPostClick(p);
-                            }}
+                            onClick={(e) => { e.stopPropagation(); onPostClick(p); }}
                             className="rounded-md border border-border bg-bg-secondary p-1.5 cursor-pointer hover:border-border-hover transition-colors"
                           >
                             <div className="flex items-center gap-1 mb-0.5">
@@ -298,10 +312,7 @@ export default function CalendarGrid({
                         ) : (
                           <div
                             key={p.id}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onPostClick(p);
-                            }}
+                            onClick={(e) => { e.stopPropagation(); onPostClick(p); }}
                             className="rounded-[3px] px-1 py-0.5 text-[10px] leading-tight font-medium truncate cursor-pointer hover:opacity-80"
                             style={{
                               backgroundColor: `${getColor(p.pillar)}25`,
@@ -313,10 +324,18 @@ export default function CalendarGrid({
                           </div>
                         )
                       )}
-                      {!isWeekView && dayPosts.length > 3 && (
-                        <span className="text-[10px] text-text-secondary">
-                          +{dayPosts.length - 3} more
-                        </span>
+
+                      {/* "+N more" clickable link */}
+                      {overflow > 0 && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setMorePopover({ key, date: day });
+                          }}
+                          className="text-[10px] text-accent-primary hover:underline font-medium"
+                        >
+                          +{overflow} more
+                        </button>
                       )}
                     </div>
                     {provided.placeholder}
@@ -327,6 +346,18 @@ export default function CalendarGrid({
           })}
         </div>
       </div>
+
+      {/* "+N more" popover */}
+      {morePopover && (
+        <MorePopover
+          posts={postsByDate[morePopover.key] ?? []}
+          dateLabel={morePopover.date.toLocaleDateString('en-US', {
+            weekday: 'long', month: 'long', day: 'numeric',
+          })}
+          onPostClick={onPostClick}
+          onClose={() => setMorePopover(null)}
+        />
+      )}
     </div>
   );
 }
