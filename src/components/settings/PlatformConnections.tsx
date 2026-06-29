@@ -183,7 +183,7 @@ export default function PlatformConnections({
         <div className="mb-6 p-4 rounded-lg border border-accent-primary/25 bg-coral-light">
           <p className="text-[13px] text-text-primary font-medium mb-1">Connect all platforms at once</p>
           <p className="text-[11px] text-text-secondary mb-3">
-            Powered by Unipile. Link X, LinkedIn, Instagram, and Threads in one secure flow.
+            Link X, LinkedIn, Instagram, and Threads in one secure flow.
           </p>
           <div className="flex flex-wrap gap-2">
             <button
@@ -200,7 +200,7 @@ export default function PlatformConnections({
       )}
 
       <p className="text-sm text-text-secondary mb-2">
-        {useUnipile ? 'Per-platform status and manual API key fallback.' : 'Connect accounts via OAuth or enter API keys manually.'}
+        {useUnipile ? 'Status for each platform. Advanced users can use their own API keys below.' : 'Connect accounts with OAuth or your own API keys.'}
       </p>
       {!useUnipile && (
         <p className="text-[11px] text-text-tertiary mb-4">

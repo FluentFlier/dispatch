@@ -1,4 +1,4 @@
-﻿import { buildSystemPrompt, type CreatorProfileForPrompt } from '@/lib/ai';
+﻿import { buildSystemPrompt, type CreatorProfileForPrompt, generateContent } from '@/lib/ai';
 import { generateContentHF } from '@/lib/huggingface';
 import { humanize } from '@/lib/humanizer';
 import { evaluateDraft, evaluationPasses, type VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
@@ -14,6 +14,12 @@ export interface VoicePipelineInput {
   contentType?: 'post' | 'reply' | 'comment';
   /** Skip critique/revise pass (faster, cheaper) */
   fast?: boolean;
+  /** Prefer OpenAI when AI_API_KEY is set (faster than HF serverless) */
+  preferOpenAi?: boolean;
+  /** Skip hook intelligence injection (faster outreach) */
+  skipHooks?: boolean;
+  /** Always run humanizer after draft (Signals outreach) */
+  humanizeAlways?: boolean;
   /** Max draft→evaluate→revise loops (Imagine uses until all metrics pass) */
   maxIterations?: number;
 }
@@ -34,6 +40,21 @@ function stripEmDashes(text: string): string {
   return text.replace(/—/g, ' - ').replace(/–/g, '-');
 }
 
+async function generateDraftText(
+  systemPrompt: string,
+  userPrompt: string,
+  options: { fast?: boolean; preferOpenAi?: boolean },
+): Promise<string> {
+  const useOpenAi =
+    Boolean(process.env.AI_API_KEY) && (options.preferOpenAi === true || options.fast === true);
+
+  if (useOpenAi) {
+    return stripEmDashes(await generateContent(userPrompt, undefined, systemPrompt));
+  }
+
+  return stripEmDashes(await generateContentHF(systemPrompt, userPrompt));
+}
+
 /**
  * End-to-end voice generation: draft → score → optional revise → humanize.
  * Mirrors multi-step agent graphs (Imagine/LangGraph) without hosted graph infra.
@@ -51,10 +72,8 @@ export async function generateWithVoicePipeline(
     : undefined;
 
   // === PHENOMENAL HOOK INTELLIGENCE INJECTION ===
-  // Pull real, ranked, high-conversion hooks mined via gstack from the best creators.
-  // This is how we make posts *actually* amazing instead of generic.
-  const topHooks = getBestHooksForContext(undefined as any, 6); // can be made vertical-aware later
-  const usedHookIds = topHooks.map(h => h.id);
+  const topHooks = input.skipHooks ? [] : getBestHooksForContext(undefined as any, 6);
+  const usedHookIds = topHooks.map((h) => h.id);
   const hookExamples = topHooks.length > 0
     ? `\n\nREAL HIGH-CONVERTING HOOK EXAMPLES (use these structures + adapt to voice):\n${topHooks.map((h, i) => `${i+1}. "${h.text}" (@${h.author})`).join('\n')}`
     : '';
@@ -88,9 +107,10 @@ ${evaluation?.revision_notes ?? 'Sound more like the creator. Less generic.'}
 
 Return ONLY the new text.`;
 
-    text = stripEmDashes(
-      await generateContentHF(systemPrompt, draftPrompt),
-    );
+    text = await generateDraftText(systemPrompt, draftPrompt, {
+      fast: input.fast,
+      preferOpenAi: input.preferOpenAi,
+    });
 
     if (input.fast) break;
 
@@ -106,6 +126,12 @@ Return ONLY the new text.`;
   }
 
   if (!input.fast && evaluation && evaluation.ai_slop > 3) {
+    try {
+      text = stripEmDashes(await humanize(text, input.profile));
+    } catch {
+      // keep draft
+    }
+  } else if (input.humanizeAlways) {
     try {
       text = stripEmDashes(await humanize(text, input.profile));
     } catch {

@@ -10,10 +10,14 @@
     "lint": "next lint",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prod:check": "bash scripts/prod-ready-check.sh",
+    "demo:seed": "npx tsx scripts/seed-demo-user.ts",
+    "signals:smoke": "bash scripts/signals-e2e-smoke.sh",
     "hooks:research": "npx tsx scripts/research-hooks.ts",
     "hooks:listen": "npx tsx scripts/research-hooks.ts --all"
   },
   "dependencies": {
+    "@composio/core": "^0.13.1",
     "@hello-pangea/dnd": "^17.0.0",
     "@huggingface/inference": "^4.13.20",
     "@insforge/sdk": "^1.2.2",

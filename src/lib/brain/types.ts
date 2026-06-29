@@ -3,6 +3,8 @@ export const BRAIN_SLUG = {
   voice: 'voice',
   profile: 'profile',
   wins: 'wins',
+  /** GTM playbook: ICP, pitch, objections — used by Content OS Signals outreach drafts */
+  gtm: 'gtm',
   post: (postId: string) => `post/${postId}`,
   story: (storyId: string) => `story/${storyId}`,
 } as const;
