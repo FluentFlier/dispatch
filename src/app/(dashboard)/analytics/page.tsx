@@ -366,9 +366,16 @@ function LogPerformanceSection({
 
   return (
     <section className="bg-bg-secondary border border-border rounded-lg p-6">
-      <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink mb-4 flex items-center gap-2.5">
+      <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink mb-2 flex items-center gap-2.5">
         <BarChart3 size={20} className="text-ink3" /> Log Performance
       </h2>
+
+      <p className="text-sm text-text-secondary mb-4">
+        LinkedIn does not expose post impressions or engagement metrics via their API to third parties.
+        Copy your stats from{" "}
+        <span className="font-medium text-text-primary">LinkedIn Analytics</span>{" "}
+        and paste them here to track performance and train your content intelligence.
+      </p>
 
       <div className="mb-4">
         <label className="block text-sm text-text-secondary mb-1">Select a posted post</label>

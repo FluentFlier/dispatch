@@ -5,12 +5,43 @@ import Link from "next/link";
 import { getInsforgeClient } from "@/lib/insforge/client";
 import { getClientTokens } from "@/lib/auth-client";
 
+/**
+ * Sync access + refresh tokens into httpOnly cookies via /api/auth.
+ *
+ * Strategy (in order):
+ * 1. refreshSession() — official SDK call, guaranteed to return both tokens when it works.
+ *    May fail immediately after OAuth (SDK not yet fully initialized).
+ * 2. getClientTokens() — reads SDK internals; reliably gets the access token, may get
+ *    the refresh token depending on where the SDK stored it after the OAuth exchange.
+ *
+ * Even if only the access token is synced (no refresh token), login succeeds.
+ * The refresh token path is the fix for forced re-login every ~1 hour.
+ */
 async function syncTokenToCookie(): Promise<boolean> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const client = getInsforgeClient();
+
+    // Path 1: refreshSession() — gives both tokens reliably when SDK is ready.
+    try {
+      const { data, error } = await client.auth.refreshSession();
+      if (!error && data?.accessToken) {
+        const res = await fetch("/api/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            token: data.accessToken,
+            refreshToken: (data as { refreshToken?: string }).refreshToken ?? null,
+          }),
+        });
+        if (res.ok) return true;
+      }
+    } catch {
+      /* fall through to SDK-internal path */
+    }
+
+    // Path 2: SDK internals fallback — access token always present, refresh token best-effort.
     const { accessToken, refreshToken } = getClientTokens(client);
-
-
     if (accessToken) {
       try {
         const res = await fetch("/api/auth", {
@@ -24,6 +55,7 @@ async function syncTokenToCookie(): Promise<boolean> {
         /* retry */
       }
     }
+
     await new Promise((r) => setTimeout(r, (attempt + 1) * 300));
   }
   return false;
