@@ -12,6 +12,7 @@ import {
   LogOut,
   MessageSquare,
   PenLine,
+  Radio,
   Settings,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -25,6 +26,7 @@ const navIcons: Record<string, ComponentType<{ className?: string }>> = {
   '/library': FileText,
   '/calendar': CalendarDays,
   '/inbox': MessageSquare,
+  '/signals': Radio,
   '/ideas': Lightbulb,
   '/voice-lab': SlidersHorizontal,
   '/analytics': BarChart3,
