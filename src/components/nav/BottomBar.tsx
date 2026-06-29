@@ -12,16 +12,14 @@ import {
   Menu,
   MessageSquare,
   PenLine,
-  Radio,
   Settings,
   SlidersHorizontal,
 } from 'lucide-react';
-import { bottomBarNav, moreNav } from '@/lib/nav-config';
+import { primaryNav, moreNav } from '@/lib/nav-config';
 
 const navIcons = {
   '/dashboard': Home,
   '/generate': PenLine,
-  '/signals': Radio,
   '/library': FileText,
   '/calendar': CalendarDays,
   '/inbox': MessageSquare,
@@ -89,7 +87,7 @@ export default function BottomBar() {
 
       <nav className="fixed bottom-0 left-0 right-0 md:hidden bg-bg-secondary/95 backdrop-blur border-t border-border z-40 pb-[env(safe-area-inset-bottom)]">
         <div className="flex items-stretch justify-around h-16">
-          {bottomBarNav.map((item) => {
+          {primaryNav.map((item) => {
             const isActive =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
             const Icon = navIcons[item.href];

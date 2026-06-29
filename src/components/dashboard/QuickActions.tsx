@@ -1,45 +1,45 @@
 import Link from 'next/link';
-import { ArrowRight, CalendarDays, FolderOpen, MessageCircle, PenLine, Radio } from 'lucide-react';
+import { ArrowRight, FolderOpen, MessageCircle, PenLine, Sparkles } from 'lucide-react';
 
 const actions = [
   {
-    title: 'Check signals',
-    description: 'Draft outreach when founders you follow raise.',
-    href: '/signals',
-    icon: Radio,
+    title: 'Write a post',
+    description: 'AI drafts in your voice. You edit and approve.',
+    href: '/generate',
+    icon: PenLine,
     accent: 'bg-coral-light text-accent-primary',
   },
   {
-    title: 'Write a post',
-    description: 'Start a draft in your voice.',
-    href: '/generate',
-    icon: PenLine,
+    title: 'My posts',
+    description: 'See drafts, scheduled, and published content.',
+    href: '/library',
+    icon: FolderOpen,
     accent: 'bg-sage-light text-accent-secondary',
   },
   {
-    title: 'My posts',
-    description: 'Drafts, scheduled, and published.',
-    href: '/library',
-    icon: FolderOpen,
-    accent: 'bg-bg-tertiary text-text-secondary',
-  },
-  {
     title: 'Reply to comments',
-    description: 'One inbox for every platform.',
+    description: 'All comments in one place. Draft replies quickly.',
     href: '/inbox',
     icon: MessageCircle,
     accent: 'bg-bg-tertiary text-text-secondary',
+  },
+  {
+    title: 'Research & Intelligence',
+    description: 'Live high-converting hooks + lead categorization from real data.',
+    href: '/analytics#intelligence',
+    icon: Sparkles,
+    accent: 'bg-amber-100 text-amber-700',
   },
 ];
 
 export function QuickActions() {
   return (
-    <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+    <section className="grid grid-cols-1 lg:grid-cols-4 gap-2">
       {actions.map((action) => (
         <Link
           key={action.href}
           href={action.href}
-          className="group flex min-h-[100px] flex-col justify-between rounded-lg border border-border bg-bg-secondary p-4 shadow-card hover:-translate-y-0.5 hover:border-border-hover hover:shadow-soft transition-all"
+          className="group flex min-h-[116px] flex-col justify-between rounded-lg border border-border bg-bg-secondary p-4 shadow-card hover:-translate-y-0.5 hover:border-border-hover hover:shadow-soft transition-all"
         >
           <div className="flex items-start justify-between gap-3">
             <div

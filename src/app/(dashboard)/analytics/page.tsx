@@ -143,7 +143,7 @@ export default function AnalyticsPage() {
 
   return (
     <div className="space-y-10 pb-20">
-      <PageHeader title="Stats" subtitle="See what's working and log numbers on your posts." />
+      <PageHeader eyebrow="ANALYTICS" title="Stats" subtitle="See what’s working and log performance on your posts." />
 
       {/* Section 1 */}
       <LogPerformanceSection posts={posts} userId={userId} onSaved={fetchData} />
@@ -156,13 +156,7 @@ export default function AnalyticsPage() {
       {/* Makes the entire Hook Intelligence engine (Apify + RL + RAG) visible */}
       {/* and valuable to paying users. Leads categorization = actionable ROI. */}
       {/* ================================================================== */}
-      {/* Advanced research — collapsed by default for everyday creators */}
-      <details className="rounded-lg border border-border bg-bg-secondary p-4 group">
-        <summary className="cursor-pointer text-sm font-medium text-text-primary list-none flex items-center justify-between gap-2">
-          <span>Advanced: hook research &amp; audience buckets</span>
-          <span className="text-xs text-text-tertiary group-open:hidden">Show</span>
-        </summary>
-      <section id="intelligence" className="space-y-6 mt-4 pt-4 border-t border-border">
+      <section id="intelligence" className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
@@ -285,7 +279,6 @@ export default function AnalyticsPage() {
           </div>
         </div>
       </section>
-      </details>
 
       {/* Section 3 */}
       <WeeklyReviewSection

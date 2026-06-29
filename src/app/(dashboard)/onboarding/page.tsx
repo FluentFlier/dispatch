@@ -1,377 +1,416 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Copy, Loader2 } from 'lucide-react';
 import { completeOnboarding } from './actions';
 import type { ContentPillarConfig } from '@/types/database';
-import { CHATGPT_VOICE_EXPORT_PROMPT } from '@/lib/voice-import-prompt';
 
-const PILLAR_COLOR = '#E07A5F';
+/* ------------------------------------------------------------------ */
+/*  Constants                                                          */
+/* ------------------------------------------------------------------ */
 
-const DEFAULT_VOICE =
-  'Direct, casual, and specific. Short sentences. Talk to the reader like a smart friend — no corporate fluff.';
-const DEFAULT_RULES = 'Never use em dashes. No generic influencer speak.';
+const TOTAL_STEPS = 4;
 
-type Mode = 'manual' | 'import';
+const PRESET_COLORS = [
+  '#E07A5F',
+  '#D4A054',
+  '#3D8B7A',
+  '#8B7BB8',
+  '#DC6B5C',
+  '#5B8FA8',
+];
 
-function seedPillars(bio: string): ContentPillarConfig[] {
-  const trimmed = bio.trim();
-  const firstLine = trimmed.split(/\n/)[0]?.trim() ?? '';
-  const name =
-    firstLine.length > 0
-      ? firstLine.replace(/^I(?:'m| am)\s+/i, '').slice(0, 48).trim() || 'My posts'
-      : 'My posts';
-  return [
-    {
-      name: name.length > 32 ? 'My posts' : name,
-      color: PILLAR_COLOR,
-      description: trimmed.slice(0, 240) || undefined,
-    },
-  ];
+const DEFAULT_PILLARS: ContentPillarConfig[] = [
+  { name: '', color: PRESET_COLORS[0], description: '' },
+];
+
+/* ------------------------------------------------------------------ */
+/*  Step indicator                                                     */
+/* ------------------------------------------------------------------ */
+
+function StepIndicator({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="flex items-center gap-2 mb-8">
+      {Array.from({ length: total }).map((_, i) => (
+        <div
+          key={i}
+          className={`h-1.5 rounded-full transition-all duration-200 ${
+            i < current
+              ? 'bg-accent-primary flex-[2]'
+              : i === current
+              ? 'bg-coral-light flex-[2]'
+              : 'bg-bg-tertiary flex-1'
+          }`}
+        />
+      ))}
+    </div>
+  );
 }
+
+/* ------------------------------------------------------------------ */
+/*  Main page                                                          */
+/* ------------------------------------------------------------------ */
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>('manual');
+  const [step, setStep] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [importing, setImporting] = useState(false);
   const [error, setError] = useState('');
-  const [copied, setCopied] = useState(false);
 
+  // Step 1: Profile basics
   const [displayName, setDisplayName] = useState('');
-  const [about, setAbout] = useState('');
+  const [bio, setBio] = useState('');
+
+  // Step 2: Content pillars
+  const [pillars, setPillars] = useState<ContentPillarConfig[]>(DEFAULT_PILLARS);
+
+  // Step 3: Voice
   const [voiceDescription, setVoiceDescription] = useState('');
   const [voiceRules, setVoiceRules] = useState('');
-  const [importPaste, setImportPaste] = useState('');
 
-  useEffect(() => {
-    fetch('/api/auth/session')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (data?.profile?.displayName) {
-          setDisplayName(data.profile.displayName);
-          return;
-        }
-        const email = data?.user?.email as string | undefined;
-        if (email?.includes('@')) {
-          const guess = email.split('@')[0]?.replace(/[._+-]/g, ' ').trim();
-          if (guess) setDisplayName(guess.charAt(0).toUpperCase() + guess.slice(1));
-        }
-      })
-      .catch(() => undefined);
+  // Step 4: Context / background
+  const [contextAdditions, setContextAdditions] = useState('');
+
+  /* ---- Pillar helpers ---- */
+
+  const addPillar = useCallback(() => {
+    if (pillars.length >= 6) return;
+    setPillars((prev) => [
+      ...prev,
+      { name: '', color: PRESET_COLORS[prev.length % PRESET_COLORS.length], description: '' },
+    ]);
+  }, [pillars.length]);
+
+  const removePillar = useCallback((index: number) => {
+    setPillars((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
-  const canFinish =
-    displayName.trim().length > 0 &&
-    about.trim().length > 0 &&
-    voiceDescription.trim().length > 0;
+  const updatePillar = useCallback(
+    (index: number, field: keyof ContentPillarConfig, value: string) => {
+      setPillars((prev) => {
+        const updated = [...prev];
+        updated[index] = { ...updated[index], [field]: value };
+        return updated;
+      });
+    },
+    []
+  );
 
-  async function saveProfile(payload: {
-    displayName: string;
-    bio: string;
-    voiceDescription: string;
-    voiceRules: string;
-  }) {
-    await completeOnboarding({
-      displayName: payload.displayName,
-      bio: payload.bio,
-      voiceDescription: payload.voiceDescription,
-      voiceRules: payload.voiceRules,
-      pillars: seedPillars(payload.bio || payload.displayName),
-      contextAdditions: payload.bio,
-    });
+  /* ---- Navigation ---- */
 
-    try {
-      await fetch('/api/brain/provision', { method: 'POST' });
-    } catch {
-      // Non-blocking
+  const canProceed = (): boolean => {
+    if (step === 0) return displayName.trim().length > 0;
+    if (step === 1) return pillars.some((p) => p.name.trim().length > 0);
+    return true; // Steps 3 and 4 are optional
+  };
+
+  const handleNext = () => {
+    setError('');
+    if (!canProceed()) {
+      if (step === 0) setError('Please enter your display name');
+      if (step === 1) setError('Add at least one content pillar');
+      return;
     }
+    setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
+  };
 
-    router.push('/dashboard');
-  }
+  const handleBack = () => {
+    setError('');
+    setStep((s) => Math.max(s - 1, 0));
+  };
+
+  /* ---- Final save ---- */
 
   const handleFinish = async () => {
-    setError('');
-    if (!canFinish) {
-      setError('Fill in your name, what you do, and how you write — or use import / skip.');
-      return;
-    }
-
     setLoading(true);
-    try {
-      await saveProfile({
-        displayName: displayName.trim(),
-        bio: about.trim(),
-        voiceDescription: voiceDescription.trim(),
-        voiceRules: voiceRules.trim(),
-      });
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to save profile');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSkip = async () => {
     setError('');
-    setLoading(true);
-    const name = displayName.trim() || 'Creator';
+
     try {
-      await saveProfile({
-        displayName: name,
-        bio: about.trim(),
-        voiceDescription: voiceDescription.trim() || DEFAULT_VOICE,
-        voiceRules: voiceRules.trim() || DEFAULT_RULES,
+      const validPillars = pillars.filter((p) => p.name.trim().length > 0);
+
+      await completeOnboarding({
+        displayName,
+        bio,
+        voiceDescription,
+        voiceRules,
+        pillars: validPillars,
+        contextAdditions,
       });
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Failed to save profile');
-    } finally {
-      setLoading(false);
-    }
-  };
 
-  const handleCopyPrompt = async () => {
-    try {
-      await navigator.clipboard.writeText(CHATGPT_VOICE_EXPORT_PROMPT);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      setError('Could not copy — select the prompt and copy manually.');
-    }
-  };
-
-  const handleImport = async () => {
-    setError('');
-    if (!importPaste.trim()) {
-      setError('Paste the export from ChatGPT or Claude first.');
-      return;
-    }
-
-    setImporting(true);
-    try {
-      const res = await fetch('/api/onboarding/import-voice', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: importPaste }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Import failed');
-
-      const name = (data.displayName as string | null) || displayName.trim();
-      const bio = (data.bio as string | null) || about.trim();
-      const voice = (data.voiceDescription as string | null) || voiceDescription.trim();
-      const rules = (data.voiceRules as string | null) || voiceRules.trim();
-
-      if (!name || !voice) {
-        setDisplayName(name || displayName);
-        setAbout(bio || about);
-        setVoiceDescription(voice || voiceDescription);
-        setVoiceRules(rules || voiceRules);
-        setMode('manual');
-        setError('Partial import — fill any blanks, then start writing.');
-        return;
+      try {
+        await fetch('/api/brain/provision', { method: 'POST' });
+      } catch {
+        // Non-blocking
       }
 
-      setLoading(true);
-      await saveProfile({
-        displayName: name,
-        bio: bio || voice,
-        voiceDescription: voice,
-        voiceRules: rules,
-      });
+      router.push('/dashboard');
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Import failed');
+      const msg = e instanceof Error
+        ? e.message
+        : (typeof e === 'object' && e !== null && 'message' in e)
+          ? String((e as { message: unknown }).message)
+          : JSON.stringify(e);
+      setError(msg || 'Failed to save profile');
     } finally {
-      setImporting(false);
       setLoading(false);
     }
   };
+
+  /* ---- Shared input classes ---- */
 
   const inputCls =
     'w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors';
   const textareaCls = `${inputCls} resize-none`;
-  const labelCls = 'block font-body text-[13px] font-medium text-text-primary mb-2';
+  const labelCls = 'block font-body text-[13px] text-text-tertiary mb-2';
 
-  return (
-    <div className="min-h-[calc(100vh-3rem)] flex items-center justify-center px-4 py-10">
-      <div className="w-full max-w-md space-y-6">
-        <div className="text-center space-y-2">
-          <h1 className="font-serif text-[28px] font-normal tracking-[-0.025em] text-ink">
-            Set up your profile
-          </h1>
-          <p className="text-[14px] leading-6 text-text-secondary">
-            One-time voice setup. Answer a few questions, import from ChatGPT, or skip.
-          </p>
-        </div>
+  /* ---- Step renderers ---- */
 
-        <div className="flex gap-1 rounded-lg bg-bg-tertiary p-1">
-          <button
-            type="button"
-            onClick={() => setMode('manual')}
-            className={`flex-1 rounded-md py-2 text-[13px] font-medium transition-colors ${
-              mode === 'manual'
-                ? 'bg-bg-secondary text-text-primary shadow-card'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            Quick questions
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode('import')}
-            className={`flex-1 rounded-md py-2 text-[13px] font-medium transition-colors ${
-              mode === 'import'
-                ? 'bg-bg-secondary text-text-primary shadow-card'
-                : 'text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            ChatGPT / Claude
-          </button>
-        </div>
-
-        {mode === 'manual' ? (
-          <div className="rounded-lg border border-border bg-bg-secondary p-6 shadow-card space-y-5">
+  const renderStep = () => {
+    switch (step) {
+      /* ---- Step 1: Profile Basics ---- */
+      case 0:
+        return (
+          <div className="space-y-5">
             <div>
-              <label className={labelCls} htmlFor="onboarding-name">
-                Your name
-              </label>
+              <h2 className="font-serif font-normal text-[24px] tracking-[-0.025em] text-ink mb-1">
+                {"Let's start with the basics"}
+              </h2>
+              <p className="font-body text-[13px] text-text-secondary">
+                What should we call you?
+              </p>
+            </div>
+
+            <div>
+              <label className={labelCls}>Display name *</label>
               <input
-                id="onboarding-name"
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Alex Chen"
+                placeholder="Your name or brand"
                 className={inputCls}
                 autoFocus
               />
             </div>
 
             <div>
-              <label className={labelCls} htmlFor="onboarding-about">
-                What do you do?
-              </label>
+              <label className={labelCls}>Bio</label>
               <textarea
-                id="onboarding-about"
-                value={about}
-                onChange={(e) => setAbout(e.target.value)}
-                rows={3}
-                placeholder="I'm a founder building tools for sales teams. I post about GTM and lessons from early customers."
-                className={textareaCls}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls} htmlFor="onboarding-voice">
-                How should your posts sound?
-              </label>
-              <textarea
-                id="onboarding-voice"
-                value={voiceDescription}
-                onChange={(e) => setVoiceDescription(e.target.value)}
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
                 rows={4}
-                placeholder="Direct and casual — short sentences, specific examples."
-                className={textareaCls}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls} htmlFor="onboarding-rules">
-                Anything to avoid? <span className="font-normal text-text-tertiary">(optional)</span>
-              </label>
-              <textarea
-                id="onboarding-rules"
-                value={voiceRules}
-                onChange={(e) => setVoiceRules(e.target.value)}
-                rows={2}
-                placeholder="No corporate jargon, no emoji…"
+                placeholder="A short bio about who you are and what you do..."
                 className={textareaCls}
               />
             </div>
           </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="rounded-lg border border-border bg-bg-secondary p-5 shadow-card space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-[13px] font-medium text-text-primary">Step 1 — Copy this prompt</p>
-                  <p className="mt-1 text-[12px] text-text-secondary">
-                    Paste it into ChatGPT, Claude, or Gemini. Copy the reply.
-                  </p>
+        );
+
+      /* ---- Step 2: Content Pillars ---- */
+      case 1:
+        return (
+          <div className="space-y-5">
+            <div>
+              <h2 className="font-serif font-normal text-[24px] tracking-[-0.025em] text-ink mb-1">
+                Define your content pillars
+              </h2>
+              <p className="font-body text-[13px] text-text-secondary">
+                These are the core topics you create content about. Add at least one.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {pillars.map((pillar, i) => (
+                <div
+                  key={i}
+                  className="border border-border rounded-lg p-4 space-y-3"
+                  style={{ borderLeftColor: pillar.color, borderLeftWidth: 3 }}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-body text-[12px] font-medium text-text-secondary">
+                      Pillar {i + 1}
+                    </span>
+                    {pillars.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removePillar(i)}
+                        className="text-[11px] text-text-secondary hover:text-accent-primary transition-colors"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex gap-3">
+                    <input
+                      type="text"
+                      value={pillar.name}
+                      onChange={(e) => updatePillar(i, 'name', e.target.value)}
+                      placeholder="Pillar name (e.g. Tech Takes)"
+                      className={`flex-1 ${inputCls}`}
+                    />
+                    <div className="flex gap-1.5 items-center">
+                      {PRESET_COLORS.map((color) => (
+                        <button
+                          key={color}
+                          type="button"
+                          onClick={() => updatePillar(i, 'color', color)}
+                          className={`w-6 h-6 rounded-full transition-transform ${
+                            pillar.color === color
+                              ? 'ring-2 ring-accent-primary ring-offset-1 ring-offset-bg-secondary scale-110'
+                              : 'hover:scale-110'
+                          }`}
+                          style={{ backgroundColor: color }}
+                        />
+                      ))}
+                    </div>
+                  </div>
+
+                  <textarea
+                    value={pillar.description || ''}
+                    onChange={(e) => updatePillar(i, 'description', e.target.value)}
+                    placeholder="What this pillar covers..."
+                    rows={2}
+                    className={textareaCls}
+                  />
                 </div>
+              ))}
+
+              {pillars.length < 6 && (
                 <button
                   type="button"
-                  onClick={handleCopyPrompt}
-                  className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-border bg-bg-tertiary px-3 py-1.5 text-[12px] font-medium text-text-primary hover:border-border-hover"
+                  onClick={addPillar}
+                  className="w-full border border-dashed border-border rounded-lg py-3 text-[13px] text-text-secondary hover:border-accent-primary hover:text-accent-primary transition-colors"
                 >
-                  {copied ? (
-                    <>
-                      <Check className="h-3.5 w-3.5" />
-                      Copied
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="h-3.5 w-3.5" />
-                      Copy
-                    </>
-                  )}
+                  + Add pillar
                 </button>
-              </div>
-              <pre className="max-h-40 overflow-auto rounded-md border border-border bg-bg-tertiary p-3 text-[11px] leading-5 text-text-secondary whitespace-pre-wrap">
-                {CHATGPT_VOICE_EXPORT_PROMPT}
-              </pre>
+              )}
+            </div>
+          </div>
+        );
+
+      /* ---- Step 3: Voice ---- */
+      case 2:
+        return (
+          <div className="space-y-5">
+            <div>
+              <h2 className="font-serif font-normal text-[24px] tracking-[-0.025em] text-ink mb-1">
+                Describe your voice
+              </h2>
+              <p className="font-body text-[13px] text-text-secondary">
+                Help the AI match how you talk. Both fields are optional but recommended.
+              </p>
+              <p className="mt-2 rounded-md border border-border bg-bg-secondary px-3 py-2 text-[12px] text-text-secondary">
+                Want this done automatically? Finish setup, then open Your voice to import posts, articles, newsletters, or public profile links.
+              </p>
             </div>
 
-            <div className="rounded-lg border border-border bg-bg-secondary p-5 shadow-card space-y-3">
-              <p className="text-[13px] font-medium text-text-primary">Step 2 — Paste the export</p>
+            <div>
+              <label className={labelCls}>How do you talk?</label>
               <textarea
-                value={importPaste}
-                onChange={(e) => setImportPaste(e.target.value)}
-                rows={10}
-                placeholder="Paste what ChatGPT or Claude returned…"
+                value={voiceDescription}
+                onChange={(e) => setVoiceDescription(e.target.value)}
+                rows={5}
+                placeholder="e.g. Casual, direct, like explaining something cool to a friend. Use short sentences. Lots of analogies."
+                className={textareaCls}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>What should the AI avoid?</label>
+              <textarea
+                value={voiceRules}
+                onChange={(e) => setVoiceRules(e.target.value)}
+                rows={4}
+                placeholder="e.g. Never use emoji. No corporate jargon. Don't start sentences with 'So...'"
                 className={textareaCls}
               />
             </div>
           </div>
-        )}
+        );
 
-        {error && <p className="text-[13px] text-accent-primary text-center">{error}</p>}
+      /* ---- Step 4: Context / Background ---- */
+      case 3:
+        return (
+          <div className="space-y-5">
+            <div>
+              <h2 className="font-serif font-normal text-[24px] tracking-[-0.025em] text-ink mb-1">
+                Add your context
+              </h2>
+              <p className="font-body text-[13px] text-text-secondary">
+                Tell the AI about your background, current projects, anything it should always know.
+                You can update this later in Settings.
+              </p>
+            </div>
 
-        <div className="space-y-2">
-          {mode === 'manual' ? (
-            <button
-              type="button"
-              onClick={handleFinish}
-              disabled={loading || !canFinish}
-              className="w-full rounded-md py-3 px-6 text-text-inverse font-body text-[14px] font-medium bg-accent-primary hover:bg-accent-dark transition-colors disabled:opacity-40"
-            >
-              {loading ? 'Saving…' : 'Start writing'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={handleImport}
-              disabled={loading || importing || !importPaste.trim()}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-md py-3 px-6 text-text-inverse font-body text-[14px] font-medium bg-accent-primary hover:bg-accent-dark transition-colors disabled:opacity-40"
-            >
-              {(loading || importing) && <Loader2 className="h-4 w-4 animate-spin" />}
-              {loading || importing ? 'Importing…' : 'Import & start writing'}
-            </button>
-          )}
+            <div>
+              <label className={labelCls}>Background and context</label>
+              <textarea
+                value={contextAdditions}
+                onChange={(e) => setContextAdditions(e.target.value)}
+                rows={10}
+                placeholder={"I'm a [role] who [what you do]. Currently working on [projects]. My audience is [who they are]."}
+                className={textareaCls}
+              />
+            </div>
+          </div>
+        );
 
+      default:
+        return null;
+    }
+  };
+
+  /* ---- Main render ---- */
+
+  const isLastStep = step === TOTAL_STEPS - 1;
+
+  return (
+    <div className="max-w-lg mx-auto py-12 px-4">
+      <p className="page-eyebrow mb-3">CONTENT OS</p>
+      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-ink3 mb-6">
+        Step {step + 1} of {TOTAL_STEPS}
+      </p>
+
+      <StepIndicator current={step} total={TOTAL_STEPS} />
+
+      {renderStep()}
+
+      {error && (
+        <p className="font-body text-[13px] text-accent-primary mt-4">{error}</p>
+      )}
+
+      <div className="flex items-center justify-between mt-8">
+        {step > 0 ? (
           <button
             type="button"
-            onClick={handleSkip}
-            disabled={loading || importing}
-            className="w-full py-2 text-[13px] text-text-tertiary hover:text-text-secondary transition-colors disabled:opacity-40"
+            onClick={handleBack}
+            className="rounded-md py-[10px] px-[20px] font-body text-[13px] font-medium text-text-tertiary border border-border hover:border-border-hover transition-colors"
           >
-            Skip for now — use defaults
+            Back
           </button>
+        ) : (
+          <div />
+        )}
 
-          <p className="text-center text-[12px] text-text-tertiary pt-1">
-            Connect social accounts later in Settings.
-          </p>
-        </div>
+        {isLastStep ? (
+          <button
+            type="button"
+            onClick={handleFinish}
+            disabled={loading}
+            className="rounded-md py-[10px] px-[24px] text-text-inverse font-body text-[13px] font-medium bg-accent-primary hover:bg-accent-dark transition-all duration-100 disabled:opacity-40"
+          >
+            {loading ? 'Setting up...' : 'Finish setup'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={handleNext}
+            disabled={!canProceed()}
+            className="rounded-md py-[10px] px-[24px] text-text-inverse font-body text-[13px] font-medium bg-accent-primary hover:bg-accent-dark transition-all duration-100 disabled:opacity-40"
+          >
+            Continue
+          </button>
+        )}
       </div>
     </div>
   );

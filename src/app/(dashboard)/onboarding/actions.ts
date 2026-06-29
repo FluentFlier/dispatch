@@ -8,7 +8,7 @@ export async function completeOnboarding(data: {
   voiceDescription: string;
   voiceRules: string;
   pillars: any[];
-  contextAdditions?: string;
+  contextAdditions: string;
 }) {
   const user = await getAuthenticatedUser();
   if (!user) throw new Error("Not logged in");
@@ -24,11 +24,6 @@ export async function completeOnboarding(data: {
   const workspaceId = workspaces?.[0]?.workspace_id;
   if (!workspaceId) throw new Error("No workspace found — please sign out and sign back in.");
 
-  const pillars =
-    data.pillars?.filter((p) => p?.name?.trim?.())?.length > 0
-      ? data.pillars.filter((p) => p.name.trim().length > 0)
-      : [{ name: 'My posts', color: '#E07A5F', description: data.bio.trim() || undefined }];
-
   const { error: profileError } = await client.database
     .from('creator_profile')
     .upsert(
@@ -39,7 +34,7 @@ export async function completeOnboarding(data: {
         bio_facts: data.bio.trim(),
         voice_description: data.voiceDescription.trim(),
         voice_rules: data.voiceRules.trim(),
-        content_pillars: pillars,
+        content_pillars: data.pillars,
         onboarding_complete: true,
         updated_at: new Date().toISOString(),
       },
@@ -48,7 +43,7 @@ export async function completeOnboarding(data: {
 
   if (profileError) throw new Error(profileError.message || 'Failed to save profile');
 
-  if (data.contextAdditions?.trim()) {
+  if (data.contextAdditions.trim()) {
     const { error: settingsError } = await client.database
       .from('user_settings')
       .upsert(

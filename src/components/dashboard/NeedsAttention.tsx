@@ -3,7 +3,7 @@ import { AlertTriangle, ArrowRight } from 'lucide-react';
 
 export interface AttentionItem {
   id: string;
-  type: 'publish_failed' | 'auth_expired' | 'billing' | 'signals';
+  type: 'publish_failed' | 'auth_expired' | 'billing';
   title: string;
   detail: string;
   href: string;

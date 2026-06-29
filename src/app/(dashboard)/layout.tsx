@@ -1,8 +1,11 @@
-import { headers } from 'next/headers';
+import { headers, cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import Sidebar from '@/components/nav/Sidebar';
+import BottomBar from '@/components/nav/BottomBar';
 import { ToastProvider } from '@/components/ui/Toast';
-import DashboardShell from '@/components/layout/DashboardShell';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import TokenRefreshGate from '@/components/auth/TokenRefreshGate';
 
 export default async function DashboardLayout({
   children,
@@ -14,7 +17,15 @@ export default async function DashboardLayout({
   const user = await getAuthenticatedUser();
 
   if (!user) {
-    redirect('/login?expired=1');
+    // If no cookie at all, they're definitely not logged in.
+    const cookieStore = cookies();
+    const hasToken = !!cookieStore.get('content-os-token')?.value;
+    if (!hasToken) {
+      redirect('/login');
+    }
+    // Cookie exists but server-side validation failed (expired token).
+    // Let the client attempt a browser-side refresh via InsForge's session cookie.
+    return <TokenRefreshGate />;
   }
 
   const isOnboarding = pathname === '/onboarding' || pathname.startsWith('/onboarding/');
@@ -31,9 +42,19 @@ export default async function DashboardLayout({
     }
   }
 
+  if (pathname === '/teleprompter') {
+    return <ToastProvider>{children}</ToastProvider>;
+  }
+
   return (
     <ToastProvider>
-      <DashboardShell>{children}</DashboardShell>
+      <div className="flex h-screen min-h-screen bg-bg-primary text-text-primary">
+        <Sidebar />
+        <main className="flex-1 md:ml-[264px] overflow-y-auto overflow-x-hidden px-4 md:px-8 py-6 pb-24 md:pb-8 min-w-0 w-full">
+          <ErrorBoundary>{children}</ErrorBoundary>
+        </main>
+        <BottomBar />
+      </div>
     </ToastProvider>
   );
 }

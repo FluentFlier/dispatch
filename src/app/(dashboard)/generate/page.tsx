@@ -1,9 +1,8 @@
 "use client";
 
 import { Suspense, useEffect, useState, useRef } from "react";
-import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, CheckCircle2, Sparkles } from "lucide-react";
 import { Tabs } from "@/components/ui/Tabs";
 import { SkeletonLines } from "@/components/ui/Skeleton";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -26,13 +25,10 @@ type TabId =
   | "comments"
   | "series";
 
-const CORE_TABS: { id: TabId; label: string }[] = [
+const TAB_LIST: { id: TabId; label: string }[] = [
   { id: "script", label: "New post" },
   { id: "caption", label: "Caption" },
   { id: "hooks", label: "Hook" },
-];
-
-const MORE_TABS: { id: TabId; label: string }[] = [
   { id: "comments", label: "Reply" },
   { id: "story-mine", label: "Story" },
   { id: "repurpose", label: "Repurpose" },
@@ -40,14 +36,55 @@ const MORE_TABS: { id: TabId; label: string }[] = [
   { id: "series", label: "Series" },
 ];
 
-const TAB_LIST = [...CORE_TABS, ...MORE_TABS];
+const TAB_DETAILS: Record<TabId, { title: string; description: string; outcome: string }> = {
+  script: {
+    title: "Draft a post",
+    description: "Start with a topic, pick a pillar, and get a structured draft in your voice.",
+    outcome: "Best for going from blank page to first draft.",
+  },
+  caption: {
+    title: "Caption and hashtags",
+    description: "Turn finished content into platform-native captions with usable hashtag sets.",
+    outcome: "Best for packaging content before publishing.",
+  },
+  hooks: {
+    title: "Hook lab",
+    description: "Generate sharper openings before you commit to the full post.",
+    outcome: "Best for improving click-through and watch time.",
+  },
+  comments: {
+    title: "Reply writer",
+    description: "Draft responses that sound like you and keep conversations moving.",
+    outcome: "Best for clearing comment backlog quickly.",
+  },
+  "story-mine": {
+    title: "Story mine",
+    description: "Pull useful stories from your work, customers, and founder moments.",
+    outcome: "Best for finding non-generic source material.",
+  },
+  repurpose: {
+    title: "Repurpose",
+    description: "Turn one asset into multiple platform-specific posts.",
+    outcome: "Best for making one good idea travel farther.",
+  },
+  trend: {
+    title: "Trend catcher",
+    description: "Turn relevant trends into posts without sounding like everyone else.",
+    outcome: "Best for timely commentary.",
+  },
+  series: {
+    title: "Series planner",
+    description: "Break a bigger idea into a sequence people can follow.",
+    outcome: "Best for campaigns and recurring formats.",
+  },
+};
 
 export default function GeneratePage() {
   return (
     <Suspense
       fallback={
         <div className="page-shell">
-          <PageHeader title="Write" subtitle="AI drafts in your voice." />
+          <PageHeader eyebrow="GENERATE" title="Write" subtitle="AI drafts in your voice." />
           <div className="card-surface">
             <SkeletonLines count={3} />
           </div>
@@ -120,50 +157,61 @@ function GeneratePageInner() {
   };
 
   return (
-    <div className="page-shell-wide space-y-6">
-      <PageHeader
-        title="Write"
-        subtitle="Pick a starting point, edit the draft, then save or schedule."
-      />
-
-      <div ref={tabBarRef} className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="-mx-1 overflow-x-auto scrollbar-hide flex-1">
-          <Tabs
-            tabs={CORE_TABS}
-            activeTab={CORE_TABS.some((t) => t.id === activeTab) ? activeTab : 'script'}
-            onChange={(id) => setActiveTab(id as TabId)}
-            variant="pill"
-          />
+    <div className="page-shell-wide">
+      <section className="rounded-lg border border-hair bg-paper2 p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <div className="mb-3 inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.12em] text-ink3">
+              <Sparkles className="h-3.5 w-3.5" />
+              Voice-aware writing desk
+            </div>
+            <PageHeader
+              eyebrow="GENERATE"
+              title="Write"
+              subtitle="Choose the job, give it context, then edit before anything leaves the building."
+            />
+          </div>
+          <div className="rounded-lg border border-hair bg-paper px-4 py-3 text-sm text-ink2 lg:max-w-sm">
+            <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-ink">{TAB_DETAILS[activeTab].title}:</span>{' '}
+            {TAB_DETAILS[activeTab].outcome}
+          </div>
         </div>
-        <label className="flex items-center gap-2 text-sm text-text-secondary shrink-0">
-          <span className="sr-only">More writing tools</span>
-          <select
-            value={MORE_TABS.some((t) => t.id === activeTab) ? activeTab : ''}
-            onChange={(e) => {
-              const v = e.target.value as TabId;
-              if (v) setActiveTab(v);
-            }}
-            className="rounded-md border border-border bg-bg-secondary px-3 py-2 text-sm min-h-[40px]"
-          >
-            <option value="">More tools…</option>
-            {MORE_TABS.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      </section>
+
+      <div ref={tabBarRef} className="-mx-1 overflow-x-auto scrollbar-hide">
+        <Tabs
+          tabs={TAB_LIST}
+          activeTab={activeTab}
+          onChange={(id) => setActiveTab(id as TabId)}
+          variant="pill"
+        />
       </div>
 
-      <section className="card-surface min-h-[360px]">{renderTab()}</section>
-
-      <Link
-        href="/library"
-        className="inline-flex items-center gap-2 text-sm font-medium text-accent-primary hover:underline"
-      >
-        Review saved drafts
-        <ArrowRight className="h-4 w-4" />
-      </Link>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1fr_320px]">
+        <section className="card-surface min-h-[360px]">{renderTab()}</section>
+        <aside className="space-y-4">
+          <section className="rounded-lg border border-hair bg-paper2 p-5">
+            <p className="section-label">Current tool</p>
+            <h2 className="mt-2 font-serif text-lg font-normal tracking-[-0.025em] text-ink">{TAB_DETAILS[activeTab].title}</h2>
+            <p className="mt-2 text-sm leading-6 text-ink2">{TAB_DETAILS[activeTab].description}</p>
+          </section>
+          <section className="rounded-lg border border-hair bg-paper2 p-5">
+            <p className="section-label">Quality gate</p>
+            <ul className="mt-4 space-y-3 text-sm text-ink2">
+              {['Specific point of view', 'Matches your voice', 'Has a next action'].map((item) => (
+                <li key={item} className="flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-teal" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </section>
+          <a href="/library" className="group flex items-center justify-between rounded-lg border border-hair bg-ink p-4 text-sm font-medium text-white">
+            Review saved drafts
+            <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </a>
+        </aside>
+      </div>
     </div>
   );
 }

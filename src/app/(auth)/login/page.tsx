@@ -202,14 +202,6 @@ export default function LoginPage() {
                 <OAuthButton label="Continue with GitHub" onClick={() => signInWith("github")} icon="github" />
               </div>
 
-              {process.env.NEXT_PUBLIC_DEMO_MODE === "true" && (
-                <p className="mt-4 rounded-md border border-border bg-bg-secondary px-3 py-2 text-xs text-text-secondary leading-relaxed">
-                  Demo: sign in, open <strong className="text-text-primary">Signals</strong>, tap{" "}
-                  <strong className="text-text-primary">Load demo data</strong> for sample YC/funding
-                  outreach targets.
-                </p>
-              )}
-
               {error && (
                 <div className="mt-4 px-4 py-3 rounded-md text-sm text-red-800 bg-red-50 border border-red-200">
                   {error}

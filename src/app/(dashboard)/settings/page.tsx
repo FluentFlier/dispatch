@@ -13,7 +13,6 @@ import WeeklySchedule from "@/components/settings/WeeklySchedule";
 import PlatformDefaults from "@/components/settings/PlatformDefaults";
 import BioGenerator from "@/components/settings/BioGenerator";
 import PlatformConnections from "@/components/settings/PlatformConnections";
-import OutreachConnections from '@/components/settings/OutreachConnections';
 import ProfileEditor from "@/components/settings/ProfileEditor";
 import AutoOptimizeToggle from "@/components/settings/AutoOptimizeToggle";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -67,23 +66,18 @@ function Section({
 /* ------------------------------------------------------------------ */
 
 const TABS = [
-  { id: 'account', label: 'Account' },
-  { id: 'publishing', label: 'Publishing' },
+  { id: 'connections', label: 'Connections' },
   { id: 'billing', label: 'Billing' },
+  { id: 'profile', label: 'Profile' },
+  { id: 'content', label: 'Content' },
+  { id: 'tools', label: 'Tools' },
 ] as const;
 
 type SettingsTab = (typeof TABS)[number]['id'];
 
-function resolveSettingsTab(raw: string | null): SettingsTab {
-  if (raw === 'billing') return 'billing';
-  if (raw === 'profile' || raw === 'account') return 'account';
-  if (raw === 'connections' || raw === 'publishing') return 'publishing';
-  return 'publishing';
-}
-
 export default function SettingsPage() {
   const searchParams = useSearchParams();
-  const initialTab = resolveSettingsTab(searchParams.get('tab'));
+  const initialTab = (searchParams.get('tab') as SettingsTab) || 'connections';
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [userId, setUserId] = useState<string | null>(null);
   const [profile, setProfile] = useState<CreatorProfile | null>(null);
@@ -167,7 +161,6 @@ export default function SettingsPage() {
     limits: { publishesPerMonth: number };
   } | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
-  const [outreachNotice, setOutreachNotice] = useState<string | null>(null);
   // Unipile is the only supported social provider. Default true so the
   // correct connect flow shows immediately without waiting on /api/health.
   const [useUnipile, setUseUnipile] = useState(true);
@@ -290,21 +283,10 @@ export default function SettingsPage() {
     // where the Unipile webhook can't reach localhost. In production the webhook
     // already stored the account, so the sync is a fast no-op (accounts already exist).
     if (searchParams.get('connected') === 'true') {
-      setActiveTab('publishing');
+      setActiveTab('connections');
       fetch('/api/social-accounts/sync', { method: 'POST' })
         .catch(() => undefined)
         .finally(() => refreshAccounts());
-    }
-    const outreachConnected = searchParams.get('outreach_connected');
-    if (outreachConnected === 'gmail' || outreachConnected === 'googlecalendar') {
-      setActiveTab('publishing');
-      const label = outreachConnected === 'gmail' ? 'Gmail' : 'Google Calendar';
-      setOutreachNotice(`${label} connected. You can send from Signals.`);
-    }
-    const outreachError = searchParams.get('outreach_error');
-    if (outreachError) {
-      setActiveTab('publishing');
-      setOutreachNotice('Could not connect that account. Try again.');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -508,7 +490,7 @@ export default function SettingsPage() {
 
   return (
     <div className="page-shell space-y-6">
-      <PageHeader title="Settings" subtitle="Your profile, connected accounts, and how Ada writes for you." />
+      <PageHeader eyebrow="SETTINGS" title="Settings" subtitle="Profile, connected accounts, and how Content OS writes for you." />
 
       {/* Tab bar */}
       <div className="flex gap-1 bg-bg-tertiary rounded-[10px] p-1">
@@ -528,14 +510,9 @@ export default function SettingsPage() {
       </div>
 
       {/* Tab content */}
-      {activeTab === 'publishing' && (
+      {activeTab === 'connections' && (
         <>
-          {outreachNotice && (
-            <p className="text-sm text-green-700 bg-green-50 border border-green-100 rounded-md px-3 py-2">
-              {outreachNotice}
-            </p>
-          )}
-          <Section title="Social accounts">
+          <Section title="Platform Connections">
             <PlatformConnections
               connectedAccounts={connectedAccounts}
               onConnect={connectAccount}
@@ -546,14 +523,7 @@ export default function SettingsPage() {
             />
           </Section>
 
-          <Section title="Email & calendar">
-            <p className="text-sm text-text-secondary mb-4">
-              Optional — for outreach and follow-ups from Signals.
-            </p>
-            <OutreachConnections />
-          </Section>
-
-          <Section title="Platform defaults">
+          <Section title="Platform Defaults">
             <PlatformDefaults
               defaultPlatform={defaultPlatform}
               onDefaultPlatformChange={setDefaultPlatform}
@@ -564,54 +534,6 @@ export default function SettingsPage() {
               saved={platformDefaultsSaved}
             />
           </Section>
-
-          <details className="rounded-lg border border-border bg-bg-secondary p-4 group">
-            <summary className="cursor-pointer text-sm font-medium text-text-primary list-none">
-              Advanced publishing options
-            </summary>
-            <div className="mt-4 space-y-6 pt-4 border-t border-border">
-              <Section title="Pillar weights">
-                <PillarWeights
-                  pillars={pillars}
-                  pillarWeights={pillarWeights}
-                  onWeightChange={setPillarWeights}
-                  onSave={savePillarWeights}
-                  saving={weightsSaving}
-                  saved={weightsSaved}
-                />
-              </Section>
-
-              <Section title="Weekly schedule template">
-                <WeeklySchedule
-                  weeklySchedule={weeklySchedule}
-                  onScheduleChange={setWeeklySchedule}
-                  pillarOptions={pillarOptions}
-                  onSave={saveWeeklySchedule}
-                  saving={scheduleSaving}
-                  saved={scheduleSaved}
-                />
-              </Section>
-
-              <Section title="Auto-optimize">
-                <AutoOptimizeToggle
-                  enabled={autoOptimize}
-                  onChange={setAutoOptimize}
-                  onSave={saveAutoOptimize}
-                  saving={autoOptimizeSaving}
-                  saved={autoOptimizeSaved}
-                />
-              </Section>
-
-              <Section title="Profile bio generator">
-                <BioGenerator
-                  bioGenerating={bioGenerating}
-                  bios={bios}
-                  onGenerate={generateBios}
-                  onBiosChange={setBios}
-                />
-              </Section>
-            </div>
-          </details>
         </>
       )}
 
@@ -661,15 +583,9 @@ export default function SettingsPage() {
         </Section>
       )}
 
-      {activeTab === 'account' && (
+      {activeTab === 'profile' && (
         <>
-          <p className="text-sm text-text-secondary -mt-2">
-            Your voice profile from onboarding lives here. Want Ada to learn from real posts?{' '}
-            <a href="/voice-lab" className="text-accent-primary hover:underline">
-              Refine voice
-            </a>
-          </p>
-          <Section title="Profile">
+          <Section title="Profile Editor">
             <ProfileEditor
               displayName={displayName}
               onDisplayNameChange={setDisplayName}
@@ -687,7 +603,7 @@ export default function SettingsPage() {
             />
           </Section>
 
-          <Section title="Personal context">
+          <Section title="Personal Context">
             <ContextEditor
               contextAdditions={contextAdditions}
               onContextChange={setContextAdditions}
@@ -697,6 +613,53 @@ export default function SettingsPage() {
             />
           </Section>
         </>
+      )}
+
+      {activeTab === 'content' && (
+        <>
+          <Section title="Pillar Weights">
+            <PillarWeights
+              pillars={pillars}
+              pillarWeights={pillarWeights}
+              onWeightChange={setPillarWeights}
+              onSave={savePillarWeights}
+              saving={weightsSaving}
+              saved={weightsSaved}
+            />
+          </Section>
+
+          <Section title="Weekly Schedule Template">
+            <WeeklySchedule
+              weeklySchedule={weeklySchedule}
+              onScheduleChange={setWeeklySchedule}
+              pillarOptions={pillarOptions}
+              onSave={saveWeeklySchedule}
+              saving={scheduleSaving}
+              saved={scheduleSaved}
+            />
+          </Section>
+
+          <Section title="Auto-Optimize">
+            <AutoOptimizeToggle
+              enabled={autoOptimize}
+              onChange={setAutoOptimize}
+              onSave={saveAutoOptimize}
+              saving={autoOptimizeSaving}
+              saved={autoOptimizeSaved}
+            />
+          </Section>
+        </>
+      )}
+
+      {activeTab === 'tools' && (
+        <Section title="Profile Bio Generator">
+          <BioGenerator
+            bioGenerating={bioGenerating}
+            bios={bios}
+            onGenerate={generateBios}
+            onBiosChange={setBios}
+          />
+        </Section>
       )}
     </div>
   );
