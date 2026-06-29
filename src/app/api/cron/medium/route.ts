@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Fan-out cron: fires every 15 minutes, runs engagement-sync + event-enrich in parallel.
- * Exists solely to fit two medium-frequency jobs into one Vercel cron slot.
- * Each sub-job keeps its own auth check and is still independently callable.
+ * Fan-out cron: fires every 15 minutes.
+ *
+ * Always:        engagement-sync + event-enrich (parallel)
+ * Hourly (:00):  calendar-sync
+ * Daily 8 AM UTC (:00): auto-generate
+ * Daily 2 AM UTC (:00): intelligence-sync
+ *
+ * Time-gating absorbs 5 former Vercel crons into one slot,
+ * staying within the Hobby plan 2-cron limit without pg_cron.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization');
@@ -19,20 +25,41 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const headers = { authorization: `Bearer ${cronSecret}` };
+  const now = new Date();
+  const minute = now.getUTCMinutes();
+  const hour = now.getUTCHours();
 
-  const [engagementResult, eventEnrichResult] = await Promise.allSettled([
-    fetch(`${baseUrl}/api/cron/engagement-sync`, { headers }).then((r) => r.json()),
-    fetch(`${baseUrl}/api/cron/event-enrich`, { headers }).then((r) => r.json()),
-  ]);
+  const call = async (name: string, path: string): Promise<[string, unknown]> => {
+    try {
+      const res = await fetch(`${baseUrl}${path}`, { headers });
+      return [name, await res.json()];
+    } catch (err) {
+      return [name, { error: String(err) }];
+    }
+  };
 
-  return NextResponse.json({
-    engagementSync:
-      engagementResult.status === 'fulfilled'
-        ? engagementResult.value
-        : { error: String((engagementResult as PromiseRejectedResult).reason) },
-    eventEnrich:
-      eventEnrichResult.status === 'fulfilled'
-        ? eventEnrichResult.value
-        : { error: String((eventEnrichResult as PromiseRejectedResult).reason) },
-  });
+  const jobs: Promise<[string, unknown]>[] = [
+    call('engagementSync', '/api/cron/engagement-sync'),
+    call('eventEnrich', '/api/cron/event-enrich'),
+  ];
+
+  // Hourly: fires when cron hits the :00 minute mark
+  if (minute === 0) {
+    jobs.push(call('calendarSync', '/api/cron/calendar-sync'));
+  }
+
+  // Daily 8 AM UTC
+  if (hour === 8 && minute === 0) {
+    jobs.push(call('autoGenerate', '/api/cron/auto-generate'));
+  }
+
+  // Daily 2 AM UTC
+  if (hour === 2 && minute === 0) {
+    jobs.push(call('intelligenceSync', '/api/cron/intelligence-sync'));
+  }
+
+  const outcomes = await Promise.all(jobs);
+  const result = Object.fromEntries(outcomes);
+
+  return NextResponse.json(result);
 }
