@@ -72,6 +72,26 @@ export async function provisionCreatorBrain(
     workspaceId,
   });
 
+  await putBrainPage(client, userId, {
+    slug: BRAIN_SLUG.gtm,
+    title: 'GTM playbook',
+    tags: ['gtm', 'signals', 'outreach'],
+    body: JSON.stringify(
+      {
+        status: 'pending',
+        icp: '',
+        pitch: '',
+        objections: '',
+        proof_points: '',
+        cta_style: '',
+        note: 'Fill ICP, pitch, and objection handling for Signals cold outreach.',
+      },
+      null,
+      2,
+    ),
+    workspaceId,
+  });
+
   const pages = await listBrainPages(client, userId, workspaceId);
   return {
     ok: true,
