@@ -29,6 +29,16 @@ function pageToSnippet(slug: string, body: string): string {
         .map((p, i) => `${i + 1}. ${p.title} (${p.views ?? 0} views): ${p.snippet ?? ''}`)
         .join('\n')}`;
     }
+    if (slug === BRAIN_SLUG.gtm) {
+      const parts = [
+        parsed.icp && `ICP: ${parsed.icp}`,
+        parsed.pitch && `Pitch: ${parsed.pitch}`,
+        parsed.objections && `Objections: ${parsed.objections}`,
+        parsed.proof_points && `Proof: ${parsed.proof_points}`,
+        parsed.cta_style && `CTA style: ${parsed.cta_style}`,
+      ].filter(Boolean);
+      return parts.join('\n');
+    }
     if (slug.startsWith('post/') && parsed.content) {
       return `Published ${parsed.platform ?? ''} (${parsed.pillar ?? ''}): ${String(parsed.content).slice(0, 400)}`;
     }
@@ -60,7 +70,7 @@ export async function retrieveBrainContext(
 ): Promise<string[]> {
   const snippets: string[] = [];
 
-  const coreSlugs = [BRAIN_SLUG.voice, BRAIN_SLUG.profile, BRAIN_SLUG.wins];
+  const coreSlugs = [BRAIN_SLUG.voice, BRAIN_SLUG.profile, BRAIN_SLUG.gtm, BRAIN_SLUG.wins];
   for (const slug of coreSlugs) {
     // Pass workspaceId so the page fetch is scoped to the correct workspace.
     const page = await getBrainPage(client, userId, slug, workspaceId);

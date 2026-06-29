@@ -31,6 +31,8 @@ export interface CreatorVoiceContext {
 interface LoadVoiceContextOptions {
   /** Topic or post idea; triggers Supermemory retrieval when set */
   memoryQuery?: string;
+  /** Skip brain, Supermemory, story bank, and L4 metrics (faster outreach drafts) */
+  lightweight?: boolean;
   /** Max few-shot samples injected into the prompt */
   maxSamples?: number;
   /**
@@ -160,14 +162,23 @@ export async function loadCreatorVoiceContext(
   let userContext: string | undefined;
 
   try {
-    // Scope profile lookup to workspace when available — each workspace has its
-    // own trained voice. Falls back to user_id only for pre-migration rows.
     let profileQuery = client.database
       .from('creator_profile')
       .select('display_name, bio, bio_facts, content_pillars, voice_description, voice_rules')
       .eq('user_id', userId);
     if (options.workspaceId) profileQuery = profileQuery.eq('workspace_id', options.workspaceId);
-    const { data: profileRow } = await profileQuery.maybeSingle();
+
+    let settingsQuery = client.database
+      .from('user_settings')
+      .select('key, value')
+      .eq('user_id', userId)
+      .in('key', ['context_additions', 'vocabulary_fingerprint', 'structural_patterns', 'sample_posts', 'persona_prompt_export']);
+    if (options.workspaceId) settingsQuery = settingsQuery.eq('workspace_id', options.workspaceId);
+
+    const [{ data: profileRow }, { data: settingsRows }] = await Promise.all([
+      profileQuery.maybeSingle(),
+      settingsQuery,
+    ]);
 
     if (profileRow) {
       const contentPillars =
@@ -185,18 +196,6 @@ export async function loadCreatorVoiceContext(
         voice_rules: profileRow.voice_rules?.trim() || undefined,
       };
     }
-  } catch {
-    // No profile
-  }
-
-  try {
-    let settingsQuery = client.database
-      .from('user_settings')
-      .select('key, value')
-      .eq('user_id', userId)
-      .in('key', ['context_additions', 'vocabulary_fingerprint', 'structural_patterns', 'sample_posts', 'persona_prompt_export']);
-    if (options.workspaceId) settingsQuery = settingsQuery.eq('workspace_id', options.workspaceId);
-    const { data: settingsRows } = await settingsQuery;
 
     if (settingsRows) {
       for (const row of settingsRows) {
@@ -219,7 +218,7 @@ export async function loadCreatorVoiceContext(
       }
     }
   } catch {
-    // Settings optional
+    // Profile and settings optional
   }
 
   if (samplePosts && samplePosts.length > maxSamples) {
@@ -227,17 +226,28 @@ export async function loadCreatorVoiceContext(
   }
 
   let brainSnippets: string[] | undefined;
-  try {
-    const brain = await retrieveBrainContext(client, userId, options.memoryQuery);
-    if (brain.length > 0) {
-      brainSnippets = brain;
+  if (!options.lightweight) {
+    try {
+      const brain = await retrieveBrainContext(
+        client,
+        userId,
+        options.memoryQuery,
+        options.workspaceId,
+      );
+      if (brain.length > 0) {
+        brainSnippets = brain;
+      }
+    } catch {
+      // Brain table may not exist until migration applied
     }
-  } catch {
-    // Brain table may not exist until migration applied
   }
 
   let memorySnippets: string[] | undefined;
-  if (options.memoryQuery?.trim() && process.env.SUPERMEMORY_API_KEY) {
+  if (
+    !options.lightweight &&
+    options.memoryQuery?.trim() &&
+    process.env.SUPERMEMORY_API_KEY
+  ) {
     try {
       const results = await searchUserContext(userId, options.memoryQuery.trim(), 3);
       const snippets = results.map((r) => r.content).filter((c): c is string => Boolean(c));
@@ -260,7 +270,7 @@ export async function loadCreatorVoiceContext(
   });
 
   // L3: inject unused Story Bank angles so captured memories inform new drafts
-  if (options.workspaceId) {
+  if (options.workspaceId && !options.lightweight) {
     try {
       const { data: storyRows } = await client.database
         .from('story_bank')
@@ -283,7 +293,7 @@ export async function loadCreatorVoiceContext(
   }
 
   // L4: inject voice quality baseline so generation targets the user's own standard
-  if (options.workspaceId && options.platform) {
+  if (options.workspaceId && options.platform && !options.lightweight) {
     try {
       const { data: metrics } = await client.database
         .from('workspace_voice_metrics')
