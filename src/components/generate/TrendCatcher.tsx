@@ -26,6 +26,7 @@ export function TrendCatcher() {
   const [error, setError] = useState('');
 
   const generate = async () => {
+    if (loading) return; // guard against double-submit
     if (!trend.trim()) {
       setError('Describe the trending topic first');
       return;

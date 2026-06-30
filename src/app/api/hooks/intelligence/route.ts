@@ -34,7 +34,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       hooks: hooks.map(h => ({
         text: h.text,
-        author: h.author,
+        // Normalize handle: strip any leading @ so consumers can render "@{author}"
+        // without producing "@@handle".
+        author: String(h.author ?? '').replace(/^@+/, ''),
         score: h.score.total,
         verticals: h.verticals,
       })),

@@ -212,7 +212,7 @@ export default function AnalyticsPage() {
                 <div key={idx} className="rounded-lg border border-border/70 bg-bg p-4 hover:border-accent-primary/40 transition-colors group flex flex-col">
                   <div className="text-sm leading-snug text-text-primary line-clamp-3 flex-1">“{hook.text}”</div>
                   <div className="mt-3 flex items-center justify-between text-xs">
-                    <div className="text-text-secondary">@{hook.author} • {hook.verticals?.[0] || 'general'}</div>
+                    <div className="text-text-secondary">@{String(hook.author ?? '').replace(/^@+/, '')} • {hook.verticals?.[0] || 'general'}</div>
                     <div className="font-mono text-accent-primary font-semibold">{hook.score}</div>
                   </div>
                   <div className="mt-2 flex items-center gap-2">

@@ -61,6 +61,37 @@ export function addHooksToDataset(newHooks: ExtractedHook[]) {
   return uniqueNew.length;
 }
 
+/** Normalizes a hook to comparable words: lowercases, strips URLs/@/#/numbers. */
+function normalizeWords(text: string): string[] {
+  return text
+    .toLowerCase()
+    .replace(/https?:\/\/\S+/g, '')
+    .replace(/[@#][\w]+/g, '')
+    .replace(/\$?\d[\d,.]*\w*/g, '#') // numbers / amounts -> #
+    .replace(/[^a-z\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .split(' ')
+    .filter(Boolean);
+}
+
+/**
+ * Head + tail signatures of a hook. Near-duplicate templates often share an
+ * opening ("I made $X...") or a closing ("...here is the exact system"), so we
+ * dedupe on EITHER. Numbers are normalized away so only the template remains.
+ */
+function hookSignatures(text: string): { head: string; tail: string } {
+  const words = normalizeWords(text);
+  const head = words.slice(0, 5).join(' ');
+  const tail = words.slice(-4).join(' ');
+  return { head, tail };
+}
+
+/**
+ * Returns the top hooks for a context, DEDUPED for diversity: drops any hook
+ * whose opening OR closing template matches one already picked. Prevents the
+ * surfaced list from being five clones of one viral-thread template.
+ */
 export function getBestHooksForContext(
   vertical?: HookVertical,
   limit = 10
@@ -70,7 +101,36 @@ export function getBestHooksForContext(
     // Fallback to the high-quality patterns we already have in voice-prompts/hooks.ts
     return [];
   }
-  return rankHooks(dataset.hooks, vertical, limit);
+
+  // Over-fetch, then greedily pick a diverse set.
+  const ranked = rankHooks(dataset.hooks, vertical, Math.max(limit * 8, 64));
+  const seenHeads = new Set<string>();
+  const seenTails = new Set<string>();
+  const diverse: RankedHook[] = [];
+
+  for (const hook of ranked) {
+    if (diverse.length >= limit) break;
+    const { head, tail } = hookSignatures(hook.text);
+    if ((head && seenHeads.has(head)) || (tail && seenTails.has(tail))) continue;
+    if (head) seenHeads.add(head);
+    if (tail) seenTails.add(tail);
+    diverse.push(hook);
+  }
+
+  // Backfill from the ranked pool if dedup left us short (small datasets),
+  // still skipping exact opening duplicates.
+  if (diverse.length < limit) {
+    for (const hook of ranked) {
+      if (diverse.length >= limit) break;
+      if (diverse.includes(hook)) continue;
+      const { head } = hookSignatures(hook.text);
+      if (head && seenHeads.has(head)) continue;
+      if (head) seenHeads.add(head);
+      diverse.push(hook);
+    }
+  }
+
+  return diverse;
 }
 
 /**

@@ -197,7 +197,15 @@ export default function SettingsPage() {
         if (!uid) return;
         setUserId(uid);
 
-        const [settingsRes, profileRes, socialRes] = await Promise.all([
+        // Connections data is only needed on the Connections tab and the
+        // /api/social-accounts fetch (Unipile) can be slow. Load it separately so
+        // it never blocks the Profile/Content tabs from rendering.
+        fetch("/api/social-accounts")
+          .then((r) => (r.ok ? r.json() : { accounts: [] }))
+          .then((social) => setConnectedAccounts(social.accounts ?? []))
+          .catch(() => setConnectedAccounts([]));
+
+        const [settingsRes, profileRes] = await Promise.all([
           insforge.database
             .from("user_settings")
             .select("*")
@@ -207,10 +215,7 @@ export default function SettingsPage() {
             .select("*")
             .eq("user_id", uid)
             .maybeSingle(),
-          fetch("/api/social-accounts").then((r) => r.ok ? r.json() : { accounts: [] }),
         ]);
-
-        setConnectedAccounts(socialRes.accounts ?? []);
 
         const settings: UserSetting[] = settingsRes.data ?? [];
         const prof: CreatorProfile | null = profileRes.data;

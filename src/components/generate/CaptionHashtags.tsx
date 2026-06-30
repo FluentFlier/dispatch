@@ -60,6 +60,7 @@ export function CaptionHashtags() {
   }, []);
 
   const generate = async () => {
+    if (loading) return; // guard against double-submit
     if (!script.trim()) {
       setError('Enter a script or video idea');
       return;

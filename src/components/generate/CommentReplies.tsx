@@ -76,6 +76,7 @@ export function CommentReplies() {
   const [error, setError] = useState('');
 
   const generate = async () => {
+    if (loading) return; // guard against double-submit
     if (!comments.trim()) {
       setError('Paste some comments first');
       return;

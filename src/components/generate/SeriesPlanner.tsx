@@ -31,6 +31,7 @@ export function SeriesPlanner() {
   const [saved, setSaved] = useState(false);
 
   const generate = async () => {
+    if (loading) return; // guard against double-submit
     if (!concept.trim()) {
       setError('Enter a series concept');
       return;

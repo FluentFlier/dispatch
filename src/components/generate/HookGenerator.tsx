@@ -86,6 +86,7 @@ export function HookGenerator() {
   }, []);
 
   const generate = async () => {
+    if (loading) return; // guard against double-submit (React strict-mode / fast double-click)
     setLoading(true);
     setError('');
     setHooks([]);

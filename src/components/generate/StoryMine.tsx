@@ -37,6 +37,7 @@ export function StoryMine() {
   const [converting, setConverting] = useState(false);
 
   const generate = async () => {
+    if (loading) return; // guard against double-submit
     if (!memory.trim()) {
       setError('Describe a memory first');
       return;

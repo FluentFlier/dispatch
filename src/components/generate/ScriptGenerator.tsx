@@ -141,6 +141,7 @@ export function ScriptGenerator({
   const [error, setError] = useState('');
 
   const generate = async () => {
+    if (loading) return; // guard against double-submit (avoids duplicate /api/generate + 401 race)
     setLoading(true);
     setError('');
     setOutput('');
