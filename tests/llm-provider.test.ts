@@ -81,36 +81,81 @@ describe('LLM provider abstraction', () => {
       });
     });
 
-    it('throws a quota-flagged LlmError on 402', async () => {
+    it('throws a quota-flagged LlmError on 402 (not retried)', async () => {
       setLlmEnv();
-      vi.stubGlobal('fetch', vi.fn(async () => ({
+      const fetchMock = vi.fn(async () => ({
         ok: false,
         status: 402,
-        json: async () => ({ error: { message: 'depleted credits' } }),
-      })) as unknown as typeof fetch);
+        headers: { get: () => null },
+        text: async () => JSON.stringify({ error: { message: 'depleted credits' } }),
+      })) as unknown as typeof fetch;
+      vi.stubGlobal('fetch', fetchMock);
 
       const { chatCompletion, LlmError } = await import('@/lib/llm');
-      await expect(chatCompletion('sys', 'user')).rejects.toMatchObject({
-        name: 'LlmError',
-        status: 402,
-        isQuota: true,
-      });
-      // Confirm it is the typed error class.
       const caught = await chatCompletion('sys', 'user').catch((e) => e);
       expect(caught).toBeInstanceOf(LlmError);
+      expect(caught.status).toBe(402);
+      expect(caught.isQuota).toBe(true);
+      // 402 must NOT be retried — exactly one call.
+      expect((fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
     });
 
-    it('flags 429 as quota and 500 as non-quota', async () => {
+    it('retries 429 then throws a quota error when it never clears', async () => {
       setLlmEnv();
+      const fetchMock = vi.fn(async () => ({
+        ok: false,
+        status: 429,
+        headers: { get: () => '0' }, // Retry-After: 0s -> fast backoff
+        text: async () => JSON.stringify({ error: { message: 'rate limited' } }),
+      })) as unknown as typeof fetch;
+      vi.stubGlobal('fetch', fetchMock);
+
       const { chatCompletion } = await import('@/lib/llm');
+      const caught = await chatCompletion('s', 'u').catch((e) => e);
+      expect(caught.status).toBe(429);
+      expect(caught.isQuota).toBe(true);
+      // Initial attempt + 4 retries = 5 calls.
+      expect((fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(5);
+    });
 
-      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 429, json: async () => ({}) })) as unknown as typeof fetch);
-      const e429 = await chatCompletion('s', 'u').catch((e) => e);
-      expect(e429.isQuota).toBe(true);
+    it('retries 429 then succeeds when a later attempt clears', async () => {
+      setLlmEnv();
+      let calls = 0;
+      const fetchMock = vi.fn(async () => {
+        calls++;
+        if (calls < 3) {
+          return {
+            ok: false,
+            status: 429,
+            headers: { get: () => '0' },
+            text: async () => '{"error":"rate limited"}',
+          };
+        }
+        return { ok: true, json: async () => ({ choices: [{ message: { content: 'RECOVERED' } }] }) };
+      }) as unknown as typeof fetch;
+      vi.stubGlobal('fetch', fetchMock);
 
-      vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500, json: async () => ({}) })) as unknown as typeof fetch);
+      const { chatCompletion } = await import('@/lib/llm');
+      const out = await chatCompletion('s', 'u');
+      expect(out).toBe('RECOVERED');
+      expect(calls).toBe(3);
+    });
+
+    it('does not retry a 500 (non-quota)', async () => {
+      setLlmEnv();
+      const fetchMock = vi.fn(async () => ({
+        ok: false,
+        status: 500,
+        headers: { get: () => null },
+        text: async () => 'server error',
+      })) as unknown as typeof fetch;
+      vi.stubGlobal('fetch', fetchMock);
+
+      const { chatCompletion } = await import('@/lib/llm');
       const e500 = await chatCompletion('s', 'u').catch((e) => e);
       expect(e500.isQuota).toBe(false);
+      expect(e500.status).toBe(500);
+      expect((fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
     });
 
     it('strips a trailing slash from LLM_BASE_URL', async () => {
