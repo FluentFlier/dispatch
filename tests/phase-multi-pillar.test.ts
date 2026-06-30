@@ -6,10 +6,11 @@ import { normalizePillars, postPillars } from '@/lib/pillars';
  * sync as pillars[0] so legacy readers keep working.
  */
 describe('normalizePillars', () => {
-  it('keeps the array and sets primary to the first', () => {
+  it('keeps the array and sets primary to the first (equal weights keep order)', () => {
     expect(normalizePillars({ pillars: ['ai', 'asu'] })).toEqual({
       pillar: 'ai',
       pillars: ['ai', 'asu'],
+      pillar_weights: { ai: 50, asu: 50 },
     });
   });
 
@@ -17,22 +18,32 @@ describe('normalizePillars', () => {
     expect(normalizePillars({ pillars: [' ai ', 'ai', '', 'asu'] })).toEqual({
       pillar: 'ai',
       pillars: ['ai', 'asu'],
+      pillar_weights: { ai: 50, asu: 50 },
     });
   });
 
   it('promotes a legacy single pillar to an array', () => {
-    expect(normalizePillars({ pillar: 'tech' })).toEqual({ pillar: 'tech', pillars: ['tech'] });
+    expect(normalizePillars({ pillar: 'tech' })).toEqual({
+      pillar: 'tech',
+      pillars: ['tech'],
+      pillar_weights: { tech: 50 },
+    });
   });
 
   it('prefers the array over a stray single pillar', () => {
     expect(normalizePillars({ pillar: 'x', pillars: ['y', 'z'] })).toEqual({
       pillar: 'y',
       pillars: ['y', 'z'],
+      pillar_weights: { y: 50, z: 50 },
     });
   });
 
   it('falls back to general when nothing is provided', () => {
-    expect(normalizePillars({})).toEqual({ pillar: 'general', pillars: ['general'] });
+    expect(normalizePillars({})).toEqual({
+      pillar: 'general',
+      pillars: ['general'],
+      pillar_weights: { general: 50 },
+    });
   });
 });
 
