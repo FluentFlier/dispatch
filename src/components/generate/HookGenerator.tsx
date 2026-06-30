@@ -6,11 +6,14 @@ import { CopyButton } from '@/components/ui/CopyButton';
 import { SkeletonLines } from '@/components/ui/Skeleton';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
-async function callGenerate(prompt: string): Promise<string> {
+async function callGenerate(
+  prompt: string,
+  opts: { contentType?: string; fast?: boolean } = {},
+): Promise<string> {
   const res = await fetchWithAuth('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, ...opts }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -18,6 +21,42 @@ async function callGenerate(prompt: string): Promise<string> {
   }
   const { text } = await res.json();
   return text;
+}
+
+/**
+ * Splits a generation result into individual hooks. Prefers numbered lines, but
+ * falls back to non-empty lines / sentences so a stray paragraph never collapses
+ * into a single "hook card".
+ */
+function parseHooks(text: string): string[] {
+  const trimFirstSentence = (s: string): string => {
+    const cuts = ['. ', '! ', '? '].map((p) => s.indexOf(p)).filter((i) => i > 20);
+    const cutAt = cuts.length > 0 ? Math.min(...cuts) + 1 : -1;
+    return (cutAt > 0 ? s.slice(0, cutAt) : s.slice(0, 200)).trim();
+  };
+
+  const numbered = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => /^\d+[.)]/.test(l))
+    .map((l) => trimFirstSentence(l.replace(/^\d+[.)]\s*/, '')))
+    .filter((l) => l.length > 5);
+  if (numbered.length > 1) return numbered;
+
+  // Fallback 1: any non-empty lines (model dropped the numbering).
+  const lines = text
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l.length > 5)
+    .map(trimFirstSentence);
+  if (lines.length > 1) return lines;
+
+  // Fallback 2: one blob — split into sentences so the user still gets options.
+  const sentences = text
+    .split(/(?<=[.!?])\s+/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 10);
+  return sentences.length > 1 ? sentences : [text.trim()];
 }
 
 /**
@@ -63,23 +102,10 @@ Mix styles:
 - Vulnerability: share a real struggle or near-failure
 Numbered 1-8. One per line. No explanation. No em dashes.`;
     try {
-      const text = await callGenerate(prompt);
-      const lines = text
-        .split('\n')
-        .map((l: string) => l.trim())
-        .filter((l: string) => /^\d/.test(l))
-        .map((l: string) => {
-          const stripped = l.replace(/^\d+[\.\)]\s*/, '');
-          // Take only first sentence — prevents AI multi-sentence blobs becoming one hook card
-          const periodIdx = stripped.indexOf('. ');
-          const exclamIdx = stripped.indexOf('! ');
-          const questIdx = stripped.indexOf('? ');
-          const candidates = [periodIdx, exclamIdx, questIdx].filter(i => i > 20);
-          const cutAt = candidates.length > 0 ? Math.min(...candidates) + 1 : -1;
-          return cutAt > 0 ? stripped.slice(0, cutAt) : stripped.slice(0, 200);
-        })
-        .filter((l: string) => l.length > 5);
-      setHooks(lines.length > 0 ? lines : [text]);
+      // hooks content type + fast mode: produces a clean numbered list and skips
+      // the revise loop that previously reshaped hooks into one paragraph.
+      const text = await callGenerate(prompt, { contentType: 'hooks', fast: true });
+      setHooks(parseHooks(text));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Generation failed');
     } finally {

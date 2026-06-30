@@ -3,7 +3,7 @@
  */
 
 export type VoicePlatform = 'twitter' | 'linkedin' | 'instagram' | 'threads';
-export type VoiceContentType = 'post' | 'reply' | 'comment';
+export type VoiceContentType = 'post' | 'reply' | 'comment' | 'hooks' | 'caption';
 
 export const PLATFORM_PLAYBOOKS: Record<VoicePlatform, string> = {
   twitter: `TWITTER / X
@@ -37,4 +37,8 @@ export const CONTENT_TYPE_HINTS: Record<VoiceContentType, string> = {
   post: 'Primary post: full structure, native length, one clear CTA.',
   reply: 'Reply: respond to the specific point; no re-introduction of the creator.',
   comment: 'Comment: 1 to 3 sentences max; helpful or witty, never preachy.',
+  hooks:
+    'LIST MODE (the brief asks for a list — this is allowed). Output ONLY a numbered list of distinct one-line hooks, exactly as many as the brief requests. Each hook is ONE short sentence on its own line, prefixed "1." through "N.". Do NOT write a paragraph or a full post; ignore full-post length rules. No intro, no explanation, no closing line.',
+  caption:
+    'CAPTION MODE. Output the caption first (tight, scannable), then a blank line, then ONE final line of space-separated hashtags. Always include the hashtag line. No section labels, no commentary.',
 };

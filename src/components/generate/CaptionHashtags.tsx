@@ -7,11 +7,14 @@ import { getInsforgeClient } from '@/lib/insforge/client';
 import type { HashtagSet } from '@/types/database';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
-async function callGenerate(prompt: string): Promise<string> {
+async function callGenerate(
+  prompt: string,
+  opts: { contentType?: string; fast?: boolean } = {},
+): Promise<string> {
   const res = await fetchWithAuth('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, ...opts }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -19,6 +22,12 @@ async function callGenerate(prompt: string): Promise<string> {
   }
   const { text } = await res.json();
   return text;
+}
+
+/** Extracts the hashtag line from a caption output. Returns '' if none present. */
+function extractHashtags(output: string): string {
+  const tags = output.match(/#[A-Za-z0-9_]+/g);
+  return tags ? tags.join(' ') : '';
 }
 
 export function CaptionHashtags() {
@@ -78,7 +87,9 @@ No labels. Just caption, blank line, hashtags.`;
     }
 
     try {
-      const text = await callGenerate(prompt);
+      // caption content type + fast mode keeps the "caption + blank line + hashtags"
+      // structure intact (the revise loop previously stripped the hashtag block).
+      const text = await callGenerate(prompt, { contentType: 'caption', fast: true });
       setOutput(text);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Generation failed');
@@ -95,16 +106,20 @@ No labels. Just caption, blank line, hashtags.`;
       const { data: userData } = await insforge.auth.getCurrentUser();
       if (!userData?.user) throw new Error('Not logged in');
 
-      // Extract hashtags from the output (last paragraph)
-      const parts = output.split(/\n\s*\n/);
-      const hashtags = parts.length > 1 ? parts[parts.length - 1] : output;
+      // Extract real hashtags (#tags) from the output. Never save the caption
+      // text as the "hashtag set" when no hashtags are present.
+      const hashtags = extractHashtags(output);
+      if (!hashtags) {
+        setError('No hashtags found in the output to save.');
+        return;
+      }
 
       const { error: dbError } = await insforge.database
         .from('hashtag_sets')
         .insert([{
           user_id: userData.user.id,
           name: saveSetName.trim(),
-          tags: hashtags.trim(),
+          tags: hashtags,
           use_count: 0,
         }])
         .select()
