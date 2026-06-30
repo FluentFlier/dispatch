@@ -37,7 +37,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 function backoffMs(attempt: number, retryAfterHeader: string | null, bodyText: string): number {
   // 1. Retry-After header (seconds)
   const headerSecs = retryAfterHeader ? Number(retryAfterHeader) : NaN;
-  if (Number.isFinite(headerSecs) && headerSecs > 0) {
+  if (Number.isFinite(headerSecs) && headerSecs >= 0) {
     return Math.min(headerSecs * 1000 + 250, MAX_BACKOFF_MS);
   }
   // 2. Provider message hint, e.g. "Please try again in 3.6s"
