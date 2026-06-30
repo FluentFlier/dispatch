@@ -6,6 +6,7 @@ import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { z } from 'zod';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { errorResponse } from '@/lib/api-errors';
+import { LlmError } from '@/lib/llm';
 
 const RequestSchema = z.object({
   prompt: z.string().min(1).max(10000),
@@ -60,6 +61,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       evaluation: result.evaluation,
     });
   } catch (err) {
+    // Surface provider quota/rate-limit as a clear, actionable status instead of
+    // an opaque 500, so clients and monitoring can distinguish "out of credits"
+    // from a genuine code fault.
+    if (err instanceof LlmError && err.isQuota) {
+      return errorResponse(
+        'AI provider quota exhausted. Top up credits or switch LLM_* provider env.',
+        503,
+        err,
+      );
+    }
     return errorResponse('Generation failed.', 500, err);
   }
 }
