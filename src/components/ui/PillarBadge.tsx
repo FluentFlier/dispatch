@@ -2,6 +2,7 @@
 
 import { PILLAR_LABELS, PILLAR_COLORS, PILLAR_BADGE_BG } from '@/lib/constants';
 import type { Pillar } from '@/lib/constants';
+import { normalizePillarSlug } from '@/lib/pillars';
 
 interface PillarBadgeProps {
   pillar: string;
@@ -13,15 +14,18 @@ interface PillarBadgeProps {
 }
 
 export default function PillarBadge({ pillar, showLabel = true, color, label }: PillarBadgeProps) {
-  const resolvedColor = color ?? PILLAR_COLORS[pillar as Pillar] ?? 'var(--text-tertiary)';
+  // Canonicalize the slug so legacy variants (hot_take, "Hot Take") resolve to
+  // the right color/label instead of falling through to the gray default.
+  const slug = normalizePillarSlug(pillar);
+  const resolvedColor = color ?? PILLAR_COLORS[slug as Pillar] ?? 'var(--text-tertiary)';
   const resolvedLabel =
     label ??
-    PILLAR_LABELS[pillar as Pillar] ??
-    pillar
+    PILLAR_LABELS[slug as Pillar] ??
+    slug
       .split('-')
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');
-  const resolvedBadgeBg = PILLAR_BADGE_BG[pillar as Pillar] ?? '';
+  const resolvedBadgeBg = PILLAR_BADGE_BG[slug as Pillar] ?? '';
 
   if (!showLabel) {
     return (

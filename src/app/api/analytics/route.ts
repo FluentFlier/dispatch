@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { usage } from '@/lib/hooks-intelligence/usage-tracker';
+import { postPillars } from '@/lib/pillars';
 
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -51,14 +52,19 @@ export async function GET(): Promise<NextResponse> {
     if (category && leadCounts[category] !== undefined) leadCounts[category]++;
   }
 
-  // Aggregate views and saves by pillar
+  // Aggregate views and saves by pillar. A multi-pillar post contributes its
+  // full stats to EACH of its pillars (answers "how much reach touches pillar
+  // X"), so secondary pillars are no longer invisible in the breakdown.
   const byPillar: Record<string, { views: number; saves: number; count: number }> = {};
   for (const post of posts) {
-    const pillar = post.pillar ?? 'uncategorized';
-    if (!byPillar[pillar]) byPillar[pillar] = { views: 0, saves: 0, count: 0 };
-    byPillar[pillar].views += post.views ?? 0;
-    byPillar[pillar].saves += post.saves ?? 0;
-    byPillar[pillar].count += 1;
+    const slugs = postPillars(post);
+    const list = slugs.length > 0 ? slugs : ['uncategorized'];
+    for (const pillar of list) {
+      if (!byPillar[pillar]) byPillar[pillar] = { views: 0, saves: 0, count: 0 };
+      byPillar[pillar].views += post.views ?? 0;
+      byPillar[pillar].saves += post.saves ?? 0;
+      byPillar[pillar].count += 1;
+    }
   }
 
   const totalViews = posts.reduce((sum: number, p: { views?: number }) => sum + (p.views ?? 0), 0);

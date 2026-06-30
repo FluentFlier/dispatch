@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Menu, Search, X } from "lucide-react";
 import { DragDropContext, type DropResult } from "@hello-pangea/dnd";
 import { getInsforge } from "@/lib/insforge/client";
 import type { Post } from "@/lib/types";
+import { postPillars } from "@/lib/pillars";
 import { usePillars } from "@/hooks/usePillars";
 import CalendarGrid from "@/components/calendar/CalendarGrid";
 import CalendarDayView from "@/components/calendar/CalendarDayView";
@@ -150,7 +151,7 @@ export default function CalendarPage() {
 
   const filteredPosts = useMemo(() => {
     if (visiblePillars.size === 0) return posts;
-    return posts.filter((p) => visiblePillars.has(p.pillar));
+    return posts.filter((p) => postPillars(p).some((x) => visiblePillars.has(x)));
   }, [posts, visiblePillars]);
 
   const postDates = useMemo(() => {
@@ -362,10 +363,10 @@ export default function CalendarPage() {
           prompt: `You are a content scheduling assistant. Suggest which unscheduled posts to place on which days this week (${weekStart} to ${weekEnd}). Aim for pillar balance and even spacing.
 
 Already scheduled this week:
-${scheduledThisWeek.map((p) => `- ${p.title} (${p.pillar}) on ${p.scheduled_date}`).join("\n") || "None"}
+${scheduledThisWeek.map((p) => `- ${p.title} (${postPillars(p).join(", ")}) on ${p.scheduled_date}`).join("\n") || "None"}
 
 Unscheduled backlog:
-${backlog.map((p) => `- id:${p.id} "${p.title}" (${p.pillar}, status: ${p.status})`).join("\n")}
+${backlog.map((p) => `- id:${p.id} "${p.title}" (${postPillars(p).join(", ")}, status: ${p.status})`).join("\n")}
 
 Available days: ${weekDays.map((d) => toDateKey(d)).join(", ")}
 
@@ -631,7 +632,7 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                               {p.title}
                             </p>
                             <p className="text-[11px] font-mono text-ink3 uppercase tracking-[0.06em]">
-                              {p.platform} · {p.pillar}
+                              {p.platform} · {postPillars(p).join(" · ")}
                             </p>
                           </div>
                           <span className={`text-[10px] font-mono uppercase tracking-[0.08em] px-2 py-0.5 rounded ${

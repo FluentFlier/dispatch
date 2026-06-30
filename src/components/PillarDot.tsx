@@ -2,6 +2,7 @@
 
 import { PILLAR_COLORS, PILLAR_LABELS } from '@/lib/constants';
 import type { Pillar } from '@/lib/constants';
+import { normalizePillarSlug } from '@/lib/pillars';
 
 interface PillarDotProps {
   pillar: string;
@@ -13,11 +14,12 @@ interface PillarDotProps {
 }
 
 export default function PillarDot({ pillar, showLabel = false, color, label }: PillarDotProps) {
-  const resolvedColor = color ?? PILLAR_COLORS[pillar as Pillar] ?? '#71717A';
+  const slug = normalizePillarSlug(pillar);
+  const resolvedColor = color ?? PILLAR_COLORS[slug as Pillar] ?? '#71717A';
   const resolvedLabel =
     label ??
-    PILLAR_LABELS[pillar as Pillar] ??
-    pillar
+    PILLAR_LABELS[slug as Pillar] ??
+    slug
       .split('-')
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');

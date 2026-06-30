@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getInsforge } from "@/lib/insforge/client";
 import type { ContentIdea } from "@/lib/types";
+import { postPillars } from "@/lib/pillars";
 import type { Priority } from "@/lib/constants";
 import { usePillars } from "@/hooks/usePillars";
 import { Lightbulb } from "lucide-react";
@@ -79,7 +80,7 @@ export default function IdeasPage() {
 
     if (filterMode === "unconverted") list = list.filter((i) => !i.converted);
     if (filterMode === "converted") list = list.filter((i) => i.converted);
-    if (filterPillar !== "all") list = list.filter((i) => i.pillar === filterPillar);
+    if (filterPillar !== "all") list = list.filter((i) => postPillars(i).includes(filterPillar));
 
     list.sort((a, b) => {
       const pDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];

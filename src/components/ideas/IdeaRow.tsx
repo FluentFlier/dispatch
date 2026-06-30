@@ -5,6 +5,7 @@ import { Wand2, Trash2 } from 'lucide-react';
 import type { ContentIdea } from '@/lib/types';
 import type { Priority } from '@/lib/constants';
 import { usePillars } from '@/hooks/usePillars';
+import { postPillars } from '@/lib/pillars';
 
 const PRIORITY_STYLES: Record<Priority, { bg: string; text: string }> = {
   high: { bg: 'rgba(224, 122, 95, 0.14)', text: '#C45C48' },
@@ -42,7 +43,6 @@ export default function IdeaRow({
     setEditing(false);
   }
 
-  const pillarColor = getColor(idea.pillar);
   const priorityStyle = PRIORITY_STYLES[idea.priority];
 
   return (
@@ -118,18 +118,24 @@ export default function IdeaRow({
           </p>
         )}
 
-        {/* Badges */}
-        <div className="flex items-center gap-[6px] mt-1">
-          <span
-            className="inline-flex items-center px-[7px] py-[2px] rounded-[3px] text-[10px] font-medium tracking-[0.01em]"
-            style={{
-              backgroundColor: `${pillarColor}20`,
-              color: pillarColor,
-              fontFamily: "'Space Grotesk', sans-serif",
-            }}
-          >
-            {getLabel(idea.pillar)}
-          </span>
+        {/* Badges — one per pillar, weight-ordered (primary first). */}
+        <div className="flex flex-wrap items-center gap-[6px] mt-1">
+          {postPillars(idea).map((p) => {
+            const c = getColor(p);
+            return (
+              <span
+                key={p}
+                className="inline-flex items-center px-[7px] py-[2px] rounded-[3px] text-[10px] font-medium tracking-[0.01em]"
+                style={{
+                  backgroundColor: `${c}20`,
+                  color: c,
+                  fontFamily: "'Space Grotesk', sans-serif",
+                }}
+              >
+                {getLabel(p)}
+              </span>
+            );
+          })}
           <span
             className="inline-flex items-center px-[7px] py-[2px] rounded-[3px] text-[10px] font-medium capitalize tracking-[0.01em]"
             style={{

@@ -6,6 +6,7 @@ import type { Status } from '@/lib/constants';
 import { STATUSES } from '@/lib/constants';
 import StatusBadge from '@/components/ui/StatusBadge';
 import PillarBadge from '@/components/ui/PillarBadge';
+import { postPillars } from '@/lib/pillars';
 import { formatDateShort } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 
@@ -114,7 +115,11 @@ export default function PostTable({ posts, selected, onSelect, onSelectAll, onCl
                 {post.title}
               </td>
               <td className="py-2.5 px-2">
-                <PillarBadge pillar={post.pillar} />
+                <div className="flex flex-wrap items-center gap-1">
+                  {postPillars(post).map((p) => (
+                    <PillarBadge key={p} pillar={p} />
+                  ))}
+                </div>
               </td>
               <td className="py-2.5 px-2 font-mono text-[12px] text-ink2 capitalize">{post.platform}</td>
               <td className="py-2.5 px-2">

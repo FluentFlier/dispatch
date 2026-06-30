@@ -6,6 +6,7 @@ import { Droppable, Draggable } from '@hello-pangea/dnd';
 import type { Post } from '@/lib/types';
 import type { PillarInfo } from '@/hooks/usePillars';
 import PillarDot from '@/components/PillarDot';
+import { postPillars } from '@/lib/pillars';
 import StatusBadge from '@/components/StatusBadge';
 
 /* ------------------------------------------------------------------ */
@@ -301,7 +302,9 @@ export default function CalendarSidebar({
                               }`}
                             >
                               <div className="flex items-center gap-1.5 mb-1">
-                                <PillarDot pillar={p.pillar} />
+                                {postPillars(p).map((pl) => (
+                                  <PillarDot key={pl} pillar={pl} />
+                                ))}
                                 <span className="text-[12px] text-text-primary font-medium truncate flex-1">
                                   {p.title}
                                 </span>

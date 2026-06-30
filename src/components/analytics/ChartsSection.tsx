@@ -13,6 +13,7 @@ import {
   Line,
 } from '@/components/analytics/RechartsWrapper';
 import type { Post } from '@/lib/types';
+import { postPillars } from '@/lib/pillars';
 import PillarDot from '@/components/PillarDot';
 
 function truncate(s: string, len: number) {
@@ -54,11 +55,17 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
       follows: p.follows_gained ?? 0,
     }));
 
+  // A multi-pillar post contributes its views to each of its pillars so the
+  // breakdown reflects every topic it touches, not just the primary.
   const pillarMap: Record<string, { total: number; count: number }> = {};
   posts.forEach((p) => {
-    if (!pillarMap[p.pillar]) pillarMap[p.pillar] = { total: 0, count: 0 };
-    pillarMap[p.pillar].total += p.views ?? 0;
-    pillarMap[p.pillar].count += 1;
+    const slugs = postPillars(p);
+    const list = slugs.length > 0 ? slugs : ['uncategorized'];
+    list.forEach((pillar) => {
+      if (!pillarMap[pillar]) pillarMap[pillar] = { total: 0, count: 0 };
+      pillarMap[pillar].total += p.views ?? 0;
+      pillarMap[pillar].count += 1;
+    });
   });
 
   const topBySaves = [...posts].sort((a, b) => (b.saves ?? 0) - (a.saves ?? 0)).slice(0, 5);

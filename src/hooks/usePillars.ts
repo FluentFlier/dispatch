@@ -8,6 +8,7 @@ import {
   PILLAR_BADGE_BG,
 } from '@/lib/constants';
 import type { Pillar } from '@/lib/constants';
+import { normalizePillarSlug } from '@/lib/pillars';
 import type { ContentPillarConfig } from '@/types/database';
 
 /** Shape returned by the hook for each pillar. */
@@ -35,7 +36,7 @@ const DEFAULT_CUSTOM_COLORS = [
  */
 function fromCustomPillars(configs: ContentPillarConfig[]): PillarInfo[] {
   return configs.map((c, i) => {
-    const slug = c.name.toLowerCase().replace(/\s+/g, '-');
+    const slug = normalizePillarSlug(c.name);
     return {
       value: slug,
       label: c.name,
@@ -167,32 +168,36 @@ export function usePillars(): UsePillarsReturn {
     };
   }, []);
 
-  // Build lookup maps
+  // Build lookup maps. Slugs are canonicalized first so legacy variants
+  // (hot_take vs hot-take, raw "Hot Take") resolve to the same pillar.
   const getLabel = (value: string): string => {
-    const found = pillars.find((p) => p.value === value);
+    const slug = normalizePillarSlug(value);
+    const found = pillars.find((p) => p.value === slug);
     if (found) return found.label;
     // Fallback: try hardcoded defaults for legacy pillar values
-    if (PILLAR_LABELS[value as Pillar]) return PILLAR_LABELS[value as Pillar];
+    if (PILLAR_LABELS[slug as Pillar]) return PILLAR_LABELS[slug as Pillar];
     // Last resort: capitalize the slug
-    return value
+    return slug
       .split('-')
       .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
       .join(' ');
   };
 
   const getColor = (value: string): string => {
-    const found = pillars.find((p) => p.value === value);
+    const slug = normalizePillarSlug(value);
+    const found = pillars.find((p) => p.value === slug);
     if (found) return found.color;
-    if (PILLAR_COLORS[value as Pillar]) return PILLAR_COLORS[value as Pillar];
+    if (PILLAR_COLORS[slug as Pillar]) return PILLAR_COLORS[slug as Pillar];
     return '#78716C';
   };
 
   const getBadgeBg = (value: string): string => {
-    const found = pillars.find((p) => p.value === value);
+    const slug = normalizePillarSlug(value);
+    const found = pillars.find((p) => p.value === slug);
     if (found && found.badgeBg) return found.badgeBg;
-    if (PILLAR_BADGE_BG[value as Pillar]) return PILLAR_BADGE_BG[value as Pillar];
+    if (PILLAR_BADGE_BG[slug as Pillar]) return PILLAR_BADGE_BG[slug as Pillar];
     // Generate a badge class based on the color
-    const color = getColor(value);
+    const color = getColor(slug);
     return `bg-[${color}20] text-[${color}]`;
   };
 
