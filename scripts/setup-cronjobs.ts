@@ -1,33 +1,45 @@
 /**
- * One-time setup: creates the two cron jobs on cron-job.org via REST API.
+ * One-time setup: creates/updates the two cron jobs on cron-job.org via REST API.
  *
- * Required env vars (add to .env.local before running):
+ * Required env vars:
  *   CRONJOB_ORG_API_KEY   - from cron-job.org → Settings → API keys
- *   NEXT_PUBLIC_APP_URL   - your Vercel production URL (no trailing slash)
+ *   CRONJOB_APP_URL       - your Vercel production URL, e.g. https://dispatch.vercel.app
  *   CRON_SECRET           - same secret set in Vercel env vars
  *
- * Run once:
- *   npx tsx scripts/setup-cronjobs.ts
+ * NOTE: Use CRONJOB_APP_URL (not NEXT_PUBLIC_APP_URL) so localhost never leaks in.
+ *
+ * Run:
+ *   CRONJOB_APP_URL=https://your-app.vercel.app npx tsx --env-file=.env.local scripts/setup-cronjobs.ts
  */
 
 const CRONJOB_API = 'https://api.cron-job.org';
 
 const API_KEY = process.env.CRONJOB_ORG_API_KEY;
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/, '');
+// Prefer explicit CRONJOB_APP_URL over NEXT_PUBLIC_APP_URL to avoid localhost
+const APP_URL = (process.env.CRONJOB_APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? '').replace(/\/$/, '');
 const CRON_SECRET = process.env.CRON_SECRET;
 
-if (!API_KEY || !APP_URL || !CRON_SECRET) {
-  console.error('Missing env vars: CRONJOB_ORG_API_KEY, NEXT_PUBLIC_APP_URL, CRON_SECRET');
+if (!API_KEY || !CRON_SECRET) {
+  console.error('Missing env vars: CRONJOB_ORG_API_KEY, CRON_SECRET');
+  process.exit(1);
+}
+
+if (!APP_URL || APP_URL.includes('localhost')) {
+  console.error(
+    'APP_URL is missing or points to localhost.\n' +
+    'Pass your real Vercel URL:\n' +
+    '  CRONJOB_APP_URL=https://your-app.vercel.app npx tsx --env-file=.env.local scripts/setup-cronjobs.ts',
+  );
   process.exit(1);
 }
 
 const headers = {
-  'Authorization': `Bearer ${API_KEY}`,
+  Authorization: `Bearer ${API_KEY}`,
   'Content-Type': 'application/json',
 };
 
-// cron-job.org schedule format:
-// minutes/hours/mdays/months/wdays: array of ints, [-1] = wildcard (every)
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 const JOBS = [
   {
     title: 'dispatch-fast',
@@ -39,7 +51,6 @@ const JOBS = [
       mdays: [-1],
       months: [-1],
       wdays: [-1],
-      // Every 5 minutes
       minutes: [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55],
     },
   },
@@ -53,26 +64,23 @@ const JOBS = [
       mdays: [-1],
       months: [-1],
       wdays: [-1],
-      // Every 15 minutes
       minutes: [0, 15, 30, 45],
     },
   },
 ];
 
-async function createJob(job: (typeof JOBS)[0]): Promise<number> {
-  const body = {
+function buildJobBody(job: (typeof JOBS)[0]) {
+  return {
     job: {
       enabled: true,
       title: job.title,
       url: job.url,
       saveResponses: true,
-      requestMethod: 0, // GET
+      requestMethod: 0,
       requestTimeout: 300,
       schedule: job.schedule,
       extendedData: {
-        headers: {
-          Authorization: `Bearer ${CRON_SECRET}`,
-        },
+        headers: { Authorization: `Bearer ${CRON_SECRET}` },
       },
       notification: {
         onFailure: true,
@@ -82,43 +90,57 @@ async function createJob(job: (typeof JOBS)[0]): Promise<number> {
       },
     },
   };
+}
 
+async function createJob(job: (typeof JOBS)[0]): Promise<number> {
   const res = await fetch(`${CRONJOB_API}/jobs`, {
     method: 'PUT',
     headers,
-    body: JSON.stringify(body),
+    body: JSON.stringify(buildJobBody(job)),
   });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Failed to create ${job.title}: ${res.status} ${err}`);
-  }
-
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
   const data = await res.json() as { jobId: number };
   return data.jobId;
 }
 
-async function listExisting(): Promise<Array<{ jobId: number; title: string }>> {
+async function updateJob(jobId: number, job: (typeof JOBS)[0]): Promise<void> {
+  const res = await fetch(`${CRONJOB_API}/jobs/${jobId}`, {
+    method: 'PATCH',
+    headers,
+    body: JSON.stringify(buildJobBody(job)),
+  });
+  if (!res.ok) throw new Error(`${res.status} ${await res.text()}`);
+}
+
+async function listExisting(): Promise<Array<{ jobId: number; title: string; url: string }>> {
   const res = await fetch(`${CRONJOB_API}/jobs`, { headers });
   if (!res.ok) throw new Error(`Failed to list jobs: ${res.status}`);
-  const data = await res.json() as { jobs: Array<{ jobId: number; title: string }> };
+  const data = await res.json() as { jobs: Array<{ jobId: number; title: string; url: string }> };
   return data.jobs;
 }
 
 async function main() {
-  console.log('Checking existing cron-job.org jobs...');
+  console.log(`Using app URL: ${APP_URL}\n`);
+  console.log('Fetching existing cron-job.org jobs...');
   const existing = await listExisting();
-  const existingTitles = existing.map((j) => j.title);
 
   for (const job of JOBS) {
-    if (existingTitles.includes(job.title)) {
-      const match = existing.find((j) => j.title === job.title);
-      console.log(`  SKIP  ${job.title} (already exists, jobId: ${match?.jobId})`);
-      continue;
-    }
+    await sleep(1500); // respect 1 req/sec create limit
 
-    const jobId = await createJob(job);
-    console.log(`  CREATE ${job.title} → jobId: ${jobId} | ${job.url}`);
+    const match = existing.find((j) => j.title === job.title);
+
+    if (match) {
+      if (match.url === job.url) {
+        console.log(`  SKIP   ${job.title} (jobId: ${match.jobId}) — URL already correct`);
+      } else {
+        console.log(`  UPDATE ${job.title} (jobId: ${match.jobId}) — fixing URL: ${match.url} → ${job.url}`);
+        await updateJob(match.jobId, job);
+        console.log(`         done`);
+      }
+    } else {
+      const jobId = await createJob(job);
+      console.log(`  CREATE ${job.title} → jobId: ${jobId} | ${job.url}`);
+    }
   }
 
   console.log('\nDone. Verify at: https://console.cron-job.org');
