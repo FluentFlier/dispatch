@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/Button';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { SkeletonLines } from '@/components/ui/Skeleton';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
+import { parseReplies } from '@/lib/reply-parse';
 
 const PLATFORM_CONSTRAINTS: Record<string, string> = {
   instagram: 'Instagram comment. Short, conversational. No em dashes.',
@@ -28,44 +29,6 @@ async function callGenerate(
   }
   const { text } = await res.json();
   return text;
-}
-
-/**
- * Parses model output into one reply per comment. Prefers a JSON array; falls
- * back to REPLY-marker blocks so a single comment is never silently dropped.
- */
-function parseReplies(text: string, commentLines: string[]): { comment: string; reply: string }[] {
-  // Preferred: a JSON array of reply strings.
-  try {
-    const match = text.match(/\[[\s\S]*\]/);
-    if (match) {
-      const arr = JSON.parse(match[0]);
-      if (Array.isArray(arr) && arr.length > 0) {
-        return commentLines.map((c, i) => ({
-          comment: c || `Comment ${i + 1}`,
-          reply: arr[i] != null ? String(arr[i]).trim() : '(no reply generated)',
-        }));
-      }
-    }
-  } catch {
-    // fall through to marker parsing
-  }
-
-  // Fallback: split on REPLY N: markers (survives even if COMMENT markers were stripped).
-  const replyBlocks = text
-    .split(/REPLY\s*\d+:\s*/i)
-    .slice(1)
-    .map((b) => b.split(/COMMENT\s*\d+:/i)[0].trim())
-    .filter(Boolean);
-  if (replyBlocks.length > 0) {
-    return commentLines.map((c, i) => ({
-      comment: c || `Comment ${i + 1}`,
-      reply: replyBlocks[i]?.trim() || '(no reply generated)',
-    }));
-  }
-
-  // Last resort: single comment → whole text is the reply.
-  return [{ comment: commentLines[0] || 'Comment 1', reply: text.trim() }];
 }
 
 export function CommentReplies() {
