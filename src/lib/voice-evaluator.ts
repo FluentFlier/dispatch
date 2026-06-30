@@ -1,5 +1,5 @@
 ﻿import { type CreatorProfileForPrompt } from '@/lib/ai';
-import { generateContentHF } from '@/lib/huggingface';
+import { chatCompletion } from '@/lib/llm';
 
 /** Mirrors Imagine Content Writer internal matrix (1-10 each). */
 export interface VoiceEvaluationMatrix {
@@ -78,7 +78,7 @@ ${draft}
   };
 
   try {
-    const raw = await generateContentHF(EVALUATOR_PROMPT, prompt);
+    const raw = await chatCompletion(EVALUATOR_PROMPT, prompt);
     const jsonMatch = raw.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return fallback;
 

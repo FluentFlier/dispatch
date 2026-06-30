@@ -1,4 +1,4 @@
-import { generateContentHF } from '@/lib/huggingface';
+import { chatCompletion } from '@/lib/llm';
 
 /**
  * Default template used to seed new creator profiles during onboarding.
@@ -88,20 +88,22 @@ export function buildSystemPrompt(
 }
 
 /**
- * Generates content via HuggingFace (Llama-3.1-8B-Instruct).
- * Accepts the same signature as the old OpenAI generateContent so all call
- * sites work without changes. modelOverride is ignored (HF uses a fixed model).
+ * Generates content via the configured LLM provider (Groq/OpenAI/Claude/HF).
+ * Provider is chosen by env (LLM_BASE_URL/LLM_API_KEY/LLM_MODEL); falls back to
+ * HuggingFace when those are unset. No provider name is hardcoded here, so
+ * swapping models is an env change, not a code change.
+ * modelOverride, when provided, overrides the env model for this single call.
  */
 export async function generateContent(
   prompt: string,
   contextAdditions?: string,
   systemOverride?: string,
   profile?: CreatorProfileForPrompt | null,
-  _modelOverride?: string
+  modelOverride?: string
 ): Promise<string> {
   const systemPrompt = systemOverride
     ? systemOverride
     : buildSystemPrompt(profile, contextAdditions);
 
-  return generateContentHF(systemPrompt, prompt);
+  return chatCompletion(systemPrompt, prompt, modelOverride ? { model: modelOverride } : undefined);
 }

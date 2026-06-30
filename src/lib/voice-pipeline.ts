@@ -1,5 +1,5 @@
-﻿import { buildSystemPrompt, type CreatorProfileForPrompt, generateContent } from '@/lib/ai';
-import { generateContentHF } from '@/lib/huggingface';
+﻿import { buildSystemPrompt, type CreatorProfileForPrompt } from '@/lib/ai';
+import { chatCompletion } from '@/lib/llm';
 import { humanize } from '@/lib/humanizer';
 import { evaluateDraft, evaluationPasses, type VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 import { buildVoiceComposeHints } from '@/lib/voice-prompts';
@@ -14,7 +14,10 @@ export interface VoicePipelineInput {
   contentType?: 'post' | 'reply' | 'comment';
   /** Skip critique/revise pass (faster, cheaper) */
   fast?: boolean;
-  /** Prefer OpenAI when AI_API_KEY is set (faster than HF serverless) */
+  /**
+   * Deprecated. Provider is now chosen by env (LLM_BASE_URL/LLM_API_KEY/LLM_MODEL).
+   * Kept for backward compatibility with existing call sites; has no effect.
+   */
   preferOpenAi?: boolean;
   /** Skip hook intelligence injection (faster outreach) */
   skipHooks?: boolean;
@@ -40,19 +43,15 @@ function stripEmDashes(text: string): string {
   return text.replace(/—/g, ' - ').replace(/–/g, '-');
 }
 
+/**
+ * Generates one draft via the configured LLM provider (env-driven, see lib/llm).
+ * Em-dashes are stripped to enforce the plain-text house style.
+ */
 async function generateDraftText(
   systemPrompt: string,
   userPrompt: string,
-  options: { fast?: boolean; preferOpenAi?: boolean },
 ): Promise<string> {
-  const useOpenAi =
-    Boolean(process.env.AI_API_KEY) && (options.preferOpenAi === true || options.fast === true);
-
-  if (useOpenAi) {
-    return stripEmDashes(await generateContent(userPrompt, undefined, systemPrompt));
-  }
-
-  return stripEmDashes(await generateContentHF(systemPrompt, userPrompt));
+  return stripEmDashes(await chatCompletion(systemPrompt, userPrompt));
 }
 
 /**
@@ -107,10 +106,7 @@ ${evaluation?.revision_notes ?? 'Sound more like the creator. Less generic.'}
 
 Return ONLY the new text.`;
 
-    text = await generateDraftText(systemPrompt, draftPrompt, {
-      fast: input.fast,
-      preferOpenAi: input.preferOpenAi,
-    });
+    text = await generateDraftText(systemPrompt, draftPrompt);
 
     if (input.fast) break;
 
