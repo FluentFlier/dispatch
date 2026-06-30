@@ -11,6 +11,8 @@ const CreatePostSchema = z.object({
   // Either a single pillar (legacy) or a pillars[] array; normalized server-side.
   pillar: z.string().min(1).optional(),
   pillars: z.array(z.string()).optional(),
+  /** Per-pillar importance (slug -> 1-100); normalized server-side. */
+  pillar_weights: z.record(z.string(), z.number()).optional(),
   platform: z.string().min(1, 'Platform is required'),
   status: z.string().optional(),
   script: z.string().nullable().optional(),
@@ -94,11 +96,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const client = getServerClient();
   const workspaceId = await getActiveWorkspaceId(user.id);
-  // Keep pillar (primary) and pillars[] in sync so legacy readers keep working.
-  const { pillar, pillars } = normalizePillars(parsed.data);
+  // Keep pillar (primary), pillars[], and weights in sync so legacy readers keep
+  // working and the primary is always the highest-weight pillar.
+  const { pillar, pillars, pillar_weights } = normalizePillars(parsed.data);
   const { data, error } = await client
     .database.from('posts')
-    .insert([{ ...parsed.data, pillar, pillars, user_id: user.id, workspace_id: workspaceId }])
+    .insert([{ ...parsed.data, pillar, pillars, pillar_weights, user_id: user.id, workspace_id: workspaceId }])
     .select()
     .single();
 

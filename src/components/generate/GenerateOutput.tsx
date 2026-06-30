@@ -10,6 +10,8 @@ import { PLATFORMS } from '@/lib/constants';
 import type { Platform } from '@/lib/constants';
 import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 import { usePillars } from '@/hooks/usePillars';
+import PillarMultiSelect from '@/components/ui/PillarMultiSelect';
+import { DEFAULT_PILLAR_WEIGHT } from '@/lib/pillars';
 import { OptimizePanel } from './OptimizePanel';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
@@ -369,17 +371,20 @@ function SaveToLibraryModal({
     return isLabel ? '' : cleaned;
   });
   const [platform, setPlatform] = useState<Platform>(sourcePlatform ?? 'instagram');
-  const [pillar, setPillar] = useState<string>('');
+  const [pillars, setPillars] = useState<string[]>([]);
+  const [weights, setWeights] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
-  // Sync pillar state when custom pillars finish loading
+  // Default to the first pillar (at the neutral weight) once pillars finish loading.
   useEffect(() => {
     if (pillarsLoading || pillarList.length === 0) return;
-    if (!pillar) {
-      setPillar(pillarList[0].value);
+    if (pillars.length === 0) {
+      const first = pillarList[0].value;
+      setPillars([first]);
+      setWeights({ [first]: DEFAULT_PILLAR_WEIGHT });
     }
-  }, [pillarsLoading, pillarList, pillar]);
+  }, [pillarsLoading, pillarList, pillars.length]);
 
   const save = async () => {
     if (!title.trim()) {
@@ -394,7 +399,8 @@ function SaveToLibraryModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title.trim(),
-          pillar,
+          pillars,
+          pillar_weights: weights,
           script,
           status: 'scripted',
           platform,
@@ -424,30 +430,30 @@ function SaveToLibraryModal({
         placeholder="Post title"
         className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors duration-100"
       />
-      <div className="flex gap-3">
-        <select
-          value={pillar}
-          onChange={(e) => setPillar(e.target.value)}
-          className="flex-1 bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors duration-100"
-        >
-          {pillarList.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={platform}
-          onChange={(e) => setPlatform(e.target.value as Platform)}
-          className="flex-1 bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors duration-100"
-        >
-          {PLATFORMS.map((p) => (
-            <option key={p} value={p}>
-              {p.charAt(0).toUpperCase() + p.slice(1)}
-            </option>
-          ))}
-        </select>
+      <div>
+        <span className="block text-[11px] text-text-secondary mb-1.5 font-medium tracking-wide">
+          Pillars (pick one or more)
+        </span>
+        <PillarMultiSelect
+          pillars={pillars}
+          weights={weights}
+          onChange={(next) => {
+            setPillars(next.pillars);
+            setWeights(next.weights);
+          }}
+        />
       </div>
+      <select
+        value={platform}
+        onChange={(e) => setPlatform(e.target.value as Platform)}
+        className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors duration-100"
+      >
+        {PLATFORMS.map((p) => (
+          <option key={p} value={p}>
+            {p.charAt(0).toUpperCase() + p.slice(1)}
+          </option>
+        ))}
+      </select>
       {error && <p className="font-body text-[13px] text-accent-primary">{error}</p>}
       <div className="flex gap-3 justify-end">
         <Button variant="ghost" size="sm" onClick={onClose}>

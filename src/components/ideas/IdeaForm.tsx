@@ -3,7 +3,7 @@
 import { useRef } from 'react';
 import { Plus } from 'lucide-react';
 import type { Priority } from '@/lib/constants';
-import type { PillarInfo } from '@/hooks/usePillars';
+import PillarMultiSelect from '@/components/ui/PillarMultiSelect';
 
 const PRIORITY_STYLES: Record<Priority, string> = {
   high: 'bg-coral-light text-accent-primary',
@@ -13,24 +13,24 @@ const PRIORITY_STYLES: Record<Priority, string> = {
 
 interface IdeaFormProps {
   value: string;
-  pillar: string;
+  pillars: string[];
+  weights: Record<string, number>;
   priority: Priority;
   adding: boolean;
-  pillarOptions: PillarInfo[];
   onValueChange: (value: string) => void;
-  onPillarChange: (pillar: string) => void;
+  onPillarsChange: (next: { pillars: string[]; weights: Record<string, number> }) => void;
   onPriorityChange: (priority: Priority) => void;
   onSubmit: () => void;
 }
 
 export default function IdeaForm({
   value,
-  pillar,
+  pillars,
+  weights,
   priority,
   adding,
-  pillarOptions,
   onValueChange,
-  onPillarChange,
+  onPillarsChange,
   onPriorityChange,
   onSubmit,
 }: IdeaFormProps) {
@@ -63,36 +63,24 @@ export default function IdeaForm({
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3">
-        {/* Pillar selector */}
-        <select
-          value={pillar}
-          onChange={(e) => onPillarChange(e.target.value)}
-          className="bg-bg-tertiary border border-border rounded-md px-2.5 py-2 min-h-[44px] text-[11px] text-text-primary focus:outline-none focus:border-border-hover transition-colors"
-        >
-          {pillarOptions.map((p) => (
-            <option key={p.value} value={p.value}>
-              {p.label}
-            </option>
-          ))}
-        </select>
+      {/* Pillar multi-select with weights */}
+      <PillarMultiSelect pillars={pillars} weights={weights} onChange={onPillarsChange} />
 
-        {/* Priority pills */}
-        <div className="flex gap-1">
-          {(['low', 'medium', 'high'] as Priority[]).map((p) => (
-            <button
-              key={p}
-              onClick={() => onPriorityChange(p)}
-              className={`px-3 py-2 min-h-[44px] rounded-[3px] text-[10px] font-medium capitalize transition-colors tracking-[0.01em] ${
-                priority === p
-                  ? PRIORITY_STYLES[p]
-                  : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
-              }`}
-            >
-              {p}
-            </button>
-          ))}
-        </div>
+      {/* Priority pills */}
+      <div className="flex gap-1">
+        {(['low', 'medium', 'high'] as Priority[]).map((p) => (
+          <button
+            key={p}
+            onClick={() => onPriorityChange(p)}
+            className={`px-3 py-2 min-h-[44px] rounded-[3px] text-[10px] font-medium capitalize transition-colors tracking-[0.01em] ${
+              priority === p
+                ? PRIORITY_STYLES[p]
+                : 'bg-bg-tertiary text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            {p}
+          </button>
+        ))}
       </div>
     </div>
   );

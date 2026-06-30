@@ -8,6 +8,7 @@ const UpdatePostSchema = z.object({
   title: z.string().min(1).optional(),
   pillar: z.string().optional(),
   pillars: z.array(z.string()).optional(),
+  pillar_weights: z.record(z.string(), z.number()).optional(),
   platform: z.string().optional(),
   status: z.string().optional(),
   script: z.string().nullable().optional(),
@@ -77,12 +78,18 @@ export async function PATCH(
     .eq('user_id', user.id)
     .single();
 
-  // When pillar/pillars are being changed, keep both in sync.
+  // When pillar/pillars/weights are being changed, keep all three in sync and
+  // re-derive the primary as the highest-weight pillar.
   const updatePayload: Record<string, unknown> = { ...parsed.data };
-  if (parsed.data.pillar !== undefined || parsed.data.pillars !== undefined) {
-    const { pillar, pillars } = normalizePillars(parsed.data);
+  if (
+    parsed.data.pillar !== undefined ||
+    parsed.data.pillars !== undefined ||
+    parsed.data.pillar_weights !== undefined
+  ) {
+    const { pillar, pillars, pillar_weights } = normalizePillars(parsed.data);
     updatePayload.pillar = pillar;
     updatePayload.pillars = pillars;
+    updatePayload.pillar_weights = pillar_weights;
   }
 
   const { data, error } = await client
