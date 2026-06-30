@@ -4,7 +4,10 @@ export interface Post {
   id: string;
   user_id: string;
   title: string;
+  /** Primary pillar (always equals pillars[0]); kept for backward compatibility. */
   pillar: string;
+  /** All pillars this post belongs to. Falls back to [pillar] for legacy rows. */
+  pillars?: string[];
   platform: Platform;
   status: Status;
   script: string | null;

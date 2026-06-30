@@ -38,12 +38,31 @@ function extractAccelerator(text: string): string | undefined {
   return undefined;
 }
 
-function extractCompanyHint(text: string, authorHandle?: string): string | undefined {
-  const buildingRe = /(?:building|founded|co-founder(?:\s+at)?|ceo\s+at)\s+@?([A-Za-z0-9][\w.-]{1,30})/i;
+// Words that follow "building/founded/..." but are never a company name.
+const COMPANY_STOPWORDS = new Set([
+  'the', 'a', 'an', 'my', 'our', 'your', 'their', 'his', 'her', 'this', 'that',
+  'these', 'those', 'new', 'modern', 'next', 'better', 'future', 'world', 'thing',
+  'things', 'something', 'stuff', 'out', 'up', 'it', 'we', 'i', 'in', 'at', 'on',
+  'and', 'with', 'for', 'to',
+]);
+
+/**
+ * Extracts a company name from a post. Only accepts a capture that looks like a
+ * proper noun or an @handle — never an article/adjective ("Building the future"
+ * must NOT yield "the"). Returns undefined when no real company is found, so the
+ * caller can fall back to the (always-present, trustworthy) author name.
+ */
+function extractCompanyHint(text: string): string | undefined {
+  const buildingRe = /(?:building|founded|co-?founder(?:\s+at)?|ceo\s+at|cto\s+at|work\s+at)\s+(@[A-Za-z0-9_]{2,30}|[A-Z][A-Za-z0-9.&-]{1,30})/;
   const m = text.match(buildingRe);
-  if (m?.[1]) return m[1];
-  if (authorHandle) return authorHandle.replace(/^@/, '');
-  return undefined;
+  if (!m?.[1]) return undefined;
+
+  const candidate = m[1];
+  if (candidate.startsWith('@')) return candidate.slice(1);
+  if (COMPANY_STOPWORDS.has(candidate.toLowerCase())) return undefined;
+  // Require a proper-noun shape (leading uppercase) to avoid lowercase filler.
+  if (!/^[A-Z]/.test(candidate)) return undefined;
+  return candidate;
 }
 
 function extractPersonName(authorName?: string, authorHandle?: string): string | undefined {
@@ -100,12 +119,14 @@ export function classifyPost(post: IngestedPost): ClassifiedSignal | null {
 
   const batch = extractBatch(post.content);
   const accelerator = extractAccelerator(post.content);
-  const companyName = extractCompanyHint(post.content, post.authorHandle);
+  const companyName = extractCompanyHint(post.content);
   const personName = extractPersonName(post.authorName, post.authorHandle);
 
   const dedupeKey = [
     bestType,
-    companyName ?? '',
+    // Prefer a real identity in the dedupe key so distinct signals with no valid
+    // company name don't all collapse together (previously they collided on "the").
+    companyName ?? personName ?? '',
     personName ?? '',
     batch ?? '',
   ].join('|').toLowerCase();

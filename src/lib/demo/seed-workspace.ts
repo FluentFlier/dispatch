@@ -55,50 +55,85 @@ export interface DemoSeedResult {
   signalEventIds: string[];
 }
 
-/** Idempotent demo seed for a workspace (profile, sources, sample signals). */
+/**
+ * Returns true when the user already has a real (non-demo) creator profile.
+ * Used to keep the demo seed NON-DESTRUCTIVE: we must never overwrite a user's
+ * trained voice/pillars just because they clicked "Load demo data".
+ */
+async function hasRealProfile(client: InsforgeClient, userId: string): Promise<boolean> {
+  const { data } = await client.database
+    .from('creator_profile')
+    .select('display_name, voice_description, voice_rules, onboarding_complete')
+    .eq('user_id', userId)
+    .limit(1);
+
+  const row = data?.[0] as
+    | { display_name?: string; voice_description?: string; voice_rules?: string; onboarding_complete?: boolean }
+    | undefined;
+  if (!row) return false;
+
+  // A row counts as "real" if onboarding completed or any voice field is set,
+  // AND it isn't the demo persona itself (so re-seeding a demo account still works).
+  const isDemoPersona = row.display_name === DEMO_PROFILE.display_name;
+  const hasVoice = Boolean(row.voice_description?.trim() || row.voice_rules?.trim());
+  return !isDemoPersona && (row.onboarding_complete === true || hasVoice);
+}
+
+/**
+ * Idempotent demo seed for a workspace (profile, sources, sample signals).
+ *
+ * NON-DESTRUCTIVE: if the user already has a real profile, the profile, context,
+ * and GTM-brain writes are SKIPPED — only sample signals/sources are added. This
+ * prevents "Load demo data" from clobbering a trained voice (the previous behavior,
+ * caused by upserting creator_profile on the same user_id conflict key onboarding uses).
+ */
 export async function seedDemoWorkspace(
   client: InsforgeClient,
   userId: string,
   workspaceId: string,
 ): Promise<DemoSeedResult> {
-  const { error: profileError } = await client.database.from('creator_profile').upsert(
-    {
-      user_id: userId,
-      workspace_id: workspaceId,
-      display_name: DEMO_PROFILE.display_name,
-      bio_facts: DEMO_PROFILE.bio_facts,
-      voice_description: DEMO_PROFILE.voice_description,
-      voice_rules: DEMO_PROFILE.voice_rules,
-      content_pillars: DEMO_PROFILE.content_pillars,
-      onboarding_complete: true,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: 'user_id' },
-  );
+  const realProfile = await hasRealProfile(client, userId);
 
-  if (profileError) {
-    throw new Error(profileError.message || 'Failed to upsert demo profile');
-  }
-
-  await client.database.from('user_settings').upsert(
-    [
+  if (!realProfile) {
+    const { error: profileError } = await client.database.from('creator_profile').upsert(
       {
         user_id: userId,
         workspace_id: workspaceId,
-        key: 'context_additions',
-        value: DEMO_PROFILE.bio_facts,
+        display_name: DEMO_PROFILE.display_name,
+        bio_facts: DEMO_PROFILE.bio_facts,
+        voice_description: DEMO_PROFILE.voice_description,
+        voice_rules: DEMO_PROFILE.voice_rules,
+        content_pillars: DEMO_PROFILE.content_pillars,
+        onboarding_complete: true,
+        updated_at: new Date().toISOString(),
       },
-    ],
-    { onConflict: 'user_id,key' },
-  );
+      { onConflict: 'user_id' },
+    );
 
-  await putBrainPage(client, userId, {
-    slug: BRAIN_SLUG.gtm,
-    title: 'GTM playbook',
-    tags: ['gtm', 'signals', 'demo'],
-    body: JSON.stringify({ ...DEFAULT_GTM_PLAYBOOK, status: 'ready' }, null, 2),
-    workspaceId,
-  });
+    if (profileError) {
+      throw new Error(profileError.message || 'Failed to upsert demo profile');
+    }
+
+    await client.database.from('user_settings').upsert(
+      [
+        {
+          user_id: userId,
+          workspace_id: workspaceId,
+          key: 'context_additions',
+          value: DEMO_PROFILE.bio_facts,
+        },
+      ],
+      { onConflict: 'user_id,key' },
+    );
+
+    await putBrainPage(client, userId, {
+      slug: BRAIN_SLUG.gtm,
+      title: 'GTM playbook',
+      tags: ['gtm', 'signals', 'demo'],
+      body: JSON.stringify({ ...DEFAULT_GTM_PLAYBOOK, status: 'ready' }, null, 2),
+      workspaceId,
+    });
+  }
 
   const sourcesSeeded = await ensureDefaultSources(client, workspaceId);
   await ensureGtmPlaybook(client, userId, workspaceId);
@@ -131,7 +166,7 @@ export async function seedDemoWorkspace(
   return {
     workspaceId,
     userId,
-    profileUpdated: true,
+    profileUpdated: !realProfile,
     sourcesSeeded,
     signalsCreated,
     signalEventIds,

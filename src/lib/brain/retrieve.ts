@@ -61,16 +61,23 @@ function scorePageRelevance(body: string, query: string): number {
  * Always includes core pages; adds relevant published posts when query provided.
  * When workspaceId is provided, all page lookups are scoped to that workspace
  * so agency clients only see their own brain content.
+ *
+ * The GTM playbook (ICP/pitch/objections/CTA) is OUTREACH context — it is only
+ * included when `includeGtm` is true (outreach/reply generation). Injecting it
+ * into ordinary content posts caused sales-pitch bleed into unrelated topics.
  */
 export async function retrieveBrainContext(
   client: InsforgeClient,
   userId: string,
   query?: string,
   workspaceId?: string,
+  includeGtm = false,
 ): Promise<string[]> {
   const snippets: string[] = [];
 
-  const coreSlugs = [BRAIN_SLUG.voice, BRAIN_SLUG.profile, BRAIN_SLUG.gtm, BRAIN_SLUG.wins];
+  const coreSlugs = includeGtm
+    ? [BRAIN_SLUG.voice, BRAIN_SLUG.profile, BRAIN_SLUG.wins, BRAIN_SLUG.gtm]
+    : [BRAIN_SLUG.voice, BRAIN_SLUG.profile, BRAIN_SLUG.wins];
   for (const slug of coreSlugs) {
     // Pass workspaceId so the page fetch is scoped to the correct workspace.
     const page = await getBrainPage(client, userId, slug, workspaceId);

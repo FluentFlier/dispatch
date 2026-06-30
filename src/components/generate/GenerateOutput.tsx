@@ -184,13 +184,21 @@ export function GenerateOutput({
   const [prediction, setPrediction] = useState<PredictResult | null>(null);
   const [predicting, setPredicting] = useState(false);
 
+  // Local copy of the draft so in-place edits (Humanize) are reflected on every
+  // tab, even those that don't pass onTextUpdate. Re-syncs whenever a new
+  // generation arrives via the `text` prop.
+  const [displayText, setDisplayText] = useState(text);
+  useEffect(() => {
+    setDisplayText(text);
+  }, [text]);
+
   async function handleHumanize() {
     setHumanizing(true);
     try {
       const res = await fetchWithAuth('/api/humanize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text: displayText }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
@@ -199,7 +207,9 @@ export function GenerateOutput({
         return;
       }
       const { text: humanized } = await res.json();
-      if (onTextUpdate) onTextUpdate(humanized);
+      setDisplayText(humanized);
+      onTextUpdate?.(humanized);
+      toast('Humanized');
     } catch (err) {
       console.error('Humanize error:', err);
       toast('Humanization failed', 'error');
@@ -214,7 +224,7 @@ export function GenerateOutput({
       const res = await fetchWithAuth('/api/humanize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text, scoreOnly: true }),
+        body: JSON.stringify({ text: displayText, scoreOnly: true }),
       });
       if (!res.ok) throw new Error('Scoring failed');
       const { score } = await res.json();
@@ -234,7 +244,7 @@ export function GenerateOutput({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text,
+          text: displayText,
           platform: sourcePlatform ?? 'linkedin',
           voice_match_score: voiceMetrics?.voice_match_score ?? null,
           ai_score: voiceMetrics?.ai_score ?? null,
@@ -278,10 +288,10 @@ export function GenerateOutput({
       {prediction && <PredictPanel result={prediction} />}
       <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-4">
         <pre className="whitespace-pre-wrap font-body text-[13px] text-text-primary leading-[1.55]">
-          {text}
+          {displayText}
         </pre>
         <div className="flex flex-wrap items-center gap-2">
-          <CopyButton text={text} />
+          <CopyButton text={displayText} />
           <Button
             variant="secondary"
             size="sm"
@@ -322,12 +332,12 @@ export function GenerateOutput({
       </div>
 
       {/* Platform optimization section */}
-      <OptimizePanel content={text} sourcePlatform={sourcePlatform} />
+      <OptimizePanel content={displayText} sourcePlatform={sourcePlatform} />
 
       <SaveToLibraryModal
         open={showSave}
         onClose={() => setShowSave(false)}
-        script={text}
+        script={displayText}
         voiceMetrics={voiceMetrics}
         sourcePlatform={sourcePlatform}
       />

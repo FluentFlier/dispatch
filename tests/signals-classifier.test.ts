@@ -43,4 +43,26 @@ describe('classifyPost', () => {
     const b = classifyPost(post('Joining YC S24 batch to build fintech APIs', { authorHandle: 'acme', externalPostId: 'other' }));
     expect(a!.dedupeKey).toBe(b!.dedupeKey);
   });
+
+  // F7: "Building the future..." must NOT yield the article "the" as a company name.
+  it('does not extract a stopword as the company name', () => {
+    const result = classifyPost(
+      post('Excited to announce we joined Y Combinator W26! Building the future of fintech for startups.', {
+        authorName: 'Jordan Kim',
+      }),
+    );
+    expect(result).not.toBeNull();
+    expect(result!.companyName).toBeUndefined();
+    expect(result!.personName).toBe('Jordan Kim');
+  });
+
+  it('extracts a proper-noun company name', () => {
+    const result = classifyPost(
+      post('We just raised a $5M seed round. I am building Acme to fix payments for startups.', {
+        authorName: 'Jane',
+      }),
+    );
+    expect(result).not.toBeNull();
+    expect(result!.companyName).toBe('Acme');
+  });
 });

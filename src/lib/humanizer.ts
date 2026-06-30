@@ -90,20 +90,94 @@ export async function humanize(
 }
 
 /**
- * Score how "AI-sounding" text is using HuggingFace's chatgpt-detector-roberta.
- * Free, no quota drain, returns 0-100 (100 = obviously AI).
+ * Deterministic AI-writing patterns. Each match is a "tell" that the text reads
+ * like generic LLM output. Used as a floor under the ML detector so the score
+ * never collapses to a neutral 50 when the model is weak or unavailable.
+ */
+const AI_SLOP_PATTERNS: RegExp[] = [
+  // Overused LLM vocabulary
+  /\b(delve|tapestry|leverage|foster|landscape|nuanced|multifaceted|comprehensive|robust|holistic|pivotal|crucial|paramount|innovative|transformative|utilize|realm|underscore|testament|seamless|elevate|empower|unlock|harness|navigate|cultivate|embark|profound)\b/gi,
+  // Throat-clearing openers / framing
+  /\bin today'?s (?:fast-paced |digital |modern |competitive )?world\b/gi,
+  /\bit'?s (?:worth|important) (?:noting|to note|mentioning)\b/gi,
+  /\b(?:in conclusion|to sum up|in summary|ultimately,|at the end of the day)\b/gi,
+  /\blet'?s (?:dive|unpack|explore|break (?:it|this) down)\b/gi,
+  // Symmetric / hedging constructions
+  /\bnot only\b[^.]*\bbut also\b/gi,
+  /\bwhether you'?re\b/gi,
+  // Hype + decorative em dashes
+  /\bgame[- ]chang(?:er|ing)\b/gi,
+  /—/g,
+];
+
+/**
+ * Heuristic AI score (0-100). Counts AI "tells"; ~12 points per tell, capped.
+ * Conservative but reliable for obvious slop; complements the ML detector.
+ */
+function heuristicAiScore(text: string): number {
+  let hits = 0;
+  for (const re of AI_SLOP_PATTERNS) {
+    const matches = text.match(re);
+    if (matches) hits += matches.length;
+  }
+  return Math.min(100, hits * 12);
+}
+
+/**
+ * Splits text into <=480-char windows (roberta truncates ~512 tokens) so long
+ * posts are scored end-to-end, not just their opening line.
+ */
+function chunkForDetector(text: string, maxChunks = 3): string[] {
+  const size = 480;
+  const chunks: string[] = [];
+  for (let i = 0; i < text.length && chunks.length < maxChunks; i += size) {
+    chunks.push(text.slice(i, i + size));
+  }
+  return chunks.length > 0 ? chunks : [text];
+}
+
+/**
+ * Score how "AI-sounding" text is. Combines HuggingFace's chatgpt-detector-roberta
+ * (scored across chunks, taking the max) with a deterministic heuristic floor, and
+ * returns the higher of the two. Returns 0-100 (100 = obviously AI).
+ *
+ * WHY the floor: the ML model under-flags short marketing/LinkedIn copy and, on any
+ * error or label-shape drift, previously returned a misleading neutral 50. The
+ * heuristic guarantees obvious slop is caught even when the model is weak or down.
  */
 export async function aiScore(text: string): Promise<{ score: number; flags: string[] }> {
-  const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
+  const heuristic = heuristicAiScore(text);
+
+  let modelScore: number | null = null;
   try {
-    const result = await hf.textClassification({
-      model: 'Hello-SimpleAI/chatgpt-detector-roberta',
-      inputs: text.slice(0, 512),
+    const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
+    const chunks = chunkForDetector(text);
+    const results = await Promise.all(
+      chunks.map((chunk) =>
+        hf.textClassification({ model: 'Hello-SimpleAI/chatgpt-detector-roberta', inputs: chunk }),
+      ),
+    );
+
+    const chunkScores = results.map((result) => {
+      // Robust label matching: prefer an explicit AI/ChatGPT label; else derive
+      // from the Human label; else fall back to roberta's LABEL_1 (= ChatGPT).
+      const ai = result.find((r) => /chat\s?gpt|^ai$|fake|label_1/i.test(r.label));
+      if (ai) return ai.score;
+      const human = result.find((r) => /human|label_0/i.test(r.label));
+      if (human) return 1 - human.score;
+      return null;
     });
-    const aiLabel = result.find((r: { label: string; score: number }) => r.label === 'ChatGPT');
-    const score = aiLabel ? Math.round(aiLabel.score * 100) : 50;
-    return { score, flags: score > 70 ? ['detected_as_ai'] : [] };
+
+    const valid = chunkScores.filter((s): s is number => s !== null);
+    if (valid.length > 0) modelScore = Math.round(Math.max(...valid) * 100);
   } catch {
-    return { score: 50, flags: ['detection_failed'] };
+    modelScore = null; // fall through to heuristic-only
   }
+
+  const score = modelScore === null ? heuristic : Math.max(modelScore, heuristic);
+
+  const flags: string[] = [];
+  if (modelScore === null) flags.push('model_unavailable');
+  if (score > 70) flags.push('detected_as_ai');
+  return { score, flags };
 }

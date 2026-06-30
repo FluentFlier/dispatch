@@ -7,6 +7,7 @@ import type { Platform, Status } from '@/lib/constants';
 import { PLATFORMS, STATUSES, STATUS_LABELS } from '@/lib/constants';
 import { getInsforgeClient } from '@/lib/insforge/client';
 import { usePillars } from '@/hooks/usePillars';
+import { postPillars } from '@/lib/pillars';
 import PostGrid from '@/components/library/PostGrid';
 import PostTable from '@/components/library/PostTable';
 import PostEditorDrawer from '@/components/library/PostEditorDrawer';
@@ -114,7 +115,7 @@ export default function LibraryPage() {
         (p) => p.title.toLowerCase().includes(q) || (p.script && p.script.toLowerCase().includes(q))
       );
     }
-    if (pillarFilter !== 'all') result = result.filter((p) => p.pillar === pillarFilter);
+    if (pillarFilter !== 'all') result = result.filter((p) => postPillars(p).includes(pillarFilter));
     if (platformFilter !== 'all') result = result.filter((p) => p.platform === platformFilter);
     if (statusFilter !== 'all') result = result.filter((p) => p.status === statusFilter);
     if (seriesFilter !== 'all') result = result.filter((p) => p.series_id === seriesFilter);

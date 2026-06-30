@@ -2,10 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { z } from 'zod';
 import { triggerAutoOptimize } from '@/lib/auto-optimize';
+import { normalizePillars } from '@/lib/pillars';
 
 const UpdatePostSchema = z.object({
   title: z.string().min(1).optional(),
   pillar: z.string().optional(),
+  pillars: z.array(z.string()).optional(),
   platform: z.string().optional(),
   status: z.string().optional(),
   script: z.string().nullable().optional(),
@@ -75,9 +77,17 @@ export async function PATCH(
     .eq('user_id', user.id)
     .single();
 
+  // When pillar/pillars are being changed, keep both in sync.
+  const updatePayload: Record<string, unknown> = { ...parsed.data };
+  if (parsed.data.pillar !== undefined || parsed.data.pillars !== undefined) {
+    const { pillar, pillars } = normalizePillars(parsed.data);
+    updatePayload.pillar = pillar;
+    updatePayload.pillars = pillars;
+  }
+
   const { data, error } = await client
     .database.from('posts')
-    .update(parsed.data)
+    .update(updatePayload)
     .eq('id', params.id)
     .eq('user_id', user.id)
     .select()

@@ -14,7 +14,7 @@ const RequestSchema = z.object({
   /** Optional topic for semantic memory retrieval (Supermemory) */
   topic: z.string().max(500).optional(),
   platform: z.enum(['twitter', 'linkedin', 'instagram', 'threads']).optional(),
-  contentType: z.enum(['post', 'reply', 'comment']).optional(),
+  contentType: z.enum(['post', 'reply', 'comment', 'hooks', 'caption']).optional(),
   /** Skip voice critique/revise (faster) */
   fast: z.boolean().optional(),
 });

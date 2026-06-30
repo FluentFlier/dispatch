@@ -2,7 +2,7 @@
 import { chatCompletion } from '@/lib/llm';
 import { humanize } from '@/lib/humanizer';
 import { evaluateDraft, evaluationPasses, type VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
-import { buildVoiceComposeHints } from '@/lib/voice-prompts';
+import { buildVoiceComposeHints, type VoiceContentType } from '@/lib/voice-prompts';
 import { getBestHooksForContext } from '@/lib/hooks-intelligence';
 
 export interface VoicePipelineInput {
@@ -11,7 +11,7 @@ export interface VoicePipelineInput {
   contextAdditions?: string;
   systemOverride?: string;
   platform?: string;
-  contentType?: 'post' | 'reply' | 'comment';
+  contentType?: VoiceContentType;
   /** Skip critique/revise pass (faster, cheaper) */
   fast?: boolean;
   /**
@@ -110,11 +110,15 @@ Return ONLY the new text.`;
 
     if (input.fast) break;
 
+    // The evaluator only scores prose content types; list/caption modes run in
+    // fast mode (break above) so this maps any other type to 'post' for safety.
+    const evalContentType =
+      contentType === 'reply' || contentType === 'comment' ? contentType : 'post';
     evaluation = await evaluateDraft(
       text,
       input.profile,
       mergedContext || undefined,
-      contentType,
+      evalContentType,
     );
 
     if (evaluationPasses(evaluation)) break;

@@ -4,10 +4,13 @@ import { z } from 'zod';
 import { triggerAutoOptimize } from '@/lib/auto-optimize';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { errorResponse } from '@/lib/api-errors';
+import { normalizePillars } from '@/lib/pillars';
 
 const CreatePostSchema = z.object({
   title: z.string().min(1, 'Title is required'),
-  pillar: z.string().min(1, 'Pillar is required'),
+  // Either a single pillar (legacy) or a pillars[] array; normalized server-side.
+  pillar: z.string().min(1).optional(),
+  pillars: z.array(z.string()).optional(),
   platform: z.string().min(1, 'Platform is required'),
   status: z.string().optional(),
   script: z.string().nullable().optional(),
@@ -31,7 +34,10 @@ const CreatePostSchema = z.object({
   voice_match_score: z.number().int().min(0).max(100).nullable().optional(),
   ai_score: z.number().int().min(0).max(100).nullable().optional(),
   voice_evaluation: z.record(z.string(), z.unknown()).nullable().optional(),
-}).strict();
+}).strict().refine((d) => Boolean(d.pillar) || (d.pillars && d.pillars.length > 0), {
+  message: 'At least one pillar is required',
+  path: ['pillar'],
+});
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -50,7 +56,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (workspaceId) query = query.eq('workspace_id', workspaceId);
 
   const pillar = params.get('pillar');
-  if (pillar) query = query.eq('pillar', pillar);
+  // Match posts that contain this pillar anywhere in their pillars[] array.
+  // Falls back to the primary pillar column for any legacy rows.
+  if (pillar) query = query.contains('pillars', [pillar]);
 
   const status = params.get('status');
   if (status) query = query.eq('status', status);
@@ -86,9 +94,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const client = getServerClient();
   const workspaceId = await getActiveWorkspaceId(user.id);
+  // Keep pillar (primary) and pillars[] in sync so legacy readers keep working.
+  const { pillar, pillars } = normalizePillars(parsed.data);
   const { data, error } = await client
     .database.from('posts')
-    .insert([{ ...parsed.data, user_id: user.id, workspace_id: workspaceId }])
+    .insert([{ ...parsed.data, pillar, pillars, user_id: user.id, workspace_id: workspaceId }])
     .select()
     .single();
 

@@ -13,11 +13,14 @@ const PLATFORM_CONSTRAINTS: Record<string, string> = {
   threads: 'Threads reply. Casual and brief.',
 };
 
-async function callGenerate(prompt: string): Promise<string> {
+async function callGenerate(
+  prompt: string,
+  opts: { contentType?: string; fast?: boolean } = {},
+): Promise<string> {
   const res = await fetchWithAuth('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt }),
+    body: JSON.stringify({ prompt, ...opts }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -25,6 +28,44 @@ async function callGenerate(prompt: string): Promise<string> {
   }
   const { text } = await res.json();
   return text;
+}
+
+/**
+ * Parses model output into one reply per comment. Prefers a JSON array; falls
+ * back to REPLY-marker blocks so a single comment is never silently dropped.
+ */
+function parseReplies(text: string, commentLines: string[]): { comment: string; reply: string }[] {
+  // Preferred: a JSON array of reply strings.
+  try {
+    const match = text.match(/\[[\s\S]*\]/);
+    if (match) {
+      const arr = JSON.parse(match[0]);
+      if (Array.isArray(arr) && arr.length > 0) {
+        return commentLines.map((c, i) => ({
+          comment: c || `Comment ${i + 1}`,
+          reply: arr[i] != null ? String(arr[i]).trim() : '(no reply generated)',
+        }));
+      }
+    }
+  } catch {
+    // fall through to marker parsing
+  }
+
+  // Fallback: split on REPLY N: markers (survives even if COMMENT markers were stripped).
+  const replyBlocks = text
+    .split(/REPLY\s*\d+:\s*/i)
+    .slice(1)
+    .map((b) => b.split(/COMMENT\s*\d+:/i)[0].trim())
+    .filter(Boolean);
+  if (replyBlocks.length > 0) {
+    return commentLines.map((c, i) => ({
+      comment: c || `Comment ${i + 1}`,
+      reply: replyBlocks[i]?.trim() || '(no reply generated)',
+    }));
+  }
+
+  // Last resort: single comment → whole text is the reply.
+  return [{ comment: commentLines[0] || 'Comment 1', reply: text.trim() }];
 }
 
 export function CommentReplies() {
@@ -35,6 +76,7 @@ export function CommentReplies() {
   const [error, setError] = useState('');
 
   const generate = async () => {
+    if (loading) return; // guard against double-submit
     if (!comments.trim()) {
       setError('Paste some comments first');
       return;
@@ -46,49 +88,19 @@ export function CommentReplies() {
     const commentLines = comments.trim().split('\n').filter((l) => l.trim());
     const platformConstraint = PLATFORM_CONSTRAINTS[platform] || PLATFORM_CONSTRAINTS.instagram;
 
-    const prompt = `Write replies to these comments. Sound exactly like the creator (use their voice from your system context), not a generic brand account.
+    const prompt = `Write one reply per comment below, in the creator's voice (use their voice from your system context), not a generic brand account.
 
 PLATFORM: ${platformConstraint}
 
-COMMENTS:
+COMMENTS (reply to each, in order):
 ${commentLines.map((c, i) => `${i + 1}. ${c}`).join('\n')}
 
-Return each reply in this exact format:
-COMMENT 1: (original comment text)
-REPLY 1: (your reply)
-
-COMMENT 2: (original comment text)
-REPLY 2: (your reply)
-
-...and so on for all comments.`;
+Return ONLY a JSON array of strings — exactly one reply per comment, in the same order. Example: ["first reply", "second reply"]. No other text, no markdown.`;
 
     try {
-      const text = await callGenerate(prompt);
-      const pairs: { comment: string; reply: string }[] = [];
-      const blocks = text.split(/(?=COMMENT\s*\d+:)/i).filter((b) => b.trim());
-
-      for (let i = 0; i < blocks.length; i++) {
-        const block = blocks[i];
-        const replyMatch = block.match(/REPLY\s*\d+:\s*([\s\S]*?)$/i);
-        const reply = replyMatch?.[1]?.trim() || block.trim();
-        pairs.push({
-          comment: commentLines[i] || `Comment ${i + 1}`,
-          reply,
-        });
-      }
-
-      // Fallback if parsing fails
-      if (pairs.length === 0) {
-        const fallbackReplies = text.split(/Reply\s*\d+[:\s]*/i).filter((b) => b.trim());
-        for (let i = 0; i < fallbackReplies.length; i++) {
-          pairs.push({
-            comment: commentLines[i] || `Comment ${i + 1}`,
-            reply: fallbackReplies[i].trim(),
-          });
-        }
-      }
-
-      setReplies(pairs);
+      // fast mode: skip the revise/humanize passes so the JSON array survives intact.
+      const text = await callGenerate(prompt, { contentType: 'reply', fast: true });
+      setReplies(parseReplies(text, commentLines));
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Generation failed');
     } finally {
