@@ -46,6 +46,12 @@ interface LoadVoiceContextOptions {
    * L4 voice metrics baseline is injected so generation targets the user's own score.
    */
   platform?: string;
+  /**
+   * Include the GTM playbook (ICP/pitch/CTA) from the brain. Only for OUTREACH
+   * generation (signals/reply drafts). Default false so sales context never bleeds
+   * into ordinary content posts.
+   */
+  includeGtm?: boolean;
 }
 
 function parseJsonSetting<T>(value: string | null | undefined): T | undefined {
@@ -233,6 +239,7 @@ export async function loadCreatorVoiceContext(
         userId,
         options.memoryQuery,
         options.workspaceId,
+        options.includeGtm ?? false,
       );
       if (brain.length > 0) {
         brainSnippets = brain;

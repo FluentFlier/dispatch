@@ -1,10 +1,10 @@
-# Dispatch
+# Content OS
 
 **Live:** [https://mm4nbzdu.insforge.site](https://mm4nbzdu.insforge.site) (deployed on InsForge)
 
 Private content command center for creators who ship. Generate, organize, schedule, and publish across X, LinkedIn, Instagram, and Threads from one workspace.
 
-> Formerly developed as **content-os**. The product name is **Dispatch**.
+> The product name is **Content OS** (repo slug: `content-os`). Use this name consistently across the UI and docs.
 
 ## Features
 

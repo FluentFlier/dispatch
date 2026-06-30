@@ -81,7 +81,9 @@ export function buildSystemPrompt(
   }
 
   if (contextAdditions) {
-    parts.push(`\nADDITIONAL CONTEXT:\n${contextAdditions}`);
+    parts.push(
+      `\nADDITIONAL CONTEXT (reference only — the VOICE RULES above are authoritative; do not introduce companies, products, or claims that are not in this creator's profile):\n${contextAdditions}`,
+    );
   }
 
   return parts.join('\n');
