@@ -108,11 +108,48 @@ scripts/        # GStack mining, bulk DB import, continuous loops
    npx @insforge/cli deployments deploy .
    ```
    This handles the build and deploys to your project's InsForge frontend site (e.g. `https://<app-key>.insforge.site`).
-6. **Crons** — The `vercel.json` (or equivalent) configures:
-   - `/api/cron/publish` — every 5 min
-   - `/api/cron/engagement-sync` — every 15 min
-   - `/api/cron/auto-generate` — daily
+6. **Crons** — Vercel Hobby plan only allows once-per-day crons. All scheduled jobs are triggered externally via [cron-job.org](https://cron-job.org) (free). See **Cron Setup** section below.
 7. **Smoke test** — `GET /api/health` should return `status: ok`
+
+### Cron Setup
+
+Vercel Hobby blocks cron schedules that run more than once per day. All background jobs are triggered externally by **cron-job.org** (free tier, no credit card).
+
+**Why external?** Vercel's clock would be ideal but is plan-gated. cron-job.org calls your endpoints on the same schedule — your code doesn't change, the `CRON_SECRET` still protects every endpoint.
+
+**How it works:**
+```
+cron-job.org timer → GET https://your-app/api/cron/fast
+                      Header: Authorization: Bearer <CRON_SECRET>
+                           ↓
+                    publish queue + signals-sync run in parallel
+```
+
+**Setup steps:**
+1. Create a free account at [cron-job.org](https://cron-job.org)
+2. Create two cron jobs:
+
+| Title | URL | Schedule | Method | Header |
+|-------|-----|----------|--------|--------|
+| `dispatch-fast` | `https://your-app.vercel.app/api/cron/fast` | Every 5 minutes | GET | `Authorization: Bearer YOUR_CRON_SECRET` |
+| `dispatch-medium` | `https://your-app.vercel.app/api/cron/medium` | Every 15 minutes | GET | `Authorization: Bearer YOUR_CRON_SECRET` |
+
+**What each job covers:**
+
+`/api/cron/fast` (every 5 min):
+- Publish queue — processes scheduled posts
+- Signals sync — polls sources, classifies posts
+
+`/api/cron/medium` (every 15 min):
+- Engagement sync — pulls comments on published posts
+- Event enrich — classifies and generates questions for calendar events
+- Calendar sync — mirrors Google Calendar events *(runs at :00 of each hour)*
+- Auto-generate — creates scheduled content *(runs at 8:00 AM UTC daily)*
+- Intelligence sync — closes the RL loop on hook performance *(runs at 2:00 AM UTC daily)*
+
+**Debugging:** cron-job.org shows run history and HTTP response codes. Vercel logs show what happened inside each endpoint. Check both when a job fails.
+
+**Upgrading:** Switch to Vercel Pro and move schedules back into `vercel.json` — the fan-out routes (`fast`, `medium`) work identically whether called by cron-job.org or Vercel native crons.
 
 ### Hook Intelligence (advanced)
 
