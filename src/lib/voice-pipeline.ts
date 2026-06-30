@@ -4,6 +4,23 @@ import { humanize } from '@/lib/humanizer';
 import { evaluateDraft, evaluationPasses, type VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 import { buildVoiceComposeHints, type VoiceContentType } from '@/lib/voice-prompts';
 import { getBestHooksForContext } from '@/lib/hooks-intelligence';
+import { PILLAR_TO_VERTICAL, type HookVertical } from '@/lib/hooks-intelligence/types';
+import { profilePillarWeights } from '@/lib/pillars';
+
+/**
+ * Picks the hook-dataset vertical for the creator's highest-importance pillar so
+ * retrieval is biased toward the topics they weight most. Returns undefined when
+ * there is no profile or the top pillar has no vertical mapping (global ranking).
+ */
+function topWeightedVertical(
+  profile: CreatorProfileForPrompt | null,
+): HookVertical | undefined {
+  const weights = profilePillarWeights(profile?.content_pillars);
+  const entries = Object.entries(weights);
+  if (entries.length === 0) return undefined;
+  entries.sort((a, b) => b[1] - a[1]);
+  return PILLAR_TO_VERTICAL[entries[0][0]];
+}
 
 export interface VoicePipelineInput {
   userPrompt: string;
@@ -71,7 +88,11 @@ export async function generateWithVoicePipeline(
     : undefined;
 
   // === PHENOMENAL HOOK INTELLIGENCE INJECTION ===
-  const topHooks = input.skipHooks ? [] : getBestHooksForContext(undefined as any, 6);
+  // Bias retrieval toward the creator's highest-weighted pillar's vertical so the
+  // injected examples match the topic they care most about.
+  const topHooks = input.skipHooks
+    ? []
+    : getBestHooksForContext(topWeightedVertical(input.profile), 6);
   const usedHookIds = topHooks.map((h) => h.id);
   const hookExamples = topHooks.length > 0
     ? `\n\nREAL HIGH-CONVERTING HOOK EXAMPLES (use these structures + adapt to voice):\n${topHooks.map((h, i) => `${i+1}. "${h.text}" (@${h.author})`).join('\n')}`
