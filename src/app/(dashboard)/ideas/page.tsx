@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getInsforge } from "@/lib/insforge/client";
 import type { ContentIdea } from "@/lib/types";
+import { postPillars, normalizePillars, DEFAULT_PILLAR_WEIGHT } from "@/lib/pillars";
 import type { Priority } from "@/lib/constants";
 import { usePillars } from "@/hooks/usePillars";
 import { Lightbulb } from "lucide-react";
@@ -25,15 +26,18 @@ export default function IdeasPage() {
 
   // Quick-add form state
   const [newIdea, setNewIdea] = useState("");
-  const [newPillar, setNewPillar] = useState<string>("");
+  const [newPillars, setNewPillars] = useState<string[]>([]);
+  const [newWeights, setNewWeights] = useState<Record<string, number>>({});
 
-  // Sync newPillar when custom pillars finish loading
+  // Default the new-idea pillar selection once custom pillars finish loading.
   useEffect(() => {
     if (pillarsLoading || pillarList.length === 0) return;
-    if (!newPillar) {
-      setNewPillar(pillarList[0].value);
+    if (newPillars.length === 0) {
+      const first = pillarList[0].value;
+      setNewPillars([first]);
+      setNewWeights({ [first]: DEFAULT_PILLAR_WEIGHT });
     }
-  }, [pillarsLoading, pillarList, newPillar]);
+  }, [pillarsLoading, pillarList, newPillars.length]);
   const [newPriority, setNewPriority] = useState<Priority>("medium");
   const [adding, setAdding] = useState(false);
 
@@ -79,7 +83,7 @@ export default function IdeasPage() {
 
     if (filterMode === "unconverted") list = list.filter((i) => !i.converted);
     if (filterMode === "converted") list = list.filter((i) => i.converted);
-    if (filterPillar !== "all") list = list.filter((i) => i.pillar === filterPillar);
+    if (filterPillar !== "all") list = list.filter((i) => postPillars(i).includes(filterPillar));
 
     list.sort((a, b) => {
       const pDiff = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
@@ -100,11 +104,19 @@ export default function IdeasPage() {
 
     setAdding(true);
 
+    // Keep primary pillar + pillars[] + weights in sync (primary = highest weight).
+    const { pillar, pillars, pillar_weights } = normalizePillars({
+      pillars: newPillars,
+      pillar_weights: newWeights,
+    });
+
     const optimistic: ContentIdea = {
       id: `temp-${Date.now()}`,
       user_id: userId,
       idea: text,
-      pillar: newPillar,
+      pillar,
+      pillars,
+      pillar_weights,
       priority: newPriority,
       notes: null,
       converted: false,
@@ -118,7 +130,9 @@ export default function IdeasPage() {
       await insforge.database.from("content_ideas").insert([{
         user_id: userId,
         idea: text,
-        pillar: newPillar,
+        pillar,
+        pillars,
+        pillar_weights,
         priority: newPriority,
       }]);
       await fetchIdeas();
@@ -243,12 +257,15 @@ export default function IdeasPage() {
       {/* Quick add form */}
       <IdeaForm
         value={newIdea}
-        pillar={newPillar}
+        pillars={newPillars}
+        weights={newWeights}
         priority={newPriority}
         adding={adding}
-        pillarOptions={pillarList}
         onValueChange={setNewIdea}
-        onPillarChange={setNewPillar}
+        onPillarsChange={(next) => {
+          setNewPillars(next.pillars);
+          setNewWeights(next.weights);
+        }}
         onPriorityChange={setNewPriority}
         onSubmit={addIdea}
       />

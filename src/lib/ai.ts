@@ -19,7 +19,7 @@ export interface CreatorProfileForPrompt {
   display_name: string;
   bio?: string;
   bio_facts?: string;
-  content_pillars?: Array<{ name: string; description?: string; promptTemplate?: string }>;
+  content_pillars?: Array<{ name: string; description?: string; promptTemplate?: string; weight?: number }>;
   voice_description?: string;
   voice_rules?: string;
 }
@@ -72,12 +72,20 @@ export function buildSystemPrompt(
   }
 
   if (profile.content_pillars && profile.content_pillars.length > 0) {
-    const pillarLines = profile.content_pillars.map((p) => {
+    // Order by importance so the model leads with the creator's main topics, and
+    // surface the weight so it knows how much to emphasize each one.
+    const sorted = [...profile.content_pillars].sort(
+      (a, b) => (b.weight ?? 50) - (a.weight ?? 50),
+    );
+    const pillarLines = sorted.map((p) => {
       let line = `- ${p.name}`;
+      if (typeof p.weight === 'number') line += ` [importance ${p.weight}/100]`;
       if (p.description) line += `: ${p.description}`;
       return line;
     });
-    parts.push(`\nCONTENT PILLARS:\n${pillarLines.join('\n')}`);
+    parts.push(
+      `\nCONTENT PILLARS (higher importance = lead with it and post about it more):\n${pillarLines.join('\n')}`,
+    );
   }
 
   if (contextAdditions) {

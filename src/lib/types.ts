@@ -8,6 +8,8 @@ export interface Post {
   pillar: string;
   /** All pillars this post belongs to. Falls back to [pillar] for legacy rows. */
   pillars?: string[];
+  /** Per-pillar importance (1-100) keyed by slug. Drives AI emphasis + hook retrieval. */
+  pillar_weights?: Record<string, number>;
   platform: Platform;
   status: Status;
   script: string | null;
@@ -54,7 +56,12 @@ export interface ContentIdea {
   id: string;
   user_id: string;
   idea: string;
+  /** Primary pillar (always equals pillars[0]); kept for backward compatibility. */
   pillar: string;
+  /** All pillars this idea covers. Falls back to [pillar] for legacy rows. */
+  pillars?: string[];
+  /** Per-pillar importance (1-100) keyed by slug. */
+  pillar_weights?: Record<string, number>;
   priority: Priority;
   notes: string | null;
   converted: boolean;

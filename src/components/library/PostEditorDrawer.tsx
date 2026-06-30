@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { X, Wand2, Copy, MonitorPlay, Trash2, Clock, BarChart3 } from 'lucide-react';
 import type { Post, Series } from '@/lib/types';
-import { postPillars } from '@/lib/pillars';
+import { postPillars, pillarWeights } from '@/lib/pillars';
 import type { Status, Platform } from '@/lib/constants';
 import { PLATFORMS, STATUSES, STATUS_LABELS } from '@/lib/constants';
-import { usePillars } from '@/hooks/usePillars';
+import PillarMultiSelect from '@/components/ui/PillarMultiSelect';
 import StatusPipeline from '@/components/library/StatusPipeline';
 import PerformanceModal from '@/components/library/PerformanceModal';
 import PublishPanel from '@/components/library/PublishPanel';
@@ -47,12 +47,12 @@ interface PostEditorDrawerProps {
 
 export default function PostEditorDrawer({ post, series, onClose, onSave, onDelete }: PostEditorDrawerProps) {
   const { toast } = useToast();
-  const { pillars: pillarList } = usePillars();
   const [activeTab, setActiveTab] = useState<DrawerTab>('write');
   const [form, setForm] = useState({
     title: post.title,
     pillar: post.pillar,
     pillars: postPillars(post),
+    pillar_weights: pillarWeights(post),
     platform: post.platform,
     status: post.status,
     scheduled_date: post.scheduled_date ?? '',
@@ -83,6 +83,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
       title: post.title,
       pillar: post.pillar,
       pillars: postPillars(post),
+      pillar_weights: pillarWeights(post),
       platform: post.platform,
       status: post.status,
       scheduled_date: post.scheduled_date ?? '',
@@ -149,7 +150,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
     } catch {
       toast('Save failed', 'error');
     }
-  }, [form, post.id, onSave, toast, post]);
+  }, [form, onSave, toast, post]);
 
   const handleStatusChange = async (status: Status) => {
     if (status === 'posted' && form.status !== 'posted') {
@@ -237,21 +238,27 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
    * persists immediately (buttons have no onBlur). Persists the COMPUTED next
    * value to avoid saving stale closure state.
    */
-  function togglePillar(value: string) {
-    const has = form.pillars.includes(value);
-    const next = has ? form.pillars.filter((p) => p !== value) : [...form.pillars, value];
-    const pillars = next.length > 0 ? next : [value]; // never empty
-    setForm((f) => ({ ...f, pillars, pillar: pillars[0] }));
-    void persistPillars(pillars);
+  /**
+   * Apply a pillar selection + weights change from the picker and persist it.
+   * `pillars` arrives primary-first, so pillars[0] is the synced primary.
+   */
+  function handlePillarsChange(next: { pillars: string[]; weights: Record<string, number> }) {
+    setForm((f) => ({ ...f, pillars: next.pillars, pillar: next.pillars[0], pillar_weights: next.weights }));
+    void persistPillars(next.pillars, next.weights);
   }
 
-  /** PATCH just the pillars (and synced primary) for this post. */
-  async function persistPillars(pillars: string[]) {
+  /** PATCH just the pillars (synced primary + weights) for this post. */
+  async function persistPillars(pillars: string[], weights: Record<string, number>) {
     try {
       const res = await fetch(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pillars, pillar: pillars[0], updated_at: new Date().toISOString() }),
+        body: JSON.stringify({
+          pillars,
+          pillar: pillars[0],
+          pillar_weights: weights,
+          updated_at: new Date().toISOString(),
+        }),
       });
       if (res.ok) onSave();
       else toast('Save failed', 'error');
@@ -305,26 +312,11 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="block sm:col-span-3">
                   <span className={labelClass}>Pillars (pick one or more)</span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {pillarList.map((p) => {
-                      const active = form.pillars.includes(p.value);
-                      return (
-                        <button
-                          key={p.value}
-                          type="button"
-                          onClick={() => togglePillar(p.value)}
-                          className={`px-3 py-1.5 rounded-full text-[12px] border transition-colors ${
-                            active
-                              ? 'border-accent-primary text-accent-primary bg-accent-primary/10'
-                              : 'border-border text-text-secondary hover:border-border-hover'
-                          }`}
-                        >
-                          {p.label}
-                          {active && form.pillars[0] === p.value ? ' (primary)' : ''}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  <PillarMultiSelect
+                    pillars={form.pillars}
+                    weights={form.pillar_weights}
+                    onChange={handlePillarsChange}
+                  />
                 </div>
                 <label className="block">
                   <span className={labelClass}>Platform</span>

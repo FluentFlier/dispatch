@@ -2,13 +2,12 @@
 
 import { useEffect, useState } from "react";
 import type { ContentPillarConfig } from "@/types/database";
+import { normalizePillarSlug, clampWeight, DEFAULT_PILLAR_WEIGHT } from "@/lib/pillars";
 // Type-only import: avoids bundling the server-side hook dataset into the client.
 import type { PillarSuggestion } from "@/lib/pillar-catalog";
 
-/** Local copy of pillarSlug (kept client-safe; mirrors lib/pillar-catalog). */
-function pillarSlug(name: string): string {
-  return name.toLowerCase().trim().replace(/\s+/g, "-");
-}
+/** Canonical pillar slug (underscore/space tolerant); shared with the rest of the app. */
+const pillarSlug = normalizePillarSlug;
 
 const PRESET_COLORS = [
   "#E07A5F",
@@ -56,7 +55,7 @@ export default function ProfileEditor({
     if (pillars.length >= MAX_PILLARS) return;
     onPillarsChange([
       ...pillars,
-      { name: "", color: PRESET_COLORS[0], description: "", promptTemplate: "" },
+      { name: "", color: PRESET_COLORS[0], description: "", promptTemplate: "", weight: DEFAULT_PILLAR_WEIGHT },
     ]);
   }
 
@@ -70,7 +69,7 @@ export default function ProfileEditor({
     const color = PRESET_COLORS[pillars.length % PRESET_COLORS.length];
     onPillarsChange([
       ...pillars,
-      { name: s.name, color, description: s.description, promptTemplate: "" },
+      { name: s.name, color, description: s.description, promptTemplate: "", weight: DEFAULT_PILLAR_WEIGHT },
     ]);
   }
 
@@ -86,6 +85,13 @@ export default function ProfileEditor({
   ) {
     const updated = [...pillars];
     updated[index] = { ...updated[index], [field]: value };
+    onPillarsChange(updated);
+  }
+
+  /** Update the numeric importance weight (1-100) for a profile pillar. */
+  function updatePillarWeight(index: number, value: number) {
+    const updated = [...pillars];
+    updated[index] = { ...updated[index], weight: clampWeight(value) };
     onPillarsChange(updated);
   }
 
@@ -197,6 +203,24 @@ export default function ProfileEditor({
                       />
                     ))}
                   </div>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <span className="text-[11px] text-text-secondary w-28 shrink-0">
+                    Importance
+                  </span>
+                  <input
+                    type="range"
+                    min={1}
+                    max={100}
+                    value={pillar.weight ?? DEFAULT_PILLAR_WEIGHT}
+                    onChange={(e) => updatePillarWeight(i, Number(e.target.value))}
+                    className="flex-1 accent-accent-primary"
+                    aria-label={`${pillar.name || "Pillar"} importance`}
+                  />
+                  <span className="text-[11px] font-mono text-text-secondary w-8 text-right tabular-nums">
+                    {pillar.weight ?? DEFAULT_PILLAR_WEIGHT}
+                  </span>
                 </div>
 
                 <textarea

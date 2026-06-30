@@ -34,6 +34,8 @@ export interface ContentPillarConfig {
   color: string;
   description?: string;
   promptTemplate?: string;
+  /** Profile-level importance (1-100). Default emphasis posts inherit per pillar. */
+  weight?: number;
 }
 
 export interface PlatformConfig {
