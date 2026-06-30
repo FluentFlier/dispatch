@@ -4,6 +4,7 @@ import type { Post } from '@/lib/types';
 import { usePillars } from '@/hooks/usePillars';
 import StatusBadge from '@/components/ui/StatusBadge';
 import PillarBadge from '@/components/ui/PillarBadge';
+import { postPillars } from '@/lib/pillars';
 import { formatDateShort, truncate } from '@/lib/utils';
 
 interface PostCardProps {
@@ -47,8 +48,10 @@ export default function PostCard({ post, selected, onSelect, onClick }: PostCard
         </h3>
 
         {/* Badges */}
-        <div className="flex items-center gap-[6px] mb-3">
-          <PillarBadge pillar={post.pillar} />
+        <div className="flex items-center flex-wrap gap-[6px] mb-3">
+          {postPillars(post).map((p) => (
+            <PillarBadge key={p} pillar={p} />
+          ))}
           <StatusBadge status={post.status} />
         </div>
 

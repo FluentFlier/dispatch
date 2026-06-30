@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { X, Wand2, Copy, MonitorPlay, Trash2, Clock, BarChart3 } from 'lucide-react';
 import type { Post, Series } from '@/lib/types';
+import { postPillars } from '@/lib/pillars';
 import type { Status, Platform } from '@/lib/constants';
 import { PLATFORMS, STATUSES, STATUS_LABELS } from '@/lib/constants';
 import { usePillars } from '@/hooks/usePillars';
@@ -51,6 +52,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   const [form, setForm] = useState({
     title: post.title,
     pillar: post.pillar,
+    pillars: postPillars(post),
     platform: post.platform,
     status: post.status,
     scheduled_date: post.scheduled_date ?? '',
@@ -80,6 +82,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
     setForm({
       title: post.title,
       pillar: post.pillar,
+      pillars: postPillars(post),
       platform: post.platform,
       status: post.status,
       scheduled_date: post.scheduled_date ?? '',
@@ -229,6 +232,34 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  /**
+   * Toggle a pillar in the multi-select; keeps primary `pillar` as pillars[0] and
+   * persists immediately (buttons have no onBlur). Persists the COMPUTED next
+   * value to avoid saving stale closure state.
+   */
+  function togglePillar(value: string) {
+    const has = form.pillars.includes(value);
+    const next = has ? form.pillars.filter((p) => p !== value) : [...form.pillars, value];
+    const pillars = next.length > 0 ? next : [value]; // never empty
+    setForm((f) => ({ ...f, pillars, pillar: pillars[0] }));
+    void persistPillars(pillars);
+  }
+
+  /** PATCH just the pillars (and synced primary) for this post. */
+  async function persistPillars(pillars: string[]) {
+    try {
+      const res = await fetch(`/api/posts/${post.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pillars, pillar: pillars[0], updated_at: new Date().toISOString() }),
+      });
+      if (res.ok) onSave();
+      else toast('Save failed', 'error');
+    } catch {
+      toast('Save failed', 'error');
+    }
+  }
+
   const inputClass =
     'w-full bg-bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors min-h-[44px]';
   const labelClass = 'text-[11px] text-text-secondary mb-1 block font-medium tracking-wide';
@@ -272,21 +303,29 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <label className="block">
-                  <span className={labelClass}>Pillar</span>
-                  <select
-                    value={form.pillar}
-                    onChange={(e) => update('pillar', e.target.value)}
-                    onBlur={autoSave}
-                    className={inputClass}
-                  >
-                    {pillarList.map((p) => (
-                      <option key={p.value} value={p.value}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <div className="block sm:col-span-3">
+                  <span className={labelClass}>Pillars (pick one or more)</span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {pillarList.map((p) => {
+                      const active = form.pillars.includes(p.value);
+                      return (
+                        <button
+                          key={p.value}
+                          type="button"
+                          onClick={() => togglePillar(p.value)}
+                          className={`px-3 py-1.5 rounded-full text-[12px] border transition-colors ${
+                            active
+                              ? 'border-accent-primary text-accent-primary bg-accent-primary/10'
+                              : 'border-border text-text-secondary hover:border-border-hover'
+                          }`}
+                        >
+                          {p.label}
+                          {active && form.pillars[0] === p.value ? ' (primary)' : ''}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
                 <label className="block">
                   <span className={labelClass}>Platform</span>
                   <select
