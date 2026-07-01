@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { Toggle } from '@/components/ui/Toggle';
 import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
 import { usePillars, type PillarInfo } from '@/hooks/usePillars';
 import { PLATFORMS } from '@/lib/constants';
@@ -407,18 +408,7 @@ CTA: One direct question.`;
               : 'Off: generate a clean, neutral draft with no personal voice applied.'}
           </p>
         </div>
-        <button
-          type="button"
-          role="switch"
-          aria-checked={useVoice}
-          aria-label="Use my voice"
-          onClick={() => setUseVoice((v) => !v)}
-          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${useVoice ? 'bg-accent-primary' : 'bg-border'}`}
-        >
-          <span
-            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${useVoice ? 'translate-x-5' : 'translate-x-0.5'}`}
-          />
-        </button>
+        <Toggle checked={useVoice} onChange={setUseVoice} label="Use my voice" />
       </div>
 
       <Button onClick={generate} loading={loading}>

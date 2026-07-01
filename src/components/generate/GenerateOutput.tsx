@@ -318,9 +318,14 @@ export function GenerateOutput({
       {showVoiceMetrics && <VoiceMetricsPanel metrics={voiceMetrics} />}
       {prediction && <PredictPanel result={prediction} />}
       <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-4">
-        <pre className="whitespace-pre-wrap font-body text-[13px] text-text-primary leading-[1.55]">
-          {displayText}
-        </pre>
+        {/* Editable in place — the draft is a working document, not read-only. */}
+        <textarea
+          value={displayText}
+          onChange={(e) => { setDisplayText(e.target.value); onTextUpdate?.(e.target.value); }}
+          rows={Math.min(18, Math.max(6, displayText.split('\n').length + 1))}
+          aria-label="Generated draft (editable)"
+          className="w-full resize-y bg-transparent font-body text-[13px] text-text-primary leading-[1.55] focus:outline-none"
+        />
         <div className="flex flex-wrap items-center gap-2">
           <CopyButton text={displayText} />
           <Button

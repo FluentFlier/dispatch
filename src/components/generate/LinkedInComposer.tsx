@@ -41,6 +41,7 @@ export function LinkedInComposer({ open, onClose, initialText, platform, onPubli
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkValue, setLinkValue] = useState('');
   const [expanded, setExpanded] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Reset the draft each time the composer opens with new content.
@@ -149,8 +150,18 @@ export function LinkedInComposer({ open, onClose, initialText, platform, onPubli
           </button>
         </div>
 
-        {/* Editor */}
-        <div className="px-5 pt-4">
+        {/* Editor (drop an image anywhere here to attach) */}
+        <div
+          className={`px-5 pt-4 ${dragActive ? 'rounded-lg ring-2 ring-accent-primary ring-inset' : ''}`}
+          onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setDragActive(false); }}
+          onDrop={(e) => {
+            e.preventDefault();
+            setDragActive(false);
+            const f = Array.from(e.dataTransfer.files).find((file) => file.type.startsWith('image/'));
+            if (f) void handleImageUpload(f);
+          }}
+        >
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-accent-primary text-sm font-semibold text-white">
               {initials}
