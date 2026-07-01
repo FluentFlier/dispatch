@@ -87,7 +87,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           result.text,
           'full',
         );
-        const polished = await generateContent(polishPrompt, contextAdditions || undefined, undefined, profile);
+        // Run the polish on a smaller/cheaper model (default llama-3.1-8b-instant)
+        // while the main draft stays on the primary model — cuts token cost of
+        // the extra pass. Configurable via LLM_POLISH_MODEL.
+        const polishModel = process.env.LLM_POLISH_MODEL || 'llama-3.1-8b-instant';
+        const polished = await generateContent(polishPrompt, contextAdditions || undefined, undefined, profile, polishModel);
         if (polished.trim().length > 0) finalText = stripEmDashes(polished);
       } catch {
         // Polish is a best-effort enhancement; fall back to the voice draft.

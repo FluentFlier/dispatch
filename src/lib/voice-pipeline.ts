@@ -120,7 +120,9 @@ export async function generateWithVoicePipeline(
     ? `${input.systemOverride}\n\n${composeHints}`
     : buildSystemPrompt(profile, mergedContext || undefined);
 
-  const maxIterations = input.maxIterations ?? 3;
+  // Default 2 (was 3) to cut token burn ~33% on the revise loop. Callers that
+  // need exhaustive refinement (e.g. Imagine) can still pass a higher value.
+  const maxIterations = input.maxIterations ?? 2;
   let text = '';
   let revised = false;
   let evaluation: VoiceEvaluationMatrix | undefined;
