@@ -3,6 +3,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { usage } from '@/lib/hooks-intelligence/usage-tracker';
 import { postPillars } from '@/lib/pillars';
+import { computeBestTimes, type TimingPost } from '@/lib/analytics/timing';
 
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -31,13 +32,22 @@ export async function GET(): Promise<NextResponse> {
     .order('week_start', { ascending: false });
   if (workspaceId) reviewsQuery = reviewsQuery.eq('workspace_id', workspaceId);
 
-  const [postsRes, setsRes, reviewsRes, leadsRes] = await Promise.all([
+  // Published jobs give a real publish timestamp (posts.posted_date is date-only),
+  // which the best-time engine needs for hour-level windows.
+  let jobsQuery = client.database.from('publish_jobs')
+    .select('post_id, updated_at')
+    .eq('user_id', user.id)
+    .eq('status', 'published');
+  if (workspaceId) jobsQuery = jobsQuery.eq('workspace_id', workspaceId);
+
+  const [postsRes, setsRes, reviewsRes, leadsRes, jobsRes] = await Promise.all([
     postsQuery,
     setsQuery,
     reviewsQuery,
     client.database.from('lead_categories')
       .select('category')
       .eq('user_id', user.id),
+    jobsQuery,
   ]);
 
   if (postsRes.error) return NextResponse.json({ error: postsRes.error.message }, { status: 500 });
@@ -70,6 +80,19 @@ export async function GET(): Promise<NextResponse> {
   const totalViews = posts.reduce((sum: number, p: { views?: number }) => sum + (p.views ?? 0), 0);
   const totalSaves = posts.reduce((sum: number, p: { saves?: number }) => sum + (p.saves ?? 0), 0);
 
+  // Best-time recommendation. Prefer the real publish timestamp; fall back to
+  // the date-only posted_date. Engagement = views (our primary reach metric).
+  // jobs errors are non-fatal here — timing simply falls back to posted_date.
+  const jobTimeById = new Map<string, string>();
+  for (const j of (jobsRes.data ?? []) as { post_id: string; updated_at: string }[]) {
+    jobTimeById.set(j.post_id, j.updated_at);
+  }
+  const timingPosts: TimingPost[] = posts.map((p: { id: string; posted_date: string | null; views?: number }) => ({
+    postedAt: jobTimeById.get(p.id) ?? p.posted_date,
+    engagement: p.views ?? 0,
+  }));
+  const bestTimes = computeBestTimes(timingPosts);
+
   return NextResponse.json({
     userId: user.id,
     totalViews,
@@ -81,6 +104,7 @@ export async function GET(): Promise<NextResponse> {
     hashtagSets: setsRes.data ?? [],
     reviews: reviewsRes.data ?? [],
     leadCounts,
+    bestTimes,
   });
 }
 

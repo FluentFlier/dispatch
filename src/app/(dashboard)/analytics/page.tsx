@@ -15,12 +15,14 @@ import {
   Target,
   Users,
   TrendingUp,
+  Clock,
 } from "lucide-react";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { useToast } from "@/components/ui/Toast";
 import { bucketEngagers, type Engager } from "@/lib/hooks-intelligence/categorize";
 import { getInsforge } from "@/lib/insforge/client";
 import type { Post, HashtagSet, WeeklyReview } from "@/lib/types";
+import { MIN_POSTS_FOR_TIMING, type TimingResult } from "@/lib/analytics/timing";
 import { usePillars } from "@/hooks/usePillars";
 import PillarDot from "@/components/PillarDot";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -63,6 +65,7 @@ export default function AnalyticsPage() {
   const [posts, setPosts] = useState<Post[]>([]);
   const [hashtagSets, setHashtagSets] = useState<HashtagSet[]>([]);
   const [reviews, setReviews] = useState<WeeklyReview[]>([]);
+  const [bestTimes, setBestTimes] = useState<TimingResult | null>(null);
   const [loading, setLoading] = useState(true);
 
   // === NEW: Consumer Intelligence Surfaces (Hook Lab + Lead Insights) ===
@@ -88,6 +91,7 @@ export default function AnalyticsPage() {
       setHashtagSets(data.hashtagSets ?? []);
       setReviews(data.reviews ?? []);
       setRealLeadCounts(data.leadCounts ?? null);
+      setBestTimes(data.bestTimes ?? null);
     } finally {
       setLoading(false);
     }
@@ -147,6 +151,9 @@ export default function AnalyticsPage() {
 
       {/* Section 1 */}
       <LogPerformanceSection posts={posts} userId={userId} onSaved={fetchData} />
+
+      {/* Best time to post — derived from real synced metrics */}
+      <BestTimesSection data={bestTimes} />
 
       {/* Section 2 - loaded dynamically to avoid recharts SSR issues */}
       <ChartsSection posts={posts} getLabel={getLabel} getColor={getColor} />
@@ -296,6 +303,70 @@ export default function AnalyticsPage() {
         pillarList={pillarList}
       />
     </div>
+  );
+}
+
+/* ================================================================== */
+/*  Best Times To Post                                                */
+/* ================================================================== */
+
+/**
+ * Surfaces the strongest weekday/hour posting windows computed from real,
+ * auto-synced metrics. Shows an explicit "not enough data" state below the
+ * sample threshold, and notes that X + Instagram sync automatically while
+ * LinkedIn does not expose post metrics to third-party apps.
+ */
+function BestTimesSection({ data }: { data: TimingResult | null }) {
+  return (
+    <section className="bg-bg-secondary border border-border rounded-lg p-6">
+      <div className="flex items-center gap-2">
+        <Clock className="h-4 w-4 text-accent-primary" />
+        <h2 className="text-sm font-medium text-text-primary">Best times to post</h2>
+      </div>
+
+      {!data || data.insufficientData ? (
+        <p className="mt-3 text-sm text-text-secondary">
+          Not enough data yet. Once about {MIN_POSTS_FOR_TIMING} posts have synced metrics,
+          we&apos;ll show your strongest days and hours.
+        </p>
+      ) : (
+        <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Best days</p>
+            <ul className="mt-2 space-y-1.5">
+              {data.bestWeekdays.map((w) => (
+                <li key={`wd-${w.index}`} className="flex items-center justify-between text-sm">
+                  <span className="text-text-primary">{w.label}</span>
+                  <span className="text-text-tertiary">
+                    {Math.round(w.avgEngagement).toLocaleString()} avg views · {w.sampleSize} post
+                    {w.sampleSize === 1 ? "" : "s"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Best hours</p>
+            <ul className="mt-2 space-y-1.5">
+              {data.bestHours.map((h) => (
+                <li key={`hr-${h.index}`} className="flex items-center justify-between text-sm">
+                  <span className="text-text-primary">{h.label}</span>
+                  <span className="text-text-tertiary">
+                    {Math.round(h.avgEngagement).toLocaleString()} avg views · {h.sampleSize} post
+                    {h.sampleSize === 1 ? "" : "s"}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
+      <p className="mt-4 text-xs text-text-tertiary">
+        Metrics sync automatically from X and Instagram. LinkedIn does not expose post metrics to
+        third-party apps, so log those by hand above.
+      </p>
+    </section>
   );
 }
 
