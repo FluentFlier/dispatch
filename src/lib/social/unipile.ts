@@ -22,14 +22,17 @@ function getApiKey(): string {
 }
 
 async function unipoleFetch(path: string, options: RequestInit = {}): Promise<Response> {
-  return fetch(`${getUnipileBase()}${path}`, {
-    ...options,
-    headers: {
-      'X-API-KEY': getApiKey(),
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
-    },
-  });
+  // For multipart (FormData) bodies we must NOT set Content-Type ourselves —
+  // fetch has to set `multipart/form-data; boundary=...`. Forcing
+  // application/json here is exactly what made POST /posts fail with a schema
+  // "invalid_parameters" 400. JSON callers are unaffected.
+  const isForm = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  const headers: Record<string, string> = {
+    'X-API-KEY': getApiKey(),
+    ...(isForm ? {} : { 'Content-Type': 'application/json' }),
+    ...(options.headers as Record<string, string>),
+  };
+  return fetch(`${getUnipileBase()}${path}`, { ...options, headers });
 }
 
 function mapPlatform(p: string): SocialPlatform | null {
@@ -94,25 +97,38 @@ export const unipileProvider: SocialProvider = {
       };
     }
 
-    const body: Record<string, unknown> = {
-      account_id: row.unipile_account_id,
-      text: payload.text,
-    };
+    // POST /api/v1/posts is a file-carrying endpoint: it requires
+    // multipart/form-data, NOT JSON. Required fields are account_id + text;
+    // media is attached as binary file parts named `attachments` (there is no
+    // `media_urls` field). See Unipile "Create a post" reference.
+    const form = new FormData();
+    form.append('account_id', row.unipile_account_id);
+    form.append('text', payload.text);
 
     if (payload.imageUrl) {
-      body.media_urls = [payload.imageUrl];
+      try {
+        const imgRes = await fetch(payload.imageUrl);
+        if (imgRes.ok) {
+          const buf = Buffer.from(await imgRes.arrayBuffer());
+          const type = imgRes.headers.get('content-type') || 'image/png';
+          const ext = type.split('/')[1]?.split(';')[0] || 'png';
+          form.append('attachments', new Blob([new Uint8Array(buf)], { type }), `image.${ext}`);
+        }
+      } catch {
+        // Publish the text even if the image can't be fetched.
+      }
     }
 
     const res = await unipoleFetch('/posts', {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: form,
     });
 
     if (!res.ok) {
       const err = await res.text();
       return {
         success: false,
-        error: `Unipile publish failed (${res.status}): ${err.slice(0, 200)}`,
+        error: `Unipile publish failed (${res.status}): ${err.slice(0, 500)}`,
         provider: 'unipile',
       };
     }
