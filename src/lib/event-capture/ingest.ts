@@ -19,7 +19,14 @@ export async function ingestEvents(
   let created = 0;
 
   for (const ev of events) {
-    if (!shouldCaptureEvent({ title: ev.title, startTime: ev.startTime, endTime: ev.endTime }, now)) {
+    // Calendar events go through the full duration+recency+allow/block filter.
+    // LinkedIn events are already gated by the LLM future-event verdict, and the
+    // recency check would reject them (they have not happened yet), so trust the
+    // verdict and skip the filter for that source only.
+    if (
+      ev.source === 'google' &&
+      !shouldCaptureEvent({ title: ev.title, startTime: ev.startTime, endTime: ev.endTime }, now)
+    ) {
       continue;
     }
 
