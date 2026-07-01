@@ -4,6 +4,7 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
 import { generateContent } from '@/lib/ai';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { guardAiRequest } from '@/lib/ai-guard';
+import { buildPlatformOptimizationPrompt, PLATFORM_LIMITS } from '@/lib/platform-optimize';
 import { z } from 'zod';
 
 const PLATFORM_ENUM = z.enum(['twitter', 'linkedin', 'instagram', 'threads']);
@@ -26,93 +27,8 @@ interface Variant {
   threadParts: string[] | null;
 }
 
-const PLATFORM_LIMITS: Record<PlatformType, number> = {
-  twitter: 280,
-  linkedin: 3000,
-  instagram: 2200,
-  threads: 500,
-};
-
-function buildOptimizationPrompt(
-  platform: PlatformType,
-  content: string,
-  level: 'light' | 'full'
-): string {
-  const intensity = level === 'light'
-    ? 'Make minimal changes. Keep the original structure and tone as much as possible.'
-    : 'Fully rewrite and optimize for this platform. Adapt tone, structure, and format.';
-
-  switch (platform) {
-    case 'twitter':
-      return [
-        `Optimize the following content for Twitter. ${intensity}`,
-        '',
-        'RULES:',
-        '- Each tweet MUST be 280 characters or fewer.',
-        '- If the content is short enough, write a single tweet.',
-        '- If the content needs multiple tweets to cover properly, split into a thread.',
-        '- Separate each tweet in a thread with the delimiter ---TWEET--- on its own line.',
-        '- Each tweet in the thread must stand alone but connect to the narrative.',
-        '- Use punchy, direct language. No filler.',
-        '- No em dashes. Use hyphens or rewrite.',
-        '- Do NOT include tweet numbering (1/, 2/, etc.) - just the content.',
-        '',
-        `ORIGINAL CONTENT:\n${content}`,
-        '',
-        'Write the optimized tweet(s). If multiple tweets, separate with ---TWEET--- on its own line.',
-      ].join('\n');
-
-    case 'linkedin':
-      return [
-        `Optimize the following content for LinkedIn. ${intensity}`,
-        '',
-        'RULES:',
-        '- Maximum 3000 characters.',
-        '- Professional but human tone.',
-        '- Use line breaks for readability.',
-        '- Start with a strong hook line.',
-        '- End with a question or call to action to drive engagement.',
-        '- No em dashes. Use hyphens or rewrite.',
-        '',
-        `ORIGINAL CONTENT:\n${content}`,
-        '',
-        'Write the optimized LinkedIn post.',
-      ].join('\n');
-
-    case 'instagram':
-      return [
-        `Optimize the following content as an Instagram caption. ${intensity}`,
-        '',
-        'RULES:',
-        '- Maximum 2200 characters.',
-        '- Caption format: hook line, body, then hashtags at the end.',
-        '- Include 5-10 relevant hashtags at the bottom, separated from caption by two line breaks.',
-        '- Conversational, authentic tone.',
-        '- Use emojis sparingly if they fit.',
-        '- No em dashes. Use hyphens or rewrite.',
-        '',
-        `ORIGINAL CONTENT:\n${content}`,
-        '',
-        'Write the optimized Instagram caption with hashtags.',
-      ].join('\n');
-
-    case 'threads':
-      return [
-        `Optimize the following content for Threads. ${intensity}`,
-        '',
-        'RULES:',
-        '- Maximum 500 characters.',
-        '- Conversational, casual tone.',
-        '- Short and punchy.',
-        '- Think of it like a text to a friend who is interested in this topic.',
-        '- No em dashes. Use hyphens or rewrite.',
-        '',
-        `ORIGINAL CONTENT:\n${content}`,
-        '',
-        'Write the optimized Threads post.',
-      ].join('\n');
-  }
-}
+// PLATFORM_LIMITS + buildPlatformOptimizationPrompt now live in
+// @/lib/platform-optimize (shared with the main generate polish pass).
 
 function processTwitterContent(content: string): Variant {
   const trimmed = content.trim();
@@ -278,7 +194,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   for (const platform of targetPlatforms) {
     try {
-      const prompt = buildOptimizationPrompt(platform, content, optimizationLevel);
+      const prompt = buildPlatformOptimizationPrompt(platform, content, optimizationLevel);
       const systemOverride = undefined; // Use profile-based prompt
       const generated = await generateContent(
         prompt,
