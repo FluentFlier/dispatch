@@ -224,7 +224,7 @@ BODY: 3-4 beats, each one sentence.
 CTA: One direct question.`;
       }
       if (topic.trim()) {
-        prompt += `\n\nTopic: ${topic.trim()}`;
+        prompt += `\n\nWRITE ABOUT THIS SUBJECT (this is the post, do not drift to unrelated personal background): ${topic.trim()}`;
       }
       prompt += `\n\n${POST_LENGTH_CONFIG[postLength].hint}`;
       const result = await callGenerate(prompt, platform, useVoice);

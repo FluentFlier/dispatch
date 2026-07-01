@@ -219,15 +219,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const resolvedPostId = postId ?? randomUUID();
 
     if (!postId) {
+      // Scope the auto-created post to the active workspace, otherwise it is
+      // invisible in the (workspace-scoped) Library and Posts views.
+      const { getActiveWorkspaceId } = await import('@/lib/workspace');
+      const workspaceId = await getActiveWorkspaceId(user.id);
       await client.database.from('posts').insert([
         {
           id: resolvedPostId,
           user_id: user.id,
+          workspace_id: workspaceId ?? null,
           title: publishContent.slice(0, 80),
           pillar: 'general',
           platform,
           status: 'edited',
           caption: publishContent,
+          script: publishContent,
           image_url: imageUrl ?? null,
           scheduled_publish_at: scheduledAt ?? null,
         },

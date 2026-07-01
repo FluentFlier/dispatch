@@ -1,5 +1,6 @@
 import { getServerClient } from '@/lib/insforge/server';
 import { getAppUrl } from '@/lib/env';
+import { detectImageType } from '@/lib/image-type';
 import type {
   ConnectedSocialAccount,
   PublishPayload,
@@ -110,9 +111,11 @@ export const unipileProvider: SocialProvider = {
         const imgRes = await fetch(payload.imageUrl);
         if (imgRes.ok) {
           const buf = Buffer.from(await imgRes.arrayBuffer());
-          const type = imgRes.headers.get('content-type') || 'image/png';
-          const ext = type.split('/')[1]?.split(';')[0] || 'png';
-          form.append('attachments', new Blob([new Uint8Array(buf)], { type }), `image.${ext}`);
+          // Storage/CDN often serves images as application/octet-stream, which
+          // LinkedIn rejects with 415 "unsupported_media_type". Detect the real
+          // image type from magic bytes so we send a correct mime + extension.
+          const { mime, ext } = detectImageType(buf, imgRes.headers.get('content-type'));
+          form.append('attachments', new Blob([new Uint8Array(buf)], { type: mime }), `image.${ext}`);
         }
       } catch {
         // Publish the text even if the image can't be fetched.

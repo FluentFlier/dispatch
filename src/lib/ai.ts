@@ -55,12 +55,17 @@ export function buildSystemPrompt(
 - Short punchy sentences
 - Talk TO the viewer, not AT them`);
 
+  parts.push(`\nSUBJECT (CRITICAL):
+- Write about the SUBJECT the user asks for in their request. That subject IS the post.
+- The bio, background facts, and pillars below are for VOICE, PERSPECTIVE, and CREDIBILITY - they are NOT the subject.
+- Do NOT redirect the post to the creator's hobbies, job, or background unless the request is actually about them. Only bring in a personal detail if it directly serves the requested subject.`);
+
   if (profile.bio) {
-    parts.push(`\nCREATOR BIO:\n${profile.bio}`);
+    parts.push(`\nCREATOR BIO (voice + perspective, not the subject):\n${profile.bio}`);
   }
 
   if (profile.bio_facts?.trim()) {
-    parts.push(`\nBACKGROUND FACTS:\n${profile.bio_facts.trim()}`);
+    parts.push(`\nBACKGROUND FACTS (for credibility + voice only, not the subject):\n${profile.bio_facts.trim()}`);
   }
 
   if (profile.voice_description) {
@@ -84,7 +89,7 @@ export function buildSystemPrompt(
       return line;
     });
     parts.push(
-      `\nCONTENT PILLARS (higher importance = lead with it and post about it more):\n${pillarLines.join('\n')}`,
+      `\nCONTENT PILLARS (the creator's usual themes; lead with the highest-importance one ONLY when the request doesn't specify a different subject):\n${pillarLines.join('\n')}`,
     );
   }
 
