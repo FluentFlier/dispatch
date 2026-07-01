@@ -14,7 +14,7 @@ export async function GET(): Promise<NextResponse> {
   const [{ data: profile }, { data: prefRow }] = await Promise.all([
     client.database
       .from('creator_profile')
-      .select('display_name, content_pillars, onboarding_complete')
+      .select('display_name, content_pillars, onboarding_complete, bio_facts')
       .eq('user_id', user.id)
       .maybeSingle(),
     client.database
@@ -33,6 +33,8 @@ export async function GET(): Promise<NextResponse> {
           displayName: profile.display_name,
           contentPillars: profile.content_pillars,
           onboardingComplete: Boolean(profile.onboarding_complete),
+          // First line of bio as a LinkedIn-style headline for post previews.
+          headline: (profile.bio_facts as string | null)?.split('\n')[0]?.slice(0, 120) ?? null,
         }
       : null,
     entitlements,
