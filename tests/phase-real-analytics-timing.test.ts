@@ -44,10 +44,11 @@ describe('Phase: Real Analytics + Timing', () => {
   });
 
   describe('mapInstagramInsights', () => {
-    it('prefers impressions for views and maps saved/likes/comments', () => {
+    it('maps views (total_value shape) + saved + node like/comment counts', () => {
+      // `views` is a newer total_value-typed metric; `saved` uses legacy values[].
       const out = mapInstagramInsights(
         [
-          { name: 'impressions', values: [{ value: 800 }] },
+          { name: 'views', total_value: { value: 800 } },
           { name: 'reach', values: [{ value: 500 }] },
           { name: 'saved', values: [{ value: 20 }] },
         ],
@@ -56,12 +57,20 @@ describe('Phase: Real Analytics + Timing', () => {
       expect(out).toEqual({ views: 800, saves: 20, likes: 40, comments: 6 });
     });
 
-    it('falls back to reach when impressions are absent', () => {
+    it('falls back to reach when views is absent', () => {
       const out = mapInstagramInsights(
         [{ name: 'reach', values: [{ value: 300 }] }],
         undefined,
       );
       expect(out.views).toBe(300);
+    });
+
+    it('never reads the deprecated impressions metric', () => {
+      const out = mapInstagramInsights(
+        [{ name: 'impressions', values: [{ value: 999 }] }],
+        undefined,
+      );
+      expect(out.views).toBeUndefined();
     });
 
     it('returns empty object when nothing is available', () => {
