@@ -64,11 +64,12 @@ No em dashes.`,
 async function callGenerate(
   prompt: string,
   platform: Platform,
+  useVoice: boolean,
 ): Promise<{ text: string; voiceMetrics: GenerateVoiceMetrics }> {
   const res = await fetchWithAuth('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, platform, topic: prompt.slice(0, 200) }),
+    body: JSON.stringify({ prompt, platform, topic: prompt.slice(0, 200), useVoice }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -101,17 +102,21 @@ export function ScriptGenerator({
   initialPlatform,
 }: ScriptGeneratorProps) {
   const { pillars: pillarList, loading: pillarsLoading, getLabel, getColor } = usePillars();
-  const { preferredPostLength, loading: prefLoading } = useCreatorPreferences();
+  const { preferredPostLength, voiceEnabled, loading: prefLoading } = useCreatorPreferences();
 
   const [pillar, setPillar] = useState<string>(initialPillar);
   const [topic, setTopic] = useState(initialTopic);
   const [platform, setPlatform] = useState<Platform>(initialPlatform ?? 'instagram');
   const [postLength, setPostLength] = useState<PostLength>('standard');
+  const [useVoice, setUseVoice] = useState(true);
 
-  // Sync to profile default once loaded, if user hasn't manually changed it
+  // Sync to profile defaults once loaded, if user hasn't manually changed them
   useEffect(() => {
-    if (!prefLoading) setPostLength(preferredPostLength);
-  }, [prefLoading, preferredPostLength]);
+    if (!prefLoading) {
+      setPostLength(preferredPostLength);
+      setUseVoice(voiceEnabled);
+    }
+  }, [prefLoading, preferredPostLength, voiceEnabled]);
 
   // Sync pillar state when custom pillars finish loading asynchronously
   useEffect(() => {
@@ -171,7 +176,7 @@ CTA: One direct question.`;
         prompt += `\n\nTopic: ${topic.trim()}`;
       }
       prompt += `\n\n${POST_LENGTH_CONFIG[postLength].hint}`;
-      const result = await callGenerate(prompt, platform);
+      const result = await callGenerate(prompt, platform, useVoice);
       setOutput(result.text);
       setVoiceMetrics(result.voiceMetrics);
     } catch (e: unknown) {
@@ -268,6 +273,29 @@ CTA: One direct question.`;
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="flex items-center justify-between rounded-md border border-border bg-bg-tertiary px-4 py-3">
+        <div>
+          <p className="text-[13px] font-medium text-text-primary">Use my voice</p>
+          <p className="text-[11px] text-text-secondary">
+            {useVoice
+              ? 'Drafts sound like you, learned from your profile + posts.'
+              : 'Off: generate a clean, neutral draft with no personal voice applied.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={useVoice}
+          aria-label="Use my voice"
+          onClick={() => setUseVoice((v) => !v)}
+          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${useVoice ? 'bg-accent-primary' : 'bg-border'}`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${useVoice ? 'translate-x-5' : 'translate-x-0.5'}`}
+          />
+        </button>
       </div>
 
       <Button onClick={generate} loading={loading}>
