@@ -30,6 +30,14 @@ const TIER_COLOR: Record<PredictResult['tier'], string> = {
   weak: 'text-flame',
 };
 
+/** Friendly platform names for the direct publish action. */
+const PLATFORM_LABELS: Record<string, string> = {
+  twitter: 'X',
+  linkedin: 'LinkedIn',
+  instagram: 'Instagram',
+  threads: 'Threads',
+};
+
 const TIER_BG: Record<PredictResult['tier'], string> = {
   strong: 'bg-[rgba(var(--color-teal-rgb,110,231,183),0.12)]',
   average: 'bg-[rgba(var(--color-ink2-rgb,252,211,77),0.12)]',
@@ -185,6 +193,7 @@ export function GenerateOutput({
   const [scoring, setScoring] = useState(false);
   const [prediction, setPrediction] = useState<PredictResult | null>(null);
   const [predicting, setPredicting] = useState(false);
+  const [publishing, setPublishing] = useState(false);
 
   // Local copy of the draft so in-place edits (Humanize) are reflected on every
   // tab, even those that don't pass onTextUpdate. Re-syncs whenever a new
@@ -268,6 +277,36 @@ export function GenerateOutput({
     }
   }
 
+  /**
+   * Publish the current draft directly to the source platform. WHY this lives
+   * here now: the repurpose panel below only handles OTHER platforms, so the
+   * source platform (e.g. LinkedIn) needs its own publish action on the main
+   * draft — otherwise there is no way to post it.
+   */
+  async function handlePublish() {
+    const platform = sourcePlatform ?? 'linkedin';
+    setPublishing(true);
+    try {
+      const res = await fetchWithAuth('/api/publish', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform, content: displayText, caption: displayText }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        const msg = (body as { error?: string }).error ?? 'Publish failed';
+        toast(res.status === 402 || res.status === 403 ? 'Publishing requires a paid plan.' : msg, 'error');
+        return;
+      }
+      toast(`Published to ${PLATFORM_LABELS[platform] ?? platform}`);
+    } catch (err) {
+      console.error('Publish error:', err);
+      toast('Publish failed', 'error');
+    } finally {
+      setPublishing(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-3">
@@ -294,6 +333,14 @@ export function GenerateOutput({
         </pre>
         <div className="flex flex-wrap items-center gap-2">
           <CopyButton text={displayText} />
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={handlePublish}
+            loading={publishing}
+          >
+            Publish to {PLATFORM_LABELS[sourcePlatform ?? 'linkedin'] ?? 'platform'}
+          </Button>
           <Button
             variant="secondary"
             size="sm"
