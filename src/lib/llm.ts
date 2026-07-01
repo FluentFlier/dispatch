@@ -84,29 +84,65 @@ export function isLlmConfigured(): boolean {
   );
 }
 
+interface Provider {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  label: string;
+}
+
+/** Primary provider from LLM_* env (e.g. Groq). `modelOverride` wins over LLM_MODEL. */
+function getPrimaryProvider(modelOverride?: string): Provider | null {
+  if (!isLlmConfigured()) return null;
+  return {
+    baseUrl: (process.env.LLM_BASE_URL as string).replace(/\/+$/, ''),
+    apiKey: process.env.LLM_API_KEY as string,
+    model: modelOverride ?? (process.env.LLM_MODEL as string),
+    label: 'primary',
+  };
+}
+
 /**
- * Runs a single chat completion against the configured OpenAI-compatible provider.
- * Falls back to HuggingFace when no generic provider is configured.
- *
- * Signature mirrors the legacy `generateContentHF(systemPrompt, userPrompt)` so
- * call sites can swap to this with no shape changes.
+ * Fallback provider used when the primary is quota/rate-limited (402/429).
+ * Explicit LLM_FALLBACK_* env wins; otherwise defaults to the HuggingFace
+ * OpenAI-compatible router when HUGGINGFACE_API_KEY is present. Returns null
+ * when no fallback is available.
  */
-export async function chatCompletion(
+function getFallbackProvider(): Provider | null {
+  if (process.env.LLM_FALLBACK_BASE_URL && process.env.LLM_FALLBACK_API_KEY && process.env.LLM_FALLBACK_MODEL) {
+    return {
+      baseUrl: process.env.LLM_FALLBACK_BASE_URL.replace(/\/+$/, ''),
+      apiKey: process.env.LLM_FALLBACK_API_KEY,
+      model: process.env.LLM_FALLBACK_MODEL,
+      label: 'fallback',
+    };
+  }
+  if (process.env.HUGGINGFACE_API_KEY) {
+    return {
+      baseUrl: 'https://router.huggingface.co/v1',
+      apiKey: process.env.HUGGINGFACE_API_KEY,
+      model: process.env.LLM_FALLBACK_MODEL ?? 'meta-llama/Llama-3.1-8B-Instruct',
+      label: 'fallback-hf',
+    };
+  }
+  return null;
+}
+
+/**
+ * Run one chat completion against a specific provider. `retryRateLimit` controls
+ * whether a 429 is retried in place with backoff — we disable it when a fallback
+ * provider exists so we fail over immediately instead of waiting out a (possibly
+ * multi-minute) daily-limit backoff on the primary.
+ */
+async function callProvider(
+  provider: Provider,
   systemPrompt: string,
   userPrompt: string,
-  options: ChatCompletionOptions = {},
+  options: ChatCompletionOptions,
+  retryRateLimit = true,
 ): Promise<string> {
-  // Fallback path: no generic provider configured yet -> use HuggingFace.
-  if (!isLlmConfigured()) {
-    return generateContentHF(systemPrompt, userPrompt);
-  }
-
-  const baseUrl = (process.env.LLM_BASE_URL as string).replace(/\/+$/, '');
-  const apiKey = process.env.LLM_API_KEY as string;
-  const model = options.model ?? (process.env.LLM_MODEL as string);
-
   const requestBody = JSON.stringify({
-    model,
+    model: provider.model,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
@@ -115,20 +151,18 @@ export async function chatCompletion(
     temperature: options.temperature ?? DEFAULT_TEMPERATURE,
   });
 
-  // Retry loop: only 429 (rate limit) is retried, honoring the provider's hint.
   for (let attempt = 0; ; attempt++) {
     let response: Response;
     try {
-      response = await fetch(`${baseUrl}/chat/completions`, {
+      response = await fetch(`${provider.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${apiKey}`,
+          Authorization: `Bearer ${provider.apiKey}`,
           'Content-Type': 'application/json',
         },
         body: requestBody,
       });
     } catch (err) {
-      // Network-level failure (DNS, timeout, refused). Surface as a 503-style error.
       throw new LlmError(
         `LLM request failed: ${err instanceof Error ? err.message : String(err)}`,
         503,
@@ -147,7 +181,7 @@ export async function chatCompletion(
     const bodyText = await response.text().catch(() => '');
 
     // Retry rate limits while attempts remain; everything else fails fast.
-    if (response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
+    if (retryRateLimit && response.status === 429 && attempt < MAX_RATE_LIMIT_RETRIES) {
       await sleep(backoffMs(attempt, response.headers.get('retry-after'), bodyText));
       continue;
     }
@@ -160,5 +194,40 @@ export async function chatCompletion(
       detail = bodyText.slice(0, 200);
     }
     throw new LlmError(`LLM provider returned ${response.status}: ${detail}`, response.status);
+  }
+}
+
+/**
+ * Runs a chat completion against the configured provider, automatically failing
+ * over to the fallback provider (HuggingFace by default) when the primary is
+ * quota/rate-limited. Falls back to the legacy HuggingFace client when no
+ * generic provider is configured.
+ *
+ * Signature mirrors the legacy `generateContentHF(systemPrompt, userPrompt)` so
+ * call sites can swap to this with no shape changes.
+ */
+export async function chatCompletion(
+  systemPrompt: string,
+  userPrompt: string,
+  options: ChatCompletionOptions = {},
+): Promise<string> {
+  const primary = getPrimaryProvider(options.model);
+  if (!primary) {
+    // No generic provider configured -> legacy HuggingFace path.
+    return generateContentHF(systemPrompt, userPrompt);
+  }
+
+  const fallback = getFallbackProvider();
+  try {
+    // If a fallback exists, don't waste time retrying a rate-limited primary —
+    // fail fast and switch. Without a fallback, keep the in-place retry loop.
+    return await callProvider(primary, systemPrompt, userPrompt, options, !fallback);
+  } catch (err) {
+    // On quota/credit/rate-limit exhaustion, try the fallback provider.
+    if (err instanceof LlmError && err.isQuota && fallback) {
+      // Use the fallback's own model, not the primary's override.
+      return callProvider(fallback, systemPrompt, userPrompt, { ...options, model: undefined });
+    }
+    throw err;
   }
 }
