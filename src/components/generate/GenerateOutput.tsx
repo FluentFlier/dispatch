@@ -13,6 +13,7 @@ import { usePillars } from '@/hooks/usePillars';
 import PillarMultiSelect from '@/components/ui/PillarMultiSelect';
 import { DEFAULT_PILLAR_WEIGHT } from '@/lib/pillars';
 import { OptimizePanel } from './OptimizePanel';
+import { LinkedInComposer } from './LinkedInComposer';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 interface PredictResult {
@@ -193,10 +194,8 @@ export function GenerateOutput({
   const [scoring, setScoring] = useState(false);
   const [prediction, setPrediction] = useState<PredictResult | null>(null);
   const [predicting, setPredicting] = useState(false);
-  const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState<{ platform: string; url?: string } | null>(null);
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(false);
+  const [composerOpen, setComposerOpen] = useState(false);
 
   // Local copy of the draft so in-place edits (Humanize) are reflected on every
   // tab, even those that don't pass onTextUpdate. Re-syncs whenever a new
@@ -205,29 +204,7 @@ export function GenerateOutput({
   useEffect(() => {
     setDisplayText(text);
     setPublished(null); // clear the published banner when a new draft arrives
-    setImageUrl(null); // and drop any attached image
   }, [text]);
-
-  /** Upload an image and hold its URL to attach on publish. */
-  async function handleImageUpload(file: File) {
-    setUploading(true);
-    try {
-      const form = new FormData();
-      form.append('file', file);
-      const res = await fetchWithAuth('/api/upload', { method: 'POST', body: form });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        toast((data as { error?: string }).error ?? 'Image upload failed', 'error');
-        return;
-      }
-      setImageUrl((data as { url?: string }).url ?? null);
-      toast('Image attached');
-    } catch {
-      toast('Image upload failed', 'error');
-    } finally {
-      setUploading(false);
-    }
-  }
 
   async function handleHumanize() {
     setHumanizing(true);
@@ -303,39 +280,6 @@ export function GenerateOutput({
     }
   }
 
-  /**
-   * Publish the current draft directly to the source platform. WHY this lives
-   * here now: the repurpose panel below only handles OTHER platforms, so the
-   * source platform (e.g. LinkedIn) needs its own publish action on the main
-   * draft — otherwise there is no way to post it.
-   */
-  async function handlePublish() {
-    const platform = sourcePlatform ?? 'linkedin';
-    setPublishing(true);
-    try {
-      const res = await fetchWithAuth('/api/publish', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform, content: displayText, caption: displayText, imageUrl: imageUrl ?? undefined }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        const msg = (data as { error?: string }).error ?? 'Publish failed';
-        toast(res.status === 402 || res.status === 403 ? 'Publishing requires a paid plan.' : msg, 'error');
-        return;
-      }
-      const url = (data as { url?: string; provider_url?: string }).url
-        ?? (data as { provider_url?: string }).provider_url;
-      setPublished({ platform, url });
-      toast(`Published to ${PLATFORM_LABELS[platform] ?? platform}`);
-    } catch (err) {
-      console.error('Publish error:', err);
-      toast('Publish failed', 'error');
-    } finally {
-      setPublishing(false);
-    }
-  }
-
   if (loading) {
     return (
       <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-3">
@@ -377,43 +321,15 @@ export function GenerateOutput({
         <pre className="whitespace-pre-wrap font-body text-[13px] text-text-primary leading-[1.55]">
           {displayText}
         </pre>
-        {imageUrl && (
-          <div className="flex items-center gap-3 rounded-md border border-border bg-bg-secondary p-2">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={imageUrl} alt="Attachment" className="h-14 w-14 rounded object-cover" />
-            <span className="text-xs text-text-secondary">Image attached to this post</span>
-            <button
-              onClick={() => setImageUrl(null)}
-              className="ml-auto text-xs text-text-secondary hover:text-accent-primary"
-            >
-              Remove
-            </button>
-          </div>
-        )}
         <div className="flex flex-wrap items-center gap-2">
           <CopyButton text={displayText} />
           <Button
             variant="primary"
             size="sm"
-            onClick={handlePublish}
-            loading={publishing}
+            onClick={() => setComposerOpen(true)}
           >
-            Publish to {PLATFORM_LABELS[sourcePlatform ?? 'linkedin'] ?? 'platform'}
+            Preview &amp; post to {PLATFORM_LABELS[sourcePlatform ?? 'linkedin'] ?? 'platform'}
           </Button>
-          <label className="inline-flex cursor-pointer items-center rounded-md border border-border px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors">
-            {uploading ? 'Uploading...' : imageUrl ? 'Change image' : 'Attach image'}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              className="hidden"
-              disabled={uploading}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) void handleImageUpload(f);
-                e.target.value = '';
-              }}
-            />
-          </label>
           <Button
             variant="secondary"
             size="sm"
@@ -462,6 +378,14 @@ export function GenerateOutput({
         script={displayText}
         voiceMetrics={voiceMetrics}
         sourcePlatform={sourcePlatform}
+      />
+
+      <LinkedInComposer
+        open={composerOpen}
+        onClose={() => setComposerOpen(false)}
+        initialText={displayText}
+        platform={sourcePlatform ?? 'linkedin'}
+        onPublished={(url) => setPublished({ platform: sourcePlatform ?? 'linkedin', url })}
       />
     </div>
   );
