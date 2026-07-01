@@ -56,12 +56,17 @@ export async function ingestEvents(
 
     if (rows && rows.length > 0) {
       const captureId = (rows[0] as { id: string }).id;
-      await client.database.from('jobs').insert({
+      // Enqueue the enrich job. If this fails the capture is inserted but would
+      // never be enriched, so log loudly rather than silently orphaning it.
+      const { error: jobError } = await client.database.from('jobs').insert({
         type: 'enrich_event',
         workspace_id: owner.workspaceId,
         payload: { event_capture_id: captureId },
         status: 'pending',
       });
+      if (jobError) {
+        console.warn('[event-capture:ingest] enrich job enqueue failed', { captureId, error: jobError });
+      }
       created++;
     }
   }
