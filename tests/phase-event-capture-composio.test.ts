@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { ingestEvents } from '@/lib/event-capture/ingest';
 import type { NormalizedEvent } from '@/lib/event-capture/sources/types';
 import { normalizeGoogleEvents } from '@/lib/composio/actions/calendar-read';
+import { parseEventFromLlm } from '@/lib/event-capture/sources/linkedin-scan';
 
 function fakeClient(upsertReturnsId: string | null) {
   const inserted: any[] = [];
@@ -63,6 +64,37 @@ describe('Phase: Event Capture Composio', () => {
       expect(out).toHaveLength(1);
       expect(out[0]).toMatchObject({ providerEventId: 'a', source: 'google', title: 'AI Summit', location: 'SF' });
       expect(out[0].attendees).toEqual([{ name: 'Sarah Chen' }]);
+    });
+  });
+
+  describe('parseEventFromLlm', () => {
+    it('parses a positive JSON verdict into fields', () => {
+      const raw = '{"isFutureEvent":true,"title":"NVIDIA GTC","date":"2026-07-10","location":"San Jose"}';
+      expect(parseEventFromLlm(raw)).toEqual({ isFutureEvent: true, title: 'NVIDIA GTC', date: '2026-07-10', location: 'San Jose' });
+    });
+    it('returns isFutureEvent:false for a negative verdict', () => {
+      expect(parseEventFromLlm('{"isFutureEvent":false}').isFutureEvent).toBe(false);
+    });
+    it('is resilient to code fences and junk around the JSON', () => {
+      const raw = 'Sure:\n```json\n{"isFutureEvent":true,"title":"AI Meetup","date":"2026-07-01"}\n```';
+      expect(parseEventFromLlm(raw).title).toBe('AI Meetup');
+    });
+    it('returns isFutureEvent:false when no JSON present', () => {
+      expect(parseEventFromLlm('no idea').isFutureEvent).toBe(false);
+    });
+  });
+
+  describe('ingestEvents source-aware gating', () => {
+    it('ingests a future LinkedIn event that the calendar recency filter would drop', async () => {
+      const { client, inserted } = fakeClient('cap_li');
+      const now = new Date('2026-06-24T22:00:00Z');
+      const future: NormalizedEvent = {
+        providerEventId: 'li_1', source: 'linkedin', title: 'GTC',
+        startTime: new Date('2026-07-10T18:00:00Z'), endTime: new Date('2026-07-10T19:00:00Z'),
+      };
+      const count = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [future], now);
+      expect(count).toBe(1);
+      expect(inserted.some((i) => i.table === 'jobs')).toBe(true);
     });
   });
 });
