@@ -25,7 +25,13 @@ import TodaysPrompt from '@/components/dashboard/TodaysPrompt';
 import NeedsAttention, { type AttentionItem } from '@/components/dashboard/NeedsAttention';
 import { CreatorBrainCard } from '@/components/dashboard/CreatorBrainCard';
 import { QuickActions } from '@/components/dashboard/QuickActions';
+import { MorningBriefCard } from '@/components/dashboard/MorningBriefCard';
 import { getUserEntitlements } from '@/lib/entitlements';
+import {
+  composeMorningBrief,
+  type TrendRow,
+  type BriefPostRow,
+} from '@/lib/rituals/morning-brief';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -102,13 +108,15 @@ export default async function DashboardPage() {
   const client = getServerClient();
   const { start, end } = getWeekBounds();
   const today = new Date().toISOString().slice(0, 10);
+  // Two-day lookback so the morning brief can isolate "yesterday" regardless of tz.
+  const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
   const workspaceId = await getActiveWorkspaceId(uid);
   // Scope content queries to the active workspace (rows are backfilled).
   // creator_profile stays user-scoped until per-workspace voice ships.
   const scoped = <T,>(q: T): T => (workspaceId ? (q as { eq: (c: string, v: string) => T }).eq('workspace_id', workspaceId) : q);
 
   // Fire all queries in parallel
-  const [weekPostsRes, pipelineRes, postedRes, streakRes, upNextRes, recentRes, ideasRes, weekScheduleRes, profileRes, socialRes, failedJobsRes, entitlements] =
+  const [weekPostsRes, pipelineRes, postedRes, streakRes, upNextRes, recentRes, ideasRes, weekScheduleRes, profileRes, socialRes, failedJobsRes, entitlements, trendsRes, yesterdayPostsRes] =
     await Promise.all([
       scoped(client.database.from('posts').select('id').eq('user_id', uid).eq('status', 'posted').gte('posted_date', start).lte('posted_date', end)),
       scoped(client.database.from('posts').select('id').eq('user_id', uid).neq('status', 'posted').neq('status', 'idea')),
@@ -128,6 +136,20 @@ export default async function DashboardPage() {
         .order('updated_at', { ascending: false })
         .limit(5)),
       getUserEntitlements(uid),
+      // Morning brief: recent trends (detected_trends is user-scoped, no workspace col)
+      client.database.from('detected_trends')
+        .select('topic, angle, draft_hook, best_platform, urgency, confidence, detected_at')
+        .eq('user_id', uid)
+        .order('detected_at', { ascending: false })
+        .limit(8),
+      // Morning brief: posted content from the last two days for the "yesterday" summary
+      scoped(client.database.from('posts')
+        .select('title, posted_date, views, saves')
+        .eq('user_id', uid)
+        .eq('status', 'posted')
+        .gte('posted_date', twoDaysAgo)
+        .order('posted_date', { ascending: false })
+        .limit(20)),
     ]);
 
   const postsThisWeek = weekPostsRes.data?.length ?? 0;
@@ -142,6 +164,14 @@ export default async function DashboardPage() {
   const upNext = (upNextRes.data as Post[]) ?? [];
   const recentActivity = (recentRes.data as Post[]) ?? [];
   const backlog = (ideasRes.data as ContentIdea[]) ?? [];
+
+  // Compose the morning brief from already-fetched rows — zero extra AI/DB cost.
+  const morningBrief = composeMorningBrief({
+    now: new Date(),
+    trends: (trendsRes.data as TrendRow[]) ?? [],
+    recentPosts: (yesterdayPostsRes.data as BriefPostRow[]) ?? [],
+    ideas: backlog.map((i) => ({ id: i.id, idea: i.idea, pillar: i.pillar })),
+  });
 
   // Setup progress
   const creatorProfile = profileRes.data;
@@ -260,6 +290,8 @@ export default async function DashboardPage() {
       </section>
 
       <QuickActions />
+
+      <MorningBriefCard brief={morningBrief} />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">
