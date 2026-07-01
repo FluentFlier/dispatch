@@ -195,6 +195,8 @@ export function GenerateOutput({
   const [predicting, setPredicting] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [published, setPublished] = useState<{ platform: string; url?: string } | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
 
   // Local copy of the draft so in-place edits (Humanize) are reflected on every
   // tab, even those that don't pass onTextUpdate. Re-syncs whenever a new
@@ -203,7 +205,29 @@ export function GenerateOutput({
   useEffect(() => {
     setDisplayText(text);
     setPublished(null); // clear the published banner when a new draft arrives
+    setImageUrl(null); // and drop any attached image
   }, [text]);
+
+  /** Upload an image and hold its URL to attach on publish. */
+  async function handleImageUpload(file: File) {
+    setUploading(true);
+    try {
+      const form = new FormData();
+      form.append('file', file);
+      const res = await fetchWithAuth('/api/upload', { method: 'POST', body: form });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast((data as { error?: string }).error ?? 'Image upload failed', 'error');
+        return;
+      }
+      setImageUrl((data as { url?: string }).url ?? null);
+      toast('Image attached');
+    } catch {
+      toast('Image upload failed', 'error');
+    } finally {
+      setUploading(false);
+    }
+  }
 
   async function handleHumanize() {
     setHumanizing(true);
@@ -292,7 +316,7 @@ export function GenerateOutput({
       const res = await fetchWithAuth('/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform, content: displayText, caption: displayText }),
+        body: JSON.stringify({ platform, content: displayText, caption: displayText, imageUrl: imageUrl ?? undefined }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -353,6 +377,19 @@ export function GenerateOutput({
         <pre className="whitespace-pre-wrap font-body text-[13px] text-text-primary leading-[1.55]">
           {displayText}
         </pre>
+        {imageUrl && (
+          <div className="flex items-center gap-3 rounded-md border border-border bg-bg-secondary p-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imageUrl} alt="Attachment" className="h-14 w-14 rounded object-cover" />
+            <span className="text-xs text-text-secondary">Image attached to this post</span>
+            <button
+              onClick={() => setImageUrl(null)}
+              className="ml-auto text-xs text-text-secondary hover:text-accent-primary"
+            >
+              Remove
+            </button>
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-2">
           <CopyButton text={displayText} />
           <Button
@@ -363,6 +400,20 @@ export function GenerateOutput({
           >
             Publish to {PLATFORM_LABELS[sourcePlatform ?? 'linkedin'] ?? 'platform'}
           </Button>
+          <label className="inline-flex cursor-pointer items-center rounded-md border border-border px-3 py-1.5 text-[13px] font-medium text-text-secondary hover:text-text-primary transition-colors">
+            {uploading ? 'Uploading...' : imageUrl ? 'Change image' : 'Attach image'}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              className="hidden"
+              disabled={uploading}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) void handleImageUpload(f);
+                e.target.value = '';
+              }}
+            />
+          </label>
           <Button
             variant="secondary"
             size="sm"
