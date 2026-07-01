@@ -70,14 +70,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       useVoice,
     });
 
-    // Integrated human-polish pass: lightly reformats the voice draft to be
-    // platform-native + humaner. Runs only for full prose posts (skips fast mode
-    // + hooks/caption/reply).
+    // Integrated optimization pass: this is the "Optimize for {platform}" second
+    // round that produced the noticeably better output — now run automatically so
+    // the user gets it without a manual click. Runs a FULL platform rewrite on
+    // the SAME primary model as the draft (one model, best quality). Runs only for
+    // full prose posts (skips fast mode + hooks/caption/reply).
     //
-    // IMPORTANT: this is a LIGHT pass with a strict faithfulness guard. A prior
-    // version ran a FULL rewrite on a small model, which hallucinated (invented
-    // titles, wrong facts, misread the topic). Polish must NOT change meaning —
-    // only tighten wording + formatting.
+    // A light topic guard prevents the one failure mode we saw (inventing a
+    // title / swapping the subject) without constraining the humanizing rewrite.
     let finalText = result.text;
     if (
       parsed.data.platform &&
@@ -87,20 +87,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     ) {
       try {
         const polishPrompt =
-          buildPlatformOptimizationPrompt(parsed.data.platform as OptimizePlatform, result.text, 'light') +
-          '\n\nSTRICT FAITHFULNESS RULES:\n' +
-          '- Do NOT add a title, headline, or any new facts, names, numbers, tools, or claims.\n' +
-          '- Keep every specific from the draft exactly as written (names, versions, topics).\n' +
-          '- Only improve wording, flow, line breaks, and platform formatting.\n' +
-          '- If unsure, keep the original wording.';
-        // Run the polish on a smaller/cheaper model (default llama-3.1-8b-instant)
-        // while the main draft stays on the primary model — cuts token cost of
-        // the extra pass. Configurable via LLM_POLISH_MODEL.
-        const polishModel = process.env.LLM_POLISH_MODEL || 'llama-3.1-8b-instant';
-        const polished = await generateContent(polishPrompt, contextAdditions || undefined, undefined, profile, polishModel);
+          buildPlatformOptimizationPrompt(parsed.data.platform as OptimizePlatform, result.text, 'full') +
+          '\n\nKeep the same topic and facts as the draft — do not add a title/headline or change the subject.';
+        // Same primary model as the draft (no model override) — one model end to end.
+        const polished = await generateContent(polishPrompt, contextAdditions || undefined, undefined, profile);
         if (polished.trim().length > 0) finalText = stripEmDashes(polished);
       } catch {
-        // Polish is a best-effort enhancement; fall back to the voice draft.
+        // Best-effort enhancement; fall back to the voice draft on error.
       }
     }
 
