@@ -3,10 +3,20 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { generateContent } from '@/lib/ai';
+import { buildPlatformOptimizationPrompt, type OptimizePlatform } from '@/lib/platform-optimize';
 import { z } from 'zod';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { errorResponse } from '@/lib/api-errors';
 import { LlmError } from '@/lib/llm';
+
+/** Content types that are full prose posts (eligible for the human polish pass). */
+const POLISHABLE_TYPES = new Set(['post', undefined]);
+
+/** Strip em dashes to match the plain-text house style. */
+function stripEmDashes(text: string): string {
+  return text.replace(/—/g, ' - ').replace(/–/g, '-');
+}
 
 const RequestSchema = z.object({
   prompt: z.string().min(1).max(10000),
@@ -60,8 +70,32 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       useVoice,
     });
 
+    // Integrated human-polish pass: the platform-optimization step users liked
+    // from the repurpose panel is now folded into the main generate, so a single
+    // output has both the voice pipeline's features AND the humaner platform
+    // tone. Runs only for full prose posts (skips fast mode + hooks/caption/reply).
+    let finalText = result.text;
+    if (
+      parsed.data.platform &&
+      !parsed.data.fast &&
+      POLISHABLE_TYPES.has(parsed.data.contentType) &&
+      result.text.trim().length > 0
+    ) {
+      try {
+        const polishPrompt = buildPlatformOptimizationPrompt(
+          parsed.data.platform as OptimizePlatform,
+          result.text,
+          'full',
+        );
+        const polished = await generateContent(polishPrompt, contextAdditions || undefined, undefined, profile);
+        if (polished.trim().length > 0) finalText = stripEmDashes(polished);
+      } catch {
+        // Polish is a best-effort enhancement; fall back to the voice draft.
+      }
+    }
+
     return NextResponse.json({
-      text: result.text,
+      text: finalText,
       voice_match_score: result.voice_match_score,
       ai_score: result.ai_score,
       revised: result.revised,

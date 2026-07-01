@@ -65,7 +65,16 @@ export function OptimizePanel({ content, sourcePlatform = 'instagram' }: Optimiz
     fetchAccounts();
   }, [fetchAccounts]);
 
-  const connectedPlatforms = accounts.map((a) => a.platform as Platform);
+  // Repurpose targets are OTHER platforms only — never the source. Re-optimizing
+  // the same platform is what the main generator already does, so offering it
+  // here produced a confusing second "same platform" draft.
+  const ALL_PLATFORMS: Platform[] = ['twitter', 'linkedin', 'instagram', 'threads'];
+  const otherConnected = accounts
+    .map((a) => a.platform as Platform)
+    .filter((p) => p !== sourcePlatform);
+  const otherPlatforms = otherConnected.length > 0
+    ? otherConnected
+    : ALL_PLATFORMS.filter((p) => p !== sourcePlatform);
 
   async function handleOptimize(targetPlatforms: Platform[]) {
     if (targetPlatforms.length === 0) return;
@@ -105,10 +114,7 @@ export function OptimizePanel({ content, sourcePlatform = 'instagram' }: Optimiz
   }
 
   function handleOptimizeAll() {
-    const allPlatforms: Platform[] = connectedPlatforms.length > 0
-      ? connectedPlatforms
-      : ['twitter', 'linkedin', 'instagram', 'threads'];
-    handleOptimize(allPlatforms);
+    handleOptimize(otherPlatforms);
   }
 
   function handleOptimizeSingle(platform: Platform) {
@@ -186,7 +192,15 @@ export function OptimizePanel({ content, sourcePlatform = 'instagram' }: Optimiz
 
   return (
     <div className="space-y-3">
-      {/* Optimize buttons */}
+      <div>
+        <p className="text-[13px] font-medium text-text-primary">Repurpose for other platforms</p>
+        <p className="text-[11px] text-text-secondary">
+          Turn this post into versions for your other channels. (Your current platform is already
+          handled by the draft above.)
+        </p>
+      </div>
+
+      {/* Repurpose buttons — other platforms only */}
       <div className="flex flex-wrap gap-2">
         <Button
           variant="primary"
@@ -200,10 +214,10 @@ export function OptimizePanel({ content, sourcePlatform = 'instagram' }: Optimiz
           ) : (
             <Sparkles size={14} />
           )}
-          Optimize for All Platforms
+          Repurpose for all platforms
         </Button>
 
-        {!accountsLoading && connectedPlatforms.map((platform) => {
+        {!accountsLoading && otherPlatforms.map((platform) => {
           const config = PLATFORM_CONFIG[platform];
           if (!config) return null;
           return (
@@ -232,7 +246,7 @@ export function OptimizePanel({ content, sourcePlatform = 'instagram' }: Optimiz
         <div className="bg-bg-tertiary border border-border rounded-lg p-6 flex flex-col items-center gap-3">
           <Loader2 size={24} className="animate-spin text-accent-primary" />
           <p className="font-body text-[13px] text-text-tertiary">
-            Optimizing content for your platforms...
+            Repurposing content for your other platforms...
           </p>
         </div>
       )}
