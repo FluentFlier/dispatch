@@ -412,7 +412,7 @@ CTA: One direct question.`;
       </div>
 
       <Button onClick={generate} loading={loading}>
-        Generate Script
+        Generate
       </Button>
 
       {error && <p className="font-body text-[13px] text-accent-primary">{error}</p>}
