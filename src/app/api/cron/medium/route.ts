@@ -5,10 +5,11 @@ import { NextRequest, NextResponse } from 'next/server';
  *
  * Always:        engagement-sync + event-enrich (parallel)
  * Hourly (:00):  calendar-sync
+ * Every 6h (:00): metrics-sync (post analytics refresh)
  * Daily 8 AM UTC (:00): auto-generate
  * Daily 2 AM UTC (:00): intelligence-sync
  *
- * Time-gating absorbs 5 former Vercel crons into one slot,
+ * Time-gating absorbs former Vercel crons into one slot,
  * staying within the Hobby plan 2-cron limit without pg_cron.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -46,6 +47,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Hourly: fires when cron hits the :00 minute mark
   if (minute === 0) {
     jobs.push(call('calendarSync', '/api/cron/calendar-sync'));
+  }
+
+  // Every 6 hours (00/06/12/18 UTC): refresh post metrics from X + Instagram.
+  // Spaced out to respect platform API rate limits — engagement grows slowly.
+  if (minute === 0 && hour % 6 === 0) {
+    jobs.push(call('metricsSync', '/api/cron/metrics-sync'));
   }
 
   // Daily 8 AM UTC
