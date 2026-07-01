@@ -12,19 +12,25 @@ export const POST_LENGTH_CONFIG: Record<PostLength, { label: string; words: numb
 
 interface UseCreatorPreferencesReturn {
   preferredPostLength: PostLength;
+  /** Global default for whether generation imports the creator's voice. */
+  voiceEnabled: boolean;
   loading: boolean;
   savePreferredPostLength: (length: PostLength) => Promise<void>;
+  saveVoiceEnabled: (enabled: boolean) => Promise<void>;
 }
 
 /**
- * Reads the user's saved content preferences (post length default) from the
- * session endpoint and provides a save function that PUTs to /api/preferences.
+ * Reads the user's saved content preferences (post length default from the
+ * session endpoint; voice on/off from /api/preferences) and provides save
+ * functions that PUT to /api/preferences.
  */
 export function useCreatorPreferences(): UseCreatorPreferencesReturn {
   const [preferredPostLength, setPreferredPostLength] = useState<PostLength>('standard');
+  const [voiceEnabled, setVoiceEnabled] = useState<boolean>(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Post length comes from the session payload (existing behaviour).
     fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' })
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
@@ -34,6 +40,14 @@ export function useCreatorPreferences(): UseCreatorPreferencesReturn {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    // Voice on/off comes from the preferences endpoint.
+    fetch('/api/preferences', { credentials: 'same-origin', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && typeof data.voice_enabled === 'boolean') setVoiceEnabled(data.voice_enabled);
+      })
+      .catch(() => {});
   }, []);
 
   async function savePreferredPostLength(length: PostLength): Promise<void> {
@@ -45,5 +59,14 @@ export function useCreatorPreferences(): UseCreatorPreferencesReturn {
     }).catch(() => {});
   }
 
-  return { preferredPostLength, loading, savePreferredPostLength };
+  async function saveVoiceEnabled(enabled: boolean): Promise<void> {
+    setVoiceEnabled(enabled);
+    await fetch('/api/preferences', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ voice_enabled: enabled }),
+    }).catch(() => {});
+  }
+
+  return { preferredPostLength, voiceEnabled, loading, savePreferredPostLength, saveVoiceEnabled };
 }

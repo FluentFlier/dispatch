@@ -17,6 +17,8 @@ const RequestSchema = z.object({
   contentType: z.enum(['post', 'reply', 'comment', 'hooks', 'caption']).optional(),
   /** Skip voice critique/revise (faster) */
   fast: z.boolean().optional(),
+  /** When false, generate without importing the creator's voice (default true). */
+  useVoice: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -35,10 +37,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const client = getServerClient();
   const workspaceId = await getActiveWorkspaceId(user.id);
-  const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {
-    memoryQuery: parsed.data.topic ?? parsed.data.prompt.slice(0, 200),
-    workspaceId: workspaceId ?? undefined,
-  });
+
+  // When the user opts out of voice, skip loading their profile + semantic
+  // memory entirely so nothing personal reaches the prompt.
+  const useVoice = parsed.data.useVoice !== false;
+  const { profile, contextAdditions } = useVoice
+    ? await loadCreatorVoiceContext(client, user.id, {
+        memoryQuery: parsed.data.topic ?? parsed.data.prompt.slice(0, 200),
+        workspaceId: workspaceId ?? undefined,
+      })
+    : { profile: null, contextAdditions: '' };
 
   try {
     const result = await generateWithVoicePipeline({
@@ -49,6 +57,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       platform: parsed.data.platform,
       contentType: parsed.data.contentType,
       fast: parsed.data.fast ?? false,
+      useVoice,
     });
 
     return NextResponse.json({

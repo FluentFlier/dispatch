@@ -32,6 +32,13 @@ export interface VoicePipelineInput {
   /** Skip critique/revise pass (faster, cheaper) */
   fast?: boolean;
   /**
+   * When false, generate WITHOUT importing the creator's voice: the profile is
+   * ignored (no voice description/rules/pillars in the prompt) and the voice-QA
+   * critique loop is skipped. Lets users produce a clean, neutral draft when
+   * they don't want their personal voice applied. Defaults to true.
+   */
+  useVoice?: boolean;
+  /**
    * Deprecated. Provider is now chosen by env (LLM_BASE_URL/LLM_API_KEY/LLM_MODEL).
    * Kept for backward compatibility with existing call sites; has no effect.
    */
@@ -81,6 +88,13 @@ export async function generateWithVoicePipeline(
   const contentType = input.contentType ?? 'post';
   const composeHints = buildVoiceComposeHints(input.platform, contentType);
 
+  // Voice opt-out: when disabled, drop the creator profile entirely so none of
+  // their voice, rules, or pillars leak into the prompt, and skip the voice-QA
+  // loop (persona fidelity is meaningless without a voice to match).
+  const useVoice = input.useVoice !== false;
+  const profile = useVoice ? input.profile : null;
+  const skipEval = input.fast || !useVoice;
+
   // Usage is tracked at the API boundary (/api/generate) so it is counted once
   // per request; the pipeline stays a pure content function.
   const taskHint = input.platform
@@ -92,7 +106,7 @@ export async function generateWithVoicePipeline(
   // injected examples match the topic they care most about.
   const topHooks = input.skipHooks
     ? []
-    : getBestHooksForContext(topWeightedVertical(input.profile), 6);
+    : getBestHooksForContext(topWeightedVertical(profile), 6);
   const usedHookIds = topHooks.map((h) => h.id);
   const hookExamples = topHooks.length > 0
     ? `\n\nREAL HIGH-CONVERTING HOOK EXAMPLES (use these structures + adapt to voice):\n${topHooks.map((h, i) => `${i+1}. "${h.text}" (@${h.author})`).join('\n')}`
@@ -104,7 +118,7 @@ export async function generateWithVoicePipeline(
 
   const systemPrompt = input.systemOverride
     ? `${input.systemOverride}\n\n${composeHints}`
-    : buildSystemPrompt(input.profile, mergedContext || undefined);
+    : buildSystemPrompt(profile, mergedContext || undefined);
 
   const maxIterations = input.maxIterations ?? 3;
   let text = '';
@@ -129,7 +143,7 @@ Return ONLY the new text.`;
 
     text = await generateDraftText(systemPrompt, draftPrompt);
 
-    if (input.fast) break;
+    if (skipEval) break;
 
     // The evaluator only scores prose content types; list/caption modes run in
     // fast mode (break above) so this maps any other type to 'post' for safety.
@@ -137,7 +151,7 @@ Return ONLY the new text.`;
       contentType === 'reply' || contentType === 'comment' ? contentType : 'post';
     evaluation = await evaluateDraft(
       text,
-      input.profile,
+      profile,
       mergedContext || undefined,
       evalContentType,
     );
@@ -146,15 +160,15 @@ Return ONLY the new text.`;
     revised = i > 0;
   }
 
-  if (!input.fast && evaluation && evaluation.ai_slop > 3) {
+  if (!skipEval && evaluation && evaluation.ai_slop > 3) {
     try {
-      text = stripEmDashes(await humanize(text, input.profile));
+      text = stripEmDashes(await humanize(text, profile));
     } catch {
       // keep draft
     }
   } else if (input.humanizeAlways) {
     try {
-      text = stripEmDashes(await humanize(text, input.profile));
+      text = stripEmDashes(await humanize(text, profile));
     } catch {
       // keep draft
     }

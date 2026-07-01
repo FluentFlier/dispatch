@@ -7,6 +7,7 @@ import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
 import { PLATFORMS } from '@/lib/constants';
 import type { Platform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
+import { useCreatorPreferences } from '@/hooks/useCreatorPreferences';
 
 /**
  * Sends a recorded audio blob to the transcription endpoint and returns the text.
@@ -33,11 +34,12 @@ async function transcribe(blob: Blob): Promise<string> {
 async function callGenerate(
   prompt: string,
   platform: Platform,
+  useVoice: boolean,
 ): Promise<{ text: string; voiceMetrics: GenerateVoiceMetrics }> {
   const res = await fetchWithAuth('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, platform, topic: prompt.slice(0, 200) }),
+    body: JSON.stringify({ prompt, platform, topic: prompt.slice(0, 200), useVoice }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -72,6 +74,12 @@ export function VoiceCapture() {
   const [voiceMetrics, setVoiceMetrics] = useState<GenerateVoiceMetrics | undefined>();
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
+
+  const { voiceEnabled, loading: prefLoading } = useCreatorPreferences();
+  const [useVoice, setUseVoice] = useState(true);
+  useEffect(() => {
+    if (!prefLoading) setUseVoice(voiceEnabled);
+  }, [prefLoading, voiceEnabled]);
 
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -140,7 +148,7 @@ export function VoiceCapture() {
     setOutput('');
     setVoiceMetrics(undefined);
     try {
-      const result = await callGenerate(transcript.trim(), platform);
+      const result = await callGenerate(transcript.trim(), platform, useVoice);
       setOutput(result.text);
       setVoiceMetrics(result.voiceMetrics);
     } catch (e: unknown) {
@@ -224,6 +232,29 @@ export function VoiceCapture() {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="flex items-center justify-between rounded-md border border-border bg-bg-tertiary px-4 py-3">
+        <div>
+          <p className="text-[13px] font-medium text-text-primary">Use my voice</p>
+          <p className="text-[11px] text-text-secondary">
+            {useVoice
+              ? 'Draft sounds like you.'
+              : 'Off: clean, neutral draft with no personal voice applied.'}
+          </p>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={useVoice}
+          aria-label="Use my voice"
+          onClick={() => setUseVoice((v) => !v)}
+          className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${useVoice ? 'bg-accent-primary' : 'bg-border'}`}
+        >
+          <span
+            className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${useVoice ? 'translate-x-5' : 'translate-x-0.5'}`}
+          />
+        </button>
       </div>
 
       <Button onClick={generate} loading={generating} disabled={!transcript.trim()}>

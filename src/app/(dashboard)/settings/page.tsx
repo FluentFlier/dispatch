@@ -15,6 +15,7 @@ import BioGenerator from "@/components/settings/BioGenerator";
 import PlatformConnections from "@/components/settings/PlatformConnections";
 import ProfileEditor from "@/components/settings/ProfileEditor";
 import AutoOptimizeToggle from "@/components/settings/AutoOptimizeToggle";
+import VoiceDefaultToggle from "@/components/settings/VoiceDefaultToggle";
 import { PageHeader } from "@/components/layout/PageHeader";
 
 /* ------------------------------------------------------------------ */
@@ -145,6 +146,7 @@ export default function SettingsPage() {
   const [pillars, setPillars] = useState<ContentPillarConfig[]>([]);
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSaved, setProfileSaved] = useState(false);
+  const [profileError, setProfileError] = useState("");
 
   // Section 8: Auto-Optimize
   const [autoOptimize, setAutoOptimize] = useState(false);
@@ -380,8 +382,11 @@ export default function SettingsPage() {
   async function saveProfile() {
     if (!userId) return;
     setProfileSaving(true);
+    setProfileError("");
     const insforge = getInsforge();
-    await insforge.database
+    // Surface real failures instead of always flashing "Saved!" — previously an
+    // upsert error (e.g. RLS) was ignored and the UI still claimed success.
+    const { error } = await insforge.database
       .from("creator_profile")
       .upsert(
         {
@@ -396,6 +401,10 @@ export default function SettingsPage() {
         { onConflict: "user_id" }
       );
     setProfileSaving(false);
+    if (error) {
+      setProfileError("Could not save profile. Please try again.");
+      return;
+    }
     flashSaved(setProfileSaved);
   }
 
@@ -606,6 +615,9 @@ export default function SettingsPage() {
               saving={profileSaving}
               saved={profileSaved}
             />
+            {profileError && (
+              <p className="mt-3 text-sm text-accent-primary">{profileError}</p>
+            )}
           </Section>
 
           <Section title="Personal Context">
@@ -622,6 +634,10 @@ export default function SettingsPage() {
 
       {activeTab === 'content' && (
         <>
+          <Section title="Voice">
+            <VoiceDefaultToggle />
+          </Section>
+
           <Section title="Pillar Weights">
             <PillarWeights
               pillars={pillars}
