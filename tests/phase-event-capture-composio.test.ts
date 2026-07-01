@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { ingestEvents } from '@/lib/event-capture/ingest';
 import type { NormalizedEvent } from '@/lib/event-capture/sources/types';
+import { normalizeGoogleEvents } from '@/lib/composio/actions/calendar-read';
 
 function fakeClient(upsertReturnsId: string | null) {
   const inserted: any[] = [];
@@ -46,6 +47,22 @@ describe('Phase: Event Capture Composio', () => {
       const lunch: NormalizedEvent = { ...ev, providerEventId: 'evt_2', title: 'Lunch with team' };
       const count = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [lunch], now);
       expect(count).toBe(0);
+    });
+  });
+
+  describe('normalizeGoogleEvents', () => {
+    it('maps Google items to NormalizedEvent and drops all-day / malformed items', () => {
+      const items = [
+        { id: 'a', summary: 'AI Summit', location: 'SF',
+          start: { dateTime: '2026-06-24T19:00:00Z' }, end: { dateTime: '2026-06-24T21:00:00Z' },
+          attendees: [{ displayName: 'Sarah Chen', email: 's@x.com' }] },
+        { id: 'b', summary: 'All day thing', start: { date: '2026-06-24' }, end: { date: '2026-06-25' } },
+        { id: 'c', start: { dateTime: '2026-06-24T19:00:00Z' }, end: { dateTime: '2026-06-24T20:00:00Z' } },
+      ];
+      const out = normalizeGoogleEvents(items as any);
+      expect(out).toHaveLength(1);
+      expect(out[0]).toMatchObject({ providerEventId: 'a', source: 'google', title: 'AI Summit', location: 'SF' });
+      expect(out[0].attendees).toEqual([{ name: 'Sarah Chen' }]);
     });
   });
 });
