@@ -70,10 +70,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       useVoice,
     });
 
-    // Integrated human-polish pass: the platform-optimization step users liked
-    // from the repurpose panel is now folded into the main generate, so a single
-    // output has both the voice pipeline's features AND the humaner platform
-    // tone. Runs only for full prose posts (skips fast mode + hooks/caption/reply).
+    // Integrated human-polish pass: lightly reformats the voice draft to be
+    // platform-native + humaner. Runs only for full prose posts (skips fast mode
+    // + hooks/caption/reply).
+    //
+    // IMPORTANT: this is a LIGHT pass with a strict faithfulness guard. A prior
+    // version ran a FULL rewrite on a small model, which hallucinated (invented
+    // titles, wrong facts, misread the topic). Polish must NOT change meaning —
+    // only tighten wording + formatting.
     let finalText = result.text;
     if (
       parsed.data.platform &&
@@ -82,11 +86,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       result.text.trim().length > 0
     ) {
       try {
-        const polishPrompt = buildPlatformOptimizationPrompt(
-          parsed.data.platform as OptimizePlatform,
-          result.text,
-          'full',
-        );
+        const polishPrompt =
+          buildPlatformOptimizationPrompt(parsed.data.platform as OptimizePlatform, result.text, 'light') +
+          '\n\nSTRICT FAITHFULNESS RULES:\n' +
+          '- Do NOT add a title, headline, or any new facts, names, numbers, tools, or claims.\n' +
+          '- Keep every specific from the draft exactly as written (names, versions, topics).\n' +
+          '- Only improve wording, flow, line breaks, and platform formatting.\n' +
+          '- If unsure, keep the original wording.';
         // Run the polish on a smaller/cheaper model (default llama-3.1-8b-instant)
         // while the main draft stays on the primary model — cuts token cost of
         // the extra pass. Configurable via LLM_POLISH_MODEL.
