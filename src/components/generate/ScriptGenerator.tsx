@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Toggle } from '@/components/ui/Toggle';
+import { MicDictate } from './MicDictate';
+import { assembleGeneratePrompt } from '@/lib/generate-prompt';
 import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
 import { usePillars, type PillarInfo } from '@/hooks/usePillars';
 import { PLATFORMS } from '@/lib/constants';
@@ -108,6 +110,7 @@ export function ScriptGenerator({
 
   const [pillar, setPillar] = useState<string>(initialPillar);
   const [topic, setTopic] = useState(initialTopic);
+  const [thoughts, setThoughts] = useState('');
   const [platform, setPlatform] = useState<Platform>(initialPlatform ?? 'instagram');
   const [postLength, setPostLength] = useState<PostLength>('standard');
   const [useVoice, setUseVoice] = useState(true);
@@ -204,14 +207,14 @@ export function ScriptGenerator({
     try {
       const info = allPillars.find((p) => p.value === pillar);
       const pillarLabel = info?.label ?? getLabel(pillar);
-      let prompt: string;
+      let base: string;
       if (info?.promptTemplate) {
-        prompt = info.promptTemplate;
+        base = info.promptTemplate;
       } else if (PILLAR_PROMPTS[pillar]) {
-        prompt = PILLAR_PROMPTS[pillar];
+        base = PILLAR_PROMPTS[pillar];
       } else {
         const isLongForm = platform === 'linkedin';
-        prompt = isLongForm
+        base = isLongForm
           ? `Write a LinkedIn post for a "${pillarLabel}" angle. Creator's voice only. 200-350 words. No em dashes.
 Hook: One strong first line.
 Setup: 2-3 sentences of context or stakes.
@@ -223,10 +226,14 @@ HOOK: One bold first line.
 BODY: 3-4 beats, each one sentence.
 CTA: One direct question.`;
       }
-      if (topic.trim()) {
-        prompt += `\n\nWRITE ABOUT THIS SUBJECT (this is the post, do not drift to unrelated personal background): ${topic.trim()}`;
-      }
-      prompt += `\n\n${POST_LENGTH_CONFIG[postLength].hint}`;
+      // Always includes the topic AND the braindump "thoughts" (length-capped
+      // to the API limit) so nothing the user typed is silently dropped.
+      const prompt = assembleGeneratePrompt({
+        base,
+        topic,
+        thoughts,
+        lengthHint: POST_LENGTH_CONFIG[postLength].hint,
+      });
       const result = await callGenerate(prompt, platform, useVoice);
       setOutput(result.text);
       setVoiceMetrics(result.voiceMetrics);
@@ -335,15 +342,30 @@ CTA: One direct question.`;
       </div>
 
       <div>
-        <label className="block section-label mb-2">
-          Topic (optional)
-        </label>
+        <div className="mb-2 flex items-center justify-between">
+          <label className="section-label">Topic (optional)</label>
+          <MicDictate onText={(t) => setTopic((cur) => (cur ? `${cur} ${t}` : t))} title="Dictate topic" />
+        </div>
         <textarea
           value={topic}
           onChange={(e) => setTopic(e.target.value)}
-          rows={3}
+          rows={2}
           placeholder="Enter a specific topic or leave blank for a general script..."
           className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover resize-none transition-colors duration-100"
+        />
+      </div>
+
+      <div>
+        <div className="mb-2 flex items-center justify-between">
+          <label className="section-label">Your thoughts (optional)</label>
+          <MicDictate onText={(t) => setThoughts((cur) => (cur ? `${cur} ${t}` : t))} title="Dictate your thoughts" />
+        </div>
+        <textarea
+          value={thoughts}
+          onChange={(e) => setThoughts(e.target.value)}
+          rows={4}
+          placeholder="Dump the details, facts, angle, or story you want in this post. Speak or type. This is always sent to the AI."
+          className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover resize-y transition-colors duration-100"
         />
       </div>
 
