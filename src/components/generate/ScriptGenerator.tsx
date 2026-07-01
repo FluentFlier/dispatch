@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
-import { usePillars } from '@/hooks/usePillars';
+import { usePillars, type PillarInfo } from '@/hooks/usePillars';
 import { PLATFORMS } from '@/lib/constants';
 import type { Platform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
@@ -101,7 +101,7 @@ export function ScriptGenerator({
   initialPillar = '',
   initialPlatform,
 }: ScriptGeneratorProps) {
-  const { pillars: pillarList, loading: pillarsLoading, getLabel, getColor } = usePillars();
+  const { pillars: pillarList, loading: pillarsLoading, getLabel } = usePillars();
   const { preferredPostLength, voiceEnabled, loading: prefLoading } = useCreatorPreferences();
 
   const [pillar, setPillar] = useState<string>(initialPillar);
@@ -109,6 +109,17 @@ export function ScriptGenerator({
   const [platform, setPlatform] = useState<Platform>(initialPlatform ?? 'instagram');
   const [postLength, setPostLength] = useState<PostLength>('standard');
   const [useVoice, setUseVoice] = useState(true);
+
+  // Pillars pulled in from the suggestion catalog for THIS session (not saved to
+  // profile) — lets you write from more pillars than your saved 3 without
+  // committing them permanently.
+  const [extraPillars, setExtraPillars] = useState<PillarInfo[]>([]);
+  const [browseOpen, setBrowseOpen] = useState(false);
+  const [suggestions, setSuggestions] = useState<{ slug: string; name: string; description: string; tag: string }[]>([]);
+  const [suggestLoaded, setSuggestLoaded] = useState(false);
+  const [suggestQuery, setSuggestQuery] = useState('');
+
+  const allPillars = [...pillarList, ...extraPillars];
 
   // Sync to profile defaults once loaded, if user hasn't manually changed them
   useEffect(() => {
@@ -126,11 +137,48 @@ export function ScriptGenerator({
       setPillar(pillarList[0].value);
       return;
     }
-    // If pillar was set from initial props but doesn't exist in loaded list, reset
-    if (!pillarList.some((p) => p.value === pillar)) {
+    // Reset only if the picked pillar is neither a saved pillar nor a browsed one.
+    const known = pillarList.some((p) => p.value === pillar) || extraPillars.some((p) => p.value === pillar);
+    if (!known) {
       setPillar(pillarList[0].value);
     }
-  }, [pillarsLoading, pillarList, pillar]);
+  }, [pillarsLoading, pillarList, extraPillars, pillar]);
+
+  // Load the pillar suggestion catalog on first open of the browser.
+  useEffect(() => {
+    if (!browseOpen || suggestLoaded) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetchWithAuth('/api/pillars/suggestions');
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+        // Trending first, then curated; de-dupe by slug.
+        const merged = [...(data.trending ?? []), ...(data.curated ?? [])]
+          .filter((s, i, arr) => arr.findIndex((x) => x.slug === s.slug) === i);
+        setSuggestions(merged);
+      } catch {
+        /* suggestions are optional */
+      } finally {
+        if (!cancelled) setSuggestLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [browseOpen, suggestLoaded]);
+
+  const EXTRA_COLORS = ['#E07A5F', '#F59E0B', '#10B981', '#8B5CF6', '#3D8B7A', '#5A5047'];
+
+  /** Add a catalog pillar to this session's pickable set and select it. */
+  function pickSuggestion(s: { slug: string; name: string; description: string }) {
+    if (!allPillars.some((p) => p.value === s.slug)) {
+      setExtraPillars((prev) => [
+        ...prev,
+        { value: s.slug, label: s.name, color: EXTRA_COLORS[prev.length % EXTRA_COLORS.length], badgeBg: '', description: s.description },
+      ]);
+    }
+    setPillar(s.slug);
+  }
   const DRAFT_KEY = 'generate:script:draft';
   const [output, setOutput] = useState(() => {
     // Priority: prop (from URL params or Ideas page) > sessionStorage draft > empty
@@ -152,7 +200,8 @@ export function ScriptGenerator({
     setOutput('');
     setVoiceMetrics(undefined);
     try {
-      const info = pillarList.find((p) => p.value === pillar);
+      const info = allPillars.find((p) => p.value === pillar);
+      const pillarLabel = info?.label ?? getLabel(pillar);
       let prompt: string;
       if (info?.promptTemplate) {
         prompt = info.promptTemplate;
@@ -161,13 +210,13 @@ export function ScriptGenerator({
       } else {
         const isLongForm = platform === 'linkedin';
         prompt = isLongForm
-          ? `Write a LinkedIn post for a "${getLabel(pillar)}" angle. Creator's voice only. 200-350 words. No em dashes.
+          ? `Write a LinkedIn post for a "${pillarLabel}" angle. Creator's voice only. 200-350 words. No em dashes.
 Hook: One strong first line.
 Setup: 2-3 sentences of context or stakes.
 Story or data: 2-4 sentences of specific detail.
 Insight: 2-3 sentences of real takeaway.
 CTA: One direct question.`
-          : `Write a script for a "${getLabel(pillar)}" post. The creator's voice only. Under 60 seconds when spoken. No em dashes.
+          : `Write a script for a "${pillarLabel}" post. The creator's voice only. Under 60 seconds when spoken. No em dashes.
 HOOK: One bold first line.
 BODY: 3-4 beats, each one sentence.
 CTA: One direct question.`;
@@ -191,7 +240,7 @@ CTA: One direct question.`;
       <div>
         <label className="block section-label mb-2">Content Pillar</label>
         <div className="flex flex-wrap gap-2">
-          {pillarList.map((p) => (
+          {allPillars.map((p) => (
             <button
               key={p.value}
               onClick={() => setPillar(p.value)}
@@ -207,7 +256,65 @@ CTA: One direct question.`;
               {p.label}
             </button>
           ))}
+          <button
+            onClick={() => setBrowseOpen((o) => !o)}
+            className="px-4 py-1.5 rounded-[20px] font-body text-[13px] font-medium text-text-secondary transition-all duration-100"
+            style={{ border: '1px dashed rgba(28, 25, 23, 0.28)' }}
+          >
+            {browseOpen ? 'Close' : '+ More pillars'}
+          </button>
         </div>
+
+        {browseOpen && (
+          <div className="mt-3 rounded-lg border border-border p-4">
+            <input
+              type="text"
+              value={suggestQuery}
+              onChange={(e) => setSuggestQuery(e.target.value)}
+              placeholder="Search pillars..."
+              className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover"
+            />
+            {!suggestLoaded ? (
+              <p className="mt-3 text-[12px] text-text-secondary">Loading suggestions...</p>
+            ) : (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {suggestions
+                  .filter((s) => {
+                    const q = suggestQuery.trim().toLowerCase();
+                    if (!q) return true;
+                    return s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q);
+                  })
+                  .map((s) => {
+                    const added = allPillars.some((p) => p.value === s.slug);
+                    return (
+                      <button
+                        key={s.slug}
+                        onClick={() => pickSuggestion(s)}
+                        title={s.description}
+                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] border transition-colors ${
+                          added
+                            ? 'border-border text-text-secondary opacity-60'
+                            : 'border-border text-text-primary hover:border-accent-primary hover:text-accent-primary'
+                        }`}
+                      >
+                        <span>{s.name}</span>
+                        {s.tag === 'trending' && (
+                          <span className="text-[9px] uppercase tracking-wide text-accent-primary">Trending</span>
+                        )}
+                        <span className="text-text-secondary">{added ? '✓' : '+'}</span>
+                      </button>
+                    );
+                  })}
+                {suggestions.length === 0 && (
+                  <p className="text-[12px] text-text-secondary">No suggestions available.</p>
+                )}
+              </div>
+            )}
+            <p className="mt-3 text-[11px] text-text-tertiary">
+              Picked here just for this draft. Add pillars permanently in Settings &rarr; Profile.
+            </p>
+          </div>
+        )}
       </div>
 
       <div>
