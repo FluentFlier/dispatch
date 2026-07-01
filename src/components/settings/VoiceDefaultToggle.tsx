@@ -1,6 +1,7 @@
 'use client';
 
 import { useCreatorPreferences } from '@/hooks/useCreatorPreferences';
+import { Toggle } from '@/components/ui/Toggle';
 
 /**
  * Global default for whether AI generation imports the creator's voice. Users
@@ -21,19 +22,7 @@ export default function VoiceDefaultToggle() {
             : 'New drafts are clean and neutral by default. Turn it on per draft any time.'}
         </p>
       </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={voiceEnabled}
-        aria-label="Use my voice by default"
-        disabled={loading}
-        onClick={() => saveVoiceEnabled(!voiceEnabled)}
-        className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${voiceEnabled ? 'bg-accent-primary' : 'bg-border'}`}
-      >
-        <span
-          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${voiceEnabled ? 'translate-x-5' : 'translate-x-0.5'}`}
-        />
-      </button>
+      <Toggle checked={voiceEnabled} onChange={saveVoiceEnabled} disabled={loading} label="Use my voice by default" />
     </div>
   );
 }
