@@ -194,6 +194,7 @@ export function GenerateOutput({
   const [prediction, setPrediction] = useState<PredictResult | null>(null);
   const [predicting, setPredicting] = useState(false);
   const [publishing, setPublishing] = useState(false);
+  const [published, setPublished] = useState<{ platform: string; url?: string } | null>(null);
 
   // Local copy of the draft so in-place edits (Humanize) are reflected on every
   // tab, even those that don't pass onTextUpdate. Re-syncs whenever a new
@@ -201,6 +202,7 @@ export function GenerateOutput({
   const [displayText, setDisplayText] = useState(text);
   useEffect(() => {
     setDisplayText(text);
+    setPublished(null); // clear the published banner when a new draft arrives
   }, [text]);
 
   async function handleHumanize() {
@@ -292,12 +294,15 @@ export function GenerateOutput({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ platform, content: displayText, caption: displayText }),
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        const msg = (body as { error?: string }).error ?? 'Publish failed';
+        const msg = (data as { error?: string }).error ?? 'Publish failed';
         toast(res.status === 402 || res.status === 403 ? 'Publishing requires a paid plan.' : msg, 'error');
         return;
       }
+      const url = (data as { url?: string; provider_url?: string }).url
+        ?? (data as { provider_url?: string }).provider_url;
+      setPublished({ platform, url });
       toast(`Published to ${PLATFORM_LABELS[platform] ?? platform}`);
     } catch (err) {
       console.error('Publish error:', err);
@@ -325,6 +330,23 @@ export function GenerateOutput({
 
   return (
     <div className="space-y-4">
+      {published && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-teal/30 bg-teal/5 px-4 py-3">
+          <span className="text-sm font-medium text-teal">
+            ✓ Published to {PLATFORM_LABELS[published.platform] ?? published.platform}
+          </span>
+          {published.url && (
+            <a
+              href={published.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-sm font-medium text-accent-primary hover:underline"
+            >
+              View post
+            </a>
+          )}
+        </div>
+      )}
       {showVoiceMetrics && <VoiceMetricsPanel metrics={voiceMetrics} />}
       {prediction && <PredictPanel result={prediction} />}
       <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-4">
