@@ -12,8 +12,7 @@ export async function pullCalendarEvents(
   now: Date,
   lookbackHours = 3,
 ): Promise<NormalizedEvent[]> {
-  const calendarId =
-    (integration.config as unknown as { calendar_id?: string }).calendar_id ?? 'primary';
+  const calendarId = integration.config.calendar_id ?? 'primary';
   const timeMin = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000);
   return findCalendarEvents(integration.composio_user_id, timeMin, now, calendarId);
 }
