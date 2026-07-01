@@ -102,7 +102,7 @@ export async function scanLinkedInForEvents(
     const full = await fetchUnipileAccountDetails(unipileAccountId);
     const im = full?.connection_params?.im;
     providerUserId =
-      im?.memberId ?? im?.id ?? im?.publicIdentifier ?? account?.account_id ?? null;
+      im?.memberId ?? im?.id ?? im?.objectUrn ?? im?.publicIdentifier ?? account?.account_id ?? null;
   } catch {
     providerUserId = account?.account_id ?? null;
   }
