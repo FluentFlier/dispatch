@@ -7,6 +7,7 @@ import { Tabs } from "@/components/ui/Tabs";
 import { SkeletonLines } from "@/components/ui/Skeleton";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { ScriptGenerator } from "@/components/generate/ScriptGenerator";
+import { VoiceCapture } from "@/components/generate/VoiceCapture";
 import { StoryMine } from "@/components/generate/StoryMine";
 import { CaptionHashtags } from "@/components/generate/CaptionHashtags";
 import { HookGenerator } from "@/components/generate/HookGenerator";
@@ -17,6 +18,7 @@ import { SeriesPlanner } from "@/components/generate/SeriesPlanner";
 
 type TabId =
   | "script"
+  | "voice-note"
   | "story-mine"
   | "caption"
   | "hooks"
@@ -27,6 +29,7 @@ type TabId =
 
 const TAB_LIST: { id: TabId; label: string }[] = [
   { id: "script", label: "New post" },
+  { id: "voice-note", label: "Voice note" },
   { id: "caption", label: "Caption" },
   { id: "hooks", label: "Hook" },
   { id: "comments", label: "Reply" },
@@ -41,6 +44,11 @@ const TAB_DETAILS: Record<TabId, { title: string; description: string; outcome: 
     title: "Draft a post",
     description: "Start with a topic, pick a pillar, and get a structured draft in your voice.",
     outcome: "Best for going from blank page to first draft.",
+  },
+  "voice-note": {
+    title: "Voice note",
+    description: "Speak your idea, we transcribe it, you edit, then generate a draft in your voice.",
+    outcome: "Best for capturing ideas hands-free and turning talk into a post.",
   },
   caption: {
     title: "Caption and hashtags",
@@ -137,6 +145,8 @@ function GeneratePageInner() {
             initialPillar={initialPillar}
           />
         );
+      case "voice-note":
+        return <VoiceCapture />;
       case "story-mine":
         return <StoryMine />;
       case "caption":

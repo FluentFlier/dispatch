@@ -1,4 +1,5 @@
 export { ScriptGenerator } from './ScriptGenerator';
+export { VoiceCapture } from './VoiceCapture';
 export { StoryMine } from './StoryMine';
 export { CaptionHashtags } from './CaptionHashtags';
 export { HookGenerator } from './HookGenerator';
