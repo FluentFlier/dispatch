@@ -7,6 +7,7 @@ import { usePillars, type PillarInfo } from '@/hooks/usePillars';
 import { PLATFORMS } from '@/lib/constants';
 import type { Platform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
+import { isPillarCovered } from '@/lib/pillar-dedup';
 import { useCreatorPreferences, POST_LENGTH_CONFIG, type PostLength } from '@/hooks/useCreatorPreferences';
 
 const PILLAR_PROMPTS: Record<string, string> = {
@@ -240,29 +241,41 @@ CTA: One direct question.`;
       <div>
         <label className="block section-label mb-2">Content Pillar</label>
         <div className="flex flex-wrap gap-2">
-          {allPillars.map((p) => (
-            <button
-              key={p.value}
-              onClick={() => setPillar(p.value)}
-              className="px-4 py-1.5 rounded-[20px] font-body text-[13px] font-medium transition-all duration-100"
-              style={{
-                backgroundColor: '#F3EDE4',
-                color: pillar === p.value ? p.color : '#78716C',
-                border: pillar === p.value
-                  ? `1.5px solid ${p.color}`
-                  : '1px solid rgba(28, 25, 23, 0.1)',
-              }}
-            >
-              {p.label}
-            </button>
-          ))}
-          <button
-            onClick={() => setBrowseOpen((o) => !o)}
-            className="px-4 py-1.5 rounded-[20px] font-body text-[13px] font-medium text-text-secondary transition-all duration-100"
-            style={{ border: '1px dashed rgba(28, 25, 23, 0.28)' }}
-          >
-            {browseOpen ? 'Close' : '+ More pillars'}
-          </button>
+          {/* Wait for the real pillars before rendering — avoids a flash of the
+              default (hot-take/hackathon) pillars before the user's load in. */}
+          {pillarsLoading ? (
+            <div className="flex gap-2">
+              <span className="h-8 w-24 animate-pulse rounded-[20px] bg-bg-tertiary" />
+              <span className="h-8 w-28 animate-pulse rounded-[20px] bg-bg-tertiary" />
+              <span className="h-8 w-20 animate-pulse rounded-[20px] bg-bg-tertiary" />
+            </div>
+          ) : (
+            <>
+              {allPillars.map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => setPillar(p.value)}
+                  className="px-4 py-1.5 rounded-[20px] font-body text-[13px] font-medium transition-all duration-100"
+                  style={{
+                    backgroundColor: '#F3EDE4',
+                    color: pillar === p.value ? p.color : '#78716C',
+                    border: pillar === p.value
+                      ? `1.5px solid ${p.color}`
+                      : '1px solid rgba(28, 25, 23, 0.1)',
+                  }}
+                >
+                  {p.label}
+                </button>
+              ))}
+              <button
+                onClick={() => setBrowseOpen((o) => !o)}
+                className="px-4 py-1.5 rounded-[20px] font-body text-[13px] font-medium text-text-secondary transition-all duration-100"
+                style={{ border: '1px dashed rgba(28, 25, 23, 0.28)' }}
+              >
+                {browseOpen ? 'Close' : '+ More pillars'}
+              </button>
+            </>
+          )}
         </div>
 
         {browseOpen && (
@@ -279,6 +292,9 @@ CTA: One direct question.`;
             ) : (
               <div className="mt-3 flex flex-wrap gap-2">
                 {suggestions
+                  // Hide suggestions the user effectively already has (incl. aliases
+                  // like AI vs Artificial Intelligence) so the list doesn't bloat.
+                  .filter((s) => !isPillarCovered(allPillars.map((p) => p.label), s.name))
                   .filter((s) => {
                     const q = suggestQuery.trim().toLowerCase();
                     if (!q) return true;

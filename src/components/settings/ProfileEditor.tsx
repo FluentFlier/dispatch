@@ -5,6 +5,7 @@ import type { ContentPillarConfig } from "@/types/database";
 import { normalizePillarSlug, clampWeight, DEFAULT_PILLAR_WEIGHT } from "@/lib/pillars";
 // Type-only import: avoids bundling the server-side hook dataset into the client.
 import type { PillarSuggestion } from "@/lib/pillar-catalog";
+import { isPillarCovered } from "@/lib/pillar-dedup";
 
 /** Canonical pillar slug (underscore/space tolerant); shared with the rest of the app. */
 const pillarSlug = normalizePillarSlug;
@@ -312,11 +313,13 @@ function PillarBrowser({
   }, [open, loaded]);
 
   const existingSlugs = new Set(existing.map((p) => pillarSlug(p.name)));
+  const existingNames = existing.map((p) => p.name);
   const q = query.trim().toLowerCase();
-  // Trending first, then curated; de-dupe by slug; filter by search.
-  const all = [...trending, ...curated].filter(
-    (s, i, arr) => arr.findIndex((x) => x.slug === s.slug) === i,
-  );
+  // Trending first, then curated; de-dupe by slug; drop ones the user already
+  // has (incl. aliases like AI vs Artificial Intelligence); filter by search.
+  const all = [...trending, ...curated]
+    .filter((s, i, arr) => arr.findIndex((x) => x.slug === s.slug) === i)
+    .filter((s) => !isPillarCovered(existingNames, s.name));
   const filtered = q
     ? all.filter((s) => s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q))
     : all;
