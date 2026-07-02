@@ -70,7 +70,7 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
     );
   }
 
-  // --- Questions ready: one-question-at-a-time Q&A ---
+  // --- Questions ready: answer the generated questions (at least one required) ---
   const questions = capture.questions ?? [];
   const answeredCount = Object.values(answers).filter((v) => v.trim().length > 0).length;
 
