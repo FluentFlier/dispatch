@@ -3,7 +3,7 @@ import { getServiceClient } from '@/lib/insforge/server';
 import { isEnabled } from '@/lib/feature-flags';
 import { pullCalendarEvents } from '@/lib/event-capture/sources/calendar-composio';
 import { scanLinkedInForEvents } from '@/lib/event-capture/sources/linkedin-scan';
-import { ingestEvents } from '@/lib/event-capture/ingest';
+import { ingestEvents, cancelMissingEvents } from '@/lib/event-capture/ingest';
 import type { SignalIntegrationRow } from '@/lib/signals/integrations/store';
 
 /**
@@ -49,16 +49,26 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
 
       const calEvents = await pullCalendarEvents(integration, now);
-      const calCreated = await ingestEvents(client, { workspaceId, userId }, calEvents, now);
+      const calRes = await ingestEvents(client, { workspaceId, userId }, calEvents, now, 'incremental');
+
+      // Deletion pass over the cron lookback window (same window pullCalendarEvents used).
+      const lookbackMs = 3 * 60 * 60 * 1000;
+      const cancelled = await cancelMissingEvents(
+        client,
+        { workspaceId },
+        { timeMin: new Date(now.getTime() - lookbackMs), timeMax: now },
+        new Set(calEvents.map((e) => e.providerEventId)),
+      );
 
       let liCreated = 0;
-      if (calCreated === 0) {
+      if (calRes.created === 0) {
         // Cascade fallback: nothing fresh in the calendar, so check LinkedIn posts.
         const liEvents = await scanLinkedInForEvents(client, { workspaceId, userId }, now);
-        liCreated = await ingestEvents(client, { workspaceId, userId }, liEvents, now);
+        const liRes = await ingestEvents(client, { workspaceId, userId }, liEvents, now, 'incremental');
+        liCreated = liRes.created;
       }
 
-      results.push({ workspaceId, calendar: calCreated, linkedin: liCreated, status: 'ok' });
+      results.push({ workspaceId, calendar: calRes.created, linkedin: liCreated, status: cancelled > 0 ? 'ok+cancelled' : 'ok' });
     } catch (err) {
       console.error('[calendar-sync] workspace error', { workspaceId, err });
       results.push({ workspaceId, calendar: 0, linkedin: 0, status: 'error' });
