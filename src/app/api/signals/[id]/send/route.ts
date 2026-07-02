@@ -7,7 +7,7 @@ import { errorResponse } from '@/lib/api-errors';
 
 const SendSchema = z
   .object({
-    channel: z.enum(['linkedin_connect', 'linkedin_dm', 'gmail']),
+    channel: z.enum(['linkedin_connect', 'linkedin_dm', 'x_dm', 'gmail']),
     linkedin_identifier: z.string().min(2).max(500).optional(),
     recipient_email: z.string().email().optional(),
     email_subject: z.string().min(1).max(200).optional(),

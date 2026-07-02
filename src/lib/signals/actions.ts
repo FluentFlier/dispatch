@@ -23,8 +23,9 @@ function channelForPlatform(platform: SignalPlatform): OutreachChannel {
   return platform === 'x' ? 'x_dm' : 'linkedin_connect';
 }
 
-/** Channels that can actually send (the rest are draft-only / dashboard). */
-function isSendableLinkedIn(channel: OutreachChannel): boolean {
+/** Whether a channel can auto-send for the given platform (rest are draft-only). */
+function isAutoSendableChannel(platform: SignalPlatform, channel: OutreachChannel): boolean {
+  if (platform === 'x') return channel === 'x_dm';
   return channel === 'linkedin_connect' || channel === 'linkedin_dm';
 }
 
@@ -133,16 +134,13 @@ export async function runSignalActions(
     // --- Auto-send (auto_send) — guarded, LinkedIn person-profiles only ---
     if (intent !== 'auto_send') return; // drafted; awaits manual approval
 
-    if (platform === 'x' || !isSendableLinkedIn(channel)) {
+    if (!isAutoSendableChannel(platform, channel)) {
       await logSignalAudit(client, {
         workspace_id: workspaceId,
         action: 'auto_send_skipped',
         channel,
         event_id: event.id,
-        blocked_reason:
-          platform === 'x'
-            ? 'X DM auto-send is not wired yet.'
-            : `Channel ${channel} is not auto-sendable (LinkedIn only).`,
+        blocked_reason: `Channel ${channel} is not auto-sendable for ${platform}.`,
       });
       return;
     }
