@@ -3,6 +3,7 @@ import { getAuthenticatedUser } from '@/lib/insforge/server';
 import { generateContent } from '@/lib/ai';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { errorResponse } from '@/lib/api-errors';
+import { parseLlmJson } from '@/lib/llm-json';
 import { z } from 'zod';
 
 const AnalyzeSchema = z.object({
@@ -68,19 +69,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .map((s, i) => `--- Sample ${i + 1}${s.platform ? ` (${s.platform})` : ''} ---\n${s.content}`)
     .join('\n\n');
 
+  const userPrompt = `Here are ${parsed.data.samples.length} content samples to analyze:\n\n${samplesText}`;
+
   try {
-    const result = await generateContent(
-      `Here are ${parsed.data.samples.length} content samples to analyze:\n\n${samplesText}`,
-      undefined,
-      ANALYZE_PROMPT,
+    // Models occasionally emit malformed JSON (a missing comma between array
+    // elements is the usual culprit), which previously threw a raw SyntaxError
+    // and 500'd the whole analysis. Parse defensively, and on the first bad
+    // response retry once with an explicit valid-JSON nudge before giving up.
+    let analysis = parseLlmJson<Record<string, unknown>>(
+      await generateContent(userPrompt, undefined, ANALYZE_PROMPT),
     );
 
-    const jsonMatch = result.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return NextResponse.json({ error: 'Failed to parse analysis' }, { status: 500 });
+    if (!analysis) {
+      const retrySystem = `${ANALYZE_PROMPT}\n\nIMPORTANT: Return ONLY a single valid JSON object. No markdown, no prose. Ensure every array element and object property is separated by a comma.`;
+      analysis = parseLlmJson<Record<string, unknown>>(
+        await generateContent(userPrompt, undefined, retrySystem),
+      );
     }
 
-    const analysis = JSON.parse(jsonMatch[0]);
+    if (!analysis) {
+      return errorResponse('Failed to parse analysis.', 500, 'model returned unparseable JSON after retry');
+    }
+
     return NextResponse.json(analysis);
   } catch (err) {
     return errorResponse('Analysis failed.', 500, err);
