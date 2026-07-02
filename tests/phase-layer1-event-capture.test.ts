@@ -2,9 +2,29 @@
  * Phase: Layer 1 — Event Capture
  * Tests filter logic, SSRF guard, answers API, and cron auth/flag behavior.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
 import { shouldCaptureEvent, classifyEventType, isPublicEvent } from '@/lib/event-capture/filter';
 import { assertPublicUrl } from '@/lib/event-capture/research';
+
+// This file registers runtime `vi.doMock(...)` factories for the modules below
+// (used with dynamic import inside individual tests). Without teardown those
+// registrations persist in the module registry after the file finishes and leak
+// into later test files that import the real modules (notably the real
+// event-capture/ingest), causing order-dependent failures. Drop every doMock
+// and reset the module cache once this file is done.
+afterAll(() => {
+  for (const mod of [
+    '@/lib/event-capture/ingest',
+    '@/lib/event-capture/sources/calendar-composio',
+    '@/lib/event-capture/sources/linkedin-scan',
+    '@/lib/feature-flags',
+    '@/lib/insforge/server',
+    '@/lib/workspace',
+  ]) {
+    vi.doUnmock(mod);
+  }
+  vi.resetModules();
+});
 
 // ---------------------------------------------------------------------------
 // filter.ts
