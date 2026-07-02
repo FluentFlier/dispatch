@@ -4,7 +4,8 @@ import {
   filterPostsSinceCursor,
   newestPostId,
 } from '@/lib/signals/ingest/normalize';
-import { createSignalEvent, upsertRawPost } from '@/lib/signals/store';
+import { createSignalEvent, getEvent, upsertRawPost } from '@/lib/signals/store';
+import { runSignalActions } from '@/lib/signals/actions';
 import type { IngestedPost, SignalSourceRow } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -44,8 +45,20 @@ export async function processIngestedPosts(
     try {
       const rawPostId = await upsertRawPost(client, workspaceId, source.id, post);
       result.postsIngested += 1;
-      const { created } = await createSignalEvent(client, workspaceId, rawPostId, classified);
-      if (created) result.signalsCreated += 1;
+      const { created, eventId } = await createSignalEvent(client, workspaceId, rawPostId, classified);
+      if (created) {
+        result.signalsCreated += 1;
+        // Run the action pipeline (draft / guarded auto-send) per workspace posture.
+        if (eventId) {
+          const event = await getEvent(client, workspaceId, eventId);
+          if (event) {
+            await runSignalActions(client, workspaceId, event, {
+              platform: source.platform,
+              sourceType: source.source_type,
+            });
+          }
+        }
+      }
     } catch (err) {
       result.errors.push(`ingest: ${String(err)}`);
     }
@@ -76,5 +89,17 @@ export async function ingestSinglePost(
   if (!classified) return { created: false };
 
   const rawPostId = await upsertRawPost(client, workspaceId, sourceId, post);
-  return createSignalEvent(client, workspaceId, rawPostId, classified);
+  const res = await createSignalEvent(client, workspaceId, rawPostId, classified);
+
+  // Webhook/manual ingest: run the action pipeline too. No source_type here, so
+  // auto-send stays off (draft-only) — the person-profile gate in runSignalActions
+  // requires a known source type.
+  if (res.created && res.eventId) {
+    const event = await getEvent(client, workspaceId, res.eventId);
+    if (event) {
+      await runSignalActions(client, workspaceId, event, { platform: post.platform });
+    }
+  }
+
+  return res;
 }

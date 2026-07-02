@@ -34,3 +34,20 @@ export async function getWorkspacePollAccount(
     platform: dbPlatform,
   };
 }
+
+/**
+ * Resolves the workspace owner's user id. Used as the acting user for automated
+ * drafting in cron context (no auth session) when no connected account is present.
+ */
+export async function getWorkspaceOwnerUserId(
+  client: InsforgeClient,
+  workspaceId: string,
+): Promise<string | null> {
+  const { data } = await client.database
+    .from('workspaces')
+    .select('owner_user_id')
+    .eq('id', workspaceId)
+    .maybeSingle();
+
+  return (data?.owner_user_id as string) ?? null;
+}
