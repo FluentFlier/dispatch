@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { shouldCaptureEvent } from '@/lib/event-capture/filter';
-import { ingestEvents } from '@/lib/event-capture/ingest';
+import { ingestEvents, cancelMissingEvents } from '@/lib/event-capture/ingest';
 import type { NormalizedEvent } from '@/lib/event-capture/sources/types';
 
 describe('Phase: Calendar Connect + Reload', () => {
@@ -61,22 +61,18 @@ function memClient(initialRows: any[] = []) {
           const found = rows.find((r) => Object.entries(q._filters).every(([k, v]) => r[k] === v));
           return { data: found ?? null, error: null };
         };
-        q.select = () => {
-          // Terminal for cancel lookup: awaitable-ish object exposing filtered data.
-          const filtered = () => rows.filter((r) =>
-            Object.entries(q._filters).every(([k, v]) => r[k] === v) &&
-            (!q._neq || r[q._neq.col] !== q._neq.val) &&
-            (!q._range?.gte || r[q._range.gte.col] >= q._range.gte.val) &&
-            (!q._range?.lte || r[q._range.lte.col] <= q._range.lte.val),
-          );
-          return new Proxy(q, {
-            get(target, prop) {
-              if (prop === 'data') return filtered();
-              if (prop === 'error') return null;
-              return (target as any)[prop];
-            },
-          });
-        };
+        // For the cancel lookup the chain is select().eq().neq().gte().lte(),
+        // so the terminal data/error are read on q AFTER the filters are set.
+        // Compute them lazily via getters so filter order does not matter.
+        const filtered = () => rows.filter((r) =>
+          Object.entries(q._filters).every(([k, v]) => r[k] === v) &&
+          (!q._neq || r[q._neq.col] !== q._neq.val) &&
+          (!q._range?.gte || r[q._range.gte.col] >= q._range.gte.val) &&
+          (!q._range?.lte || r[q._range.lte.col] <= q._range.lte.val),
+        );
+        Object.defineProperty(q, 'data', { get: () => filtered() });
+        Object.defineProperty(q, 'error', { get: () => null });
+        q.select = () => q;
         q.insert = (row: any) => ({
           select: () => {
             const id = `cap_${++idSeq}`;
@@ -158,5 +154,27 @@ describe('ingestEvents mode + id stability', () => {
     expect(rows[0].description).toBeNull();
     expect(rows[0].status).toBe('detected');
     expect(jobs).toHaveLength(1);
+  });
+});
+
+describe('cancelMissingEvents', () => {
+  const window = { timeMin: new Date('2026-07-01T00:00:00Z'), timeMax: new Date('2026-07-03T00:00:00Z') };
+  const baseRow = (over: any) => ({
+    id: 'x', workspace_id: 'ws1', source: 'google', status: 'detected',
+    provider_event_id: 'p', start_time: '2026-07-02T10:00:00Z', ...over,
+  });
+
+  it('cancels in-window google rows missing from the provider set, keeps present ones', async () => {
+    const { client, rows } = memClient([
+      baseRow({ id: 'a', provider_event_id: 'still_here' }),
+      baseRow({ id: 'b', provider_event_id: 'deleted' }),
+      baseRow({ id: 'c', provider_event_id: 'out_of_window', start_time: '2026-08-01T10:00:00Z' }),
+    ]);
+    const present = new Set(['still_here', 'out_of_window']);
+    const cancelled = await cancelMissingEvents(client, { workspaceId: 'ws1' }, window, present);
+    expect(cancelled).toBe(1);
+    expect(rows.find((r) => r.id === 'b').status).toBe('cancelled');
+    expect(rows.find((r) => r.id === 'a').status).toBe('detected');
+    expect(rows.find((r) => r.id === 'c').status).toBe('detected');
   });
 });
