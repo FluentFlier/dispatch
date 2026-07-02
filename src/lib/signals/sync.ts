@@ -13,6 +13,7 @@ import {
   listSources,
 } from '@/lib/signals/store';
 import { listRules } from '@/lib/signals/rules/store';
+import { checkProfileChange } from '@/lib/signals/profile/sync';
 import {
   getSafetySettings,
   logSignalAudit,
@@ -157,6 +158,18 @@ export async function syncWorkspaceSignals(
     result.postsIngested += batch.postsIngested;
     result.signalsCreated += batch.signalsCreated;
     result.errors.push(...batch.errors);
+
+    // Role-change detection: diff the tracked person's LinkedIn headline against
+    // its stored baseline. Skipped in dry-run and for non-person / non-LinkedIn
+    // sources (the helper guards internally).
+    if (!opts.dryRun && source.platform === 'linkedin' && source.source_type === 'person_profile') {
+      try {
+        const profileResult = await checkProfileChange(client, workspaceId, source, rules);
+        if (profileResult.signalCreated) result.signalsCreated += 1;
+      } catch (err) {
+        result.errors.push(`profile-change ${source.handle_or_url}: ${String(err)}`);
+      }
+    }
 
     if (i < eligible.length - 1 && safety.delay_between_polls_ms > 0) {
       await sleep(safety.delay_between_polls_ms);
