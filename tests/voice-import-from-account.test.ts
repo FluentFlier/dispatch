@@ -10,6 +10,7 @@ vi.mock('@/lib/insforge/server', () => ({
 }));
 vi.mock('@/lib/workspace', () => ({
   getActiveWorkspaceId: vi.fn().mockResolvedValue('ws_123'),
+  ensureSoloWorkspace: vi.fn().mockResolvedValue({ id: 'ws_123' }),
 }));
 vi.mock('@/lib/social/unipile', () => ({
   unipoleFetch: vi.fn(),
