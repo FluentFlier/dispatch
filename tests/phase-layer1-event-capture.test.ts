@@ -297,5 +297,68 @@ describe('Layer 1: Event Capture', () => {
       expect(body.skipped).toBe(true);
       expect(body.reason).toBe('flag_disabled');
     });
+
+    it('pulls calendar events per integration and reports per-workspace results', async () => {
+      // Happy path for the Composio-based route: mock the signal_integrations
+      // select + the source helpers. One integration yields a calendar capture,
+      // so the LinkedIn cascade fallback should NOT fire for it.
+      process.env.CRON_SECRET = 'correct-secret';
+
+      const fakeClient = {
+        database: {
+          from: vi.fn(() => ({
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            // Terminal eq() in the route resolves to the awaited query result.
+            then: (resolve: (v: unknown) => void) =>
+              resolve({
+                data: [
+                  {
+                    id: 'int-1',
+                    workspace_id: 'ws-1',
+                    toolkit: 'googlecalendar',
+                    composio_user_id: 'composio-user-1',
+                    connected_by_user_id: 'user-1',
+                    enabled: true,
+                    config: {},
+                  },
+                ],
+                error: null,
+              }),
+          })),
+        },
+      };
+
+      const ingestEvents = vi.fn().mockResolvedValue(1);
+      const scanLinkedInForEvents = vi.fn().mockResolvedValue([]);
+
+      vi.doMock('@/lib/insforge/server', () => ({
+        getServiceClient: vi.fn().mockReturnValue(fakeClient),
+      }));
+      vi.doMock('@/lib/feature-flags', () => ({
+        isEnabled: vi.fn().mockResolvedValue(true),
+      }));
+      vi.doMock('@/lib/event-capture/sources/calendar-composio', () => ({
+        pullCalendarEvents: vi.fn().mockResolvedValue([{ providerEventId: 'evt-1' }]),
+      }));
+      vi.doMock('@/lib/event-capture/sources/linkedin-scan', () => ({
+        scanLinkedInForEvents,
+      }));
+      vi.doMock('@/lib/event-capture/ingest', () => ({ ingestEvents }));
+
+      const { GET } = await import('@/app/api/cron/calendar-sync/route');
+      const req = new Request('http://localhost/api/cron/calendar-sync', {
+        headers: { authorization: 'Bearer correct-secret' },
+      });
+
+      const res = await GET(req as any);
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.ok).toBe(true);
+      expect(body.workspacesProcessed).toBe(1);
+      expect(body.results[0]).toMatchObject({ workspaceId: 'ws-1', calendar: 1, linkedin: 0, status: 'ok' });
+      // Calendar produced a capture, so the LinkedIn cascade must NOT run.
+      expect(scanLinkedInForEvents).not.toHaveBeenCalled();
+    });
   });
 });

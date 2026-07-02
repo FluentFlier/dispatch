@@ -27,6 +27,7 @@ const navIcons: Record<string, ComponentType<{ className?: string }>> = {
   '/calendar': CalendarDays,
   '/inbox': MessageSquare,
   '/signals': Radio,
+  '/event-capture': CalendarDays,
   '/ideas': Lightbulb,
   '/voice-lab': SlidersHorizontal,
   '/analytics': BarChart3,

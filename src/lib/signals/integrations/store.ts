@@ -7,6 +7,9 @@ export interface SignalIntegrationConfig {
   slack_channel_id?: string;
   slack_channel_name?: string;
   notify_on_new_signal?: boolean;
+  // Selected Google Calendar for event capture (Phase E writes this). Distinct
+  // from the calendar_id column on the legacy calendar_connections table.
+  calendar_id?: string;
 }
 
 export interface SignalIntegrationRow {

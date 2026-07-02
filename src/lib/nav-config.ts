@@ -10,6 +10,7 @@ export const primaryNav = [
 
 export const moreNav = [
   { name: 'Signals', href: '/signals' },
+  { name: 'Event capture', href: '/event-capture' },
   { name: 'Ideas', href: '/ideas' },
   { name: 'Series', href: '/series' },
   { name: 'Story bank', href: '/story-bank' },
