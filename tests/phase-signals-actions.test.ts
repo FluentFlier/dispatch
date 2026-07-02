@@ -152,4 +152,57 @@ describe('Phase: Signals action pipeline', () => {
     expect(mockDraft).toHaveBeenCalledOnce();
     expect(mockSend).not.toHaveBeenCalled();
   });
+
+  // --- Explicit rule-driven action modes ---
+
+  it('rule actionMode=notify_only overrides an outreach-enabled workspace (no draft)', async () => {
+    mockSettings.mockResolvedValue(settings(true, true));
+    await runSignalActions(client, WS, makeEvent(), { ...LINKEDIN_PERSON, actionMode: 'notify_only' });
+    expect(mockDraft).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('rule actionMode=notify_and_draft downgrades an auto-send workspace (draft, no send)', async () => {
+    mockSettings.mockResolvedValue(settings(true, true));
+    await runSignalActions(client, WS, makeEvent(), { ...LINKEDIN_PERSON, actionMode: 'notify_and_draft' });
+    expect(mockDraft).toHaveBeenCalledOnce();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('rule actionMode=auto_send drives a send even when the workspace default is draft-only', async () => {
+    mockSettings.mockResolvedValue(settings(true, false));
+    await runSignalActions(client, WS, makeEvent(), { ...LINKEDIN_PERSON, actionMode: 'auto_send' });
+    expect(mockDraft).toHaveBeenCalledOnce();
+    // Guard (mocked allow) is the real auto_send_enabled enforcement point.
+    expect(mockSend).toHaveBeenCalledOnce();
+  });
+
+  it('master gate: rule requests draft but outreach_enabled is off -> nothing happens', async () => {
+    mockSettings.mockResolvedValue(settings(false, false));
+    await runSignalActions(client, WS, makeEvent(), { ...LINKEDIN_PERSON, actionMode: 'auto_send' });
+    expect(mockDraft).not.toHaveBeenCalled();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
+
+  it('rule channels select the send channel (linkedin_dm)', async () => {
+    mockSettings.mockResolvedValue(settings(true, true));
+    await runSignalActions(client, WS, makeEvent(), {
+      ...LINKEDIN_PERSON,
+      actionMode: 'auto_send',
+      channels: ['linkedin_dm'],
+    });
+    expect(mockSend).toHaveBeenCalledOnce();
+    expect(mockSend.mock.calls[0][1].channel).toBe('linkedin_dm');
+  });
+
+  it('rule channel=copy is not auto-sendable (draft only)', async () => {
+    mockSettings.mockResolvedValue(settings(true, true));
+    await runSignalActions(client, WS, makeEvent(), {
+      ...LINKEDIN_PERSON,
+      actionMode: 'auto_send',
+      channels: ['copy'],
+    });
+    expect(mockDraft).toHaveBeenCalledOnce();
+    expect(mockSend).not.toHaveBeenCalled();
+  });
 });
