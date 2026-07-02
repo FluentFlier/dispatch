@@ -4,15 +4,20 @@ import type { NormalizedEvent } from '@/lib/event-capture/sources/types';
 import { normalizeGoogleEvents } from '@/lib/composio/actions/calendar-read';
 import { parseEventFromLlm } from '@/lib/event-capture/sources/linkedin-scan';
 
-function fakeClient(upsertReturnsId: string | null) {
+function fakeClient(insertReturnsId: string | null) {
   const inserted: any[] = [];
   const client: any = {
     database: {
       from(table: string) {
-        return {
-          upsert: () => ({ select: () => ({ data: upsertReturnsId ? [{ id: upsertReturnsId }] : [], error: null }) }),
-          insert: (row: any) => { inserted.push({ table, row }); return { data: null, error: null }; },
-        };
+        if (table === 'jobs') {
+          return { insert: (row: any) => { inserted.push({ table, row }); return { data: null, error: null }; } };
+        }
+        const q: any = {};
+        q.select = () => q;
+        q.eq = () => q;
+        q.maybeSingle = () => ({ data: null, error: null });
+        q.insert = () => ({ select: () => ({ data: insertReturnsId ? [{ id: insertReturnsId }] : [], error: null }) });
+        return q;
       },
     },
   };
@@ -29,16 +34,16 @@ describe('Phase: Event Capture Composio', () => {
     it('enqueues an enrich_event job when a capture is newly inserted', async () => {
       const { client, inserted } = fakeClient('cap_123');
       const now = new Date('2026-06-24T22:00:00Z');
-      const count = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [ev], now);
-      expect(count).toBe(1);
+      const res = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [ev], now);
+      expect(res.created).toBe(1);
       expect(inserted).toContainEqual({ table: 'jobs', row: expect.objectContaining({ type: 'enrich_event', payload: { event_capture_id: 'cap_123' } }) });
     });
 
     it('does not enqueue when the event is a duplicate (no id returned)', async () => {
       const { client, inserted } = fakeClient(null);
       const now = new Date('2026-06-24T22:00:00Z');
-      const count = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [ev], now);
-      expect(count).toBe(0);
+      const res = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [ev], now);
+      expect(res.created).toBe(0);
       expect(inserted.find((i) => i.table === 'jobs')).toBeUndefined();
     });
 
@@ -46,8 +51,8 @@ describe('Phase: Event Capture Composio', () => {
       const { client } = fakeClient('cap_x');
       const now = new Date('2026-06-24T22:00:00Z');
       const lunch: NormalizedEvent = { ...ev, providerEventId: 'evt_2', title: 'Lunch with team' };
-      const count = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [lunch], now);
-      expect(count).toBe(0);
+      const res = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [lunch], now);
+      expect(res.created).toBe(0);
     });
   });
 
@@ -92,8 +97,8 @@ describe('Phase: Event Capture Composio', () => {
         providerEventId: 'li_1', source: 'linkedin', title: 'GTC',
         startTime: new Date('2026-07-10T18:00:00Z'), endTime: new Date('2026-07-10T19:00:00Z'),
       };
-      const count = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [future], now);
-      expect(count).toBe(1);
+      const res = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [future], now);
+      expect(res.created).toBe(1);
       expect(inserted.some((i) => i.table === 'jobs')).toBe(true);
     });
   });
