@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
 import { isEnabled } from '@/lib/feature-flags';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
-import { researchPublicEvent } from '@/lib/event-capture/research';
+import {
+  researchPublicEvent,
+  researchCacheKey,
+  getCachedResearch,
+  putCachedResearch,
+} from '@/lib/event-capture/research';
 import { generateEventQuestions } from '@/lib/event-capture/questions';
 import { isPublicEvent } from '@/lib/event-capture/filter';
 import type { EventType } from '@/lib/event-capture/filter';
@@ -153,11 +158,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
       if (isPublicEvent(capture.event_type)) {
         try {
-          const research = await researchPublicEvent(
+          // Check the cross-workspace cache first: popular public events are
+          // researched once and reused, avoiding duplicate scrape + LLM spend.
+          const cacheKey = researchCacheKey(
             capture.title,
             capture.location,
             new Date(capture.start_time),
           );
+
+          let research = await getCachedResearch(client, cacheKey);
+          if (!research) {
+            research = await researchPublicEvent(
+              capture.title,
+              capture.location,
+              new Date(capture.start_time),
+            );
+            // Populate the shared cache on a fresh, successful research run.
+            if (research) await putCachedResearch(client, cacheKey, research);
+          }
 
           if (research) {
             researchSummary = research.summary;

@@ -1,5 +1,18 @@
 import { lookup } from 'dns/promises';
 import { isIP } from 'node:net';
+import type { createClient } from '@insforge/sdk';
+import { extractResearchFacts } from '@/lib/event-capture/extract';
+
+type InsforgeClient = ReturnType<typeof createClient>;
+
+// --- Constants ---
+
+/** Max event pages to read per event (cost/latency cap). */
+const MAX_READ_URLS = 2;
+/** Truncate combined page text to ~2000 tokens (≈8000 chars) before storage/LLM. */
+const MAX_TOKENS = 2000;
+/** Cache entries older than this are treated as stale and re-researched. */
+const CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 // --- SSRF guard ---
 
@@ -208,56 +221,131 @@ export async function researchPublicEvent(
 
   if (results.length === 0) return null;
 
-  // Fetch and clean content from top 2 results only (cost/latency cap).
-  const topUrls = results.slice(0, 2).map((r) => r.link);
+  // Read the top results in parallel (jinaRead never throws — it returns null on
+  // any failure, including SSRF rejection). Preserve URL order for source attribution.
+  const topUrls = results.slice(0, MAX_READ_URLS).map((r) => r.link);
+  const reads = await Promise.allSettled(topUrls.map((url) => jinaRead(url)));
+
   const textChunks: string[] = [];
   const usedSources: string[] = [];
-
-  for (const url of topUrls) {
-    try {
-      const content = await jinaRead(url);
-      if (content) {
-        textChunks.push(content);
-        usedSources.push(url);
-      }
-    } catch {
-      // SSRF or fetch failure — skip this URL, continue.
+  reads.forEach((result, i) => {
+    if (result.status === 'fulfilled' && result.value) {
+      textChunks.push(result.value);
+      usedSources.push(topUrls[i]);
     }
-  }
+  });
 
   if (textChunks.length === 0) return null;
 
-  // Combine chunks and truncate to 2000 tokens (spec: ~8000 chars).
+  // Combine chunks and truncate to MAX_TOKENS (~8000 chars) before storage/extraction.
   let rawText = textChunks.join('\n\n---\n\n');
-  const MAX_TOKENS = 2000;
   const MAX_CHARS = MAX_TOKENS * 4;
-
   if (approximateTokens(rawText) > MAX_TOKENS) {
     rawText = rawText.slice(0, MAX_CHARS);
   }
 
-  // Extract lightweight structured data from text using simple heuristics.
-  // Full NLP extraction is handled by the Haiku question-generation prompt in Stage 2.
-  const summary = results[0]?.snippet ?? title;
-  const key_topics: string[] = [];
-  const key_announcements: string[] = [];
-  const speakers: Array<{ name: string; title?: string; handle?: string }> = [];
-
-  // Extract speaker names from common patterns: "Name, Title at Company" or "@handle"
-  const speakerPattern = /(?:speaker|presenter|host|keynote)[:\s]+([A-Z][a-z]+ [A-Z][a-z]+)/gi;
-  let match: RegExpExecArray | null;
-  while ((match = speakerPattern.exec(rawText)) !== null) {
-    if (speakers.length < 5) {
-      speakers.push({ name: match[1] });
-    }
-  }
+  // Extract structured facts via the configured LLM (premium in prod, free in
+  // testing — see ai-tiers.ts). Degrades to the SERP snippet + empty structure
+  // when extraction is unavailable, matching the pre-LLM fallback behavior.
+  const facts = await extractResearchFacts(rawText, title);
 
   return {
-    summary,
-    speakers,
-    key_topics,
-    key_announcements,
+    summary: facts?.summary || (results[0]?.snippet ?? title),
+    speakers: facts?.speakers ?? [],
+    key_topics: facts?.key_topics ?? [],
+    key_announcements: facts?.key_announcements ?? [],
     sources: usedSources,
     raw_text: rawText,
   };
+}
+
+// --- Cross-workspace research cache ---
+
+/**
+ * Builds the normalized cache key for an event: lower(title) | date | lower(location).
+ * Same public event across workspaces maps to one key, so research is paid for once.
+ * Pure and deterministic — safe to unit test without a DB.
+ */
+export function researchCacheKey(
+  title: string,
+  location: string | null,
+  startDate: Date,
+): string {
+  const day = startDate.toISOString().split('T')[0];
+  const loc = (location ?? '').trim().toLowerCase();
+  return `${title.trim().toLowerCase()}|${day}|${loc}`;
+}
+
+interface ResearchCacheRow {
+  summary: string;
+  speakers: EventResearch['speakers'];
+  key_topics: string[];
+  key_announcements: string[];
+  sources: string[];
+  raw_text: string;
+  updated_at: string;
+}
+
+/**
+ * Reads a fresh (< 30 day) cached research row by normalized key.
+ * Returns null on miss, staleness, or any DB error (logged) so the caller falls
+ * back to a live research run — the cache is an optimization, never load-bearing.
+ */
+export async function getCachedResearch(
+  client: InsforgeClient,
+  key: string,
+): Promise<EventResearch | null> {
+  try {
+    const { data } = await client.database
+      .from('event_research_cache')
+      .select('summary, speakers, key_topics, key_announcements, sources, raw_text, updated_at')
+      .eq('research_key', key)
+      .maybeSingle();
+
+    if (!data) return null;
+    const row = data as ResearchCacheRow;
+
+    if (Date.now() - new Date(row.updated_at).getTime() > CACHE_TTL_MS) return null;
+
+    return {
+      summary: row.summary,
+      speakers: row.speakers ?? [],
+      key_topics: row.key_topics ?? [],
+      key_announcements: row.key_announcements ?? [],
+      sources: row.sources ?? [],
+      raw_text: row.raw_text,
+    };
+  } catch (err) {
+    console.warn('[event-research] cache read failed', { key, err });
+    return null;
+  }
+}
+
+/**
+ * Upserts a research result into the cross-workspace cache, refreshing updated_at.
+ * Failures are logged and swallowed — a cache write failure must never break the
+ * enrich job that produced valid research.
+ */
+export async function putCachedResearch(
+  client: InsforgeClient,
+  key: string,
+  research: EventResearch,
+): Promise<void> {
+  try {
+    await client.database.from('event_research_cache').upsert(
+      {
+        research_key: key,
+        summary: research.summary,
+        speakers: research.speakers,
+        key_topics: research.key_topics,
+        key_announcements: research.key_announcements,
+        sources: research.sources,
+        raw_text: research.raw_text,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'research_key' },
+    );
+  } catch (err) {
+    console.warn('[event-research] cache write failed', { key, err });
+  }
 }
