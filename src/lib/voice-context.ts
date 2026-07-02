@@ -232,7 +232,9 @@ export async function loadCreatorVoiceContext(
   }
 
   let brainSnippets: string[] | undefined;
-  if (!options.lightweight) {
+  // Lightweight mode skips brain retrieval for speed, but the GTM playbook lives
+  // in the brain and outreach drafts need it, so still fetch when includeGtm is set.
+  if (!options.lightweight || options.includeGtm) {
     try {
       const brain = await retrieveBrainContext(
         client,
