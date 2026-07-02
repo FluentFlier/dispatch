@@ -10,7 +10,7 @@
  *     workspace made rows unreadable. The writer must persist a concrete workspace.
  */
 import { describe, it, expect } from 'vitest';
-import { persistImportedPosts } from '@/lib/voice-lab/persist-imported-posts';
+import { persistImportedPosts, firstImageUrl } from '@/lib/voice-lab/persist-imported-posts';
 
 /** Fake InsForge client that captures rows inserted into `posts`. */
 function fakeClient() {
@@ -68,5 +68,49 @@ describe('Phase: Imported Posts Visibility', () => {
       items: [{ id: 'p2', text: 'Another substantial historical post from the connected account.' }],
     });
     expect(insertedPosts[0].workspace_id).toBe('ws-xyz');
+  });
+
+  it('imports the first image attachment into image_url', async () => {
+    const { client, insertedPosts } = fakeClient();
+    await persistImportedPosts({
+      client: client as never,
+      userId: 'u1',
+      workspaceId: 'ws1',
+      platform: 'linkedin',
+      items: [{
+        id: 'p3',
+        text: 'A historical post that had a photo attached to it on LinkedIn.',
+        attachments: [
+          { type: 'img', url: 'https://media.licdn.com/img/abc.jpg' },
+          { type: 'img', url: 'https://media.licdn.com/img/second.jpg' },
+        ],
+      }],
+    });
+    expect(insertedPosts[0].image_url).toBe('https://media.licdn.com/img/abc.jpg');
+  });
+
+  it('sets image_url to null for a text-only post', async () => {
+    const { client, insertedPosts } = fakeClient();
+    await persistImportedPosts({
+      client: client as never,
+      userId: 'u1',
+      workspaceId: 'ws1',
+      platform: 'linkedin',
+      items: [{ id: 'p4', text: 'A plain text post with no media attached at all here.' }],
+    });
+    expect(insertedPosts[0].image_url).toBeNull();
+  });
+
+  describe('firstImageUrl', () => {
+    it('returns the first img attachment url', () => {
+      expect(firstImageUrl({ attachments: [{ type: 'video', url: 'v' }, { type: 'img', url: 'i' }] })).toBe('i');
+    });
+    it('returns null when there are no image attachments', () => {
+      expect(firstImageUrl({ attachments: [{ type: 'video', url: 'v' }] })).toBeNull();
+      expect(firstImageUrl({})).toBeNull();
+    });
+    it('ignores img attachments with no url', () => {
+      expect(firstImageUrl({ attachments: [{ type: 'img' }] })).toBeNull();
+    });
   });
 });
