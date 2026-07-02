@@ -28,15 +28,66 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const client = getServerClient();
 
-  // Update creator_profile with voice data
-  const { error: profileError } = await client.database
+  // Persist the analyzed voice onto the creator_profile row.
+  //
+  // A blind upsert breaks the first-time-import flow: `display_name` is NOT NULL
+  // with no default, so inserting a brand-new row with only the voice fields
+  // trips a 23502 constraint violation. Users who imported LinkedIn posts before
+  // finishing onboarding (no profile row yet) hit this on every save.
+  //
+  // Instead: update the existing row's voice fields when one exists, otherwise
+  // insert a minimal row seeding the required `display_name` from the account
+  // (email prefix, falling back to 'Creator'). Onboarding later upserts on the
+  // same user_id conflict key and overwrites the placeholder name.
+  const { data: existingProfile, error: lookupError } = await client.database
     .from('creator_profile')
-    .upsert({
-      user_id: user.id,
-      voice_description: parsed.data.voice_description,
-      voice_rules: parsed.data.voice_rules,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id' });
+    .select('id, workspace_id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (lookupError) {
+    console.error('Profile lookup error:', lookupError);
+    return NextResponse.json({ error: 'Failed to save profile' }, { status: 500 });
+  }
+
+  let profileError: unknown = null;
+
+  if (existingProfile) {
+    // Row exists — only touch the voice fields so we never clobber display_name.
+    const { error } = await client.database
+      .from('creator_profile')
+      .update({
+        voice_description: parsed.data.voice_description,
+        voice_rules: parsed.data.voice_rules,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('user_id', user.id);
+    profileError = error;
+  } else {
+    // No row yet (import-before-onboarding) — insert with a seeded display_name.
+    // Attach the active workspace_id when available so later workspace-scoped
+    // reads (voice-context, brain sync) can find the row.
+    const { data: membership } = await client.database
+      .from('workspace_members')
+      .select('workspace_id')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    const emailPrefix = user.email ? user.email.split('@')[0]?.trim() : '';
+    const displayName = emailPrefix || 'Creator';
+
+    const { error } = await client.database
+      .from('creator_profile')
+      .insert([{
+        user_id: user.id,
+        workspace_id: membership?.workspace_id ?? null,
+        display_name: displayName,
+        voice_description: parsed.data.voice_description,
+        voice_rules: parsed.data.voice_rules,
+        updated_at: new Date().toISOString(),
+      }]);
+    profileError = error;
+  }
 
   if (profileError) {
     console.error('Profile save error:', profileError);
