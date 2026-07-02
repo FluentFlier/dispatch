@@ -14,11 +14,12 @@ import {
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { SignalsSetupBanner } from '@/components/signals/SignalsSetupBanner';
+import { SignalRulesManager } from '@/components/signals/SignalRulesManager';
 import { linkedInIdentifierFromSignal } from '@/lib/signals/linkedin-identifier';
 import type { SignalEventWithPost, SignalSourceRow } from '@/lib/signals/types';
 
 type StatusFilter = 'pending' | 'drafted' | 'sent' | 'all';
-type SendChannel = 'linkedin_connect' | 'linkedin_dm' | 'gmail';
+type SendChannel = 'linkedin_connect' | 'linkedin_dm' | 'x_dm' | 'gmail';
 
 interface IntegrationStatus {
   toolkit: 'slack' | 'gmail' | 'googlecalendar';
@@ -93,6 +94,7 @@ function draftChannelForSend(channel: SendChannel): SendChannel | 'copy' {
   if (channel === 'gmail') return 'gmail';
   if (channel === 'linkedin_connect') return 'linkedin_connect';
   if (channel === 'linkedin_dm') return 'linkedin_dm';
+  if (channel === 'x_dm') return 'x_dm';
   return 'copy';
 }
 
@@ -349,7 +351,9 @@ export default function SignalsPage() {
           ? 'Email sent via Gmail.'
           : sendChannel === 'linkedin_connect'
             ? 'Connection invite sent.'
-            : 'LinkedIn message sent.',
+            : sendChannel === 'x_dm'
+              ? 'Message sent on X.'
+              : 'LinkedIn message sent.',
       );
       if (data.event) {
         mergeEvent(data.event as SignalEventWithPost);
@@ -505,11 +509,14 @@ export default function SignalsPage() {
     !safety?.settings.dry_run &&
     (sendChannel === 'gmail'
       ? integrations.find((i) => i.toolkit === 'gmail')?.connected
-      : linkedIn?.connected);
+      : sendChannel === 'x_dm'
+        ? true // X connection is enforced server-side (no status endpoint yet)
+        : linkedIn?.connected);
 
   const gmailIntegration = integrations.find((i) => i.toolkit === 'gmail');
   const calendarIntegration = integrations.find((i) => i.toolkit === 'googlecalendar');
-  const needsLinkedIn = sendChannel !== 'gmail' && !linkedIn?.connected;
+  const needsLinkedIn =
+    (sendChannel === 'linkedin_connect' || sendChannel === 'linkedin_dm') && !linkedIn?.connected;
   const needsGmail = sendChannel === 'gmail' && !gmailIntegration?.connected;
   const sendBlocked =
     !safety?.settings.outreach_enabled ||
@@ -599,6 +606,16 @@ export default function SignalsPage() {
             Follow
           </button>
         </div>
+        </div>
+      </details>
+
+      <details className="rounded-lg border border-border bg-bg-secondary px-4 py-3 group">
+        <summary className="cursor-pointer text-xs font-medium text-text-secondary list-none flex items-center justify-between gap-2">
+          <span>Automation rules</span>
+          <span className="text-text-tertiary group-open:hidden">Draft &amp; auto-send rules</span>
+        </summary>
+        <div className="mt-3">
+          <SignalRulesManager />
         </div>
       </details>
 
@@ -880,6 +897,15 @@ export default function SignalsPage() {
                     <input
                       type="radio"
                       name="channel"
+                      checked={sendChannel === 'x_dm'}
+                      onChange={() => setSendChannel('x_dm')}
+                    />
+                    X message
+                  </label>
+                  <label className="flex items-center gap-1.5 text-sm cursor-pointer">
+                    <input
+                      type="radio"
+                      name="channel"
                       checked={sendChannel === 'gmail'}
                       onChange={() => setSendChannel('gmail')}
                     />
@@ -897,7 +923,11 @@ export default function SignalsPage() {
                 ) : (
                   <input
                     type="text"
-                    placeholder="LinkedIn profile (we pre-fill when we can)"
+                    placeholder={
+                      sendChannel === 'x_dm'
+                        ? 'X @handle (we pre-fill when we can)'
+                        : 'LinkedIn profile (we pre-fill when we can)'
+                    }
                     value={linkedinUrl}
                     onChange={(e) => setLinkedinUrl(e.target.value)}
                     className="w-full text-sm rounded-md border border-border bg-bg-secondary px-3 py-2 min-h-[44px]"
