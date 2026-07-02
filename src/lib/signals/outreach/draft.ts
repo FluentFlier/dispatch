@@ -65,6 +65,9 @@ export async function draftOutreachForEvent(
     workspaceId,
     platform,
     lightweight: true,
+    // Outreach drafts must carry the GTM playbook (ICP/pitch/CTA). Without this the
+    // brain block is skipped and drafts generate with voice but no sales awareness.
+    includeGtm: true,
   });
 
   const result = await generateWithVoicePipeline({
