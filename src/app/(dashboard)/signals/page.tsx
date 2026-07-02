@@ -15,6 +15,7 @@ import {
 import { PageHeader } from '@/components/layout/PageHeader';
 import { SignalsSetupBanner } from '@/components/signals/SignalsSetupBanner';
 import { SignalRulesManager } from '@/components/signals/SignalRulesManager';
+import CalendarConnectionCard from '@/components/calendar/CalendarConnectionCard';
 import { linkedInIdentifierFromSignal } from '@/lib/signals/linkedin-identifier';
 import type { SignalEventWithPost, SignalSourceRow } from '@/lib/signals/types';
 
@@ -554,6 +555,10 @@ export default function SignalsPage() {
           </button>
         }
       />
+
+      <div className="mb-4">
+        <CalendarConnectionCard />
+      </div>
 
       <SignalsSetupBanner
         setup={setupState}
