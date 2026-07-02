@@ -1,0 +1,64 @@
+'use client';
+
+import { useState } from 'react';
+import { CalendarDays } from 'lucide-react';
+import { PageHeader } from '@/components/layout/PageHeader';
+import { useInbox, dismissCapture } from './useEventCapture';
+import { EventCaptureInbox } from './EventCaptureInbox';
+import { EventDetailPanel } from './EventDetailPanel';
+
+/**
+ * Event Capture inbox page: the list of captured events on the left, the
+ * selected capture's Q&A / draft detail on the right. Two-column on desktop,
+ * stacked on mobile. Follows the Signals page layout so the two feeds match.
+ */
+export default function EventCapturePage() {
+  const { items, loading, refresh } = useInbox();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  const handleDismiss = async (id: string): Promise<void> => {
+    await dismissCapture(id);
+    if (selectedId === id) setSelectedId(null);
+    await refresh();
+  };
+
+  return (
+    <div className="max-w-6xl mx-auto space-y-6">
+      <PageHeader
+        eyebrow="Events"
+        title="Event Capture"
+        subtitle="Turn the events you attend into posts. Answer a few questions and we draft it in your voice."
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
+        <div className="lg:col-span-2 border border-border rounded-lg bg-bg-secondary overflow-hidden">
+          <div className="px-4 py-3 border-b border-border flex items-center gap-2 text-sm font-medium text-text-secondary">
+            <CalendarDays className="h-4 w-4" />
+            Inbox
+            {!loading && <span className="text-text-tertiary">({items.length})</span>}
+          </div>
+          <div className="max-h-[560px] overflow-y-auto">
+            {loading && items.length === 0 ? (
+              <p className="p-4 text-sm text-text-tertiary">Loading events…</p>
+            ) : (
+              <EventCaptureInbox
+                items={items}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+                onDismiss={handleDismiss}
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="lg:col-span-3 border border-border rounded-lg bg-bg-secondary p-5">
+          {selectedId ? (
+            <EventDetailPanel id={selectedId} onSubmitted={refresh} />
+          ) : (
+            <p className="text-sm text-text-tertiary">Select an event to review.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

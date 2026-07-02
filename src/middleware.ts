@@ -15,6 +15,7 @@ const PROTECTED_ROUTES = [
   '/teleprompter',
   '/video-studio',
   '/signals',
+  '/event-capture',
   '/onboarding',
 ];
 
