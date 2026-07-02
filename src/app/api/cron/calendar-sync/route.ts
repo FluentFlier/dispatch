@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
 import { isEnabled } from '@/lib/feature-flags';
-import { pullCalendarEvents } from '@/lib/event-capture/sources/calendar-composio';
+import { pullCalendarEvents, CALENDAR_LOOKBACK_HOURS } from '@/lib/event-capture/sources/calendar-composio';
 import { scanLinkedInForEvents } from '@/lib/event-capture/sources/linkedin-scan';
 import { ingestEvents, cancelMissingEvents } from '@/lib/event-capture/ingest';
 import type { SignalIntegrationRow } from '@/lib/signals/integrations/store';
@@ -48,17 +48,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         continue;
       }
 
-      const calEvents = await pullCalendarEvents(integration, now);
-      const calRes = await ingestEvents(client, { workspaceId, userId }, calEvents, now, 'incremental');
+      const fetchResult = await pullCalendarEvents(integration, now);
+      const calEvents = fetchResult.events;
+      const calRes = fetchResult.ok
+        ? await ingestEvents(client, { workspaceId, userId }, calEvents, now, 'incremental')
+        : { created: 0, updated: 0 };
 
-      // Deletion pass over the cron lookback window (same window pullCalendarEvents used).
-      const lookbackMs = 3 * 60 * 60 * 1000;
-      const cancelled = await cancelMissingEvents(
-        client,
-        { workspaceId },
-        { timeMin: new Date(now.getTime() - lookbackMs), timeMax: now },
-        new Set(calEvents.map((e) => e.providerEventId)),
-      );
+      // Deletion pass only when the fetch succeeded — otherwise an empty result
+      // would soft-cancel every event in the lookback window.
+      let cancelled = 0;
+      if (fetchResult.ok) {
+        const lookbackMs = CALENDAR_LOOKBACK_HOURS * 60 * 60 * 1000;
+        cancelled = await cancelMissingEvents(
+          client,
+          { workspaceId },
+          { timeMin: new Date(now.getTime() - lookbackMs), timeMax: now },
+          new Set(calEvents.map((e) => e.providerEventId)),
+        );
+      }
 
       let liCreated = 0;
       if (calRes.created === 0) {
@@ -68,7 +75,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         liCreated = liRes.created;
       }
 
-      results.push({ workspaceId, calendar: calRes.created, linkedin: liCreated, status: cancelled > 0 ? 'ok+cancelled' : 'ok' });
+      const status = !fetchResult.ok ? 'calendar_fetch_error' : cancelled > 0 ? 'ok+cancelled' : 'ok';
+      results.push({ workspaceId, calendar: calRes.created, linkedin: liCreated, status });
     } catch (err) {
       console.error('[calendar-sync] workspace error', { workspaceId, err });
       results.push({ workspaceId, calendar: 0, linkedin: 0, status: 'error' });

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { shouldCaptureEvent } from '@/lib/event-capture/filter';
 import { ingestEvents, cancelMissingEvents } from '@/lib/event-capture/ingest';
 import type { NormalizedEvent } from '@/lib/event-capture/sources/types';
@@ -205,5 +205,47 @@ describe('cancelMissingEvents', () => {
     expect(rows.find((r) => r.id === 'b').status).toBe('cancelled');
     expect(rows.find((r) => r.id === 'a').status).toBe('detected');
     expect(rows.find((r) => r.id === 'c').status).toBe('detected');
+  });
+});
+
+describe('resyncCalendar fetch-failure safety (I-1 regression)', () => {
+  const integration: any = {
+    workspace_id: 'ws1', connected_by_user_id: 'u1', composio_user_id: 'cu1',
+    config: { calendar_id: 'primary' },
+  };
+  const window = { timeMin: new Date('2025-07-02T12:00:00Z'), timeMax: new Date('2026-07-02T12:00:00Z') };
+
+  afterEach(() => { vi.resetModules(); vi.clearAllMocks(); });
+
+  it('does NOT cancel events and reports an error when the calendar fetch fails', async () => {
+    const cancelMissingEvents = vi.fn().mockResolvedValue(0);
+    const ingestEvents = vi.fn().mockResolvedValue({ created: 0, updated: 0 });
+    vi.doMock('@/lib/composio/actions/calendar-read', () => ({
+      findCalendarEvents: vi.fn().mockResolvedValue({ ok: false, events: [], error: 'Composio timeout' }),
+    }));
+    vi.doMock('@/lib/event-capture/ingest', () => ({ ingestEvents, cancelMissingEvents }));
+
+    const { resyncCalendar } = await import('@/lib/event-capture/resync');
+    const res = await resyncCalendar({} as any, integration, window, new Date('2026-07-02T12:00:00Z'));
+
+    expect(cancelMissingEvents).not.toHaveBeenCalled();      // the whole point: no destructive sweep on failure
+    expect(res.cancelled).toBe(0);
+    expect(res.errors.length).toBeGreaterThan(0);
+    expect(res.errors[0]).toContain('Composio timeout');
+  });
+
+  it('cancels normally when the fetch succeeds', async () => {
+    const cancelMissingEvents = vi.fn().mockResolvedValue(2);
+    const ingestEvents = vi.fn().mockResolvedValue({ created: 1, updated: 0 });
+    vi.doMock('@/lib/composio/actions/calendar-read', () => ({
+      findCalendarEvents: vi.fn().mockResolvedValue({ ok: true, events: [{ providerEventId: 'e1' }] }),
+    }));
+    vi.doMock('@/lib/event-capture/ingest', () => ({ ingestEvents, cancelMissingEvents }));
+
+    const { resyncCalendar } = await import('@/lib/event-capture/resync');
+    const res = await resyncCalendar({} as any, integration, window, new Date('2026-07-02T12:00:00Z'));
+
+    expect(cancelMissingEvents).toHaveBeenCalledTimes(1);
+    expect(res).toMatchObject({ created: 1, cancelled: 2, errors: [] });
   });
 });

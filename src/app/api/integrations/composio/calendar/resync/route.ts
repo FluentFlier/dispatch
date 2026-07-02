@@ -67,6 +67,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const result = await resyncCalendar(client, integration, { timeMin, timeMax }, now);
 
     const touched = result.created + result.updated + result.cancelled;
+    if (result.errors.length > 0) {
+      return NextResponse.json({ ...result, message: result.errors[0] }, { status: 502 });
+    }
     const message =
       touched === 0
         ? 'No events found in this range. Check the window or your calendar selection.'

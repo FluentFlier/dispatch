@@ -39,17 +39,26 @@ export function normalizeGoogleEvents(items: GoogleCalendarItem[]): NormalizedEv
   return out;
 }
 
+/** Result of a calendar fetch: distinguishes a real empty calendar (ok:true, events:[]) from a provider failure (ok:false). */
+export interface CalendarFetchResult {
+  ok: boolean;
+  events: NormalizedEvent[];
+  error?: string;
+}
+
 /**
  * Fetches timed calendar events for a Composio-connected user within a window
- * using the GOOGLECALENDAR_FIND_EVENTS tool, then normalizes them. Returns []
- * (never throws) so one bad integration cannot kill the cron loop.
+ * using the GOOGLECALENDAR_FIND_EVENTS tool, then normalizes them. Never throws,
+ * but no longer silently masks failures: a provider error returns { ok: false }
+ * so the caller MUST check `ok` before running any destructive deletion pass — an
+ * empty result from a failed fetch would otherwise soft-cancel the whole window.
  */
 export async function findCalendarEvents(
   composioUserId: string,
   timeMin: Date,
   timeMax: Date,
   calendarId = 'primary',
-): Promise<NormalizedEvent[]> {
+): Promise<CalendarFetchResult> {
   // TODO(verify): confirm GOOGLECALENDAR_FIND_EVENTS arg names + response shape against Composio dashboard before production
   const result = await executeComposioTool<{ items?: GoogleCalendarItem[] }>(
     composioUserId,
@@ -65,7 +74,7 @@ export async function findCalendarEvents(
 
   if (!result.success) {
     console.warn('[event-capture:calendar-read] Composio find events failed', { error: result.error });
-    return [];
+    return { ok: false, events: [], error: String(result.error ?? 'Calendar fetch failed') };
   }
-  return normalizeGoogleEvents(result.data?.items ?? []);
+  return { ok: true, events: normalizeGoogleEvents(result.data?.items ?? []) };
 }

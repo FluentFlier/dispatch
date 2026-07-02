@@ -33,7 +33,18 @@ export async function resyncCalendar(
   }
 
   const calendarId = integration.config.calendar_id ?? 'primary';
-  const events = await findCalendarEvents(integration.composio_user_id, window.timeMin, window.timeMax, calendarId);
+  const fetchResult = await findCalendarEvents(integration.composio_user_id, window.timeMin, window.timeMax, calendarId);
+  if (!fetchResult.ok) {
+    // Fetch failed — do NOT run the deletion pass (an empty set would soft-cancel the
+    // user's whole window). Surface the reason so the endpoint can tell the user.
+    return {
+      created: 0,
+      updated: 0,
+      cancelled: 0,
+      errors: [fetchResult.error ?? 'Calendar fetch failed — reconnect and try again.'],
+    };
+  }
+  const events = fetchResult.events;
 
   const { created, updated } = await ingestEvents(
     client,

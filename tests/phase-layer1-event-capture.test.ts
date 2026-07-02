@@ -340,7 +340,8 @@ describe('Layer 1: Event Capture', () => {
         isEnabled: vi.fn().mockResolvedValue(true),
       }));
       vi.doMock('@/lib/event-capture/sources/calendar-composio', () => ({
-        pullCalendarEvents: vi.fn().mockResolvedValue([{ providerEventId: 'evt-1' }]),
+        pullCalendarEvents: vi.fn().mockResolvedValue({ ok: true, events: [{ providerEventId: 'evt-1' }] }),
+        CALENDAR_LOOKBACK_HOURS: 3,
       }));
       vi.doMock('@/lib/event-capture/sources/linkedin-scan', () => ({
         scanLinkedInForEvents,
