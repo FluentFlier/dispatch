@@ -11,6 +11,11 @@ import {
   sendLinkedInDirectMessage,
   sendLinkedInInMail,
 } from '@/lib/signals/outreach/unipile-linkedin';
+import {
+  getXUnipileAccountId,
+  resolveXProfile,
+  sendXDirectMessage,
+} from '@/lib/signals/outreach/unipile-x';
 import { sendGmailEmail } from '@/lib/composio/actions/gmail';
 import { getIntegration } from '@/lib/signals/integrations/store';
 
@@ -123,10 +128,6 @@ export async function sendSignalOutreach(
     return { success: false, error: 'Copy channel does not send via API.' };
   }
 
-  if (channel === 'x_dm') {
-    return { success: false, error: 'X DM send is not wired yet. Use copy for now.' };
-  }
-
   const guard = await assertOutreachAllowed(client, workspaceId, channel, { eventId });
   if (!guard.allowed) {
     return { success: false, error: guard.reason ?? 'Outreach blocked by safety settings.' };
@@ -191,6 +192,79 @@ export async function sendSignalOutreach(
 
     const updatedEvent = await getEvent(client, workspaceId, eventId);
     return { success: true, externalId: sendResult.messageId, event: updatedEvent };
+  }
+
+  if (channel === 'x_dm') {
+    // The target X handle is passed in linkedinIdentifier (the generic target field).
+    const xIdentifier = input.linkedinIdentifier?.trim();
+    if (!xIdentifier) {
+      return { success: false, error: 'An X handle is required for X outreach.' };
+    }
+
+    const xAccountId = await getXUnipileAccountId(client, userId, workspaceId);
+    if (!xAccountId) {
+      return { success: false, error: 'Connect X via Settings before sending outreach.' };
+    }
+
+    await logSignalAudit(client, {
+      workspace_id: workspaceId,
+      action: 'outreach_send_attempt',
+      channel,
+      event_id: eventId,
+      social_account_id: xAccountId,
+      metadata: { x_identifier: xIdentifier },
+    });
+
+    let xProfile;
+    try {
+      xProfile = await resolveXProfile(xAccountId, xIdentifier);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      await markOutreachFailed(client, workspaceId, eventId, channel, msg);
+      return { success: false, error: msg };
+    }
+
+    const sendResult = await sendXDirectMessage(xAccountId, xProfile.providerId, messageText);
+    if (!sendResult.success) {
+      await logSignalAudit(client, {
+        workspace_id: workspaceId,
+        action: 'outreach_blocked',
+        channel,
+        event_id: eventId,
+        social_account_id: xAccountId,
+        blocked_reason: sendResult.error,
+      });
+      await markOutreachFailed(client, workspaceId, eventId, channel, sendResult.error ?? 'Send failed');
+      return { success: false, error: sendResult.error, providerId: xProfile.providerId };
+    }
+
+    await logSignalAudit(client, {
+      workspace_id: workspaceId,
+      action: 'outreach_send_success',
+      channel,
+      event_id: eventId,
+      social_account_id: xAccountId,
+      metadata: { external_id: sendResult.externalId, provider_id: xProfile.providerId },
+    });
+
+    await markOutreachSent(
+      client,
+      workspaceId,
+      eventId,
+      channel,
+      messageText,
+      xProfile.providerId,
+      xIdentifier,
+      sendResult.externalId,
+    );
+
+    const updatedEvent = await getEvent(client, workspaceId, eventId);
+    return {
+      success: true,
+      externalId: sendResult.externalId,
+      providerId: xProfile.providerId,
+      event: updatedEvent,
+    };
   }
 
   const linkedinIdentifier = input.linkedinIdentifier?.trim();

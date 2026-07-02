@@ -124,11 +124,12 @@ describe('Phase: Signals action pipeline', () => {
     expect(mockSend).not.toHaveBeenCalled();
   });
 
-  it('auto_send: never sends on X (draft only, X send not wired)', async () => {
+  it('auto_send: X person-profile now sends via x_dm', async () => {
     mockSettings.mockResolvedValue(settings(true, true));
-    await runSignalActions(client, WS, makeEvent(), { platform: 'x', sourceType: 'person_profile' });
+    await runSignalActions(client, WS, makeEvent('founderhandle'), { platform: 'x', sourceType: 'person_profile' });
     expect(mockDraft).toHaveBeenCalledOnce();
-    expect(mockSend).not.toHaveBeenCalled();
+    expect(mockSend).toHaveBeenCalledOnce();
+    expect(mockSend.mock.calls[0][1].channel).toBe('x_dm');
   });
 
   it('auto_send: skips send when the safety guard blocks (draft retained)', async () => {

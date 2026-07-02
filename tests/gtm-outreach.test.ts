@@ -53,6 +53,15 @@ vi.mock('@/lib/signals/outreach/unipile-linkedin', () => ({
   getInMailBalance: (...a: unknown[]) => getInMailBalance(...a),
 }));
 
+const getXUnipileAccountId = vi.fn();
+const resolveXProfile = vi.fn();
+const sendXDirectMessage = vi.fn();
+vi.mock('@/lib/signals/outreach/unipile-x', () => ({
+  getXUnipileAccountId: (...a: unknown[]) => getXUnipileAccountId(...a),
+  resolveXProfile: (...a: unknown[]) => resolveXProfile(...a),
+  sendXDirectMessage: (...a: unknown[]) => sendXDirectMessage(...a),
+}));
+
 const getIntegration = vi.fn();
 vi.mock('@/lib/signals/integrations/store', () => ({
   getIntegration: (...a: unknown[]) => getIntegration(...a),
@@ -147,8 +156,7 @@ function makeClient(opts: FakeDbOptions = {}) {
     },
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return { client: { database } as any, calls };
+  return { client: { database } as unknown as never, calls };
 }
 
 function makeSettings(overrides: Partial<SignalSafetySettings> = {}): Record<string, unknown> {
@@ -425,6 +433,31 @@ describe('Phase: GTM Outreach — allowed send dispatch', () => {
     });
   }
 
+  it('x_dm: resolves the X profile and invokes the X DM transport', async () => {
+    const { client } = makeClient({
+      selectSingle: {
+        signal_safety_settings: allowSettings(),
+        signal_events: makeEvent({ outreach: { draft_text: 'hey there' } as never }),
+      },
+    });
+    getXUnipileAccountId.mockResolvedValue('x-acct');
+    resolveXProfile.mockResolvedValue({ providerId: 'xprov' });
+    sendXDirectMessage.mockResolvedValue({ success: true, externalId: 'xext' });
+
+    const res = await sendSignalOutreach(client, {
+      workspaceId: WS,
+      userId: USER,
+      eventId: 'evt1',
+      channel: 'x_dm',
+      linkedinIdentifier: 'founderhandle',
+    });
+
+    expect(res.success).toBe(true);
+    expect(res.externalId).toBe('xext');
+    expect(sendXDirectMessage).toHaveBeenCalledWith('x-acct', 'xprov', 'hey there');
+    expect(sendLinkedInConnectionInvite).not.toHaveBeenCalled();
+  });
+
   it('linkedin_connect: invokes the connection-invite transport and marks the record sent', async () => {
     const { client, calls } = makeClient({
       selectSingle: {
@@ -520,20 +553,27 @@ describe('Phase: GTM Outreach — allowed send dispatch', () => {
     expect(sendLinkedInConnectionInvite).not.toHaveBeenCalled();
   });
 
-  it('x_dm channel: returns the "not wired" path cleanly (no throw, no transport)', async () => {
-    const { client } = makeClient();
+  it('x_dm channel: without a connected X account returns a connect-X error (no transport)', async () => {
+    const { client } = makeClient({
+      selectSingle: {
+        signal_safety_settings: allowSettings(),
+        signal_events: makeEvent({ outreach: { draft_text: 'hey there' } as never }),
+      },
+    });
+    getXUnipileAccountId.mockResolvedValue(null);
 
     const res = await sendSignalOutreach(client, {
       workspaceId: WS,
       userId: USER,
       eventId: 'evt1',
       channel: 'x_dm',
+      linkedinIdentifier: 'founderhandle',
     });
 
     expect(res.success).toBe(false);
-    expect(res.error).toMatch(/not wired/i);
+    expect(res.error).toMatch(/connect x/i);
+    expect(sendXDirectMessage).not.toHaveBeenCalled();
     expect(sendLinkedInConnectionInvite).not.toHaveBeenCalled();
-    expect(sendGmailEmail).not.toHaveBeenCalled();
   });
 
   it('linkedin failure: records outreach_blocked + failed status, surfaces the error', async () => {
