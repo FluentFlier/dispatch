@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createHmac, timingSafeEqual } from 'crypto';
+import { timingSafeEqual } from 'crypto';
 import { getServiceClient } from '@/lib/insforge/server';
 import { fetchUnipileAccountDetails } from '@/lib/social/unipile';
 
@@ -33,32 +33,22 @@ interface UnipileWebhookPayload {
 }
 
 /**
- * Validates the Unipile HMAC-SHA256 signature on incoming webhook events.
- * Signature is in the X-Unipile-Signature header as "sha256=<hex>".
- * Always validates — never skipped based on NODE_ENV. This is a high-risk surface
- * (spec constraint #10): a forged webhook could inject fake calendar events.
+ * Verifies an incoming Unipile webhook by matching a shared secret carried in the
+ * "Unipile-Auth" header. Unipile does NOT HMAC-sign payloads; instead you attach a
+ * custom header (with a secret you choose) when creating the webhook, and Unipile
+ * echoes that header on every delivery. We compare it to UNIPILE_WEBHOOK_SECRET in
+ * constant time. This is a high-risk surface (a forged webhook could inject fake
+ * event captures), so a configured secret is always enforced.
  *
- * Uses timingSafeEqual to prevent timing oracle attacks.
+ * Uses timingSafeEqual to prevent timing-oracle attacks.
  */
-function validateUnipileSignature(
-  rawBody: string,
-  signatureHeader: string | null,
-  secret: string,
-): boolean {
-  if (!signatureHeader) return false;
-
-  // Unipile format: "sha256=<hex_digest>"
-  const [algo, digest] = signatureHeader.split('=');
-  if (algo !== 'sha256' || !digest) return false;
-
-  const expected = createHmac('sha256', secret).update(rawBody, 'utf8').digest('hex');
-
-  try {
-    return timingSafeEqual(Buffer.from(digest, 'hex'), Buffer.from(expected, 'hex'));
-  } catch {
-    // Digest length mismatch — definitely invalid.
-    return false;
-  }
+function isValidUnipileAuth(headerValue: string | null, secret: string): boolean {
+  if (!headerValue) return false;
+  const provided = Buffer.from(headerValue);
+  const expected = Buffer.from(secret);
+  // timingSafeEqual throws on length mismatch, so guard first (length is not secret).
+  if (provided.length !== expected.length) return false;
+  return timingSafeEqual(provided, expected);
 }
 
 /**
@@ -74,19 +64,19 @@ function validateUnipileSignature(
  * Returns 200 quickly — heavy processing happens inline but is lightweight.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  let webhookSecret = process.env.UNIPILE_WEBHOOK_SECRET;
+  const webhookSecret = process.env.UNIPILE_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    console.warn('[webhooks/unipile] UNIPILE_WEBHOOK_SECRET not configured. Bypassing signature check for local development!');
+    console.warn('[webhooks/unipile] UNIPILE_WEBHOOK_SECRET not configured. Bypassing auth check for local development!');
   }
 
-  // Read raw body for signature validation — must happen before any parsing.
+  // Read raw body once — needed for JSON parsing below.
   const rawBody = await request.text();
-  const signatureHeader = request.headers.get('x-unipile-signature');
 
-  // Signature validation
-  if (webhookSecret && !validateUnipileSignature(rawBody, signatureHeader, webhookSecret)) {
-    console.warn('[webhooks/unipile] Signature validation failed', { signatureHeader });
-    return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+  // Auth: Unipile echoes our shared secret in the "Unipile-Auth" header (set when
+  // the webhook was created). Reject anything that does not match.
+  if (webhookSecret && !isValidUnipileAuth(request.headers.get('unipile-auth'), webhookSecret)) {
+    console.warn('[webhooks/unipile] Auth header validation failed');
+    return NextResponse.json({ error: 'Invalid webhook auth' }, { status: 401 });
   }
 
   let payload: UnipileWebhookPayload;
