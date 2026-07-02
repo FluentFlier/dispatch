@@ -2,6 +2,35 @@ import { describe, it, expect } from 'vitest';
 import { shouldCaptureEvent } from '@/lib/event-capture/filter';
 import { ingestEvents, cancelMissingEvents } from '@/lib/event-capture/ingest';
 import type { NormalizedEvent } from '@/lib/event-capture/sources/types';
+import { resolveWindow, RELOAD_PRESETS } from '@/lib/event-capture/window';
+
+describe('resolveWindow', () => {
+  const now = new Date('2026-07-02T12:00:00Z');
+
+  it('maps last_week to [-7d, now]', () => {
+    const w = resolveWindow({ preset: 'last_week' }, now);
+    expect(w.timeMax.toISOString()).toBe(now.toISOString());
+    expect(w.timeMin.toISOString()).toBe(new Date('2026-06-25T12:00:00Z').toISOString());
+  });
+
+  it('maps next_month to [now, +30d]', () => {
+    const w = resolveWindow({ preset: 'next_month' }, now);
+    expect(w.timeMin.toISOString()).toBe(now.toISOString());
+    expect(w.timeMax.toISOString()).toBe(new Date('2026-08-01T12:00:00Z').toISOString());
+  });
+
+  it('uses explicit custom dates', () => {
+    const w = resolveWindow({ preset: 'custom', from: '2026-01-01T00:00:00Z', to: '2026-02-01T00:00:00Z' }, now);
+    expect(w.timeMin.toISOString()).toBe('2026-01-01T00:00:00.000Z');
+    expect(w.timeMax.toISOString()).toBe('2026-02-01T00:00:00.000Z');
+  });
+
+  it('exposes a labelled preset list for the UI', () => {
+    expect(RELOAD_PRESETS.map((p) => p.id)).toEqual([
+      'last_week', 'last_month', 'last_year', 'next_week', 'next_month', 'next_year', 'custom',
+    ]);
+  });
+});
 
 describe('Phase: Calendar Connect + Reload', () => {
   describe('shouldCaptureEvent ignoreRecency', () => {
