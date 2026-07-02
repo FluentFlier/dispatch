@@ -59,7 +59,12 @@ export type OutreachAuditAction =
   | 'outreach_send_success'
   | 'outreach_blocked'
   | 'slack_alert_sent'
-  | 'slack_alert_failed';
+  | 'slack_alert_failed'
+  // Automated action-pipeline outcomes (runSignalActions).
+  | 'auto_draft'
+  | 'auto_draft_failed'
+  | 'auto_send_skipped'
+  | 'auto_action_skipped';
 
 export function channelToLimitKey(
   channel: OutreachChannel,
