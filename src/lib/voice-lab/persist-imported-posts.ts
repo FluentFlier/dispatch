@@ -6,6 +6,12 @@ import { buildIdempotencyKey } from '@/lib/publish-queue';
 // directly. Next.js route modules may only export HTTP handlers, so this
 // fire-and-forget persistence helper lives here instead.
 
+/** One media attachment on a Unipile post (LinkedIn returns type 'img' with a url). */
+export interface UnipileAttachment {
+  type?: string;
+  url?: string;
+}
+
 export interface UnipileItem {
   id?: string;
   text?: string;
@@ -13,6 +19,7 @@ export interface UnipileItem {
   provider?: string;
   is_repost?: boolean;
   is_reply?: boolean;
+  attachments?: UnipileAttachment[];
 }
 
 /** Builds the canonical public post URL for a Unipile-imported post. */
@@ -21,6 +28,16 @@ export function buildPostUrl(platform: string, postId: string): string {
     return `https://www.linkedin.com/feed/update/${postId}/`;
   }
   return `https://x.com/i/web/status/${postId}`;
+}
+
+/**
+ * Returns the first image attachment URL on a Unipile post, or null. Imported
+ * posts carried only their text before this; without the image the reconstructed
+ * post looked blank/plain versus the original LinkedIn post.
+ */
+export function firstImageUrl(item: UnipileItem): string | null {
+  const img = item.attachments?.find((a) => a.type === 'img' && Boolean(a.url));
+  return img?.url ?? null;
 }
 
 /**
@@ -71,6 +88,8 @@ export async function persistImportedPosts({
       // views filter on pillars[], so an empty array makes imported posts invisible.
       pillar: 'general',
       pillars: ['general'],
+      // Carry the first image so the reconstructed post shows media, not just text.
+      image_url: firstImageUrl(item),
       platform,
       status: 'posted',
       posted_date: new Date().toISOString().split('T')[0],

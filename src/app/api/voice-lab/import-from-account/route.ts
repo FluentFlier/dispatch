@@ -131,6 +131,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         provider?: string;
         is_repost?: boolean;
         is_reply?: boolean;
+        attachments?: Array<{ type?: string; url?: string }>;
       }>;
     };
 

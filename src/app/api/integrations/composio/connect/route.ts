@@ -25,6 +25,15 @@ export async function GET(_request: NextRequest): Promise<NextResponse> {
   const workspaceId = await getActiveWorkspaceId(user.id);
   if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
 
-  const { redirectUrl } = await startComposioConnect(workspaceId, user.id, 'googlecalendar');
-  return NextResponse.redirect(redirectUrl);
+  // Composio can reject at link time (invalid/expired COMPOSIO_API_KEY, missing
+  // auth config, transient outage). This is a browser GET navigation, so surface
+  // a clean redirect back to Settings with an error flag instead of a raw 500 stack.
+  try {
+    const { redirectUrl } = await startComposioConnect(workspaceId, user.id, 'googlecalendar');
+    return NextResponse.redirect(redirectUrl);
+  } catch (err) {
+    console.error('[composio:connect] Google Calendar connect failed', err);
+    const base = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+    return NextResponse.redirect(`${base}/settings?tab=connections&calendar_error=connect_failed`);
+  }
 }
