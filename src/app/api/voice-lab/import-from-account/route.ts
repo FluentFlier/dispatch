@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { getActiveWorkspaceId } from '@/lib/workspace';
+import { getActiveWorkspaceId, ensureSoloWorkspace } from '@/lib/workspace';
 import { unipoleFetch, fetchUnipileAccountDetails } from '@/lib/social/unipile';
 import { persistImportedPosts, buildPostUrl } from '@/lib/voice-lab/persist-imported-posts';
 import { z } from 'zod';
@@ -154,10 +154,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     // Fire-and-forget: persist imported posts + publish_jobs so engagement-sync
     // can fetch LinkedIn comments for posts published outside the app.
+    // Resolve a concrete workspace for persistence: posts written with a null
+    // workspace_id are invisible to the workspace-scoped Library/Calendar reads,
+    // so guarantee one (creating the user's solo workspace if none is active yet).
+    const persistWorkspaceId = workspaceId ?? (await ensureSoloWorkspace(user.id)).id;
     void persistImportedPosts({
       client,
       userId: user.id,
-      workspaceId: workspaceId ?? null,
+      workspaceId: persistWorkspaceId,
       platform,
       items: (json.items ?? []).filter(
         (item) =>

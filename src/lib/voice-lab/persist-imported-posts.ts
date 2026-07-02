@@ -67,7 +67,10 @@ export async function persistImportedPosts({
       // aren't authored against a pillar, so seed the codebase-wide 'general'
       // fallback (same value used by auto-generate/publish) to satisfy the
       // constraint instead of silently dropping every imported post.
+      // Set BOTH pillar (primary) and pillars[] (array): the Library and Calendar
+      // views filter on pillars[], so an empty array makes imported posts invisible.
       pillar: 'general',
+      pillars: ['general'],
       platform,
       status: 'posted',
       posted_date: new Date().toISOString().split('T')[0],
