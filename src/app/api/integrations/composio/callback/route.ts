@@ -42,12 +42,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     const client = getServerClient();
+    // Google Calendar (Event Capture v1) defaults to the user's primary
+    // calendar so the sync job has a target immediately after connecting; the
+    // user can switch calendars later. Other toolkits carry no config here, so
+    // upsertIntegration preserves any existing config (or falls back to {}).
+    const config =
+      state.toolkit === 'googlecalendar' ? { calendar_id: 'primary' } : undefined;
     await upsertIntegration(client, {
       workspaceId: state.workspaceId,
       toolkit: state.toolkit,
       composioUserId,
       connectedByUserId: state.userId,
       enabled: true,
+      config,
     });
 
     return NextResponse.redirect(`${redirectBase}&outreach_connected=${state.toolkit}`);
