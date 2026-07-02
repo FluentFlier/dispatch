@@ -349,7 +349,8 @@ describe('Layer 1: Event Capture', () => {
         },
       };
 
-      const ingestEvents = vi.fn().mockResolvedValue(1);
+      const ingestEvents = vi.fn().mockResolvedValue({ created: 1, updated: 0 });
+      const cancelMissingEvents = vi.fn().mockResolvedValue(0);
       const scanLinkedInForEvents = vi.fn().mockResolvedValue([]);
 
       vi.doMock('@/lib/insforge/server', () => ({
@@ -359,12 +360,13 @@ describe('Layer 1: Event Capture', () => {
         isEnabled: vi.fn().mockResolvedValue(true),
       }));
       vi.doMock('@/lib/event-capture/sources/calendar-composio', () => ({
-        pullCalendarEvents: vi.fn().mockResolvedValue([{ providerEventId: 'evt-1' }]),
+        pullCalendarEvents: vi.fn().mockResolvedValue({ ok: true, events: [{ providerEventId: 'evt-1' }] }),
+        CALENDAR_LOOKBACK_HOURS: 3,
       }));
       vi.doMock('@/lib/event-capture/sources/linkedin-scan', () => ({
         scanLinkedInForEvents,
       }));
-      vi.doMock('@/lib/event-capture/ingest', () => ({ ingestEvents }));
+      vi.doMock('@/lib/event-capture/ingest', () => ({ ingestEvents, cancelMissingEvents }));
 
       const { GET } = await import('@/app/api/cron/calendar-sync/route');
       const req = new Request('http://localhost/api/cron/calendar-sync', {

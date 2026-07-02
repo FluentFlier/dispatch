@@ -10,6 +10,9 @@ export interface SignalIntegrationConfig {
   // Selected Google Calendar for event capture (Phase E writes this). Distinct
   // from the calendar_id column on the legacy calendar_connections table.
   calendar_id?: string;
+  // ISO timestamp of the last user-triggered manual calendar resync, used to
+  // rate-limit the reload button (~1/min/workspace).
+  last_manual_resync_at?: string;
 }
 
 export interface SignalIntegrationRow {

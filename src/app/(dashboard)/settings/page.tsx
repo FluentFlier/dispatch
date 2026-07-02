@@ -13,6 +13,7 @@ import WeeklySchedule from "@/components/settings/WeeklySchedule";
 import PlatformDefaults from "@/components/settings/PlatformDefaults";
 import BioGenerator from "@/components/settings/BioGenerator";
 import PlatformConnections from "@/components/settings/PlatformConnections";
+import CalendarConnectionCard from "@/components/calendar/CalendarConnectionCard";
 import ProfileEditor from "@/components/settings/ProfileEditor";
 import AutoOptimizeToggle from "@/components/settings/AutoOptimizeToggle";
 import VoiceDefaultToggle from "@/components/settings/VoiceDefaultToggle";
@@ -535,6 +536,10 @@ export default function SettingsPage() {
               onAccountsRefresh={refreshAccounts}
               useUnipile={useUnipile}
             />
+          </Section>
+
+          <Section title="Calendar">
+            <CalendarConnectionCard />
           </Section>
 
           <Section title="Platform Defaults">

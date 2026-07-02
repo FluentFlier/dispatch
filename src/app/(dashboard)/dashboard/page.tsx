@@ -27,6 +27,7 @@ import { CreatorBrainCard } from '@/components/dashboard/CreatorBrainCard';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { MorningBriefCard } from '@/components/dashboard/MorningBriefCard';
 import { getUserEntitlements } from '@/lib/entitlements';
+import CalendarConnectionCard from '@/components/calendar/CalendarConnectionCard';
 import {
   composeMorningBrief,
   type TrendRow,
@@ -435,6 +436,11 @@ export default async function DashboardPage() {
                 );
               })}
             </div>
+          </section>
+
+          <section className="rounded-lg border border-border bg-bg-secondary p-5 shadow-card">
+            <p className="section-label mb-3">Calendar</p>
+            <CalendarConnectionCard />
           </section>
 
           <section className="rounded-lg border border-border bg-bg-secondary p-5 shadow-card">

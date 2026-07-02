@@ -111,22 +111,28 @@ const MAX_AGE_MS = 48 * 60 * 60 * 1000;
  *
  * @param event - Minimal event shape (title, start, end)
  * @param now - Reference timestamp (injected for testability)
+ * @param options - Optional overrides. `ignoreRecency` skips the past/future
+ *   recency guards so a manual reload can (re)import events over an explicit
+ *   user-chosen window; duration and keyword filters still apply.
  */
 export function shouldCaptureEvent(
   event: { title: string; startTime: Date; endTime: Date },
   now: Date,
+  options?: { ignoreRecency?: boolean },
 ): boolean {
   const duration = event.endTime.getTime() - event.startTime.getTime();
-  const age = now.getTime() - event.endTime.getTime();
 
   // Duration guard — skip short and all-day-or-longer events.
   if (duration < MIN_DURATION_MS) return false;
   if (duration > MAX_DURATION_MS) return false;
 
-  // Recency guard — event must have ended within the last 48 hours.
-  if (age > MAX_AGE_MS) return false;
-  // Event must have already ended (don't capture future events).
-  if (age < 0) return false;
+  // Recency guard — skipped for manual reloads over an explicit user window,
+  // where the user has deliberately asked to (re)import past/future events.
+  if (!options?.ignoreRecency) {
+    const age = now.getTime() - event.endTime.getTime();
+    if (age > MAX_AGE_MS) return false;
+    if (age < 0) return false;
+  }
 
   const titleLower = event.title.toLowerCase();
 
