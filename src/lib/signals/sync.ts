@@ -12,6 +12,7 @@ import {
   ensureDefaultSources,
   listSources,
 } from '@/lib/signals/store';
+import { listRules } from '@/lib/signals/rules/store';
 import {
   getSafetySettings,
   logSignalAudit,
@@ -98,6 +99,8 @@ export async function syncWorkspaceSignals(
   await ensureDefaultSources(client, workspaceId);
   const safety = await getSafetySettings(client, workspaceId);
   const sources = (await listSources(client, workspaceId)).filter((s) => s.enabled);
+  // Load trigger rules once per run; the batch matches each signal against them.
+  const rules = await listRules(client, workspaceId);
 
   const canPoll =
     (unipileConfigured() && mode !== 'apify') || (signalsApifyEnabled() && mode !== 'unipile');
@@ -149,6 +152,7 @@ export async function syncWorkspaceSignals(
     const batch = await processIngestedPosts(client, workspaceId, source, posts, {
       dryRun: opts.dryRun,
       maxItems,
+      rules,
     });
     result.postsIngested += batch.postsIngested;
     result.signalsCreated += batch.signalsCreated;

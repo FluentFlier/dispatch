@@ -6,7 +6,9 @@ import {
 } from '@/lib/signals/ingest/normalize';
 import { createSignalEvent, getEvent, upsertRawPost } from '@/lib/signals/store';
 import { runSignalActions } from '@/lib/signals/actions';
-import type { IngestedPost, SignalSourceRow } from '@/lib/signals/types';
+import { resolveRuleAction } from '@/lib/signals/rules/match';
+import { listRules } from '@/lib/signals/rules/store';
+import type { IngestedPost, SignalRuleRow, SignalSourceRow } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -21,7 +23,7 @@ export async function processIngestedPosts(
   workspaceId: string,
   source: SignalSourceRow,
   posts: IngestedPost[],
-  opts: { dryRun?: boolean; maxItems?: number } = {},
+  opts: { dryRun?: boolean; maxItems?: number; rules?: SignalRuleRow[] } = {},
 ): Promise<ProcessBatchResult> {
   const result: ProcessBatchResult = {
     postsIngested: 0,
@@ -48,13 +50,21 @@ export async function processIngestedPosts(
       const { created, eventId } = await createSignalEvent(client, workspaceId, rawPostId, classified);
       if (created) {
         result.signalsCreated += 1;
-        // Run the action pipeline (draft / guarded auto-send) per workspace posture.
+        // Run the action pipeline (draft / guarded auto-send) per matched trigger
+        // rule, falling back to the workspace default when no rule applies.
         if (eventId) {
           const event = await getEvent(client, workspaceId, eventId);
           if (event) {
+            const resolution = resolveRuleAction(
+              opts.rules ?? [],
+              { platform: source.platform, sourceType: source.source_type },
+              classified,
+            );
             await runSignalActions(client, workspaceId, event, {
               platform: source.platform,
               sourceType: source.source_type,
+              actionMode: resolution.actionMode ?? undefined,
+              channels: resolution.channels,
             });
           }
         }
@@ -97,7 +107,13 @@ export async function ingestSinglePost(
   if (res.created && res.eventId) {
     const event = await getEvent(client, workspaceId, res.eventId);
     if (event) {
-      await runSignalActions(client, workspaceId, event, { platform: post.platform });
+      const rules = await listRules(client, workspaceId);
+      const resolution = resolveRuleAction(rules, { platform: post.platform }, classified);
+      await runSignalActions(client, workspaceId, event, {
+        platform: post.platform,
+        actionMode: resolution.actionMode ?? undefined,
+        channels: resolution.channels,
+      });
     }
   }
 

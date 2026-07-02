@@ -10,6 +10,7 @@ import {
 } from '@/lib/signals/ingest/workspace-account';
 import type {
   OutreachChannel,
+  SignalActionMode,
   SignalEventWithPost,
   SignalPlatform,
   SignalSourceType,
@@ -22,10 +23,29 @@ function channelForPlatform(platform: SignalPlatform): OutreachChannel {
   return platform === 'x' ? 'x_dm' : 'linkedin_connect';
 }
 
+/** Channels that can actually send (the rest are draft-only / dashboard). */
+function isSendableLinkedIn(channel: OutreachChannel): boolean {
+  return channel === 'linkedin_connect' || channel === 'linkedin_dm';
+}
+
+/**
+ * The workspace default action intent when no trigger rule applies. Reproduces
+ * the pre-rules behavior: notify-only until outreach is enabled, then draft, and
+ * auto-send once that master switch is on too.
+ */
+function deriveDefaultIntent(settings: { outreach_enabled: boolean; auto_send_enabled: boolean }): SignalActionMode {
+  if (!settings.outreach_enabled) return 'notify_only';
+  return settings.auto_send_enabled ? 'auto_send' : 'notify_and_draft';
+}
+
 export interface SignalActionContext {
   platform: SignalPlatform;
   /** Present only for polled sources; absent for webhook/manual ingest (auto-send stays off then). */
   sourceType?: SignalSourceType;
+  /** Explicit action mode from a matched trigger rule. Undefined → use the workspace default. */
+  actionMode?: SignalActionMode;
+  /** Preferred outreach channels from a matched rule (first valid one is used). */
+  channels?: OutreachChannel[];
 }
 
 /**
@@ -54,10 +74,25 @@ export async function runSignalActions(
 ): Promise<void> {
   try {
     const settings = await getSafetySettings(client, workspaceId);
-    if (!settings.outreach_enabled) return; // notify_only — nothing to do
+
+    // Effective intent: an explicit rule action_mode wins; otherwise the workspace default.
+    const intent = ctx.actionMode ?? deriveDefaultIntent(settings);
+    if (intent === 'notify_only') return; // Slack alert already fired at event creation
+
+    // Master gate: any drafting/sending requires outreach to be enabled for the
+    // workspace, even when a rule explicitly asked for it.
+    if (!settings.outreach_enabled) {
+      await logSignalAudit(client, {
+        workspace_id: workspaceId,
+        action: 'auto_action_skipped',
+        event_id: event.id,
+        blocked_reason: 'Rule requested outreach but outreach_enabled is off for this workspace.',
+      });
+      return;
+    }
 
     const platform = ctx.platform;
-    const channel = channelForPlatform(platform);
+    const channel = ctx.channels?.find(Boolean) ?? channelForPlatform(platform);
 
     // Acting user: the connected account owner for this platform, else the
     // workspace owner (draft-only — a real send requires a connected account).
@@ -96,15 +131,18 @@ export async function runSignalActions(
     }
 
     // --- Auto-send (auto_send) — guarded, LinkedIn person-profiles only ---
-    if (!settings.auto_send_enabled) return; // drafted; awaits manual approval
+    if (intent !== 'auto_send') return; // drafted; awaits manual approval
 
-    if (platform === 'x') {
+    if (platform === 'x' || !isSendableLinkedIn(channel)) {
       await logSignalAudit(client, {
         workspace_id: workspaceId,
         action: 'auto_send_skipped',
         channel,
         event_id: event.id,
-        blocked_reason: 'X DM auto-send is not wired yet.',
+        blocked_reason:
+          platform === 'x'
+            ? 'X DM auto-send is not wired yet.'
+            : `Channel ${channel} is not auto-sendable (LinkedIn only).`,
       });
       return;
     }
