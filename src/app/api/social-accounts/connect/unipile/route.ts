@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/insforge/server';
 
 /**
@@ -11,11 +11,22 @@ import { getAuthenticatedUser } from '@/lib/insforge/server';
  * reach the server, so the success redirect instead calls
  * POST /api/social-accounts/sync to poll and store accounts.
  */
-export async function GET(): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const returnTo = request.nextUrl.searchParams.get('return');
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+  const successRedirect =
+    returnTo === 'onboarding'
+      ? `${appUrl}/onboarding?connected=true`
+      : `${appUrl}/settings?tab=connections&connected=true`;
+  const failureRedirect =
+    returnTo === 'onboarding'
+      ? `${appUrl}/onboarding?error=connect_failed`
+      : `${appUrl}/settings?tab=connections&error=unipile_failed`;
 
   const apiKey = process.env.UNIPILE_API_KEY;
   const dsn = process.env.UNIPILE_DSN;
@@ -27,7 +38,6 @@ export async function GET(): Promise<NextResponse> {
     );
   }
 
-  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
   const apiBase = `https://${dsn.replace(/\/$/, '')}/api/v1`;
   const isLocalhost = appUrl.includes('localhost') || appUrl.includes('127.0.0.1');
 
@@ -40,8 +50,8 @@ export async function GET(): Promise<NextResponse> {
     expiresOn: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     // Providers to show (schema enum: LINKEDIN | TWITTER | INSTAGRAM | MESSENGER | TELEGRAM | GOOGLE | OUTLOOK | MAIL)
     providers: ['LINKEDIN', 'TWITTER'],
-    success_redirect_url: `${appUrl}/settings?tab=connections&connected=true`,
-    failure_redirect_url: `${appUrl}/settings?tab=connections&error=unipile_failed`,
+    success_redirect_url: successRedirect,
+    failure_redirect_url: failureRedirect,
     // state is returned as payload.state in the account.connected webhook — used to identify the user.
     // name is a display label only; account.name in the webhook payload is the LinkedIn display name, not this value.
     name: user.id,

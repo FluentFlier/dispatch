@@ -1,9 +1,8 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/insforge/server';
-import { generateContent } from '@/lib/ai';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { errorResponse } from '@/lib/api-errors';
-import { parseLlmJson } from '@/lib/llm-json';
+import { analyzeVoiceSamples } from '@/lib/voice-lab/analyze-samples';
 import { z } from 'zod';
 
 const AnalyzeSchema = z.object({
@@ -12,45 +11,6 @@ const AnalyzeSchema = z.object({
     platform: z.string().optional(),
   })).min(1).max(20),
 });
-
-const ANALYZE_PROMPT = `You are a voice analysis expert. Analyze these content samples and extract the creator's unique voice profile.
-
-For each dimension, provide specific observations with examples from their actual writing:
-
-1. **Tone**: Overall emotional register (casual/professional/irreverent/earnest/etc)
-2. **Sentence Structure**: Average length, fragment usage, run-ons, punctuation quirks
-3. **Vocabulary Level**: Simple/complex, jargon usage, slang, made-up words
-4. **Opening Patterns**: How they start posts (question, bold claim, story, etc)
-5. **Closing Patterns**: How they end (CTA, open question, punchline, fade out)
-6. **Signature Phrases**: Recurring expressions, catchphrases, verbal tics
-7. **Humor Style**: None/dry/self-deprecating/absurdist/sarcastic
-8. **Perspective**: First person heavy? "You" directed? Third person?
-9. **Taboo Words**: Words/phrases they NEVER use (identify by absence)
-10. **Content Structure**: Short punchy paragraphs? Long form? Listicles? Thread style?
-
-Also identify 3-5 GAP QUESTIONS -- things you CANNOT determine from the samples alone that would help complete the voice profile.
-
-Return as JSON:
-{
-  "analysis": {
-    "tone": "...",
-    "sentence_structure": "...",
-    "vocabulary_level": "...",
-    "opening_patterns": "...",
-    "closing_patterns": "...",
-    "signature_phrases": ["...", "..."],
-    "humor_style": "...",
-    "perspective": "...",
-    "taboo_words": ["...", "..."],
-    "content_structure": "..."
-  },
-  "voice_summary": "A 2-3 sentence natural language description of their voice",
-  "voice_rules": ["DO: ...", "DO: ...", "NEVER: ...", "NEVER: ..."],
-  "gap_questions": [
-    {"id": "q1", "question": "...", "why": "..."},
-    {"id": "q2", "question": "...", "why": "..."}
-  ]
-}`;
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -65,32 +25,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const guard = await guardAiRequest(user.id);
   if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
-  const samplesText = parsed.data.samples
-    .map((s, i) => `--- Sample ${i + 1}${s.platform ? ` (${s.platform})` : ''} ---\n${s.content}`)
-    .join('\n\n');
-
-  const userPrompt = `Here are ${parsed.data.samples.length} content samples to analyze:\n\n${samplesText}`;
-
   try {
-    // Models occasionally emit malformed JSON (a missing comma between array
-    // elements is the usual culprit), which previously threw a raw SyntaxError
-    // and 500'd the whole analysis. Parse defensively, and on the first bad
-    // response retry once with an explicit valid-JSON nudge before giving up.
-    let analysis = parseLlmJson<Record<string, unknown>>(
-      await generateContent(userPrompt, undefined, ANALYZE_PROMPT),
-    );
-
-    if (!analysis) {
-      const retrySystem = `${ANALYZE_PROMPT}\n\nIMPORTANT: Return ONLY a single valid JSON object. No markdown, no prose. Ensure every array element and object property is separated by a comma.`;
-      analysis = parseLlmJson<Record<string, unknown>>(
-        await generateContent(userPrompt, undefined, retrySystem),
-      );
-    }
-
-    if (!analysis) {
-      return errorResponse('Failed to parse analysis.', 500, 'model returned unparseable JSON after retry');
-    }
-
+    const analysis = await analyzeVoiceSamples(parsed.data.samples);
     return NextResponse.json(analysis);
   } catch (err) {
     return errorResponse('Analysis failed.', 500, err);
