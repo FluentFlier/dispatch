@@ -75,6 +75,7 @@ create table if not exists signal_directory_settings (
   digest_timezone text,                   -- overrides workspace timezone when set
   digest_channels jsonb not null default '{"today":true,"slack":false,"email":false}',
   digest_top_n int not null default 15,
+  sender_identity text,                   -- optional cold-email footer identity (CAN-SPAM); blank = unsubscribe line only
   digest_delivered_at timestamptz,        -- idempotency: last successful digest push
   created_at timestamptz default now(),
   updated_at timestamptz default now()

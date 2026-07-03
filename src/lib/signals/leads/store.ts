@@ -25,6 +25,7 @@ const DEFAULT_SETTINGS: Omit<DirectorySettingsRow, 'workspace_id' | 'created_at'
   digest_timezone: null,
   digest_channels: { today: true, slack: false, email: false },
   digest_top_n: 15,
+  sender_identity: null,
   digest_delivered_at: null,
 };
 

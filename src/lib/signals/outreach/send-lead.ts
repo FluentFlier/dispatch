@@ -1,7 +1,7 @@
 import type { createClient } from '@insforge/sdk';
 import { assertOutreachAllowed } from '@/lib/signals/safety';
 import { logSignalAudit } from '@/lib/signals/safety/audit';
-import { getLead, logLeadEvent, updateLead } from '@/lib/signals/leads/store';
+import { getDirectorySettings, getLead, logLeadEvent, updateLead } from '@/lib/signals/leads/store';
 import {
   getLinkedInUnipileAccountId,
   resolveLinkedInProfile,
@@ -170,7 +170,8 @@ async function sendLeadEmail(
 
   const bodyText = (input.messageText ?? lead.outreach?.draft_text ?? '').trim();
   if (!bodyText) return { success: false, error: 'Draft the message before sending.' };
-  const body = withComplianceFooter(bodyText);
+  const settings = await getDirectorySettings(client, workspaceId);
+  const body = withComplianceFooter(bodyText, settings.sender_identity);
   const subject = `Quick note for ${lead.company_name}`;
 
   await logSignalAudit(client, {
@@ -210,9 +211,15 @@ async function sendLeadEmail(
   return { success: true, externalId: sendResult.messageId, lead: updated };
 }
 
-/** Appends CAN-SPAM/GDPR-minded sender identity + unsubscribe line to a cold email. */
-export function withComplianceFooter(body: string): string {
-  const sender = process.env.OUTREACH_SENDER_IDENTITY?.trim();
+/**
+ * Appends the CAN-SPAM/GDPR-minded footer to a cold email. Sender identity is a
+ * per-workspace setting (passed in); if blank it falls back to a global
+ * OUTREACH_SENDER_IDENTITY env default, and if that is also unset the footer
+ * carries just the unsubscribe line. Users can set, leave blank, or use the env
+ * default as a placeholder.
+ */
+export function withComplianceFooter(body: string, senderIdentity?: string | null): string {
+  const sender = (senderIdentity?.trim() || process.env.OUTREACH_SENDER_IDENTITY?.trim()) ?? '';
   const identityLine = sender ? `\n\nSent by ${sender}.` : '';
   return `${body}${identityLine}\n\nNot relevant? Reply "unsubscribe" and I won't reach out again.`;
 }
