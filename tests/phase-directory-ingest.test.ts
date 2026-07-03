@@ -23,9 +23,10 @@ describe('Phase: Directory ingest (seed provider)', () => {
     expect(leads.every((l) => l.companyName && l.externalId)).toBe(true);
   });
 
-  it('returns nothing for a source with no seed data (e.g. product_hunt v1)', async () => {
+  it('returns the Product Hunt seed set (Phase 9 source)', async () => {
     const leads = await fetchDirectoryLeads('product_hunt');
-    expect(leads).toEqual([]);
+    expect(leads.length).toBe(SEED_DIRECTORY_LEADS.filter((l) => l.source === 'product_hunt').length);
+    expect(leads.every((l) => l.source === 'product_hunt')).toBe(true);
   });
 
   it('seed mix produces both resolvable and no_contact leads (exercises every branch)', () => {

@@ -13,7 +13,7 @@ import { errorResponse } from '@/lib/api-errors';
  * `drafted` and can be retried once the window opens or the cap resets.
  */
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } },
 ): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -21,6 +21,11 @@ export async function POST(
 
   const workspaceId = await getActiveWorkspaceId(user.id);
   if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
+
+  const body = (await request.json().catch(() => ({}))) as {
+    channel?: 'linkedin_connect' | 'gmail';
+    emailOptIn?: boolean;
+  };
 
   try {
     const client = getServerClient();
@@ -37,6 +42,8 @@ export async function POST(
       workspaceId,
       userId: user.id,
       leadId: params.id,
+      channel: body.channel ?? 'linkedin_connect',
+      emailOptIn: body.emailOptIn,
     });
 
     if (!result.success) {

@@ -22,6 +22,7 @@ export interface SignalSafetySettings {
   max_linkedin_invites_per_day: number;
   max_linkedin_inmail_per_day: number;
   max_x_dm_per_day: number;
+  max_gmail_per_day: number;
   max_linkedin_invites_per_week: number;
   min_seconds_between_sends: number;
   max_jitter_seconds: number;
@@ -40,6 +41,7 @@ export const DEFAULT_SAFETY_SETTINGS: Omit<SignalSafetySettings, 'workspace_id'>
   max_linkedin_invites_per_day: 25,
   max_linkedin_inmail_per_day: 15,
   max_x_dm_per_day: 15,
+  max_gmail_per_day: 20,
   max_linkedin_invites_per_week: 80,
   min_seconds_between_sends: 180,
   max_jitter_seconds: 120,

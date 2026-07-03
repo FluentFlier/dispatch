@@ -164,9 +164,30 @@ export async function upsertIngestedLeads(
       .eq('external_id', lead.externalId)
       .limit(1);
 
-    const existing = (existingRows?.[0] as SignalLeadRow | undefined) ?? null;
+    let existing = (existingRows?.[0] as SignalLeadRow | undefined) ?? null;
     const nowIso = new Date().toISOString();
     const domain = normalizeDomain(lead.website);
+
+    // Cross-source dedupe (Phase 9): the same company can appear on YC and PH.
+    // Match on the shared domain anchor and fold contacts into the one lead
+    // instead of creating a duplicate row.
+    if (!existing && domain) {
+      const { data: domainRows } = await client.database
+        .from('signal_leads')
+        .select('*')
+        .eq('workspace_id', workspaceId)
+        .eq('domain', domain)
+        .limit(1);
+      const domainMatch = (domainRows?.[0] as SignalLeadRow | undefined) ?? null;
+      if (domainMatch) {
+        await insertContactsForLead(client, workspaceId, domainMatch.id, lead);
+        await logLeadEvent(client, workspaceId, domainMatch.id, 'merged', {
+          from_source: lead.source,
+          into: domainMatch.source,
+        });
+        existing = domainMatch;
+      }
+    }
 
     if (!existing) {
       const { data: inserted, error } = await client.database

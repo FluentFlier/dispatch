@@ -13,6 +13,7 @@ import {
   Settings,
   TrendingUp,
   Download,
+  Mail,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -141,6 +142,27 @@ export default function LeadsPage() {
       toast('Approved.');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not approve.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const handleEmail = async (id: string) => {
+    // Cold-email compliance: explicit per-lead opt-in confirmation before the first send.
+    if (!window.confirm('Send a cold email to this lead? This is a one-time opt-in; an unsubscribe line is added automatically.')) return;
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/leads/${id}/approve`, {
+        method: 'POST',
+        headers: json(),
+        body: JSON.stringify({ channel: 'gmail', emailOptIn: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'blocked');
+      mergeLead(data.lead);
+      toast('Email sent.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not email.', 'error');
     } finally {
       setBusyId(null);
     }
@@ -284,6 +306,7 @@ export default function LeadsPage() {
                 followed={isFollowed(selected)}
                 onDraft={() => handleDraft(selected.id)}
                 onApprove={() => handleApprove(selected.id)}
+                onEmail={() => handleEmail(selected.id)}
                 onDismiss={() => handleDismiss(selected.id)}
                 onResolve={() => handleResolve(selected.id)}
                 onFollow={() => handleFollow(selected)}
@@ -370,6 +393,7 @@ function LeadDetail({
   followed,
   onDraft,
   onApprove,
+  onEmail,
   onDismiss,
   onResolve,
   onFollow,
@@ -381,12 +405,14 @@ function LeadDetail({
   followed: boolean;
   onDraft: () => void;
   onApprove: () => void;
+  onEmail: () => void;
   onDismiss: () => void;
   onResolve: () => void;
   onFollow: () => void;
 }) {
   const contact = lead.primary_contact;
   const noContact = lead.contact_status === 'no_contact';
+  const leadEmail = lead.contacts?.find((c) => c.email)?.email ?? null;
   const overLimit = draft.length > CONNECT_LIMIT;
   const fact = lead.source_fact as { batch?: string; tagline?: string };
 
@@ -459,6 +485,11 @@ function LeadDetail({
           <Button variant="primary" size="sm" onClick={onApprove} disabled={noContact || overLimit || busy}>
             <Send className="h-4 w-4" /> Approve
           </Button>
+          {leadEmail && (
+            <Button variant="secondary" size="sm" onClick={onEmail} disabled={busy} title={`Cold email ${leadEmail} (opt-in)`}>
+              <Mail className="h-4 w-4" /> Email
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={onDraft} loading={busy}>
             <RefreshCw className="h-4 w-4" /> Regenerate
           </Button>
@@ -557,6 +588,33 @@ function AdvancedDrawer({
         </label>
         <p className="text-xs text-text-tertiary">Leads matching these rank higher. Leave blank to see everything.</p>
         <Button variant="primary" size="sm" onClick={apply} loading={saving}>Apply</Button>
+      </section>
+
+      <section className="space-y-2 mb-6">
+        <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">Sources</p>
+        {([
+          { key: 'yc_directory', label: 'YC directory' },
+          { key: 'product_hunt', label: 'Product Hunt' },
+        ] as const).map((s) => {
+          const on = (settings?.enabled_sources ?? []).includes(s.key);
+          return (
+            <label key={s.key} className="flex items-center gap-2 text-sm text-text-secondary">
+              <input
+                type="checkbox"
+                checked={on}
+                onChange={async (e) => {
+                  const next = e.target.checked
+                    ? [...(settings?.enabled_sources ?? []), s.key]
+                    : (settings?.enabled_sources ?? []).filter((x) => x !== s.key);
+                  const res = await fetch('/api/leads/settings', { method: 'PUT', headers: json(), body: JSON.stringify({ enabled_sources: next }) });
+                  const data = await res.json();
+                  onSettingsSaved(data.settings);
+                }}
+              />
+              {s.label}
+            </label>
+          );
+        })}
       </section>
 
       <section className="space-y-3">
