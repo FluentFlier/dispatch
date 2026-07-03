@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
 import { syncEngagementComments } from '@/lib/engagement/sync';
+import { categorizeRecentEngagers } from '@/lib/engagement/categorize-leads';
+import { isEnabled } from '@/lib/feature-flags';
 import { logError, logInfo } from '@/lib/logger';
-import { bucketEngagers } from '@/lib/hooks-intelligence/categorize';
 import { prodMining } from '@/lib/hooks-intelligence/prod-mining';
 import { usage } from '@/lib/hooks-intelligence/usage-tracker';
 
@@ -45,18 +46,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           errors: result.errors,
         });
 
-        // === CLOSED LOOP INTELLIGENCE (after every sync) ===
-        // 1. Usage tracking for monetization
+        // === CLOSED LOOP: categorize engagers into lead_categories ===
         await usage.track(userId, 'analytics', { source: 'cron-engagement-sync' });
 
-        // 2. TODO: Pull recent engagers for this user and categorize (ICP/leads)
-        // For now the categorize is ready; full wiring needs engager fetch in sync result
-        // Placeholder: if sync returned engagers we would do:
-        // const buckets = bucketEngagers(engagersFromSync, orgKeywords);
-        // then pass leads count into PerformanceSignal for RL
-        //
-        // Note: RL training (hook scoring) is handled by the nightly intelligence-sync
-        // cron (/api/cron/intelligence-sync). This cron stays fast — engagement only.
+        if (await isEnabled(client, 'loop_engagement_categorize')) {
+          try {
+            const leadResult = await categorizeRecentEngagers(client, userId);
+            if (leadResult.categorized > 0) {
+              logInfo('[engagement-sync] lead categorization', { userId, ...leadResult });
+            }
+          } catch (catErr) {
+            logError('engagement-sync categorize failed', {
+              userId,
+              message: catErr instanceof Error ? catErr.message : String(catErr),
+            });
+          }
+        }
       } catch (err) {
         logError('engagement-sync user failed', {
           userId,

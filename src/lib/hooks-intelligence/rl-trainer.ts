@@ -129,11 +129,17 @@ export async function updateFromPerformanceDB(
   vertical: string,
   saveRate: number,
   success: boolean,
+  leadsGenerated = 0,
 ): Promise<void> {
   const alpha = 0.3;
-  const newScore = success
+  let newScore = success
     ? Math.min(100, saveRate * 100 + 10)
     : Math.max(0, saveRate * 100);
+
+  // Boost hooks that generated ICP / potential leads from engagement categorization.
+  if (leadsGenerated > 0) {
+    newScore = Math.min(100, newScore + leadsGenerated * 3);
+  }
 
   const { data: existing } = await client.database
     .from('hook_performance')
@@ -159,4 +165,65 @@ export async function updateFromPerformanceDB(
       rl_updated_at: new Date().toISOString(),
     });
   }
+}
+
+/**
+ * Penalizes hook IDs in hook_performance when users heavily rewrite AI output.
+ * Writes to the same DB table intelligence-sync reads — closes the edit feedback loop.
+ */
+export async function updateFromEditsDB(
+  client: InsforgeClient,
+  hookIds: string[],
+  magnitude: number,
+  vertical = 'general',
+  userId?: string,
+  postId?: string,
+): Promise<number> {
+  if (hookIds.length === 0 || magnitude < 10) return 0;
+
+  const penalty = Math.min(25, magnitude * 0.15);
+  let updated = 0;
+
+  for (const hookId of hookIds) {
+    const { data: existing } = await client.database
+      .from('hook_performance')
+      .select('rl_score, rl_confidence, sample_count')
+      .eq('hook_id', hookId)
+      .eq('vertical', vertical)
+      .maybeSingle();
+
+    if (existing) {
+      await client.database.from('hook_performance').update({
+        rl_score: Math.max(0, Number(existing.rl_score) - penalty),
+        rl_confidence: Math.max(0.1, Number(existing.rl_confidence) - 0.03),
+        rl_updated_at: new Date().toISOString(),
+      }).eq('hook_id', hookId).eq('vertical', vertical);
+    } else {
+      await client.database.from('hook_performance').insert({
+        hook_id: hookId,
+        vertical,
+        rl_score: Math.max(20, 50 - penalty),
+        rl_confidence: 0.3,
+        sample_count: 0,
+        rl_updated_at: new Date().toISOString(),
+      });
+    }
+    updated++;
+  }
+
+  if (userId) {
+    try {
+      await client.database.from('edit_feedback_log').insert([{
+        user_id: userId,
+        post_id: postId ?? null,
+        hook_ids: hookIds,
+        vertical,
+        magnitude,
+      }]);
+    } catch {
+      // table may not exist until migration applied
+    }
+  }
+
+  return updated;
 }

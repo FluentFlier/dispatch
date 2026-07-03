@@ -11,7 +11,5 @@ if ! npx @insforge/cli whoami >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "Applying db/intelligence-backend.sql..."
-npx @insforge/cli db import db/intelligence-backend.sql -y
-
-echo "Done. Verify with: npx @insforge/cli db tables"
+echo "Applying all intelligence migrations (hooks + backend + evolving model)..."
+bash "$ROOT/scripts/apply-all-intelligence.sh"

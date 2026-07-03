@@ -89,6 +89,7 @@ async function callGenerate(
       revised: data.revised,
       evaluation: data.evaluation,
       used_hook_ids: data.used_hook_ids,
+      hook_explanations: data.hook_explanations,
       pipeline_stages: data.pipeline_stages,
       humanize_passes: data.humanize_passes,
     },
