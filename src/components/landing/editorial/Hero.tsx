@@ -5,9 +5,8 @@ import Link from 'next/link';
 import { useReducedMotion } from 'motion/react';
 import { Badge, Button } from '@/components/ui';
 import StatusBadge from '@/components/ui/StatusBadge';
+import { getFunnelCta, type FunnelState } from '@/lib/funnel-cta';
 import {
-  CTA_OPEN_APP,
-  CTA_START_TRIAL,
   HERO_HEADLINE,
   HERO_SUBCOPY,
   PLATFORMS,
@@ -17,17 +16,8 @@ import {
 
 const COMPOSER_TEXT = 'I stopped trying to be consistent. I built a system instead.';
 
-/**
- * Hero with a live composer card. The draft line types once; Voice QA animates to 94%.
- * Both collapse to final state when the user prefers reduced motion.
- */
-export default function Hero({
-  loggedIn,
-  onboardingComplete,
-}: {
-  loggedIn: boolean;
-  onboardingComplete: boolean;
-}) {
+export default function Hero({ funnel }: { funnel: FunnelState }) {
+  const { href: primaryHref, label: primaryLabel } = getFunnelCta(funnel);
   const reduce = useReducedMotion();
   const composerRef = useRef<HTMLSpanElement>(null);
   const [voice, setVoice] = useState(0);
@@ -53,17 +43,6 @@ export default function Hero({
       clearTimeout(voiceT);
     };
   }, [reduce]);
-
-  const primaryHref = !loggedIn
-    ? '/login'
-    : onboardingComplete
-      ? '/dashboard'
-      : '/get-started';
-  const primaryLabel = !loggedIn
-    ? CTA_START_TRIAL
-    : onboardingComplete
-      ? CTA_OPEN_APP
-      : CTA_START_TRIAL;
 
   return (
     <header className="mx-auto max-w-[1180px] px-5 sm:px-10">

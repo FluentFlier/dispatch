@@ -7,14 +7,14 @@ import Distribution from './editorial/Distribution';
 import Week from './editorial/Week';
 import Beta from './editorial/Beta';
 import Footer from './editorial/Footer';
+import type { FunnelState } from '@/lib/funnel-cta';
 
 interface Props {
-  loggedIn: boolean;
-  onboardingComplete: boolean;
+  funnel: FunnelState;
 }
 
 /** Marketing landing — nav → hero → problem → loop → voice → distribution → week → CTA → footer. */
-export default function LandingPageContent({ loggedIn, onboardingComplete }: Props) {
+export default function LandingPageContent({ funnel }: Props) {
   return (
     <main className="editorial relative min-h-screen overflow-x-hidden">
       <a
@@ -23,14 +23,14 @@ export default function LandingPageContent({ loggedIn, onboardingComplete }: Pro
       >
         Skip to content
       </a>
-      <Nav loggedIn={loggedIn} onboardingComplete={onboardingComplete} />
-      <Hero loggedIn={loggedIn} onboardingComplete={onboardingComplete} />
+      <Nav funnel={funnel} />
+      <Hero funnel={funnel} />
       <Problem />
       <Loop />
       <Voice />
       <Distribution />
       <Week />
-      <Beta loggedIn={loggedIn} onboardingComplete={onboardingComplete} />
+      <Beta funnel={funnel} />
       <Footer />
     </main>
   );

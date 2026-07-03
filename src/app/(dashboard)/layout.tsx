@@ -53,10 +53,11 @@ export default async function DashboardLayout({
     const nextPath = getPostAuthPath(profileRes.data, sub);
 
     if (isOnboarding) {
-      if (nextPath === '/get-started') redirect('/get-started');
+      if (nextPath === '/get-started') redirect('/auth/continue');
       if (nextPath === '/dashboard') redirect('/dashboard');
     } else if (!isGetStarted) {
-      if (nextPath !== '/dashboard') redirect(nextPath);
+      const destination = nextPath === '/get-started' ? '/auth/continue' : nextPath;
+      if (destination !== '/dashboard') redirect(destination);
     }
   }
 

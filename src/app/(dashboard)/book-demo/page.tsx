@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 
-/** Legacy path — trial funnel lives at /get-started. */
+/** Legacy path — funnel continues at /auth/continue. */
 export default function BookDemoRedirectPage() {
-  redirect('/get-started');
+  redirect('/auth/continue');
 }

@@ -62,30 +62,7 @@ async function syncTokenToCookie(): Promise<boolean> {
 }
 
 async function redirectAfterAuth(): Promise<void> {
-  const res = await fetch("/api/auth/session", {
-    cache: "no-store",
-    credentials: "same-origin",
-  });
-  const session = (await res.json()) as {
-    profile?: { onboardingComplete?: boolean };
-    trial?: { active?: boolean; expired?: boolean };
-    entitlements?: { isPaid?: boolean };
-  };
-
-  if (session.trial?.expired) {
-    window.location.replace("/pricing?trial=expired");
-    return;
-  }
-
-  const hasAccess = session.trial?.active || session.entitlements?.isPaid;
-  if (!hasAccess) {
-    window.location.replace("/get-started");
-    return;
-  }
-
-  window.location.replace(
-    session.profile?.onboardingComplete ? "/dashboard" : "/onboarding"
-  );
+  window.location.replace('/auth/continue');
 }
 
 async function finishSessionSync(): Promise<boolean> {
@@ -221,11 +198,10 @@ export default function LoginPage() {
             Content OS
           </p>
           <h1 className="text-3xl font-semibold text-text-primary leading-tight tracking-tight">
-            Sign in, start your 7-day trial.
+            Sign in. Trial starts automatically.
           </h1>
           <p className="text-[15px] text-text-secondary mt-4 max-w-sm leading-relaxed">
-            Full Starter access for 7 days — no card required. After that, choose a plan
-            from $19/mo. Optional onboarding call with the founder.
+            7 days of Starter access — no card. Quick profile setup, then you&apos;re in.
           </p>
         </div>
         <blockquote className="border-l-2 border-accent-primary/40 pl-4">
@@ -253,7 +229,7 @@ export default function LoginPage() {
                   Sign in
                 </h2>
                 <p className="text-[15px] text-text-secondary mt-2">
-                  Use Google or GitHub. Then start your 7-day free trial.
+                  Google or GitHub. Your 7-day trial begins right after sign-in.
                 </p>
               </div>
 

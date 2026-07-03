@@ -3,12 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
-import {
-  CTA_OPEN_APP,
-  CTA_SIGN_IN,
-  CTA_START_TRIAL,
-  PRODUCT_NAME,
-} from './brand';
+import { getFunnelCta, type FunnelState } from '@/lib/funnel-cta';
+import { CTA_SIGN_IN, PRODUCT_NAME } from './brand';
 
 const FOCUS_RING =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2';
@@ -20,27 +16,9 @@ const ANCHORS = [
   ['#week', 'Week'],
 ] as const;
 
-interface Props {
-  loggedIn: boolean;
-  onboardingComplete: boolean;
-}
-
-/**
- * Sticky editorial nav. Primary CTA is trial-first sign-in funnel.
- */
-export default function Nav({ loggedIn, onboardingComplete }: Props) {
+export default function Nav({ funnel }: { funnel: FunnelState }) {
   const [open, setOpen] = useState(false);
-
-  const primaryHref = !loggedIn
-    ? '/login'
-    : onboardingComplete
-      ? '/dashboard'
-      : '/get-started';
-  const primaryLabel = !loggedIn
-    ? CTA_START_TRIAL
-    : onboardingComplete
-      ? CTA_OPEN_APP
-      : CTA_START_TRIAL;
+  const { href: primaryHref, label: primaryLabel } = getFunnelCta(funnel);
 
   useEffect(() => {
     if (!open) return;
@@ -86,7 +64,7 @@ export default function Nav({ loggedIn, onboardingComplete }: Props) {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          {!loggedIn && (
+          {!funnel.loggedIn && (
             <Link
               href="/login"
               className={`hidden font-mono text-[12px] tracking-[0.04em] text-ink2 transition-colors hover:text-ink sm:inline ${FOCUS_RING}`}
@@ -104,7 +82,7 @@ export default function Nav({ loggedIn, onboardingComplete }: Props) {
             href={primaryHref}
             className={`inline-flex items-center rounded-md bg-ink px-3 py-2 text-[12px] font-medium text-paper sm:hidden ${FOCUS_RING}`}
           >
-            {loggedIn && onboardingComplete ? 'Open' : 'Start'}
+            {primaryLabel}
           </Link>
           <button
             type="button"
@@ -139,7 +117,7 @@ export default function Nav({ loggedIn, onboardingComplete }: Props) {
             >
               Pricing
             </Link>
-            {!loggedIn && (
+            {!funnel.loggedIn && (
               <Link
                 href="/login"
                 onClick={() => setOpen(false)}

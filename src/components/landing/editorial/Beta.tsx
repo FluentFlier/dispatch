@@ -1,22 +1,9 @@
 import Link from 'next/link';
-import { CTA_OPEN_APP, CTA_SIGN_IN, CTA_START_TRIAL, TRIAL_COPY } from './brand';
+import { getFunnelCta, type FunnelState } from '@/lib/funnel-cta';
+import { TRIAL_COPY } from './brand';
 
-interface Props {
-  loggedIn: boolean;
-  onboardingComplete: boolean;
-}
-
-export default function Beta({ loggedIn, onboardingComplete }: Props) {
-  const primaryHref = !loggedIn
-    ? '/login'
-    : onboardingComplete
-      ? '/dashboard'
-      : '/get-started';
-  const primaryLabel = !loggedIn
-    ? CTA_START_TRIAL
-    : onboardingComplete
-      ? CTA_OPEN_APP
-      : CTA_START_TRIAL;
+export default function Beta({ funnel }: { funnel: FunnelState }) {
+  const { href: primaryHref, label: primaryLabel } = getFunnelCta(funnel);
 
   return (
     <section id="beta" className="scroll-mt-24 border-t border-hair bg-paper2">
@@ -34,14 +21,6 @@ export default function Beta({ loggedIn, onboardingComplete }: Props) {
           >
             {primaryLabel}
           </Link>
-          {!loggedIn && (
-            <Link
-              href="/login"
-              className="inline-flex w-full items-center justify-center rounded-md border border-hair2 bg-white py-3.5 text-[15px] font-medium text-ink hover:bg-paper2"
-            >
-              {CTA_SIGN_IN}
-            </Link>
-          )}
           <Link href="/pricing" className="text-[13px] text-ink2 hover:text-ink">
             Pricing →
           </Link>

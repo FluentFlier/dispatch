@@ -9,7 +9,7 @@ import type { ContentPillarConfig } from '@/types/database';
 /*  Constants                                                          */
 /* ------------------------------------------------------------------ */
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 3;
 
 const PRESET_COLORS = [
   '#E07A5F',
@@ -64,12 +64,9 @@ export default function OnboardingPage() {
   // Step 2: Content pillars
   const [pillars, setPillars] = useState<ContentPillarConfig[]>(DEFAULT_PILLARS);
 
-  // Step 3: Voice
+  // Step 3: Voice (optional)
   const [voiceDescription, setVoiceDescription] = useState('');
   const [voiceRules, setVoiceRules] = useState('');
-
-  // Step 4: Context / background
-  const [contextAdditions, setContextAdditions] = useState('');
 
   /* ---- Pillar helpers ---- */
 
@@ -134,7 +131,7 @@ export default function OnboardingPage() {
         voiceDescription,
         voiceRules,
         pillars: validPillars,
-        contextAdditions,
+        contextAdditions: '',
       });
 
       try {
@@ -297,10 +294,7 @@ export default function OnboardingPage() {
                 Describe your voice
               </h2>
               <p className="font-body text-[13px] text-text-secondary">
-                Help the AI match how you talk. Both fields are optional but recommended.
-              </p>
-              <p className="mt-2 rounded-md border border-border bg-bg-secondary px-3 py-2 text-[12px] text-text-secondary">
-                Want this done automatically? Finish setup, then open Your voice to import posts, articles, newsletters, or public profile links.
+                Optional — refine later in Your voice.
               </p>
             </div>
 
@@ -328,33 +322,6 @@ export default function OnboardingPage() {
           </div>
         );
 
-      /* ---- Step 4: Context / Background ---- */
-      case 3:
-        return (
-          <div className="space-y-5">
-            <div>
-              <h2 className="font-serif font-normal text-[24px] tracking-[-0.025em] text-ink mb-1">
-                Add your context
-              </h2>
-              <p className="font-body text-[13px] text-text-secondary">
-                Tell the AI about your background, current projects, anything it should always know.
-                You can update this later in Settings.
-              </p>
-            </div>
-
-            <div>
-              <label className={labelCls}>Background and context</label>
-              <textarea
-                value={contextAdditions}
-                onChange={(e) => setContextAdditions(e.target.value)}
-                rows={10}
-                placeholder={"I'm a [role] who [what you do]. Currently working on [projects]. My audience is [who they are]."}
-                className={textareaCls}
-              />
-            </div>
-          </div>
-        );
-
       default:
         return null;
     }
@@ -367,8 +334,11 @@ export default function OnboardingPage() {
   return (
     <div className="max-w-lg mx-auto py-12 px-4">
       <p className="page-eyebrow mb-3">CONTENT OS</p>
-      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-ink3 mb-6">
+      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-ink3 mb-2">
         Step {step + 1} of {TOTAL_STEPS}
+      </p>
+      <p className="font-body text-[13px] text-text-secondary mb-6">
+        About 2 minutes — then you&apos;re in the app.
       </p>
 
       <StepIndicator current={step} total={TOTAL_STEPS} />
@@ -393,14 +363,24 @@ export default function OnboardingPage() {
         )}
 
         {isLastStep ? (
-          <button
-            type="button"
-            onClick={handleFinish}
-            disabled={loading}
-            className="rounded-md py-[10px] px-[24px] text-text-inverse font-body text-[13px] font-medium bg-accent-primary hover:bg-accent-dark transition-all duration-100 disabled:opacity-40"
-          >
-            {loading ? 'Setting up...' : 'Finish setup'}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={handleFinish}
+              disabled={loading}
+              className="rounded-md py-[10px] px-[24px] text-text-inverse font-body text-[13px] font-medium bg-accent-primary hover:bg-accent-dark transition-all duration-100 disabled:opacity-40"
+            >
+              {loading ? 'Setting up...' : 'Finish setup'}
+            </button>
+            <button
+              type="button"
+              onClick={handleFinish}
+              disabled={loading}
+              className="rounded-md py-[10px] px-[16px] font-body text-[13px] font-medium text-text-tertiary hover:text-text-primary transition-colors"
+            >
+              Skip for now
+            </button>
+          </div>
         ) : (
           <button
             type="button"

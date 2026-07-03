@@ -46,8 +46,8 @@ export function middleware(request: NextRequest): NextResponse {
     if (searchParams.get('expired') === '1' || searchParams.has('error')) {
       return NextResponse.next({ request: { headers: requestHeaders } });
     }
-    const dashboardUrl = new URL('/dashboard', request.url);
-    return NextResponse.redirect(dashboardUrl, 307);
+    const continueUrl = new URL('/auth/continue', request.url);
+    return NextResponse.redirect(continueUrl, 307);
   }
 
   // Protected routes: redirect to /login if no token
