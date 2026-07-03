@@ -78,7 +78,7 @@ export async function POST(
   // Validate workspace ownership — prevents cross-workspace data access.
   const { data: capture, error: fetchError } = await client.database
     .from('event_captures')
-    .select('id, workspace_id, status')
+    .select('id, workspace_id')
     .eq('id', params.id)
     .eq('workspace_id', workspaceId)
     .single();
@@ -87,24 +87,18 @@ export async function POST(
     return NextResponse.json({ error: 'Capture not found' }, { status: 404 });
   }
 
-  const captureRow = capture as { id: string; workspace_id: string; status: string };
-
-  // Idempotency guard — don't restart generation if already in progress or done.
-  if (captureRow.status === 'drafting' || captureRow.status === 'drafted') {
-    return NextResponse.json(
-      { error: 'Draft generation already started', captureId: params.id },
-      { status: 409 },
-    );
-  }
-
   // Sanitize all answers before storing.
   const sanitizedAnswers: Record<string, string> = {};
   for (const [key, value] of Object.entries(answers)) {
     sanitizedAnswers[key] = sanitizeAnswer(value);
   }
 
-  // Save answers and advance status.
-  const { error: updateError } = await client.database
+  // Atomic idempotency guard: the status check happens as part of the UPDATE
+  // itself (not a separate SELECT beforehand), so two concurrent submissions
+  // for the same capture can't both read 'questions_ready' and both proceed.
+  // Postgres serializes the two UPDATEs on the row, and only the first sees
+  // rows affected. A zero-row result means someone else already won.
+  const { data: updatedRows, error: updateError } = await client.database
     .from('event_captures')
     .update({
       answers: sanitizedAnswers,
@@ -112,11 +106,21 @@ export async function POST(
       updated_at: new Date().toISOString(),
     })
     .eq('id', params.id)
-    .eq('workspace_id', workspaceId);
+    .eq('workspace_id', workspaceId)
+    .neq('status', 'drafting')
+    .neq('status', 'drafted')
+    .select('id');
 
   if (updateError) {
     console.error('[event-capture/answers] Update error', updateError);
     return NextResponse.json({ error: 'Failed to save answers' }, { status: 500 });
+  }
+
+  if (!updatedRows || updatedRows.length === 0) {
+    return NextResponse.json(
+      { error: 'Draft generation already started', captureId: params.id },
+      { status: 409 },
+    );
   }
 
   // Fire-and-forget to /process — user's 202 has already been set up.

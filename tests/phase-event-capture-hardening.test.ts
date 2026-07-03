@@ -268,4 +268,125 @@ describe('Phase: Event Capture Hardening', () => {
       expect(staleJob.attempts).toBe(2);
     });
   });
+
+  describe('Task 4: /answers atomic idempotency guard', () => {
+    afterEach(() => {
+      vi.resetModules();
+      vi.doUnmock('@/lib/insforge/server');
+      vi.doUnmock('@/lib/workspace');
+    });
+
+    it('returns 409 on the second of two concurrent submissions for the same capture', async () => {
+      const captureRow = { id: 'cap-1', workspace_id: 'ws-1', status: 'questions_ready' };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fakeClient: any = {
+        database: {
+          from: vi.fn(() => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const chain: any = { _filters: {} as Record<string, unknown> };
+            chain.select = vi.fn().mockReturnValue(chain);
+            chain.eq = vi.fn((col: string, val: unknown) => { chain._filters[col] = val; return chain; });
+            chain.neq = vi.fn().mockReturnValue(chain);
+            chain.single = vi.fn().mockResolvedValue({ data: captureRow, error: null });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            chain.update = vi.fn((patch: any) => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const updateChain: any = {};
+              updateChain.eq = vi.fn().mockReturnValue(updateChain);
+              updateChain.neq = vi.fn().mockReturnValue(updateChain);
+              updateChain.select = vi.fn().mockImplementation(() => {
+                // Simulate the DB row transition: the first call to reach here sees
+                // the status still eligible and wins; once it flips the row to
+                // 'drafting', the second concurrent call sees zero rows affected.
+                if (captureRow.status === 'drafting' || captureRow.status === 'drafted') {
+                  return Promise.resolve({ data: [], error: null });
+                }
+                captureRow.status = patch.status;
+                return Promise.resolve({ data: [{ id: captureRow.id }], error: null });
+              });
+              return updateChain;
+            });
+            return chain;
+          }),
+        },
+      };
+
+      vi.doMock('@/lib/insforge/server', () => ({
+        getAuthenticatedUser: vi.fn().mockResolvedValue({ id: 'user-1' }),
+        getServerClient: vi.fn().mockReturnValue(fakeClient),
+      }));
+      vi.doMock('@/lib/workspace', () => ({ getActiveWorkspaceId: vi.fn().mockResolvedValue('ws-1') }));
+
+      const { POST } = await import('@/app/api/event-capture/[id]/answers/route');
+      const makeReq = () => new Request('http://localhost/api/event-capture/cap-1/answers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers: { '0': 'Great talk on scaling.' } }),
+      });
+
+      const [first, second] = await Promise.all([
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        POST(makeReq() as any, { params: { id: 'cap-1' } }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        POST(makeReq() as any, { params: { id: 'cap-1' } }),
+      ]);
+
+      const statuses = [first.status, second.status].sort();
+      expect(statuses).toEqual([202, 409]);
+    });
+
+    it('auto-draft returns 409 on the second of two concurrent calls for the same capture', async () => {
+      const captureRow = { id: 'cap-1', workspace_id: 'ws-1', status: 'questions_ready' };
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fakeClient: any = {
+        database: {
+          from: vi.fn(() => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const chain: any = {};
+            chain.select = vi.fn().mockReturnValue(chain);
+            chain.eq = vi.fn().mockReturnValue(chain);
+            chain.neq = vi.fn().mockReturnValue(chain);
+            chain.single = vi.fn().mockResolvedValue({ data: captureRow, error: null });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            chain.update = vi.fn((patch: any) => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const updateChain: any = {};
+              updateChain.eq = vi.fn().mockReturnValue(updateChain);
+              updateChain.neq = vi.fn().mockReturnValue(updateChain);
+              updateChain.select = vi.fn().mockImplementation(() => {
+                if (captureRow.status === 'drafting' || captureRow.status === 'drafted') {
+                  return Promise.resolve({ data: [], error: null });
+                }
+                captureRow.status = patch.status;
+                return Promise.resolve({ data: [{ id: captureRow.id }], error: null });
+              });
+              return updateChain;
+            });
+            return chain;
+          }),
+        },
+      };
+
+      vi.doMock('@/lib/insforge/server', () => ({
+        getAuthenticatedUser: vi.fn().mockResolvedValue({ id: 'user-1' }),
+        getServerClient: vi.fn().mockReturnValue(fakeClient),
+      }));
+      vi.doMock('@/lib/workspace', () => ({ getActiveWorkspaceId: vi.fn().mockResolvedValue('ws-1') }));
+
+      const { POST } = await import('@/app/api/event-capture/[id]/auto-draft/route');
+      const makeReq = () => new Request('http://localhost/api/event-capture/cap-1/auto-draft', { method: 'POST' });
+
+      const [first, second] = await Promise.all([
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        POST(makeReq() as any, { params: { id: 'cap-1' } }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        POST(makeReq() as any, { params: { id: 'cap-1' } }),
+      ]);
+
+      const statuses = [first.status, second.status].sort();
+      expect(statuses).toEqual([202, 409]);
+    });
+  });
 });
