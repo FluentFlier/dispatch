@@ -52,21 +52,13 @@ export async function logEditFeedback(payload: EditFeedbackPayload) {
     localStorage.setItem(key, JSON.stringify(existing.slice(-50))); // keep last 50
   } catch {}
 
-  // Wire to RL / reinforcement (continuing from Imagine-inspired edit learning)
-  try {
-    const { updateFromEdits } = await import('./rl-trainer');
-    // Significant edits become negative training signal for the patterns that were too far from voice
-    if ((diffs as any).hook || (diffs as any).script) {
-      updateFromEdits([{
-        originalHookText: payload.originalContent.hook || payload.originalContent.script || '',
-        editedHookText: payload.editedContent.hook || payload.editedContent.script || '',
-        magnitude: Math.min(100, Math.max(10, Math.round(diffs.totalChanges / 5))),
-      }]);
-      console.log('[Edit Feedback → RL] Significant edit fed to trainer for score adjustment.');
-    }
-  } catch (e) {
-    console.warn('[Edit Feedback] RL update skipped:', e);
-  }
+  // RL updates run server-side via /api/cron/intelligence-sync — avoid importing
+  // rl-trainer here (pulls hook dataset + prod-mining into the client bundle).
+  void fetch('/api/hooks/feedback', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(feedback),
+  }).catch(() => undefined);
 }
 
 function calculateSimpleDiffs(original: any, edited: any) {

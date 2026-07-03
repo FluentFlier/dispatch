@@ -36,7 +36,8 @@ export async function GET(): Promise<NextResponse> {
       timestamp: new Date().toISOString(),
       checks,
       provider: getSocialProviderMode(),
+      intelligence_health_url: '/api/intelligence/health',
     },
-    { status: requiredMissing ? 503 : 200 }
+    { status: requiredMissing ? 503 : 200 },
   );
 }

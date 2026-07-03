@@ -134,21 +134,9 @@ export function getBestHooksForContext(
 }
 
 /**
- * Social Listening entry point.
- * This is what keeps Content OS "always on top".
+ * Social Listening entry point — see social-listening.ts (keeps prod-mining off index graph).
  */
-export async function runSocialListening(refreshAccounts = 20) {
-  const { DEFAULT_WATCHLIST } = await import('./watchlist');
-  const accounts = DEFAULT_WATCHLIST.accounts
-    .sort((a, b) => b.priority - a.priority)
-    .slice(0, refreshAccounts);
-
-  console.log(`[Hook Intelligence] Social listening on ${accounts.length} accounts...`);
-
-  // In production/research this would call the gstack extractor
-  // For now it returns the watchlist so the research script knows what to mine
-  return accounts;
-}
+export { runSocialListening } from './social-listening';
 
 /**
  * The "RLML" brain - simple but powerful.

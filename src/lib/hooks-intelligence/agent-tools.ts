@@ -81,15 +81,26 @@ export function searchHooksTool(args: SearchHooksArgs) {
  * What are top accounts in the watchlist posting right now? (fresh signals)
  */
 export async function getSocialListeningInsightsTool(args: SocialListeningInsightsArgs = {}) {
-  const accounts = await runSocialListening(args.limitAccounts ?? 15);
-  
+  const { DEFAULT_WATCHLIST } = await import('./watchlist');
+  const limit = args.limitAccounts ?? 15;
+  const watchlist = DEFAULT_WATCHLIST.accounts
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, limit);
+
+  const listening = await runSocialListening(limit);
+
   return {
-    watchlist_sample: accounts.map(a => ({
+    watchlist_sample: watchlist.map((a) => ({
       handle: a.handle,
       verticals: a.verticals,
       priority: a.priority,
     })),
-    recommendation: "Run the research miner against these accounts for the freshest high-conversion patterns.",
+    listening_status: listening.status,
+    handles: listening.handles,
+    mining: 'mining' in listening ? listening.mining : undefined,
+    recommendation:
+      ('hint' in listening && listening.hint) ||
+      'Run the research miner against these accounts for the freshest high-conversion patterns.',
     last_refreshed: new Date().toISOString(),
   };
 }
