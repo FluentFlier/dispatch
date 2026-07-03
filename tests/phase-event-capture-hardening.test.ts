@@ -267,6 +267,61 @@ describe('Phase: Event Capture Hardening', () => {
       expect(staleJob.status).toBe('pending');
       expect(staleJob.attempts).toBe(2);
     });
+
+    it('fails a stuck job that reaches max_attempts instead of reclaiming it forever', async () => {
+      process.env.CRON_SECRET = 'correct-secret';
+
+      // attempts 2 + 1 = 3 = max_attempts, so this reclaim must terminate it as 'failed'.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const staleJob: any = { id: 'job-poison', attempts: 2, max_attempts: 3, status: 'processing' };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const jobsTable: any[] = [staleJob];
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fakeClient: any = {
+        database: {
+          from: vi.fn((table: string) => {
+            if (table !== 'jobs') throw new Error(`unexpected table ${table}`);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const chain: any = { _filters: {} as Record<string, unknown> };
+            chain.select = vi.fn().mockReturnValue(chain);
+            chain.eq = vi.fn((col: string, val: unknown) => { chain._filters[col] = val; return chain; });
+            chain.lt = vi.fn().mockReturnValue(chain);
+            chain.order = vi.fn().mockReturnValue(chain);
+            chain.limit = vi.fn().mockResolvedValue({
+              data: chain._filters.status === 'processing' ? jobsTable : [],
+              error: null,
+            });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            chain.then = (resolve: (v: any) => void) =>
+              resolve({ data: chain._filters.status === 'processing' ? jobsTable : [], error: null });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            chain.update = vi.fn((patch: any) => ({
+              eq: vi.fn((col: string, val: unknown) => {
+                const row = jobsTable.find((j) => j[col] === val);
+                if (row) Object.assign(row, patch);
+                return Promise.resolve({ error: null });
+              }),
+              in: vi.fn().mockResolvedValue({ error: null }),
+            }));
+            return chain;
+          }),
+        },
+      };
+
+      vi.doMock('@/lib/insforge/server', () => ({ getServiceClient: vi.fn().mockReturnValue(fakeClient) }));
+      vi.doMock('@/lib/feature-flags', () => ({ isEnabled: vi.fn().mockResolvedValue(true) }));
+
+      const { GET } = await import('@/app/api/cron/event-enrich/route');
+      const req = new Request('http://localhost/api/cron/event-enrich', {
+        headers: { authorization: 'Bearer correct-secret' },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await GET(req as any);
+
+      expect(staleJob.status).toBe('failed');
+      expect(staleJob.attempts).toBe(3);
+    });
   });
 
   describe('Task 4: /answers atomic idempotency guard', () => {

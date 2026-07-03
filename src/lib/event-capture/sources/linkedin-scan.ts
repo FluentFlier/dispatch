@@ -153,8 +153,11 @@ export async function scanLinkedInForEvents(
       .eq('workspace_id', owner.workspaceId)
       .maybeSingle();
     scannedIds = new Set((stateRow?.scanned_post_ids as string[] | undefined) ?? []);
-  } catch {
-    // No state row yet or table unreachable - treat everything as unscanned.
+  } catch (err) {
+    // No state row yet or table unreachable - treat everything as unscanned, but
+    // log so a persistently-unreachable cursor table is diagnosable (otherwise the
+    // workspace silently re-classifies all 25 posts every run with no trail).
+    console.warn('[linkedin-scan] failed to load scan state', { workspaceId: owner.workspaceId, err });
   }
 
   const candidates = items.filter((item) => !item.is_repost && !item.is_reply && item.id);
