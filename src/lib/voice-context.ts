@@ -76,6 +76,7 @@ export function buildVoiceContextAdditions({
   vocabulary,
   structural,
   samplePosts,
+  emailSamples,
   brainSnippets,
   memorySnippets,
   userContext,
@@ -84,6 +85,7 @@ export function buildVoiceContextAdditions({
   vocabulary?: VocabularyFingerprint;
   structural?: StructuralPatterns;
   samplePosts?: VoiceSample[];
+  emailSamples?: VoiceSample[];
   brainSnippets?: string[];
   memorySnippets?: string[];
   userContext?: string;
@@ -135,6 +137,15 @@ export function buildVoiceContextAdditions({
     );
   }
 
+  if (emailSamples?.length) {
+    const examples = emailSamples
+      .map((s, i) => `Email ${i + 1}:\n${s.content.trim()}`)
+      .join('\n\n');
+    sections.push(
+      `EMAIL VOICE (how they write 1:1 — match warmth, explanation style, sign-offs):\n${examples}`,
+    );
+  }
+
   if (brainSnippets?.length) {
     sections.push(
       `CREATOR BRAIN (your long-term memory on Content OS):\n${brainSnippets.join('\n---\n')}`,
@@ -165,6 +176,7 @@ export async function loadCreatorVoiceContext(
   let vocabulary: VocabularyFingerprint | undefined;
   let structural: StructuralPatterns | undefined;
   let samplePosts: VoiceSample[] | undefined;
+  let emailSamples: VoiceSample[] | undefined;
   let userContext: string | undefined;
 
   try {
@@ -178,7 +190,7 @@ export async function loadCreatorVoiceContext(
       .from('user_settings')
       .select('key, value')
       .eq('user_id', userId)
-      .in('key', ['context_additions', 'vocabulary_fingerprint', 'structural_patterns', 'sample_posts', 'persona_prompt_export']);
+      .in('key', ['context_additions', 'vocabulary_fingerprint', 'structural_patterns', 'sample_posts', 'sample_emails', 'voice_analysis_samples', 'persona_prompt_export']);
     if (options.workspaceId) settingsQuery = settingsQuery.eq('workspace_id', options.workspaceId);
 
     const [{ data: profileRow }, { data: settingsRows }] = await Promise.all([
@@ -218,6 +230,14 @@ export async function loadCreatorVoiceContext(
           case 'sample_posts':
             samplePosts = parseJsonSetting<VoiceSample[]>(row.value);
             break;
+          case 'sample_emails':
+            emailSamples = parseJsonSetting<VoiceSample[]>(row.value);
+            break;
+          case 'voice_analysis_samples':
+            if (!samplePosts?.length) {
+              samplePosts = parseJsonSetting<VoiceSample[]>(row.value);
+            }
+            break;
           default:
             break;
         }
@@ -229,6 +249,9 @@ export async function loadCreatorVoiceContext(
 
   if (samplePosts && samplePosts.length > maxSamples) {
     samplePosts = samplePosts.slice(0, maxSamples);
+  }
+  if (emailSamples && emailSamples.length > 2) {
+    emailSamples = emailSamples.slice(0, 2);
   }
 
   let brainSnippets: string[] | undefined;
@@ -273,6 +296,7 @@ export async function loadCreatorVoiceContext(
     vocabulary,
     structural,
     samplePosts,
+    emailSamples,
     brainSnippets,
     memorySnippets,
     userContext,

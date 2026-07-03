@@ -4,6 +4,8 @@ import type { VoiceAnalysisResult } from '@/lib/onboarding/baseline';
 
 const ANALYZE_PROMPT = `You are a voice analysis expert. Analyze these content samples and extract the creator's unique voice profile.
 
+Samples may include PUBLIC POSTS (LinkedIn, X) and PRIVATE EMAILS. Emails reveal how they write 1:1 — greeting style, explanation patterns, warmth, directness. Posts reveal public performance voice. Synthesize BOTH into one coherent persona.
+
 For each dimension, provide specific observations with examples from their actual writing:
 
 1. **Tone**: Overall emotional register (casual/professional/irreverent/earnest/etc)

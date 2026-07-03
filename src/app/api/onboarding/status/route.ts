@@ -2,10 +2,14 @@ import { NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { getSocialProviderMode } from '@/lib/env';
+import { isComposioConfigured } from '@/lib/composio/config';
+import { isComposioToolkitConnected } from '@/lib/composio/connect';
+import { toComposioUserId } from '@/lib/composio/client';
+import { getIntegration } from '@/lib/signals/integrations/store';
 
 /**
  * GET /api/onboarding/status
- * Lightweight probe for onboarding UI: Unipile configured + connected account count.
+ * Lightweight probe for onboarding UI: Unipile + Gmail connection state.
  */
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -14,6 +18,7 @@ export async function GET(): Promise<NextResponse> {
   const unipileConfigured = Boolean(
     process.env.UNIPILE_API_KEY?.trim() && process.env.UNIPILE_DSN?.trim(),
   );
+  const composioConfigured = isComposioConfigured();
 
   const client = getServerClient();
   const workspaceId = await getActiveWorkspaceId(user.id);
@@ -29,10 +34,28 @@ export async function GET(): Promise<NextResponse> {
 
   const { data: accounts } = await query;
 
+  let gmailConnected = false;
+  if (composioConfigured && workspaceId) {
+    try {
+      const integration = await getIntegration(client, workspaceId, 'gmail');
+      if (integration?.enabled) {
+        gmailConnected = await isComposioToolkitConnected(
+          integration.composio_user_id ?? toComposioUserId(workspaceId, user.id),
+          'gmail',
+        );
+      }
+    } catch {
+      gmailConnected = false;
+    }
+  }
+
   return NextResponse.json({
     unipileConfigured,
+    composioConfigured,
     socialProviderMode: getSocialProviderMode(),
     connectedCount: accounts?.length ?? 0,
     platforms: (accounts ?? []).map((a) => a.platform),
+    gmailConnected,
+    canIngest: (accounts?.length ?? 0) > 0 || gmailConnected,
   });
 }

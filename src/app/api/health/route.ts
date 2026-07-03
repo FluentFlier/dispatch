@@ -21,12 +21,22 @@ export async function GET(): Promise<NextResponse> {
         ? 'ok'
         : 'missing'
       : 'ok',
+    unipile_webhook:
+      getSocialProviderMode() === 'unipile'
+        ? process.env.UNIPILE_WEBHOOK_SECRET?.trim()
+          ? 'ok'
+          : process.env.NODE_ENV === 'production'
+            ? 'missing'
+            : 'degraded'
+        : 'ok',
     stripe: process.env.STRIPE_SECRET_KEY ? 'ok' : 'degraded',
   };
 
   const requiredChecks = ['insforge', 'encryption'] as const;
   const requiredMissing = requiredChecks.some((key) => checks[key] === 'missing');
-  const status = requiredMissing ? 'degraded' : 'ok';
+  const webhookMissing =
+    getSocialProviderMode() === 'unipile' && checks.unipile_webhook === 'missing';
+  const status = requiredMissing || webhookMissing ? 'degraded' : 'ok';
 
   return NextResponse.json(
     {
@@ -36,7 +46,8 @@ export async function GET(): Promise<NextResponse> {
       timestamp: new Date().toISOString(),
       checks,
       provider: getSocialProviderMode(),
+      intelligence_health_url: '/api/intelligence/health',
     },
-    { status: requiredMissing ? 503 : 200 }
+    { status: requiredMissing ? 503 : 200 },
   );
 }

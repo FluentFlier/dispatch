@@ -21,7 +21,7 @@ fi
 
 # Required env (local .env.local)
 if [ -f .env.local ]; then
-  for key in NEXT_PUBLIC_INSFORGE_URL NEXT_PUBLIC_INSFORGE_ANON_KEY TOKEN_ENCRYPTION_KEY CRON_SECRET AI_API_KEY; do
+  for key in NEXT_PUBLIC_INSFORGE_URL NEXT_PUBLIC_INSFORGE_ANON_KEY TOKEN_ENCRYPTION_KEY CRON_SECRET LLM_BASE_URL LLM_API_KEY LLM_MODEL UNIPILE_WEBHOOK_SECRET; do
     if grep -q "^${key}=" .env.local 2>/dev/null && [ -n "$(grep "^${key}=" .env.local | cut -d= -f2- | tr -d ' \r')" ]; then
       pass "env $key set"
     else
@@ -92,11 +92,23 @@ echo "  1. db/signals.sql"
 echo "  2. db/signals-composio.sql"
 echo "  3. db/signals-rls.sql"
 echo "  4. db/signals-ingest-tuning.sql"
+echo "  5. db/hooks-intelligence.sql"
+echo "  6. db/intelligence-backend.sql   # hook_performance, used_hook_ids, pipeline_stages"
 echo ""
-echo "=== Prod env vars (InsForge hosting / Vercel) ==="
+echo "  bash scripts/apply-intelligence-backend.sh   # after: npx @insforge/cli login && link"
+echo ""
+echo "=== Hosting ==="
+echo "  Production: InsForge → https://mm4nbzdu.insforge.site (NOT Cloudflare)"
+echo "  CI/previews: Vercel (content-os + dispatch projects on GitHub push)"
+echo "  Crons: cron-job.org → CRONJOB_APP_URL=https://mm4nbzdu.insforge.site"
+echo ""
+echo "=== Prod env vars (InsForge hosting secrets) ==="
 echo "  NEXT_PUBLIC_APP_URL=https://mm4nbzdu.insforge.site"
-echo "  INSFORGE_SERVICE_ROLE_KEY, CRON_SECRET, AI_API_KEY"
-echo "  TOKEN_ENCRYPTION_KEY, UNIPILE_* (LinkedIn send), COMPOSIO_* (Gmail optional)"
+echo "  INSFORGE_SERVICE_ROLE_KEY, CRON_SECRET"
+echo "  LLM_BASE_URL, LLM_API_KEY, LLM_MODEL"
+echo "  TOKEN_ENCRYPTION_KEY, UNIPILE_*, UNIPILE_WEBHOOK_SECRET"
+echo "  COMPOSIO_* (Gmail voice), APIFY_TOKEN + USE_APIFY=true (hook mining)"
+echo "  STRIPE_* (billing, optional at launch)"
 echo "  DEMO_SEED_ENABLED=true  # optional: allow /api/demo/seed in prod"
 echo ""
 echo "=== Demo user ==="

@@ -85,6 +85,9 @@ export interface GenerateVoiceMetrics {
   iterations?: number;
   revised?: boolean;
   evaluation?: VoiceEvaluationMatrix;
+  used_hook_ids?: string[];
+  pipeline_stages?: string[];
+  humanize_passes?: string[];
 }
 
 interface GenerateOutputProps {
@@ -105,7 +108,15 @@ function scoreColor(value: number, invert = false): string {
 }
 
 function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
-  const { voice_match_score, ai_score, iterations, revised, evaluation } = metrics;
+  const {
+    voice_match_score,
+    ai_score,
+    iterations,
+    revised,
+    evaluation,
+    pipeline_stages,
+    humanize_passes,
+  } = metrics;
   const hasHeader =
     voice_match_score !== undefined ||
     ai_score !== undefined ||
@@ -151,6 +162,12 @@ function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
             </span>
           )}
         </div>
+      )}
+      {pipeline_stages && pipeline_stages.length > 0 && (
+        <p className="font-mono text-[10px] text-ink3">
+          Pipeline: {pipeline_stages.join(' → ')}
+          {humanize_passes?.length ? ` · humanize: ${humanize_passes.join(', ')}` : ''}
+        </p>
       )}
       {evaluation && (
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -456,6 +473,8 @@ function SaveToLibraryModal({
           voice_match_score: voiceMetrics?.voice_match_score ?? null,
           ai_score: voiceMetrics?.ai_score ?? null,
           voice_evaluation: voiceMetrics?.evaluation ?? null,
+          used_hook_ids: voiceMetrics?.used_hook_ids ?? [],
+          pipeline_stages: voiceMetrics?.pipeline_stages ?? [],
         }),
       });
       if (!res.ok) {

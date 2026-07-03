@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { timingSafeEqual } from 'crypto';
 import { getServiceClient } from '@/lib/insforge/server';
 import { fetchUnipileAccountDetails } from '@/lib/social/unipile';
+import { validateUnipileWebhookAuth } from '@/lib/webhooks/unipile-auth';
 
 // --- Unipile webhook payload types ---
 
@@ -33,25 +33,6 @@ interface UnipileWebhookPayload {
 }
 
 /**
- * Verifies an incoming Unipile webhook by matching a shared secret carried in the
- * "Unipile-Auth" header. Unipile does NOT HMAC-sign payloads; instead you attach a
- * custom header (with a secret you choose) when creating the webhook, and Unipile
- * echoes that header on every delivery. We compare it to UNIPILE_WEBHOOK_SECRET in
- * constant time. This is a high-risk surface (a forged webhook could inject fake
- * event captures), so a configured secret is always enforced.
- *
- * Uses timingSafeEqual to prevent timing-oracle attacks.
- */
-function isValidUnipileAuth(headerValue: string | null, secret: string): boolean {
-  if (!headerValue) return false;
-  const provided = Buffer.from(headerValue);
-  const expected = Buffer.from(secret);
-  // timingSafeEqual throws on length mismatch, so guard first (length is not secret).
-  if (provided.length !== expected.length) return false;
-  return timingSafeEqual(provided, expected);
-}
-
-/**
  * POST /api/webhooks/unipile
  * Receives and processes Unipile webhook events.
  *
@@ -60,24 +41,23 @@ function isValidUnipileAuth(headerValue: string | null, secret: string): boolean
  * - linkedin.event.detected: creates an event_capture from a LinkedIn Event.
  *   Deduplicates against existing event_captures via fuzzy title match before inserting.
  *
- * Always validates HMAC-SHA256 signature before processing any event.
+ * Validates Unipile-Auth header against UNIPILE_WEBHOOK_SECRET (fail-closed in prod).
  * Returns 200 quickly — heavy processing happens inline but is lightweight.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
-  const webhookSecret = process.env.UNIPILE_WEBHOOK_SECRET;
-  if (!webhookSecret) {
-    console.warn('[webhooks/unipile] UNIPILE_WEBHOOK_SECRET not configured. Bypassing auth check for local development!');
+  const auth = validateUnipileWebhookAuth(
+    process.env.UNIPILE_WEBHOOK_SECRET,
+    request.headers.get('unipile-auth'),
+  );
+  if (!auth.ok) {
+    if (auth.status === 401) {
+      console.warn('[webhooks/unipile] Auth header validation failed');
+    }
+    return NextResponse.json({ error: auth.error }, { status: auth.status });
   }
 
   // Read raw body once — needed for JSON parsing below.
   const rawBody = await request.text();
-
-  // Auth: Unipile echoes our shared secret in the "Unipile-Auth" header (set when
-  // the webhook was created). Reject anything that does not match.
-  if (webhookSecret && !isValidUnipileAuth(request.headers.get('unipile-auth'), webhookSecret)) {
-    console.warn('[webhooks/unipile] Auth header validation failed');
-    return NextResponse.json({ error: 'Invalid webhook auth' }, { status: 401 });
-  }
 
   let payload: UnipileWebhookPayload;
   try {

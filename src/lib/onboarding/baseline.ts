@@ -16,6 +16,7 @@ export interface CreatorBaseline {
   hookPattern: string;
   tone: string;
   postsAnalyzed: number;
+  emailsAnalyzed: number;
   platforms: string[];
   displayName: string;
   suggestedTopic: string;
@@ -30,6 +31,7 @@ export function buildCreatorBaseline(
   analysis: VoiceAnalysisResult,
   opts: {
     postsAnalyzed: number;
+    emailsAnalyzed: number;
     platforms: string[];
     displayName: string;
   },
@@ -61,6 +63,7 @@ export function buildCreatorBaseline(
     hookPattern,
     tone,
     postsAnalyzed: opts.postsAnalyzed,
+    emailsAnalyzed: opts.emailsAnalyzed,
     platforms: opts.platforms,
     displayName: opts.displayName,
     suggestedTopic,

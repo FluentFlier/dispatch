@@ -21,14 +21,16 @@ describe('Phase: Connect-first onboarding', () => {
         },
         {
           postsAnalyzed: 42,
-          platforms: ['LinkedIn', 'X'],
+          emailsAnalyzed: 12,
+          platforms: ['LinkedIn', 'X', 'Gmail'],
           displayName: 'Alex Creator',
         },
       );
 
       expect(baseline.displayName).toBe('Alex Creator');
       expect(baseline.postsAnalyzed).toBe(42);
-      expect(baseline.platforms).toEqual(['LinkedIn', 'X']);
+      expect(baseline.emailsAnalyzed).toBe(12);
+      expect(baseline.platforms).toEqual(['LinkedIn', 'X', 'Gmail']);
       expect(baseline.voiceSummary).toContain('builder');
       expect(baseline.voiceRules.length).toBeGreaterThan(0);
       expect(baseline.themes.length).toBeGreaterThan(0);

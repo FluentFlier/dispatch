@@ -13,6 +13,8 @@
     "prod:check": "bash scripts/prod-ready-check.sh",
     "demo:seed": "npx tsx scripts/seed-demo-user.ts",
     "signals:smoke": "bash scripts/signals-e2e-smoke.sh",
+    "intelligence:health": "npx tsx scripts/intelligence-health.ts",
+    "intelligence:run": "npx tsx scripts/intelligence-health.ts --run --remote",
     "hooks:research": "npx tsx scripts/research-hooks.ts",
     "hooks:listen": "npx tsx scripts/research-hooks.ts --all"
   },

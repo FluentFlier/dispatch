@@ -24,7 +24,10 @@ export function getSocialProviderMode(): 'unipile' | 'direct' {
 export function assertProductionEnv(): void {
   if (!isProduction()) return;
 
-  const missing = REQUIRED_PROD.filter((key) => !process.env[key]?.trim());
+  const missing: string[] = REQUIRED_PROD.filter((key) => !process.env[key]?.trim());
+  if (getSocialProviderMode() === 'unipile' && !process.env.UNIPILE_WEBHOOK_SECRET?.trim()) {
+    missing.push('UNIPILE_WEBHOOK_SECRET');
+  }
   if (missing.length > 0) {
     throw new Error(`Missing required production env: ${missing.join(', ')}`);
   }

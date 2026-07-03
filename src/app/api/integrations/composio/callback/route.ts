@@ -57,6 +57,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       config,
     });
 
+    if (state.returnTo?.startsWith('/')) {
+      const sep = state.returnTo.includes('?') ? '&' : '?';
+      return NextResponse.redirect(
+        `${base}${state.returnTo}${sep}outreach_connected=${state.toolkit}`,
+      );
+    }
+
     return NextResponse.redirect(`${redirectBase}&outreach_connected=${state.toolkit}`);
   } catch {
     return NextResponse.redirect(`${redirectBase}&outreach_error=save_failed`);
