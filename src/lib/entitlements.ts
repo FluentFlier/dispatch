@@ -2,7 +2,7 @@ import { getServerClient } from '@/lib/insforge/server';
 import { getUsageCount } from '@/lib/usage';
 import { isAppTrialActive } from '@/lib/trial';
 
-export type PlanId = 'free' | 'starter' | 'growth' | 'pro';
+export type PlanId = 'free' | 'starter' | 'growth' | 'pro' | 'unlimited';
 
 export interface PlanLimits {
   connectedAccounts: number;
@@ -43,6 +43,17 @@ const PLAN_LIMITS: Record<PlanId, PlanLimits> = {
     publishesPerMonth: 1500,
     scheduledPerMonth: 1500,
     aiGenerationsPerMonth: 5000,
+    canPublish: true,
+    canSchedule: true,
+  },
+  // Internal / comp tier for founder + demo accounts. Not shown on the public
+  // pricing page. Caps are large finite numbers (not Infinity) so the values stay
+  // JSON-serializable in API responses; the usage `>=` checks never trip.
+  unlimited: {
+    connectedAccounts: 1_000_000,
+    publishesPerMonth: 1_000_000,
+    scheduledPerMonth: 1_000_000,
+    aiGenerationsPerMonth: 1_000_000,
     canPublish: true,
     canSchedule: true,
   },
@@ -190,7 +201,9 @@ export async function assertCanGenerate(userId: string): Promise<{
   return { ok: true, entitlements };
 }
 
-export function getPlanPriceIds(): Record<Exclude<PlanId, 'free'>, string | undefined> {
+// 'unlimited' is an internal comp tier with no Stripe price (not purchasable), so
+// it is excluded here alongside 'free'.
+export function getPlanPriceIds(): Record<Exclude<PlanId, 'free' | 'unlimited'>, string | undefined> {
   return {
     starter: process.env.STRIPE_PRICE_STARTER,
     growth: process.env.STRIPE_PRICE_GROWTH,
