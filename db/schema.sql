@@ -392,3 +392,49 @@ as $$
     count      = usage_counters.count + excluded.count,
     updated_at = now();
 $$;
+
+-- ============================================================
+-- ATOMIC AI BUDGET CHECK-AND-INCREMENT (event-capture pipeline)
+-- Replaces the SELECT-then-UPDATE pattern in src/lib/ai-budget.ts, which
+-- allowed concurrent callers for the same workspace (e.g. a manual calendar
+-- reload's parallel enrichCapture fan-out) to all read the same pre-increment
+-- count and all pass the hard cap. The UPDATE ... WHERE count < hard_cap
+-- RETURNING serializes concurrent callers on the row's lock.
+-- Called via client.database.rpc('check_and_increment_ai_usage', {...}).
+-- ============================================================
+
+create or replace function check_and_increment_ai_usage(
+  p_workspace_id uuid,
+  p_model text,
+  p_hard_cap int,
+  p_warn_cap int
+) returns table(status text, call_count int)
+language plpgsql
+as $$
+declare
+  v_count int;
+begin
+  insert into daily_ai_usage (workspace_id, date, model, call_count)
+  values (p_workspace_id, current_date, p_model, 0)
+  on conflict (workspace_id, date, model) do nothing;
+
+  update daily_ai_usage
+  set call_count = call_count + 1
+  where workspace_id = p_workspace_id
+    and date = current_date
+    and model = p_model
+    and call_count < p_hard_cap
+  returning daily_ai_usage.call_count into v_count;
+
+  if v_count is null then
+    select d.call_count into v_count
+    from daily_ai_usage d
+    where d.workspace_id = p_workspace_id and d.date = current_date and d.model = p_model;
+    return query select 'blocked'::text, v_count;
+  elsif v_count >= p_warn_cap then
+    return query select 'warn'::text, v_count;
+  else
+    return query select 'ok'::text, v_count;
+  end if;
+end;
+$$;

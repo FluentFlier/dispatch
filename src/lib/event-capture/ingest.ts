@@ -9,6 +9,8 @@ export type IngestMode = 'incremental' | 'replace';
 export interface IngestResult {
   created: number;
   updated: number;
+  /** Ids of captures that got a fresh enrich_event job enqueued this run. */
+  enqueuedCaptureIds: string[];
 }
 
 /** Provider-owned columns that a calendar sync is allowed to overwrite. */
@@ -95,6 +97,7 @@ export async function ingestEvents(
 ): Promise<IngestResult> {
   let created = 0;
   let updated = 0;
+  const enqueuedCaptureIds: string[] = [];
 
   for (const ev of events) {
     // Calendar events go through the duration+recency+allow/block filter. Manual
@@ -145,7 +148,9 @@ export async function ingestEvents(
         continue;
       }
       if (insertedRows && insertedRows.length > 0) {
-        await enqueueEnrich(client, owner.workspaceId, (insertedRows[0] as { id: string }).id);
+        const newId = (insertedRows[0] as { id: string }).id;
+        await enqueueEnrich(client, owner.workspaceId, newId);
+        enqueuedCaptureIds.push(newId);
         created++;
       }
       continue;
@@ -171,10 +176,11 @@ export async function ingestEvents(
       continue;
     }
     await enqueueEnrich(client, owner.workspaceId, existingRow.id);
+    enqueuedCaptureIds.push(existingRow.id);
     updated++;
   }
 
-  return { created, updated };
+  return { created, updated, enqueuedCaptureIds };
 }
 
 /**

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarDays, Loader2, RefreshCw } from "lucide-react";
+import { CalendarDays, Loader2, RefreshCw, Unplug } from "lucide-react";
 import { RELOAD_PRESETS, resolveWindow, type WindowRequest } from "@/lib/event-capture/window";
 
 interface IntegrationStatus {
@@ -14,6 +14,7 @@ interface ResyncResponse {
   created?: number;
   updated?: number;
   cancelled?: number;
+  enriched?: number;
   message?: string;
   error?: string;
 }
@@ -31,6 +32,7 @@ export default function CalendarConnectionCard() {
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [reloading, setReloading] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -79,6 +81,25 @@ export default function CalendarConnectionCard() {
     }
   }
 
+  async function handleDisconnect() {
+    setDisconnecting(true);
+    setResult(null);
+    setError(null);
+    try {
+      const res = await fetch('/api/integrations/composio/calendar/disconnect', { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? 'Disconnect failed.');
+      } else {
+        setConnected(false);
+      }
+    } catch {
+      setError('Network error during disconnect.');
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-[12px] text-text-secondary">
@@ -97,6 +118,17 @@ export default function CalendarConnectionCard() {
         <span className={`text-[10px] font-medium px-2 py-0.5 rounded-[3px] ${connected ? 'bg-[rgba(16,185,129,0.15)] text-[#10B981]' : 'bg-bg-tertiary text-text-secondary'}`}>
           {connected ? 'Connected' : 'Not connected'}
         </span>
+        {connected && (
+          <button
+            type="button"
+            disabled={disconnecting}
+            onClick={handleDisconnect}
+            className="ml-auto flex items-center gap-1 px-3 py-1.5 text-[11px] text-text-tertiary border border-border rounded-[6px] hover:border-border-hover transition-colors disabled:opacity-60"
+          >
+            <Unplug size={12} />
+            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+          </button>
+        )}
       </div>
 
       {!connected ? (

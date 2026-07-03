@@ -139,7 +139,7 @@ describe('ingestEvents mode + id stability', () => {
   it('inserts a new event and returns created:1', async () => {
     const { client, jobs } = memClient();
     const res = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [confT2], nowT2);
-    expect(res).toEqual({ created: 1, updated: 0 });
+    expect(res).toEqual({ created: 1, updated: 0, enqueuedCaptureIds: ['cap_1'] });
     expect(jobs).toHaveLength(1);
   });
 
@@ -151,7 +151,7 @@ describe('ingestEvents mode + id stability', () => {
       event_type: 'conference', is_public_event: true, status: 'detected',
     }]);
     const res = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [confT2], nowT2, 'incremental');
-    expect(res).toEqual({ created: 0, updated: 0 });
+    expect(res).toEqual({ created: 0, updated: 0, enqueuedCaptureIds: [] });
     expect(jobs).toHaveLength(0);
   });
 
@@ -163,7 +163,7 @@ describe('ingestEvents mode + id stability', () => {
       event_type: 'conference', is_public_event: true, status: 'drafted',
     }]);
     const res = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [confT2], nowT2, 'incremental');
-    expect(res).toEqual({ created: 0, updated: 1 });
+    expect(res).toEqual({ created: 0, updated: 1, enqueuedCaptureIds: ['cap_1'] });
     expect(rows[0].id).toBe('cap_1');
     expect(rows[0].title).toBe('AI Summit');
     expect(rows[0].status).toBe('drafted');
@@ -178,7 +178,7 @@ describe('ingestEvents mode + id stability', () => {
       event_type: 'conference', is_public_event: true, status: 'drafted',
     }]);
     const res = await ingestEvents(client, { workspaceId: 'ws1', userId: 'u1' }, [confT2], nowT2, 'replace');
-    expect(res).toEqual({ created: 0, updated: 1 });
+    expect(res).toEqual({ created: 0, updated: 1, enqueuedCaptureIds: ['cap_1'] });
     expect(rows[0].id).toBe('cap_1');
     expect(rows[0].description).toBeNull();
     expect(rows[0].status).toBe('detected');
@@ -219,7 +219,7 @@ describe('resyncCalendar fetch-failure safety (I-1 regression)', () => {
 
   it('does NOT cancel events and reports an error when the calendar fetch fails', async () => {
     const cancelMissingEvents = vi.fn().mockResolvedValue(0);
-    const ingestEvents = vi.fn().mockResolvedValue({ created: 0, updated: 0 });
+    const ingestEvents = vi.fn().mockResolvedValue({ created: 0, updated: 0, enqueuedCaptureIds: [] });
     vi.doMock('@/lib/composio/actions/calendar-read', () => ({
       findCalendarEvents: vi.fn().mockResolvedValue({ ok: false, events: [], error: 'Composio timeout' }),
     }));
@@ -236,7 +236,7 @@ describe('resyncCalendar fetch-failure safety (I-1 regression)', () => {
 
   it('cancels normally when the fetch succeeds', async () => {
     const cancelMissingEvents = vi.fn().mockResolvedValue(2);
-    const ingestEvents = vi.fn().mockResolvedValue({ created: 1, updated: 0 });
+    const ingestEvents = vi.fn().mockResolvedValue({ created: 1, updated: 0, enqueuedCaptureIds: [] });
     vi.doMock('@/lib/composio/actions/calendar-read', () => ({
       findCalendarEvents: vi.fn().mockResolvedValue({ ok: true, events: [{ providerEventId: 'e1' }] }),
     }));

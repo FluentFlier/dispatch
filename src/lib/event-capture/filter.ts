@@ -106,14 +106,18 @@ const MAX_AGE_MS = 48 * 60 * 60 * 1000;
 
 /**
  * Determines whether a completed calendar event is worth capturing.
- * Applies duration, recency, allow-list, and block-list filters in order.
+ * Capture-all policy: after structural (duration/recency) and block-list checks,
+ * every timed event is captured regardless of title. The pipeline serves a broad
+ * audience (students, creators, enterprises) whose calendars are not limited to
+ * conference/meetup-style events, so we no longer require an allow-list keyword.
+ * The allow-list still drives event-type classification (see classifyEventType).
  * Designed to run in the Stage 1 cron — must be fast, no I/O.
  *
  * @param event - Minimal event shape (title, start, end)
  * @param now - Reference timestamp (injected for testability)
  * @param options - Optional overrides. `ignoreRecency` skips the past/future
  *   recency guards so a manual reload can (re)import events over an explicit
- *   user-chosen window; duration and keyword filters still apply.
+ *   user-chosen window; duration and block-list filters still apply.
  */
 export function shouldCaptureEvent(
   event: { title: string; startTime: Date; endTime: Date },
@@ -136,17 +140,13 @@ export function shouldCaptureEvent(
 
   const titleLower = event.title.toLowerCase();
 
-  // Block list is checked before allow list — personal events should never leak through.
+  // Block list — obvious personal/low-content events never get captured.
   for (const blocked of BLOCK_LIST_KEYWORDS) {
     if (titleLower.includes(blocked)) return false;
   }
 
-  // Allow list — at least one keyword must match for capture.
-  for (const [keyword] of ALLOW_LIST_KEYWORDS) {
-    if (titleLower.includes(keyword)) return true;
-  }
-
-  return false;
+  // Capture everything else — no allow-list keyword required.
+  return true;
 }
 
 /**
