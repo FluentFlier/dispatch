@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 
 /**
@@ -8,6 +8,12 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
  * Used from the calendar settings page when a user wants to force enrich
  * without waiting for the next 15-minute cron window.
  * Returns the count of jobs enqueued.
+ *
+ * jobs is a service-managed table with RLS enabled and zero user-facing
+ * policies (by design — only the cron and this route ever write to it), so
+ * the insert must go through the service client. The event_captures read
+ * stays on the user client so RLS still enforces the workspace/ownership
+ * check on what "detected" rows this caller is even allowed to see.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -46,7 +52,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     status: 'pending',
   }));
 
-  const { error: insertError } = await client.database.from('jobs').insert(jobs);
+  const serviceClient = getServiceClient();
+  const { error: insertError } = await serviceClient.database.from('jobs').insert(jobs);
 
   if (insertError) {
     console.error('[event-capture/trigger] Job insert error', insertError);
