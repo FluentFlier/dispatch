@@ -78,4 +78,26 @@ export const SEED_DIRECTORY_LEADS: IngestedLead[] = [
       { name: 'Nadia Volkov', role: 'Co-founder', linkedinUrl: 'https://www.linkedin.com/in/nadia-volkov-harbor' },
     ],
   },
+  // Product Hunt seeds (Phase 9). One shares Harbor's domain to exercise
+  // cross-source domain dedupe (same company launched on PH + listed on YC).
+  {
+    source: 'product_hunt',
+    externalId: 'ph-lumen',
+    companyName: 'Lumen',
+    tagline: 'AI meeting notes that write your follow-ups',
+    website: 'https://lumen.so',
+    tags: ['AI', 'Productivity'],
+    founders: [
+      { name: 'Ravi Patel', role: 'Maker', linkedinUrl: 'https://www.linkedin.com/in/ravi-patel-lumen' },
+    ],
+  },
+  {
+    source: 'product_hunt',
+    externalId: 'ph-harbor',
+    companyName: 'Harbor',
+    tagline: 'Vertical CRM for boutique agencies',
+    website: 'https://harbor.app',
+    tags: ['CRM', 'SaaS'],
+    founders: [{ name: 'Nadia Volkov', role: 'Co-founder' }],
+  },
 ];

@@ -2,6 +2,7 @@ import type { createClient } from '@insforge/sdk';
 import type { LeadContactStatus, SignalLeadContactRow, SignalLeadWithContacts } from '@/lib/signals/types';
 import { logLeadEvent, updateLead } from '@/lib/signals/leads/store';
 import { decideContactStatus } from '@/lib/signals/leads/identity';
+import { enrichFounderContact } from '@/lib/signals/leads/enrich-contact';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -60,18 +61,33 @@ async function markPrimary(client: InsforgeClient, contact: SignalLeadContactRow
 }
 
 /**
- * Enrichment cascade placeholder. Returns the provider name that resolved a
- * contact, or null. Wire Apify (primary) / TinyFish / Unipile search here once
- * the actor id + query strings are confirmed. Kept a no-op so the build + Today
- * tab work today; a lead without a scraped handle stays no_contact until then.
+ * Enrichment cascade: TinyFish company query first, Apify actor fallback (both
+ * gated on their creds). On a hit, persists the found LinkedIn URL as a new
+ * primary contact and returns the provider name; otherwise null → no_contact.
  */
 async function tryEnrichment(
-  _client: InsforgeClient,
-  _workspaceId: string,
-  _lead: SignalLeadWithContacts,
+  client: InsforgeClient,
+  workspaceId: string,
+  lead: SignalLeadWithContacts,
   _primary: SignalLeadContactRow | null,
 ): Promise<string | null> {
-  return null;
+  const found = await enrichFounderContact(lead);
+  if (!found?.linkedinUrl) return null;
+
+  await client.database.from('signal_lead_contacts').update({ is_primary: false }).eq('lead_id', lead.id);
+  await client.database.from('signal_lead_contacts').insert([
+    {
+      lead_id: lead.id,
+      workspace_id: workspaceId,
+      name: found.name ?? null,
+      role: found.role ?? null,
+      linkedin_url: found.linkedinUrl,
+      resolution_source: 'enriched',
+      enriched_via: found.via,
+      is_primary: true,
+    },
+  ]);
+  return found.via;
 }
 
 /** Persists contact_status + logs a resolved/unresolved lead event. */

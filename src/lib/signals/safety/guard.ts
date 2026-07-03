@@ -163,8 +163,8 @@ export async function assertOutreachAllowed(
       dayStart,
       'gmail',
     );
-    if (daily >= settings.max_linkedin_inmail_per_day) {
-      return block(`Daily Gmail cap reached (${settings.max_linkedin_inmail_per_day}).`);
+    if (daily >= settings.max_gmail_per_day) {
+      return block(`Daily Gmail cap reached (${settings.max_gmail_per_day}). Protects sender reputation.`);
     }
   }
 

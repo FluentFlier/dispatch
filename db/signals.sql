@@ -125,6 +125,7 @@ create table if not exists signal_safety_settings (
   max_linkedin_invites_per_day int not null default 25,
   max_linkedin_inmail_per_day int not null default 15,
   max_x_dm_per_day int not null default 15,
+  max_gmail_per_day int not null default 20,
   max_linkedin_invites_per_week int not null default 80,
   min_seconds_between_sends int not null default 180,
   max_jitter_seconds int not null default 120,
