@@ -39,8 +39,19 @@ interface CreatorProfileRow {
  * local reload doesn't sit on 'detected' waiting for a cron that never runs on
  * localhost). Callers own job-queue bookkeeping — this function only touches
  * event_captures / event_research / creator_profile.
+ *
+ * `options.ignoreRecency` skips the 48h staleness guard. The hourly cron keeps
+ * the guard (don't spend AI budget auto-enriching events the user has moved on
+ * from), but a manual reload passes it so a deliberately-imported back-catalog
+ * (e.g. "All events") actually reaches 'questions_ready' instead of being stuck
+ * at 'detected' and hidden from the inbox.
  */
-export async function enrichCapture(client: InsforgeClient, captureId: string, now: Date): Promise<EnrichOutcome> {
+export async function enrichCapture(
+  client: InsforgeClient,
+  captureId: string,
+  now: Date,
+  options?: { ignoreRecency?: boolean },
+): Promise<EnrichOutcome> {
   const { data: captureData } = await client.database
     .from('event_captures')
     .select('id, workspace_id, user_id, title, location, start_time, end_time, event_type, is_public_event')
@@ -51,7 +62,7 @@ export async function enrichCapture(client: InsforgeClient, captureId: string, n
   const capture = captureData as EventCaptureRow;
 
   const endTime = new Date(capture.end_time);
-  if (now.getTime() - endTime.getTime() > MAX_AGE_MS) return 'skipped_too_old';
+  if (!options?.ignoreRecency && now.getTime() - endTime.getTime() > MAX_AGE_MS) return 'skipped_too_old';
 
   const budget = await checkAndIncrementUsage(client, capture.workspace_id, 'haiku');
   if (budget === 'blocked') return 'budget_blocked';

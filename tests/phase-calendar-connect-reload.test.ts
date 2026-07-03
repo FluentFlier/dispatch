@@ -25,9 +25,15 @@ describe('resolveWindow', () => {
     expect(w.timeMax.toISOString()).toBe('2026-02-01T00:00:00.000Z');
   });
 
-  it('exposes a labelled preset list for the UI', () => {
+  it('maps all_time to [-3y, +1y] so "All events" imports the back-catalog', () => {
+    const w = resolveWindow({ preset: 'all_time' }, now);
+    expect(w.timeMin.toISOString()).toBe(new Date('2023-07-03T12:00:00Z').toISOString()); // now - 3*365d
+    expect(w.timeMax.toISOString()).toBe(new Date('2027-07-02T12:00:00Z').toISOString()); // now + 365d
+  });
+
+  it('exposes a labelled preset list for the UI (All events first)', () => {
     expect(RELOAD_PRESETS.map((p) => p.id)).toEqual([
-      'last_week', 'last_month', 'last_year', 'next_week', 'next_month', 'next_year', 'custom',
+      'all_time', 'last_week', 'last_month', 'last_year', 'next_week', 'next_month', 'next_year', 'custom',
     ]);
   });
 });

@@ -12,7 +12,7 @@ const BodySchema = z.object({
   timeMax: z.string().datetime(),
 }).strict();
 
-const MAX_SPAN_MS = 2 * 365 * 24 * 60 * 60 * 1000;
+const MAX_SPAN_MS = 5 * 365 * 24 * 60 * 60 * 1000; // 5 years - accommodates the "All events" window (-3y..+1y)
 const RATE_LIMIT_MS = 60 * 1000;
 
 /**
