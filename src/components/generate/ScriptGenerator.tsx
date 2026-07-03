@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback, type KeyboardEvent } from 'react';
+import { useEffect, useState, useRef, useCallback, type KeyboardEvent, useMemo } from 'react';
 import { AtSign, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Toggle } from '@/components/ui/Toggle';
@@ -129,13 +129,24 @@ export function ScriptGenerator({
   initialMentions = [],
   autoGenerate = false,
 }: ScriptGeneratorProps) {
+  const stableInitialMentions = useMemo(
+    () => mergeMentions(initialMentions),
+    [initialMentions.join(',')],
+  );
   const { pillars: pillarList, loading: pillarsLoading, getLabel } = usePillars();
   const { preferredPostLength, voiceEnabled, loading: prefLoading } = useCreatorPreferences();
 
   const [pillar, setPillar] = useState<string>(initialPillar);
   const [topic, setTopic] = useState(initialTopic);
   const [thoughts, setThoughts] = useState('');
-  const [mentions, setMentions] = useState<string[]>(() => mergeMentions(initialMentions));
+  const [mentions, setMentions] = useState<string[]>(() => stableInitialMentions);
+
+  // Sync tags when URL params change (e.g. /generate?tag=rudheer).
+  useEffect(() => {
+    if (stableInitialMentions.length > 0) {
+      setMentions((prev) => mergeMentions(prev, stableInitialMentions));
+    }
+  }, [stableInitialMentions]);
   const [mentionInput, setMentionInput] = useState('');
   const [platform, setPlatform] = useState<Platform>(initialPlatform ?? 'instagram');
   const [postLength, setPostLength] = useState<PostLength>('standard');

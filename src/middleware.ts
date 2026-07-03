@@ -19,7 +19,6 @@ const PROTECTED_ROUTES = [
   '/event-capture',
   '/onboarding',
   '/get-started',
-  '/book-demo',
 ];
 
 export function middleware(request: NextRequest): NextResponse {
@@ -32,7 +31,7 @@ export function middleware(request: NextRequest): NextResponse {
   const token = request.cookies.get('content-os-token')?.value;
 
   // Public marketing routes
-  if (pathname === '/pricing') {
+  if (pathname === '/pricing' || pathname === '/book-demo' || pathname === '/terms' || pathname === '/privacy') {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 

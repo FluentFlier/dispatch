@@ -14,6 +14,15 @@ export default function Footer() {
           </span>
         </div>
         <div className="flex items-center gap-5">
+          <Link href="/book-demo" className="font-mono text-[11px] text-ink2 hover:text-ink">
+            Book demo
+          </Link>
+          <Link href="/terms" className="font-mono text-[11px] text-ink2 hover:text-ink">
+            Terms
+          </Link>
+          <Link href="/privacy" className="font-mono text-[11px] text-ink2 hover:text-ink">
+            Privacy
+          </Link>
           <Link href="/pricing" className="font-mono text-[11px] text-ink2 hover:text-ink">
             Pricing
           </Link>

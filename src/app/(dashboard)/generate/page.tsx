@@ -15,6 +15,7 @@ import { Repurpose } from "@/components/generate/Repurpose";
 import { TrendCatcher } from "@/components/generate/TrendCatcher";
 import { CommentReplies } from "@/components/generate/CommentReplies";
 import { SeriesPlanner } from "@/components/generate/SeriesPlanner";
+import { parseMentionList } from '@/lib/mentions';
 import type { Platform } from "@/lib/constants";
 
 type TabId =
@@ -137,6 +138,7 @@ function GeneratePageInner() {
   const initialPillar = searchParams.get("pillar") || "";
   const initialMentionsParam =
     searchParams.get("mentions") || searchParams.get("tag") || "";
+  const initialMentions = initialMentionsParam ? parseMentionList(initialMentionsParam) : undefined;
   const isWelcome = searchParams.get("welcome") === "1";
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const welcomePlatform = (searchParams.get("platform") as Platform | null) ?? "linkedin";
@@ -155,11 +157,7 @@ function GeneratePageInner() {
             initialResult={initialResult}
             initialTopic={initialTopic}
             initialPillar={initialPillar}
-            initialMentions={
-              initialMentionsParam
-                ? initialMentionsParam.split(/[,;\s]+/).filter(Boolean)
-                : undefined
-            }
+            initialMentions={initialMentions}
             initialPlatform={isWelcome ? welcomePlatform : undefined}
             autoGenerate={isWelcome && Boolean(initialTopic)}
           />

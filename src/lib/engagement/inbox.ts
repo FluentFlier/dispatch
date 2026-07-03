@@ -495,6 +495,16 @@ export async function sendEngagementReplies(
         wasStubbed = true;
       }
 
+      if (wasStubbed) {
+        stubbed++;
+        items.push({
+          queue_id: row.id,
+          status: row.status === 'draft' ? 'approved' : row.status,
+          provider_reply_id: null,
+        });
+        continue;
+      }
+
       const { error: updateError } = await client.database
         .from('comment_reply_queue')
         .update({
@@ -509,7 +519,6 @@ export async function sendEngagementReplies(
       if (updateError) throw new Error(updateError.message);
 
       sent++;
-      if (wasStubbed) stubbed++;
       items.push({
         queue_id: row.id,
         status: 'sent',

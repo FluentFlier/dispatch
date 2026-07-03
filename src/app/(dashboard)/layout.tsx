@@ -30,8 +30,7 @@ export default async function DashboardLayout({
     return <TokenRefreshGate />;
   }
 
-  const isGetStarted =
-    pathname === '/get-started' || pathname === '/book-demo';
+  const isGetStarted = pathname === '/get-started';
   const isOnboarding =
     pathname === '/onboarding' || pathname.startsWith('/onboarding/');
   const isMinimalChrome = isGetStarted || isOnboarding || pathname === '/teleprompter';

@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Sunrise, TrendingUp, BarChart3, Lightbulb, ArrowRight } from 'lucide-react';
 import type { MorningBrief } from '@/lib/rituals/morning-brief';
+import { TrendDetectAction } from '@/components/dashboard/TrendDetectAction';
 
 /**
  * Renders the daily morning brief: today's top trend, yesterday's numbers, and
@@ -42,9 +43,13 @@ export function MorningBriefCard({ brief }: { brief: MorningBrief }) {
               >
                 Draft on this <ArrowRight className="h-3 w-3" />
               </Link>
+              <TrendDetectAction hasTrend showWhenEmpty={false} />
             </div>
           ) : (
-            <p className="mt-2 text-xs text-text-tertiary">No trend detected yet.</p>
+            <>
+              <p className="mt-2 text-xs text-text-tertiary">No trend detected yet.</p>
+              <TrendDetectAction hasTrend={false} />
+            </>
           )}
         </div>
 
