@@ -51,6 +51,7 @@ describe('Phase: Event Capture Hardening', () => {
 
       const { POST } = await import('@/app/api/event-capture/trigger/route');
       const req = new Request('http://localhost/api/event-capture/trigger', { method: 'POST' });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await POST(req as any);
 
       expect(res.status).toBe(200);
@@ -58,6 +59,44 @@ describe('Phase: Event Capture Hardening', () => {
       expect(body).toEqual({ ok: true, enqueued: 1 });
       expect(userClientInsertJobs).not.toHaveBeenCalled();
       expect(serviceClientInsertJobs).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns 401 when user is not authenticated', async () => {
+      vi.doMock('@/lib/insforge/server', () => ({
+        getAuthenticatedUser: vi.fn().mockResolvedValue(null),
+        getServerClient: vi.fn(),
+        getServiceClient: vi.fn(),
+      }));
+      vi.doMock('@/lib/workspace', () => ({
+        getActiveWorkspaceId: vi.fn(),
+      }));
+
+      const { POST } = await import('@/app/api/event-capture/trigger/route');
+      const req = new Request('http://localhost/api/event-capture/trigger', { method: 'POST' });
+      const res = await POST(req as any);
+
+      expect(res.status).toBe(401);
+      const body = await res.json();
+      expect(body).toEqual({ error: 'Unauthorized' });
+    });
+
+    it('returns 400 when user has no active workspace', async () => {
+      vi.doMock('@/lib/insforge/server', () => ({
+        getAuthenticatedUser: vi.fn().mockResolvedValue({ id: 'user-1' }),
+        getServerClient: vi.fn(),
+        getServiceClient: vi.fn(),
+      }));
+      vi.doMock('@/lib/workspace', () => ({
+        getActiveWorkspaceId: vi.fn().mockResolvedValue(null),
+      }));
+
+      const { POST } = await import('@/app/api/event-capture/trigger/route');
+      const req = new Request('http://localhost/api/event-capture/trigger', { method: 'POST' });
+      const res = await POST(req as any);
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body).toEqual({ error: 'No active workspace' });
     });
   });
 });

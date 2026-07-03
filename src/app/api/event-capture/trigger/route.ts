@@ -10,7 +10,7 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
  * Returns the count of jobs enqueued.
  *
  * jobs is a service-managed table with RLS enabled and zero user-facing
- * policies (by design — only the cron and this route ever write to it), so
+ * policies (by design - only the cron and this route ever write to it), so
  * the insert must go through the service client. The event_captures read
  * stays on the user client so RLS still enforces the workspace/ownership
  * check on what "detected" rows this caller is even allowed to see.
