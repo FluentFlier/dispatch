@@ -110,6 +110,10 @@ export async function resyncCalendar(
  * questions the user may already be answering) when it eventually runs.
  * Enrichment failures are swallowed per-capture — the capture stays 'detected'
  * and the cron will pick it up later; a reload should never fail on this.
+ *
+ * Passes ignoreRecency so a manual reload enriches past events too: the user
+ * explicitly asked to import this window (including "All events"), so a class
+ * from three weeks ago should still reach the inbox, not be skipped as stale.
  */
 async function enrichNow(
   client: InsforgeClient,
@@ -119,7 +123,7 @@ async function enrichNow(
 ): Promise<number> {
   if (captureIds.length === 0) return 0;
 
-  const outcomes = await runBatched(captureIds, ENRICH_CONCURRENCY, (id) => enrichCapture(client, id, now));
+  const outcomes = await runBatched(captureIds, ENRICH_CONCURRENCY, (id) => enrichCapture(client, id, now, { ignoreRecency: true }));
   const succeeded = outcomes.filter((o) => o.status === 'fulfilled' && o.value === 'questions_ready').length;
 
   const { data: pendingJobs } = await client.database

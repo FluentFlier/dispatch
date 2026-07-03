@@ -79,7 +79,8 @@ export async function findCalendarEvents(
   // Composio's Google Calendar toolkit exposes the events listing as
   // GOOGLECALENDAR_EVENTS_LIST (the earlier GOOGLECALENDAR_FIND_EVENTS slug does
   // not exist and 502s). max_results defaults to 10 on Composio, far too few for a
-  // manual reload window, so raise it.
+  // manual reload window (especially "All events"), so raise it to Google's per-page
+  // max of 2500. Windows with more than that would need page_token pagination.
   const result = await executeComposioTool<Record<string, unknown>>(
     composioUserId,
     'GOOGLECALENDAR_EVENTS_LIST',
@@ -89,7 +90,7 @@ export async function findCalendarEvents(
       timeMax: timeMax.toISOString(),
       single_events: true,
       order_by: 'startTime',
-      max_results: 250,
+      max_results: 2500,
     },
   );
 
