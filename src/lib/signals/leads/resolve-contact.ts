@@ -28,7 +28,12 @@ export async function resolveLeadContacts(
   client: InsforgeClient,
   workspaceId: string,
   lead: SignalLeadWithContacts,
+  opts: { enrich?: boolean } = {},
 ): Promise<ResolveResult> {
+  // Enrichment is a per-lead TinyFish Agent run (~60s). On by default (the
+  // single-lead "Try to resolve" action), but the batch sync passes enrich:false
+  // so a scrape of N leads doesn't fan out into N slow agent runs.
+  const enrich = opts.enrich ?? true;
   const contacts = lead.contacts ?? [];
   const primary = contacts.find((c) => c.is_primary) ?? contacts[0] ?? null;
 
@@ -41,8 +46,8 @@ export async function resolveLeadContacts(
   }
 
   // Steps 2-4: enrichment (gated). When a provider resolves a URL, upsert it
-  // onto the contact row and mark resolved. Left as extension points here.
-  const enriched = await tryEnrichment(client, workspaceId, lead, primary);
+  // onto the contact row and mark resolved. Skipped in batch mode.
+  const enriched = enrich ? await tryEnrichment(client, workspaceId, lead, primary) : null;
   if (enriched) {
     await setStatus(client, workspaceId, lead.id, 'resolved', enriched);
     return { status: 'resolved', via: enriched };

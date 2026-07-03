@@ -78,6 +78,9 @@ export async function listEvents(
   opts: { status?: string; limit?: number; signalType?: string } = {},
 ): Promise<SignalEventWithPost[]> {
   const limit = Math.min(opts.limit ?? 50, 100);
+  // NOTE: do NOT chain .order() here. On this backend, select('*') + embedded
+  // resources + .order() together collapse the result to a single row (each
+  // alone is fine). We sort by created_at in JS after mapping instead.
   let query = client.database
     .from('signal_events')
     .select(`
@@ -86,7 +89,6 @@ export async function listEvents(
       outreach:signal_outreach(*)
     `)
     .eq('workspace_id', workspaceId)
-    .order('created_at', { ascending: false })
     .limit(limit);
 
   if (opts.status) query = query.eq('status', opts.status);
@@ -95,7 +97,7 @@ export async function listEvents(
   const { data, error } = await query;
   if (error) throw error;
 
-  return (data ?? []).map((row) => {
+  const mapped = (data ?? []).map((row) => {
     const outreachArr = row.outreach as unknown[];
     return {
       ...(row as SignalEventRow),
@@ -103,6 +105,10 @@ export async function listEvents(
       outreach: Array.isArray(outreachArr) ? (outreachArr[0] as SignalEventWithPost['outreach']) : row.outreach as SignalEventWithPost['outreach'],
     };
   });
+
+  return mapped.sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
 }
 
 export async function getEvent(

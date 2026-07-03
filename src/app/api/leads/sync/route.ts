@@ -4,6 +4,11 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
 import { syncWorkspaceDirectory } from '@/lib/signals/ingest/sync-directory';
 import { errorResponse } from '@/lib/api-errors';
 
+// TinyFish Agent scrape runs are slow (~60-130s). Give the function the max
+// serverless budget so a live scrape isn't cut off at the default cap.
+export const runtime = 'nodejs';
+export const maxDuration = 300;
+
 /**
  * POST /api/leads/sync
  * Manual directory scrape for the active workspace (the "Scrape now" action).
