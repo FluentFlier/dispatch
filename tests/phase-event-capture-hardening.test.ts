@@ -16,7 +16,10 @@ describe('Phase: Event Capture Hardening', () => {
         database: {
           from: vi.fn((table: string) => {
             if (table === 'event_captures') {
-              const chain: any = {};
+              // Minimal mock query-builder chain: typed as a map of vi.fn() mocks
+              // (rather than `any`) since `select`/`eq` are assigned after the
+              // object is created to allow the self-referential `.mockReturnValue(chain)`.
+              const chain: Record<string, ReturnType<typeof vi.fn>> = {};
               chain.select = vi.fn().mockReturnValue(chain);
               chain.eq = vi.fn()
                 .mockReturnValueOnce(chain) // .eq('workspace_id', ...)
@@ -73,6 +76,7 @@ describe('Phase: Event Capture Hardening', () => {
 
       const { POST } = await import('@/app/api/event-capture/trigger/route');
       const req = new Request('http://localhost/api/event-capture/trigger', { method: 'POST' });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await POST(req as any);
 
       expect(res.status).toBe(401);
@@ -92,6 +96,7 @@ describe('Phase: Event Capture Hardening', () => {
 
       const { POST } = await import('@/app/api/event-capture/trigger/route');
       const req = new Request('http://localhost/api/event-capture/trigger', { method: 'POST' });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const res = await POST(req as any);
 
       expect(res.status).toBe(400);
