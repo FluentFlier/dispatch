@@ -80,6 +80,10 @@ export async function listLeads(
   opts: { status?: LeadStatus; limit?: number } = {},
 ): Promise<SignalLeadWithContacts[]> {
   const limit = Math.min(opts.limit ?? 100, 200);
+  // NOTE: do NOT chain .order() here. On this backend, select('*') + embedded
+  // resources + .order() together collapse the result to a single row (each
+  // alone is fine) — which silently hid all but one lead from the UI. We sort by
+  // rank_score in JS instead (the leads UI also re-sorts client-side).
   let query = client.database
     .from('signal_leads')
     .select(`
@@ -88,7 +92,6 @@ export async function listLeads(
       outreach:signal_outreach(*)
     `)
     .eq('workspace_id', workspaceId)
-    .order('rank_score', { ascending: false })
     .limit(limit);
 
   if (opts.status) query = query.eq('lead_status', opts.status);
@@ -96,7 +99,9 @@ export async function listLeads(
   const { data, error } = await query;
   if (error) throw error;
 
-  return (data ?? []).map((row) => hydrateLead(row));
+  return (data ?? [])
+    .map((row) => hydrateLead(row))
+    .sort((a, b) => b.rank_score - a.rank_score);
 }
 
 /** Fetches a single lead with contacts + outreach. */
@@ -156,14 +161,21 @@ export async function upsertIngestedLeads(
 ): Promise<UpsertLeadsResult> {
   const result: UpsertLeadsResult = { inserted: 0, updated: 0, renamed: 0 };
 
+  // Explicit column list, NOT select('*'): on this backend, select('*') with
+  // several .eq() filters + .limit(1) silently returns 0 rows (no error), which
+  // made this existence check miss every existing lead and re-insert it —
+  // crashing a re-scrape on the source+external_id unique constraint.
+  const anchorCols = 'id, source, external_id, company_name, tagline, tags, domain, name_history';
+
   for (const lead of leads) {
-    const { data: existingRows } = await client.database
+    const { data: existingRows, error: existErr } = await client.database
       .from('signal_leads')
-      .select('*')
+      .select(anchorCols)
       .eq('workspace_id', workspaceId)
       .eq('source', lead.source)
       .eq('external_id', lead.externalId)
       .limit(1);
+    if (existErr) throw existErr;
 
     let existing = (existingRows?.[0] as SignalLeadRow | undefined) ?? null;
     const nowIso = new Date().toISOString();
@@ -173,12 +185,13 @@ export async function upsertIngestedLeads(
     // Match on the shared domain anchor and fold contacts into the one lead
     // instead of creating a duplicate row.
     if (!existing && domain) {
-      const { data: domainRows } = await client.database
+      const { data: domainRows, error: domainErr } = await client.database
         .from('signal_leads')
-        .select('*')
+        .select(anchorCols)
         .eq('workspace_id', workspaceId)
         .eq('domain', domain)
         .limit(1);
+      if (domainErr) throw domainErr;
       const domainMatch = (domainRows?.[0] as SignalLeadRow | undefined) ?? null;
       if (domainMatch) {
         await insertContactsForLead(client, workspaceId, domainMatch.id, lead);

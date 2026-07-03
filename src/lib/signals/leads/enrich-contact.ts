@@ -1,14 +1,36 @@
 import { ApifyClient } from 'apify-client';
 import type { SignalLeadWithContacts } from '@/lib/signals/types';
+import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
 
 /**
  * Founder-contact enrichment for leads the directory didn't hand a social URL.
- * Order (per product decision): TinyFish first (reuses the AgentQL key, cheaper),
- * Apify fallback (stronger LinkedIn data, paid). Both are gated on their creds and
- * best-effort — any failure returns null so the lead simply stays no_contact.
+ * Order (per product decision): TinyFish first (reuses the directory-scrape key,
+ * cheaper), Apify fallback (stronger LinkedIn data, paid). Both are gated on
+ * their creds and best-effort — any failure returns null so the lead simply
+ * stays no_contact.
  */
 
-const AGENTQL_ENDPOINT = 'https://api.agentql.com/v1/query-data';
+// TinyFish Agent surface — same unified key as directory scraping. The retired
+// AgentQL endpoint (api.agentql.com) needs a separate key and 401s with ours.
+const AGENT_ENDPOINT = 'https://agent.tinyfish.ai/v1/automation/run';
+
+/** Founder-lookup structured-output contract for the enrichment agent run. */
+const FOUNDER_OUTPUT_SCHEMA = {
+  type: 'object',
+  properties: {
+    founders: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          role: { type: 'string' },
+          linkedin_url: { type: 'string' },
+        },
+      },
+    },
+  },
+} as const;
 
 export interface EnrichedContact {
   name?: string;
@@ -26,7 +48,7 @@ export async function enrichFounderContact(
   return enrichViaApify(lead);
 }
 
-/** TinyFish/AgentQL: read the company site (about/team) for a founder + LinkedIn URL. */
+/** TinyFish: read the company site (about/team) for a founder + LinkedIn URL. */
 async function enrichViaTinyFish(
   lead: Pick<SignalLeadWithContacts, 'website'>,
 ): Promise<EnrichedContact | null> {
@@ -34,17 +56,30 @@ async function enrichViaTinyFish(
   if (!key || !lead.website) return null;
 
   try {
-    const res = await fetch(AGENTQL_ENDPOINT, {
+    const res = await fetch(AGENT_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-API-Key': key },
       body: JSON.stringify({
         url: lead.website,
-        query: `{ founders[] { name role linkedin_url } }`,
+        goal:
+          'Find the founders or leadership of this company from its site ' +
+          '(about/team page). For each return name, role, and linkedin_url. Return JSON.',
+        output_schema: FOUNDER_OUTPUT_SCHEMA,
       }),
     });
     if (!res.ok) return null;
-    const payload = (await res.json()) as { data?: { founders?: Array<Record<string, unknown>> } };
-    const found = (payload.data?.founders ?? []).find((f) => f.linkedin_url);
+    const payload = (await res.json()) as {
+      status?: string;
+      error?: string | null;
+      result?: { founders?: Array<Record<string, unknown>> };
+    };
+    if (payload.status !== 'COMPLETED' || payload.error) {
+      if (signalsDebugEnabled()) {
+        console.warn(`[tinyfish-enrich] run ${payload.status ?? 'unknown'}: ${payload.error ?? ''}`);
+      }
+      return null;
+    }
+    const found = (payload.result?.founders ?? []).find((f) => f.linkedin_url);
     if (!found) return null;
     return {
       name: found.name ? String(found.name) : undefined,
@@ -52,7 +87,11 @@ async function enrichViaTinyFish(
       linkedinUrl: String(found.linkedin_url),
       via: 'tinyfish',
     };
-  } catch {
+  } catch (err) {
+    // Best-effort: a failed enrichment must never break the sync — log under debug.
+    if (signalsDebugEnabled()) {
+      console.warn(`[tinyfish-enrich] error: ${err instanceof Error ? err.message : String(err)}`);
+    }
     return null;
   }
 }

@@ -10,6 +10,7 @@ import {
 } from '@/lib/signals/leads/store';
 import { resolveLeadContacts } from '@/lib/signals/leads/resolve-contact';
 import { computeFitScore, computeRankScore } from '@/lib/signals/leads/score';
+import { signalsDebugEnabled, signalsEnrichInlineEnabled } from '@/lib/signals/ingest/config';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -22,6 +23,8 @@ export interface DirectorySyncResult {
   resolved: number;
   noContact: number;
   perSource: Array<{ source: LeadSource; count: number; error?: string }>;
+  /** Human-readable "<source> failed: <reason>" lines for surfacing to the UI. */
+  warnings: string[];
 }
 
 /**
@@ -36,6 +39,7 @@ export async function syncWorkspaceDirectory(
 ): Promise<DirectorySyncResult> {
   const settings = await getDirectorySettings(client, workspaceId);
   const today = new Date().toISOString().slice(0, 10);
+  const debug = signalsDebugEnabled();
   const result: DirectorySyncResult = {
     inserted: 0,
     updated: 0,
@@ -43,19 +47,34 @@ export async function syncWorkspaceDirectory(
     resolved: 0,
     noContact: 0,
     perSource: [],
+    warnings: [],
   };
+
+  if (debug) {
+    console.log(
+      `[directory-sync] workspace=${workspaceId} enabled_sources=` +
+        `${JSON.stringify(settings.enabled_sources)}`,
+    );
+  }
 
   // --- Scrape enabled sources (isolated) ---
   const collected: IngestedLead[] = [];
   for (const source of settings.enabled_sources) {
-    if (!DIRECTORY_QUERIES[source]) continue;
+    if (!DIRECTORY_QUERIES[source]) {
+      if (debug) console.log(`[directory-sync] ${source} skipped — no query config`);
+      continue;
+    }
     try {
       const leads = await fetchDirectoryLeads(source);
       collected.push(...leads);
       result.perSource.push({ source, count: leads.length });
+      if (debug) console.log(`[directory-sync] ${source} → ${leads.length} leads`);
     } catch (err) {
       const msg = err instanceof DirectoryScrapeError ? err.message : String(err);
       result.perSource.push({ source, count: 0, error: msg });
+      result.warnings.push(`${source} failed: ${msg}`);
+      // Always logged (not just under debug): a scrape failure is operationally
+      // important even when the endpoint still returns 200 to the caller.
       console.error(`[directory-sync] ${source} failed:`, msg);
     }
   }
@@ -73,10 +92,13 @@ export async function syncWorkspaceDirectory(
   result.renamed = upsert.renamed;
 
   // --- Resolve + score ---
+  // Batch mode: enrichment (slow per-lead agent runs) is off unless explicitly
+  // opted in, so the scrape stays within the request timeout.
+  const enrichInline = signalsEnrichInlineEnabled();
   const leads = await listLeads(client, workspaceId, { limit: MAX_LEADS_PER_RUN });
   for (const lead of leads) {
     if (lead.contact_status === 'unresolved') {
-      const res = await resolveLeadContacts(client, workspaceId, lead);
+      const res = await resolveLeadContacts(client, workspaceId, lead, { enrich: enrichInline });
       if (res.status === 'resolved') result.resolved += 1;
       if (res.status === 'no_contact') result.noContact += 1;
       lead.contact_status = res.status;

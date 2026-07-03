@@ -107,7 +107,15 @@ export default function LeadsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       const r = data.result;
-      toast(`Scrape done: ${r.inserted} new, ${r.updated} updated, ${r.resolved} resolved.`);
+      const warnings: string[] = r.warnings ?? [];
+      // Surface the real reason instead of a false "done" when sources errored.
+      if (r.inserted === 0 && warnings.length > 0) {
+        toast(`0 new leads — ${warnings[0]}`, 'error');
+      } else if (warnings.length > 0) {
+        toast(`${r.inserted} new, but ${warnings.length} source(s) failed: ${warnings[0]}`, 'error');
+      } else {
+        toast(`Scrape done: ${r.inserted} new, ${r.updated} updated, ${r.resolved} resolved.`);
+      }
       await refetchList();
     } catch {
       toast('Scrape failed.', 'error');
