@@ -24,6 +24,7 @@ interface ConnectedAccount {
 
 const INGEST_STATUS_LINES = [
   'Reading your posts…',
+  'Reading your sent emails…',
   'Analyzing your hooks…',
   'Learning your voice…',
   'Building your Creator Baseline…',
@@ -65,8 +66,12 @@ function OnboardingInner() {
   const [baseline, setBaseline] = useState<CreatorBaseline | null>(null);
   const [finishing, setFinishing] = useState(false);
   const [unipileReady, setUnipileReady] = useState<boolean | null>(null);
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [composioReady, setComposioReady] = useState<boolean | null>(null);
+  const [connectingGmail, setConnectingGmail] = useState(false);
   const [skipping, setSkipping] = useState(false);
   const connectedHandled = useRef(false);
+  const gmailHandled = useRef(false);
 
   const refreshAccounts = useCallback(async () => {
     setLoadingAccounts(true);
@@ -120,17 +125,37 @@ function OnboardingInner() {
     void refreshAccounts();
     fetch('/api/onboarding/status')
       .then((r) => r.json())
-      .then((d) => setUnipileReady(Boolean(d.unipileConfigured)))
-      .catch(() => setUnipileReady(false));
+      .then((d) => {
+        setUnipileReady(Boolean(d.unipileConfigured));
+        setComposioReady(Boolean(d.composioConfigured));
+        setGmailConnected(Boolean(d.gmailConnected));
+      })
+      .catch(() => {
+        setUnipileReady(false);
+        setComposioReady(false);
+      });
   }, [refreshAccounts]);
 
   useEffect(() => {
     const connected = searchParams.get('connected') === 'true';
+    const gmailReturn = searchParams.get('gmail_connected') === 'true';
     const connectError = searchParams.get('error');
+    const outreachError = searchParams.get('outreach_error');
 
-    if (connectError) {
-      setError('Connection failed. Please try again.');
+    if (connectError || outreachError) {
+      setError(
+        connectError
+          ? 'Connection failed. Please try again.'
+          : 'Gmail connection failed. Please try again.',
+      );
       router.replace('/onboarding', { scroll: false });
+      return;
+    }
+
+    if (gmailReturn && !gmailHandled.current) {
+      gmailHandled.current = true;
+      router.replace('/onboarding', { scroll: false });
+      setGmailConnected(true);
       return;
     }
 
@@ -159,9 +184,31 @@ function OnboardingInner() {
     window.location.href = '/api/social-accounts/connect/unipile?return=onboarding';
   }
 
+  async function handleConnectGmail() {
+    if (composioReady === false) {
+      setError('Gmail connect is still being configured. Connect social accounts or try again shortly.');
+      return;
+    }
+    setConnectingGmail(true);
+    setError('');
+    try {
+      const res = await fetch('/api/integrations/composio/link?toolkit=gmail&return=onboarding');
+      const data = await res.json();
+      if (!res.ok || !data.redirect_url) {
+        setError(data.error ?? 'Could not start Gmail connect.');
+        setConnectingGmail(false);
+        return;
+      }
+      window.location.href = data.redirect_url as string;
+    } catch {
+      setError('Could not start Gmail connect.');
+      setConnectingGmail(false);
+    }
+  }
+
   async function handleContinueToIngest() {
-    if (accounts.length === 0) {
-      setError('Connect at least one account to continue.');
+    if (accounts.length === 0 && !gmailConnected) {
+      setError('Connect at least one account or Gmail to continue.');
       return;
     }
     await runIngest();
@@ -199,6 +246,11 @@ function OnboardingInner() {
   const stepIndex = step === 'connect' ? 0 : step === 'ingest' ? 1 : 2;
   const hasLinkedIn = accounts.some((a) => a.platform === 'linkedin');
   const hasX = accounts.some((a) => a.platform === 'twitter');
+  const canBuildBaseline = accounts.length > 0 || gmailConnected;
+  const ingestSources = [
+    ...accounts.map((a) => PLATFORM_LABEL[a.platform]),
+    ...(gmailConnected ? ['Gmail'] : []),
+  ];
 
   return (
     <div className="mx-auto max-w-xl px-4 py-12">
@@ -210,10 +262,10 @@ function OnboardingInner() {
       </h1>
       <p className="mt-2 text-sm leading-6 text-ink2">
         {step === 'connect' &&
-          'We analyze your posts to learn your voice — same connection powers publishing. No forms until we know you.'}
+          'We learn your voice from real posts and sent emails — same connections power publishing and outreach. No forms until we know you.'}
         {step === 'ingest' && statusLine}
         {step === 'baseline' &&
-          'Trained on your real posts. This is what we will sound like when we write for you.'}
+          'Trained on your real writing. This is what we will sound like when we write for you.'}
       </p>
 
       <StepIndicator current={stepIndex} total={3} />
@@ -236,7 +288,7 @@ function OnboardingInner() {
           <div className="rounded-lg border border-hair bg-paper2 p-5">
             <p className="section-label">Connect X + LinkedIn</p>
             <p className="mt-2 text-sm text-ink2">
-              Free Creator Baseline when you connect. We only read your posts to learn your voice.
+              Free Creator Baseline when you connect. Posts show your public voice; Gmail shows how you write 1:1.
             </p>
 
             <ul className="mt-4 space-y-3">
@@ -263,6 +315,28 @@ function OnboardingInner() {
               })}
             </ul>
 
+            <div className="mt-4 flex items-center justify-between rounded-md border border-hair bg-paper px-4 py-3">
+              <div>
+                <span className="text-sm font-medium text-ink">Gmail</span>
+                <p className="mt-0.5 text-[11px] text-ink3">Sent emails for richer voice</p>
+              </div>
+              {gmailConnected ? (
+                <span className="flex items-center gap-1.5 text-xs text-teal">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
+                  Connected
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void handleConnectGmail()}
+                  disabled={connectingGmail || composioReady === false}
+                  className="text-xs font-medium text-accent-primary hover:underline disabled:opacity-50"
+                >
+                  {connectingGmail ? 'Connecting…' : 'Connect'}
+                </button>
+              )}
+            </div>
+
             <button
               type="button"
               onClick={handleConnect}
@@ -278,7 +352,7 @@ function OnboardingInner() {
             </button>
           </div>
 
-          {accounts.length > 0 && (
+          {canBuildBaseline && (
             <button
               type="button"
               onClick={() => void handleContinueToIngest()}
@@ -290,11 +364,17 @@ function OnboardingInner() {
             </button>
           )}
 
-          {(hasLinkedIn || hasX) && (
+          {(hasLinkedIn || hasX || gmailConnected) && (
             <p className="text-center text-xs text-ink3">
-              {hasLinkedIn && hasX
-                ? 'Both accounts connected — best baseline quality.'
-                : 'Connect both for the richest baseline, or continue with one.'}
+              {hasLinkedIn && hasX && gmailConnected
+                ? 'Posts + emails — best baseline quality.'
+                : gmailConnected && !hasLinkedIn && !hasX
+                  ? 'Gmail connected — add social for public voice hooks.'
+                  : gmailConnected
+                    ? 'Add Gmail for richer 1:1 voice, or continue with posts only.'
+                    : hasLinkedIn && hasX
+                      ? 'Both accounts connected — connect Gmail for even richer voice.'
+                      : 'Connect both social accounts + Gmail for the richest baseline.'}
             </p>
           )}
 
@@ -315,7 +395,7 @@ function OnboardingInner() {
           <Loader2 className="h-10 w-10 animate-spin text-accent-primary" />
           <p className="mt-6 font-serif text-xl text-ink">{statusLine}</p>
           <p className="mt-2 max-w-sm text-sm text-ink2">
-            Analyzing posts from {accounts.map((a) => PLATFORM_LABEL[a.platform]).join(' and ')}…
+            Analyzing {ingestSources.join(', ')}…
           </p>
         </div>
       )}
@@ -327,13 +407,19 @@ function OnboardingInner() {
             <p className="mt-3 text-sm leading-7 text-ink">{baseline.voiceSummary}</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className={`grid gap-3 ${baseline.emailsAnalyzed > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
             <div className="rounded-lg border border-hair bg-paper2 p-4">
               <p className="text-[11px] font-mono uppercase tracking-wider text-ink3">Posts read</p>
               <p className="mt-1 font-serif text-2xl text-ink">{baseline.postsAnalyzed}</p>
             </div>
+            {baseline.emailsAnalyzed > 0 && (
+              <div className="rounded-lg border border-hair bg-paper2 p-4">
+                <p className="text-[11px] font-mono uppercase tracking-wider text-ink3">Emails read</p>
+                <p className="mt-1 font-serif text-2xl text-ink">{baseline.emailsAnalyzed}</p>
+              </div>
+            )}
             <div className="rounded-lg border border-hair bg-paper2 p-4">
-              <p className="text-[11px] font-mono uppercase tracking-wider text-ink3">Platforms</p>
+              <p className="text-[11px] font-mono uppercase tracking-wider text-ink3">Sources</p>
               <p className="mt-1 text-sm font-medium text-ink">{baseline.platforms.join(', ')}</p>
             </div>
           </div>

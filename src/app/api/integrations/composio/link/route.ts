@@ -8,6 +8,7 @@ import { errorResponse } from '@/lib/api-errors';
 
 const QuerySchema = z.object({
   toolkit: z.enum(['slack', 'gmail', 'googlecalendar']),
+  return: z.enum(['onboarding']).optional(),
 });
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -27,10 +28,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    const returnTo =
+      parsed.data.return === 'onboarding'
+        ? '/onboarding?gmail_connected=true'
+        : undefined;
+
     const { redirectUrl, composioUserId } = await startComposioConnect(
       workspaceId,
       user.id,
       parsed.data.toolkit,
+      returnTo,
     );
     return NextResponse.json({ redirect_url: redirectUrl, composio_user_id: composioUserId });
   } catch (err) {

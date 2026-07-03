@@ -5,6 +5,8 @@ export interface ComposioOAuthState {
   workspaceId: string;
   userId: string;
   toolkit: ComposioToolkit;
+  /** Optional post-OAuth redirect path (e.g. /onboarding?gmail_connected=true) */
+  returnTo?: string;
 }
 
 function signingSecret(): string | null {
