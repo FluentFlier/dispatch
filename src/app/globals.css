@@ -278,6 +278,19 @@ select:focus {
   color: #fbfaf7;
 }
 
+.editorial [id] {
+  scroll-margin-top: 5.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .editorial {
+    scroll-behavior: auto;
+  }
+  .editorial [class*='transition'] {
+    transition-duration: 0.01ms !important;
+  }
+}
+
 /* Fraunces display + JetBrains mono helpers (use alongside Tailwind font-serif/mono) */
 .ed-serif {
   font-family: var(--font-fraunces), Georgia, serif;

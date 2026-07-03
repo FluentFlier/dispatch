@@ -5,34 +5,32 @@ import Loop from './editorial/Loop';
 import Voice from './editorial/Voice';
 import Distribution from './editorial/Distribution';
 import Week from './editorial/Week';
-import Different from './editorial/Different';
-import Icp from './editorial/Icp';
 import Beta from './editorial/Beta';
 import Footer from './editorial/Footer';
 
 interface Props {
   loggedIn: boolean;
+  onboardingComplete: boolean;
 }
 
-/**
- * Marketing landing — light Swiss-editorial theme. Composes the section-per-component
- * layout under a single `.editorial` scope so the light theme is isolated and the page
- * reads top-to-bottom: nav → hero → problem → loop → voice → distribution → week (the
- * one dark moment) → different → ICP → private beta → footer.
- */
-export default function LandingPageContent({ loggedIn }: Props) {
+/** Marketing landing — nav → hero → problem → loop → voice → distribution → week → CTA → footer. */
+export default function LandingPageContent({ loggedIn, onboardingComplete }: Props) {
   return (
     <main className="editorial relative min-h-screen overflow-x-hidden">
-      <Nav loggedIn={loggedIn} />
-      <Hero loggedIn={loggedIn} />
+      <a
+        href="#problem"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-ink focus:px-4 focus:py-2 focus:text-paper"
+      >
+        Skip to content
+      </a>
+      <Nav loggedIn={loggedIn} onboardingComplete={onboardingComplete} />
+      <Hero loggedIn={loggedIn} onboardingComplete={onboardingComplete} />
       <Problem />
       <Loop />
       <Voice />
       <Distribution />
       <Week />
-      <Different />
-      <Icp />
-      <Beta />
+      <Beta loggedIn={loggedIn} onboardingComplete={onboardingComplete} />
       <Footer />
     </main>
   );

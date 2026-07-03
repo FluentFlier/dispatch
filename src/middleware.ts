@@ -17,6 +17,8 @@ const PROTECTED_ROUTES = [
   '/signals',
   '/event-capture',
   '/onboarding',
+  '/get-started',
+  '/book-demo',
 ];
 
 export function middleware(request: NextRequest): NextResponse {

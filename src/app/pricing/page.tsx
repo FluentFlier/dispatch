@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Check, Loader2, Zap } from 'lucide-react';
 
@@ -30,8 +30,14 @@ const PLANS = [
 ];
 
 export default function PricingPage() {
+  const [trialExpired, setTrialExpired] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setTrialExpired(params.get('trial') === 'expired');
+  }, []);
 
   async function checkout(plan: 'starter' | 'growth' | 'pro') {
     setLoading(plan);
@@ -88,13 +94,14 @@ export default function PricingPage() {
             </div>
 
             <div className="rounded-xl border border-border bg-bg-primary p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">Try intelligence free</p>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">7-day free trial</p>
               <p className="mt-3 text-[15px] leading-7 text-text-secondary">
-                Start with the workspace, then unlock publishing and the intelligence features when you are ready to ship at volume.
+                Sign in and start with full Starter access for 7 days. No card required. When
+                the trial ends, pick a plan to keep publishing.
               </p>
               <div className="mt-5 flex flex-wrap gap-3">
                 <Link href="/login" className="btn-primary">
-                  Start free
+                  Start 7-day trial
                 </Link>
                 <Link href="/" className="btn-secondary">
                   See product
@@ -103,6 +110,12 @@ export default function PricingPage() {
             </div>
           </div>
         </div>
+
+        {trialExpired && (
+          <p className="text-center text-[14px] text-text-primary mb-6 px-4 py-3 rounded-lg bg-coral-light border border-coral/40">
+            Your 7-day trial has ended. Choose a plan below to keep using Content OS.
+          </p>
+        )}
 
         {error && (
           <p className="text-center text-[13px] text-accent-dark mb-6 px-4 py-2 rounded-lg bg-coral-light border border-accent-primary/30">
@@ -173,7 +186,7 @@ export default function PricingPage() {
         </div>
 
         <p className="text-center text-[12px] text-text-tertiary mt-10">
-          Free tier includes drafts and previews. Publishing requires a paid plan.{' '}
+          7-day free trial, then paid plans from $19/mo.{' '}
           <Link href="/login" className="text-accent-primary hover:text-accent-dark hover:underline">
             Sign in
           </Link>

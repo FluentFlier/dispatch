@@ -61,6 +61,33 @@ async function syncTokenToCookie(): Promise<boolean> {
   return false;
 }
 
+async function redirectAfterAuth(): Promise<void> {
+  const res = await fetch("/api/auth/session", {
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+  const session = (await res.json()) as {
+    profile?: { onboardingComplete?: boolean };
+    trial?: { active?: boolean; expired?: boolean };
+    entitlements?: { isPaid?: boolean };
+  };
+
+  if (session.trial?.expired) {
+    window.location.replace("/pricing?trial=expired");
+    return;
+  }
+
+  const hasAccess = session.trial?.active || session.entitlements?.isPaid;
+  if (!hasAccess) {
+    window.location.replace("/get-started");
+    return;
+  }
+
+  window.location.replace(
+    session.profile?.onboardingComplete ? "/dashboard" : "/onboarding"
+  );
+}
+
 async function finishSessionSync(): Promise<boolean> {
   const synced = await syncTokenToCookie();
   if (!synced) return false;
@@ -119,7 +146,7 @@ export default function LoginPage() {
             setReady(true);
             return;
           }
-          window.location.replace("/dashboard");
+          await redirectAfterAuth();
           return;
         }
       } catch {
@@ -138,7 +165,7 @@ export default function LoginPage() {
         setStatus("Syncing session...");
         const synced = await finishSessionSync();
         if (synced) {
-          window.location.replace("/dashboard");
+          await redirectAfterAuth();
           return;
         }
       }
@@ -154,7 +181,7 @@ export default function LoginPage() {
       const session = (await res.json()) as { authenticated?: boolean };
       if (session.authenticated) {
         setStatus("Syncing session...");
-        window.location.replace("/dashboard");
+        await redirectAfterAuth();
         return;
       }
     } catch {
@@ -194,17 +221,18 @@ export default function LoginPage() {
             Content OS
           </p>
           <h1 className="text-3xl font-semibold text-text-primary leading-tight tracking-tight">
-            Write, schedule, and reply, all in one calm place.
+            Sign in, start your 7-day trial.
           </h1>
           <p className="text-[15px] text-text-secondary mt-4 max-w-sm leading-relaxed">
-            Built for everyday creators. No jargon, no juggling five apps. Just your voice and your posts.
+            Full Starter access for 7 days — no card required. After that, choose a plan
+            from $19/mo. Optional onboarding call with the founder.
           </p>
         </div>
         <blockquote className="border-l-2 border-accent-primary/40 pl-4">
           <p className="text-sm text-text-secondary italic leading-relaxed">
-            &ldquo;I stopped copy-pasting into four apps. Everything lives here now.&rdquo;
+            &ldquo;I stopped trying to be consistent. I built a system instead.&rdquo;
           </p>
-          <footer className="text-xs text-text-tertiary mt-2">Beta creator</footer>
+          <footer className="text-xs text-text-tertiary mt-2">Content OS creator</footer>
         </blockquote>
       </div>
 
@@ -225,7 +253,7 @@ export default function LoginPage() {
                   Sign in
                 </h2>
                 <p className="text-[15px] text-text-secondary mt-2">
-                  Use Google or GitHub. Takes about 10 seconds.
+                  Use Google or GitHub. Then start your 7-day free trial.
                 </p>
               </div>
 

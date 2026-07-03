@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { getUserEntitlements } from '@/lib/entitlements';
+import { getUserEntitlements, getOrCreateSubscription } from '@/lib/entitlements';
+import { isAppTrialActive, isAppTrialExpired, trialDaysRemaining } from '@/lib/trial';
 
 /** GET: Current session + entitlements (for client bootstrapping) */
 export async function GET(): Promise<NextResponse> {
@@ -10,6 +11,8 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const entitlements = await getUserEntitlements(user.id);
+  const sub = await getOrCreateSubscription(user.id);
+  const trialActive = isAppTrialActive(sub);
   const client = getServerClient();
   const [{ data: profile }, { data: prefRow }] = await Promise.all([
     client.database
@@ -39,5 +42,11 @@ export async function GET(): Promise<NextResponse> {
       : null,
     entitlements,
     preferredPostLength: (prefRow?.value ?? 'standard') as 'short' | 'standard' | 'long',
+    trial: {
+      active: trialActive,
+      expired: isAppTrialExpired(sub),
+      daysLeft: trialDaysRemaining(sub),
+      endsAt: sub.trial_ends_at ?? null,
+    },
   });
 }

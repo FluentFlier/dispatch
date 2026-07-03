@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { DM_Sans, Fraunces, Hanken_Grotesk, JetBrains_Mono } from 'next/font/google';
+import { PRODUCT_NAME, SITE_TITLE } from '@/lib/brand';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -25,9 +26,8 @@ const jetbrains = JetBrains_Mono({
   display: 'swap',
 });
 
-const SITE_TITLE = 'Content OS: Your content engine, trained on you';
 const SITE_DESC =
-  'The content command center for creators and founders. Research what is moving, write in your voice, schedule everywhere, reply faster, and learn what compounds.';
+  'The private content command center for creators who ship. Write in your voice, schedule everywhere, reply faster, and learn what compounds.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
@@ -37,9 +37,9 @@ export const metadata: Metadata = {
     title: SITE_TITLE,
     description: SITE_DESC,
     url: '/',
-    siteName: 'Content OS',
+    siteName: PRODUCT_NAME,
     type: 'website',
-    images: [{ url: '/og.png', width: 1200, height: 630, alt: 'Content OS' }],
+    images: [{ url: '/og.png', width: 1200, height: 630, alt: PRODUCT_NAME }],
   },
   twitter: {
     card: 'summary_large_image',
