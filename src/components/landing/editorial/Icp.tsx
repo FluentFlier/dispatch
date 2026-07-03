@@ -31,18 +31,18 @@ const PEOPLE: { num: string; color: string; role: string; copy: string }[] = [
 
 export default function Icp() {
   return (
-    <section className="mx-auto max-w-[1180px] px-10 pb-10 pt-20">
+    <section id="icp" className="scroll-mt-24 mx-auto max-w-[1180px] px-5 pb-10 pt-16 sm:px-10 sm:pt-24">
       <span className="font-mono text-[11.5px] tracking-[0.12em] text-flame">
         08 / WHO IT&apos;S FOR
       </span>
       <h2 className="ed-serif mb-10 mt-[18px] text-[clamp(28px,3.4vw,44px)] font-normal leading-[1.0] tracking-[-0.025em] text-ink">
-        Built for creators who ship.
+        Built for operators, founders, and solo creators.
       </h2>
       <div className="grid grid-cols-1 border-t border-ink sm:grid-cols-2 lg:grid-cols-4">
         {PEOPLE.map((p, i) => (
           <div
             key={p.num}
-            className={`px-[22px] py-[26px] ${
+            className={`border-b border-hair px-[22px] py-[26px] sm:border-b-0 ${
               i < PEOPLE.length - 1 ? 'lg:border-r lg:border-hair' : ''
             }`}
           >

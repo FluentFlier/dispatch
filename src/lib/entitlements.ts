@@ -1,5 +1,6 @@
 import { getServerClient } from '@/lib/insforge/server';
 import { getUsageCount } from '@/lib/usage';
+import { isAppTrialActive } from '@/lib/trial';
 
 export type PlanId = 'free' | 'starter' | 'growth' | 'pro';
 
@@ -62,16 +63,20 @@ export interface UserEntitlements {
 export async function getOrCreateSubscription(userId: string): Promise<{
   plan: PlanId;
   status: string;
+  trial_ends_at?: string | null;
+  stripe_subscription_id?: string | null;
 }> {
   const client = getServerClient();
 
   const { data: rows } = await client.database
     .from('subscriptions')
-    .select('plan, status')
+    .select('plan, status, trial_ends_at, stripe_subscription_id')
     .eq('user_id', userId)
     .limit(1);
 
-  const existing = rows?.[0] as { plan: PlanId; status: string } | undefined;
+  const existing = rows?.[0] as
+    | { plan: PlanId; status: string; trial_ends_at?: string | null; stripe_subscription_id?: string | null }
+    | undefined;
   if (existing) {
     return existing;
   }
@@ -84,12 +89,15 @@ export async function getOrCreateSubscription(userId: string): Promise<{
     },
   ]);
 
-  return { plan: 'free', status: 'inactive' };
+  return { plan: 'free', status: 'inactive', trial_ends_at: null, stripe_subscription_id: null };
 }
 
 export async function getUserEntitlements(userId: string): Promise<UserEntitlements> {
   const sub = await getOrCreateSubscription(userId);
-  const plan = (sub.plan in PLAN_LIMITS ? sub.plan : 'free') as PlanId;
+  const appTrial = isAppTrialActive(sub);
+  const plan = (
+    appTrial ? 'starter' : sub.plan in PLAN_LIMITS ? sub.plan : 'free'
+  ) as PlanId;
   const limits = PLAN_LIMITS[plan];
 
   const [publishes, scheduled, aiGenerations] = await Promise.all([
@@ -99,11 +107,13 @@ export async function getUserEntitlements(userId: string): Promise<UserEntitleme
   ]);
 
   const isPaid =
-    sub.status === 'active' || sub.status === 'trialing' || plan !== 'free';
+    sub.status === 'active' ||
+    appTrial ||
+    (sub.status === 'trialing' && Boolean(sub.stripe_subscription_id));
 
   return {
     plan,
-    status: sub.status,
+    status: appTrial ? 'trialing' : sub.status,
     limits,
     usage: { publishes, scheduled, aiGenerations },
     isPaid: isPaid && limits.canPublish,

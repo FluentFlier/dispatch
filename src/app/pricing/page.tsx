@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Check, Loader2, Zap } from 'lucide-react';
 
@@ -30,8 +30,16 @@ const PLANS = [
 ];
 
 export default function PricingPage() {
+  const [trialExpired, setTrialExpired] = useState(false);
+  const [checkoutCanceled, setCheckoutCanceled] = useState(false);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setTrialExpired(params.get('trial') === 'expired');
+    setCheckoutCanceled(params.get('checkout') === 'canceled');
+  }, []);
 
   async function checkout(plan: 'starter' | 'growth' | 'pro') {
     setLoading(plan);
@@ -65,44 +73,30 @@ export default function PricingPage() {
   return (
     <div className="min-h-screen bg-bg-primary text-text-primary" style={{ fontFamily: "'DM Sans', sans-serif" }}>
       <div className="mx-auto max-w-6xl px-5 py-16">
-        <div className="mb-12 rounded-2xl border border-border bg-bg-secondary px-6 py-8 shadow-card">
+        <div className="mb-10">
           <Link href="/" className="text-[12px] text-accent-primary hover:text-accent-dark inline-block">
             ← Content OS
           </Link>
-          <div className="mt-6 grid gap-8 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
-            <div>
-              <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-primary">Pricing</p>
-              <h1 className="mt-3 text-[clamp(36px,5vw,58px)] font-semibold leading-[0.96] tracking-[-0.05em] text-text-primary">
-                Publish, learn, and improve from one product.
-              </h1>
-              <p className="mt-5 max-w-2xl text-[16px] leading-7 text-text-secondary">
-                Content OS is not just scheduling. It is the dashboard, generate flow, voice lab, analytics, story bank, teleprompter, and video tooling you need to make the stack feel complete.
-              </p>
-              <div className="mt-6 flex flex-wrap gap-2">
-                {['Dashboard', 'Generate', 'Voice Lab', 'Analytics', 'Story Bank', 'Teleprompter', 'Video Studio'].map((item) => (
-                  <span key={item} className="rounded-badge border border-border bg-bg-primary px-3 py-1.5 text-[12px] text-text-secondary">
-                    {item}
-                  </span>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-border bg-bg-primary p-5">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-text-tertiary">Try intelligence free</p>
-              <p className="mt-3 text-[15px] leading-7 text-text-secondary">
-                Start with the workspace, then unlock publishing and the intelligence features when you are ready to ship at volume.
-              </p>
-              <div className="mt-5 flex flex-wrap gap-3">
-                <Link href="/login" className="btn-primary">
-                  Start free
-                </Link>
-                <Link href="/" className="btn-secondary">
-                  See product
-                </Link>
-              </div>
-            </div>
-          </div>
+          <h1 className="mt-6 text-[clamp(32px,5vw,48px)] font-semibold leading-[1.02] tracking-[-0.04em] text-text-primary">
+            {trialExpired ? 'Keep publishing' : 'Simple pricing'}
+          </h1>
+          <p className="mt-3 max-w-xl text-[16px] leading-7 text-text-secondary">
+            {trialExpired
+              ? 'Your trial ended. Pick a plan to stay in Content OS.'
+              : '7-day free trial, then from $19/mo. No card to start.'}
+          </p>
+          {!trialExpired && (
+            <Link href="/login" className="btn-primary inline-flex mt-6">
+              Start free trial
+            </Link>
+          )}
         </div>
+
+        {checkoutCanceled && (
+          <p className="text-center text-[14px] text-text-secondary mb-6 px-4 py-3 rounded-lg bg-bg-secondary border border-border">
+            Checkout canceled — pick a plan when you&apos;re ready.
+          </p>
+        )}
 
         {error && (
           <p className="text-center text-[13px] text-accent-dark mb-6 px-4 py-2 rounded-lg bg-coral-light border border-accent-primary/30">
@@ -156,24 +150,8 @@ export default function PricingPage() {
           ))}
         </div>
 
-        <div className="mt-10 rounded-xl border border-border bg-bg-secondary p-5">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-primary">Included surfaces</p>
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
-            {[
-              'Dashboard, generate, analytics, and voice lab stay connected to one account.',
-              'Story Bank, teleprompter, video studio, and calendar are part of the core loop.',
-              'Live hook intelligence and lead analysis make the paywall feel worth crossing.',
-              'Profile setup and comments/replies are built to keep the day moving.',
-            ].map((line) => (
-              <div key={line} className="rounded-lg border border-border bg-bg-primary px-4 py-3 text-[13px] leading-6 text-text-secondary">
-                {line}
-              </div>
-            ))}
-          </div>
-        </div>
-
         <p className="text-center text-[12px] text-text-tertiary mt-10">
-          Free tier includes drafts and previews. Publishing requires a paid plan.{' '}
+          7-day free trial, then paid plans from $19/mo.{' '}
           <Link href="/login" className="text-accent-primary hover:text-accent-dark hover:underline">
             Sign in
           </Link>

@@ -235,6 +235,7 @@ create table if not exists subscriptions (
   status text not null default 'inactive' check (status in ('inactive','trialing','active','past_due','canceled')),
   stripe_customer_id text,
   stripe_subscription_id text,
+  trial_ends_at timestamptz,
   current_period_start timestamptz,
   current_period_end timestamptz,
   created_at timestamptz default now() not null,

@@ -4,12 +4,7 @@ import { useEffect, useState } from 'react';
 import { useReducedMotion } from 'motion/react';
 import { WALK_STEPS } from './data';
 
-/**
- * "A Week in the Loop" — the single dark cinematic moment. A six-step timeline auto-
- * advances every 3.3s (and jumps on click); the active step swaps the scene tag, line,
- * copy, metric, per-step accent, and the giant faint watermark number. Clicking a step
- * does not pin (unlike the Loop) — it just jumps and lets autoplay continue.
- */
+/** Dark timeline — one week in the loop. */
 export default function Week() {
   const reduce = useReducedMotion();
   const [active, setActive] = useState(0);
@@ -23,37 +18,35 @@ export default function Week() {
   const scene = WALK_STEPS[active];
 
   return (
-    <section id="week" className="mt-14 bg-[#0E0E10] text-paper">
-      <div className="mx-auto max-w-[1180px] px-10 py-24">
-        <div className="mb-[52px]">
-          <span className="font-mono text-[11.5px] tracking-[0.12em] text-[#FF7A5C]">
-            06 / A WEEK IN THE LOOP
-          </span>
-          <h2 className="ed-serif mt-[18px] max-w-[18ch] text-[clamp(30px,4vw,54px)] font-normal leading-[1.0] tracking-[-0.03em] text-paper">
-            From a calendar event to next week&apos;s idea.
-          </h2>
-        </div>
+    <section id="week" className="scroll-mt-24 border-t border-hair bg-[#0E0E10] text-paper">
+      <div className="mx-auto max-w-[1180px] px-5 py-14 sm:px-10 sm:py-20">
+        <span className="font-mono text-[11.5px] tracking-[0.12em] text-[#FF7A5C]">06 / IN PRACTICE</span>
+        <h2 className="ed-serif mt-4 max-w-[16ch] text-[clamp(28px,4vw,48px)] font-normal leading-[1.02] tracking-[-0.03em] text-paper">
+          Event to idea in one week.
+        </h2>
 
-        <div className="grid grid-cols-1 items-start gap-12 lg:grid-cols-[280px_1fr]">
+        <div className="mt-10 grid grid-cols-1 items-start gap-10 lg:grid-cols-[240px_1fr]">
           <div className="flex flex-col">
             {WALK_STEPS.map((step, i) => {
               const on = i === active;
               return (
                 <button
                   key={step.num}
+                  type="button"
+                  aria-pressed={on}
                   onClick={() => setActive(i)}
-                  className={`grid w-full grid-cols-[90px_1fr] items-center gap-[14px] py-[14px] text-left ${
+                  className={`grid w-full grid-cols-[72px_1fr] items-center gap-3 py-3 text-left ${
                     i === 0 ? '' : 'border-t border-[rgba(244,242,236,0.12)]'
                   }`}
                 >
                   <span
-                    className="font-mono text-[10.5px] tracking-[0.02em] transition-colors duration-300"
+                    className="font-mono text-[10px] transition-colors duration-300"
                     style={{ color: on ? step.accent : 'rgba(244,242,236,0.4)' }}
                   >
                     {step.num}
                   </span>
                   <span
-                    className="text-[14.5px] transition-all duration-300"
+                    className="text-[14px] transition-all duration-300"
                     style={{
                       fontWeight: on ? 600 : 400,
                       color: on ? '#FBFAF7' : 'rgba(244,242,236,0.5)',
@@ -66,28 +59,22 @@ export default function Week() {
             })}
           </div>
 
-          <div className="relative min-h-[320px] border-t border-[rgba(244,242,236,0.16)]">
-            <div className="py-9">
+          <div className="relative min-h-[200px] overflow-hidden border-t border-[rgba(244,242,236,0.16)] lg:border-t-0 lg:border-l lg:pl-10">
+            <div className="py-6">
               <span
-                className="inline-block rounded-md border px-[11px] py-[5px] font-mono text-[11px] tracking-[0.1em] transition-colors duration-500"
+                className="inline-block rounded border px-2 py-1 font-mono text-[10px] tracking-[0.1em]"
                 style={{ color: scene.accent, borderColor: scene.accent }}
               >
                 {scene.tag}
               </span>
-              <h3 className="ed-serif my-[22px] max-w-[18ch] text-[clamp(26px,3.4vw,44px)] font-normal leading-[1.04] tracking-[-0.02em] text-paper">
+              <h3 className="ed-serif my-5 max-w-[20ch] text-[clamp(24px,3vw,40px)] font-normal leading-[1.05] text-paper">
                 {scene.line}
               </h3>
-              <p className="m-0 mb-7 max-w-[54ch] text-[17px] leading-[1.6] text-[rgba(244,242,236,0.7)]">
-                {scene.sub}
-              </p>
-              <div
-                className="inline-flex items-center gap-2 rounded-full border border-[rgba(244,242,236,0.16)] bg-[rgba(244,242,236,0.04)] px-[15px] py-2 transition-colors duration-500"
-                style={{ color: scene.accent }}
-              >
-                <span className="font-mono text-[11.5px]">{scene.metric}</span>
-              </div>
+              <span className="font-mono text-[11px]" style={{ color: scene.accent }}>
+                {scene.metric}
+              </span>
             </div>
-            <div className="ed-serif pointer-events-none absolute right-0 top-[18px] text-[150px] font-medium leading-none text-[rgba(244,242,236,0.05)]">
+            <div className="ed-serif pointer-events-none absolute right-0 top-2 text-[clamp(72px,18vw,130px)] font-medium leading-none text-[rgba(244,242,236,0.05)]">
               {scene.big}
             </div>
           </div>

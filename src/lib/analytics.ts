@@ -13,6 +13,7 @@ export type AnalyticsEvent =
   | 'first_publish_success'
   | 'upgrade_checkout_started'
   | 'subscription_active'
+  | 'trial_started'
   | 'publish_failed';
 
 export async function trackEvent(
