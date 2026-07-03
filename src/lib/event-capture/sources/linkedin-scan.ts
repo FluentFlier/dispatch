@@ -1,9 +1,14 @@
 import type { createClient } from '@insforge/sdk';
 import { generateContent } from '@/lib/ai';
+import { checkAndIncrementUsage } from '@/lib/ai-budget';
+import { resolveModel } from '@/lib/ai-tiers';
 import { fetchUnipileAccountDetails, unipoleFetch } from '@/lib/social/unipile';
 import type { NormalizedEvent } from '@/lib/event-capture/sources/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
+
+/** Caps how many post ids we remember per workspace - Unipile only ever returns the 25 most recent anyway. */
+const MAX_SCANNED_IDS = 50;
 
 /** The model's structured verdict about a single LinkedIn post. */
 export interface LlmEventVerdict {
@@ -63,12 +68,26 @@ interface UnipilePostItem {
 }
 
 /**
+ * Removes posts whose id is already in `scannedIds`, so a post already
+ * classified (positive or negative) on a prior cron run is never re-sent to
+ * the LLM. Pure and unit tested independent of the DB/LLM calls.
+ */
+export function filterUnscannedPosts(items: UnipilePostItem[], scannedIds: Set<string>): UnipilePostItem[] {
+  return items.filter((item) => item.id && !scannedIds.has(item.id));
+}
+
+/**
  * Resolves the workspace's connected LinkedIn Unipile account, fetches the
  * user's recent posts, and asks the LLM which announce a future event. Each
  * positive verdict becomes a NormalizedEvent (source 'linkedin', id
  * `li_<postId>`) with a synthetic 1-hour window on the inferred date. Returns []
  * on any failure - this is a best-effort fallback source so a single external
  * error can never crash the Stage 1 cron loop.
+ *
+ * Cost control: each classification is gated on the workspace's daily Haiku
+ * budget (the scan stops for the run once blocked), and post ids already
+ * classified on a prior run are skipped via the linkedin_scan_state cursor so a
+ * quiet calendar never re-sends the same 25 posts to the LLM every hour.
  */
 export async function scanLinkedInForEvents(
   client: InsforgeClient,
@@ -124,16 +143,40 @@ export async function scanLinkedInForEvents(
     return [];
   }
 
-  // 4. Classify each substantive original post (skip reposts/replies/short text).
+  // 4. Load which post ids we've already classified for this workspace, so a
+  // quiet calendar doesn't re-ask the LLM about the same 25 posts every hour.
+  let scannedIds = new Set<string>();
+  try {
+    const { data: stateRow } = await client.database
+      .from('linkedin_scan_state')
+      .select('scanned_post_ids')
+      .eq('workspace_id', owner.workspaceId)
+      .maybeSingle();
+    scannedIds = new Set((stateRow?.scanned_post_ids as string[] | undefined) ?? []);
+  } catch {
+    // No state row yet or table unreachable - treat everything as unscanned.
+  }
+
+  const candidates = items.filter((item) => !item.is_repost && !item.is_reply && item.id);
+  const unscanned = filterUnscannedPosts(candidates, scannedIds);
+
+  // 5. Classify each substantive unscanned post, stopping early if the
+  // workspace's daily Haiku budget is exhausted mid-run.
   const events: NormalizedEvent[] = [];
-  for (const item of items) {
-    if (!item.id || item.is_repost || item.is_reply) continue;
+  const newlyScanned: string[] = [];
+
+  for (const item of unscanned) {
     const text = (item.text ?? item.commentary ?? '').trim();
     if (text.length < 20) continue;
 
+    const budget = await checkAndIncrementUsage(client, owner.workspaceId, 'haiku');
+    if (budget === 'blocked') break;
+
+    newlyScanned.push(item.id as string);
+
     let verdict: LlmEventVerdict;
     try {
-      verdict = parseEventFromLlm(await generateContent(text, undefined, SYSTEM, null));
+      verdict = parseEventFromLlm(await generateContent(text, undefined, SYSTEM, null, resolveModel('fast')));
     } catch {
       continue;
     }
@@ -154,6 +197,18 @@ export async function scanLinkedInForEvents(
       startTime: day,
       endTime: end,
     });
+  }
+
+  // 6. Persist the updated scanned-id set, capped to the most recent MAX_SCANNED_IDS.
+  if (newlyScanned.length > 0) {
+    const merged = [...Array.from(scannedIds), ...newlyScanned].slice(-MAX_SCANNED_IDS);
+    try {
+      await client.database
+        .from('linkedin_scan_state')
+        .upsert({ workspace_id: owner.workspaceId, scanned_post_ids: merged, updated_at: new Date().toISOString() }, { onConflict: 'workspace_id' });
+    } catch (err) {
+      console.warn('[linkedin-scan] failed to persist scan state', { workspaceId: owner.workspaceId, err });
+    }
   }
 
   return events;

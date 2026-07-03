@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { filterUnscannedPosts } from '@/lib/event-capture/sources/linkedin-scan';
 
 afterEach(() => {
   vi.resetModules();
@@ -102,6 +103,104 @@ describe('Phase: Event Capture Hardening', () => {
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body).toEqual({ error: 'No active workspace' });
+    });
+  });
+
+  describe('Task 2: LinkedIn scan cost control', () => {
+    describe('filterUnscannedPosts', () => {
+      it('drops posts whose id is already in the scanned set', () => {
+        const items = [{ id: 'p1', text: 'a' }, { id: 'p2', text: 'b' }, { id: 'p3', text: 'c' }];
+        const scanned = new Set(['p1', 'p3']);
+        expect(filterUnscannedPosts(items, scanned)).toEqual([{ id: 'p2', text: 'b' }]);
+      });
+
+      it('keeps all posts when nothing has been scanned yet', () => {
+        const items = [{ id: 'p1' }, { id: 'p2' }];
+        expect(filterUnscannedPosts(items, new Set())).toHaveLength(2);
+      });
+    });
+
+    describe('scanLinkedInForEvents budget gate', () => {
+      afterEach(() => {
+        vi.resetModules();
+        vi.doUnmock('@/lib/ai');
+        vi.doUnmock('@/lib/ai-budget');
+        vi.doUnmock('@/lib/ai-tiers');
+        vi.doUnmock('@/lib/social/unipile');
+      });
+
+      it('stops classifying once the haiku budget is blocked, without dropping already-found events', async () => {
+        const generateContent = vi.fn()
+          .mockResolvedValueOnce('{"isFutureEvent":true,"title":"AI Summit","date":"2026-08-01","location":"SF"}')
+          .mockResolvedValueOnce('{"isFutureEvent":false}');
+        vi.doMock('@/lib/ai', () => ({ generateContent }));
+        vi.doMock('@/lib/ai-tiers', () => ({ resolveModel: vi.fn().mockReturnValue('haiku-fast') }));
+
+        // Budget is checked before each classification and the loop breaks on
+        // 'blocked': p1 and p2 classify (ok, ok), p3 is blocked before its LLM call.
+        const checkAndIncrementUsage = vi.fn()
+          .mockResolvedValueOnce('ok')
+          .mockResolvedValueOnce('ok')
+          .mockResolvedValueOnce('blocked');
+        vi.doMock('@/lib/ai-budget', () => ({ checkAndIncrementUsage }));
+
+        vi.doMock('@/lib/social/unipile', () => ({
+          fetchUnipileAccountDetails: vi.fn().mockResolvedValue({ connection_params: { im: { memberId: 'm1' } } }),
+          unipoleFetch: vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({
+              items: [
+                { id: 'p1', text: 'Excited to speak at AI Summit in August, this is going to be a great professional event!' },
+                { id: 'p2', text: 'Another post about attending a totally different future conference next month too.' },
+                { id: 'p3', text: 'A third post that should never be reached because budget blocks after the second call.' },
+              ],
+            }),
+          }),
+        }));
+
+        const stateRow = { scanned_post_ids: [] as string[] };
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const fakeClient: any = {
+          database: {
+            from: vi.fn((table: string) => {
+              if (table === 'social_accounts') {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const chain: any = {};
+                chain.select = vi.fn().mockReturnValue(chain);
+                chain.eq = vi.fn().mockReturnValue(chain);
+                chain.not = vi.fn().mockReturnValue(chain);
+                chain.maybeSingle = vi.fn().mockResolvedValue({ data: { unipile_account_id: 'ua1', account_id: 'a1' } });
+                return chain;
+              }
+              if (table === 'linkedin_scan_state') {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const chain: any = {};
+                chain.select = vi.fn().mockReturnValue(chain);
+                chain.eq = vi.fn().mockReturnValue(chain);
+                chain.maybeSingle = vi.fn().mockResolvedValue({ data: stateRow });
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                chain.upsert = vi.fn().mockImplementation((row: any) => {
+                  stateRow.scanned_post_ids = row.scanned_post_ids;
+                  return Promise.resolve({ error: null });
+                });
+                return chain;
+              }
+              throw new Error(`unexpected table ${table}`);
+            }),
+          },
+        };
+
+        const { scanLinkedInForEvents } = await import('@/lib/event-capture/sources/linkedin-scan');
+        const events = await scanLinkedInForEvents(fakeClient, { workspaceId: 'ws-1', userId: 'u1' }, new Date('2026-07-02T12:00:00Z'));
+
+        expect(generateContent).toHaveBeenCalledTimes(2); // p3 never classified, budget blocked after p2
+        expect(events).toHaveLength(1);
+        expect(events[0].title).toBe('AI Summit');
+        expect(checkAndIncrementUsage).toHaveBeenCalledWith(fakeClient, 'ws-1', 'haiku');
+        // p1 and p2 both got recorded as scanned even though only p1 was a real event.
+        expect(stateRow.scanned_post_ids).toEqual(expect.arrayContaining(['p1', 'p2']));
+        expect(stateRow.scanned_post_ids).not.toContain('p3');
+      });
     });
   });
 });
