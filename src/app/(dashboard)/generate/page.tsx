@@ -134,6 +134,14 @@ function GeneratePageInner() {
   const initialResult = searchParams.get("result") || "";
   const initialTopic = searchParams.get("topic") || "";
   const initialPillar = searchParams.get("pillar") || "";
+  const isWelcome = searchParams.get("welcome") === "1";
+  const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+
+  useEffect(() => {
+    if (isWelcome && searchParams.get("tab") !== "script") {
+      setActiveTab("script");
+    }
+  }, [isWelcome, searchParams]);
 
   const renderTab = () => {
     switch (activeTab) {
@@ -168,6 +176,28 @@ function GeneratePageInner() {
 
   return (
     <div className="page-shell-wide">
+      {isWelcome && !welcomeDismissed && (
+        <section className="mb-6 rounded-lg border border-teal/30 bg-teal/5 p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-teal">
+                Your baseline is ready
+              </p>
+              <p className="mt-1 text-sm text-ink2">
+                We learned your voice from your posts. Edit the draft below — it already sounds like you.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setWelcomeDismissed(true)}
+              className="shrink-0 text-sm font-medium text-teal hover:underline"
+            >
+              Got it
+            </button>
+          </div>
+        </section>
+      )}
+
       <section className="rounded-lg border border-hair bg-paper2 p-6">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>

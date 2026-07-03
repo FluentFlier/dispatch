@@ -1,45 +1,50 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import { completeOnboarding } from './actions';
-import type { ContentPillarConfig } from '@/types/database';
+import { useCallback, useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import {
+  Loader2,
+  Link2,
+  Sparkles,
+  CheckCircle2,
+  ArrowRight,
+  AlertCircle,
+} from 'lucide-react';
+import { completeOnboardingFromBaseline } from './actions';
+import type { CreatorBaseline } from '@/lib/onboarding/baseline';
+import { PRODUCT_NAME } from '@/lib/brand';
 
-/* ------------------------------------------------------------------ */
-/*  Constants                                                          */
-/* ------------------------------------------------------------------ */
+type Step = 'connect' | 'ingest' | 'baseline';
 
-const TOTAL_STEPS = 3;
+interface ConnectedAccount {
+  platform: string;
+  account_name: string | null;
+}
 
-const PRESET_COLORS = [
-  '#E07A5F',
-  '#D4A054',
-  '#3D8B7A',
-  '#8B7BB8',
-  '#DC6B5C',
-  '#5B8FA8',
+const INGEST_STATUS_LINES = [
+  'Reading your posts…',
+  'Analyzing your hooks…',
+  'Learning your voice…',
+  'Building your Creator Baseline…',
 ];
 
-const DEFAULT_PILLARS: ContentPillarConfig[] = [
-  { name: '', color: PRESET_COLORS[0], description: '' },
-];
-
-/* ------------------------------------------------------------------ */
-/*  Step indicator                                                     */
-/* ------------------------------------------------------------------ */
+const PLATFORM_LABEL: Record<string, string> = {
+  linkedin: 'LinkedIn',
+  twitter: 'X',
+};
 
 function StepIndicator({ current, total }: { current: number; total: number }) {
   return (
-    <div className="flex items-center gap-2 mb-8">
+    <div className="mb-8 flex items-center gap-2">
       {Array.from({ length: total }).map((_, i) => (
         <div
           key={i}
           className={`h-1.5 rounded-full transition-all duration-200 ${
             i < current
-              ? 'bg-accent-primary flex-[2]'
+              ? 'flex-[2] bg-accent-primary'
               : i === current
-              ? 'bg-coral-light flex-[2]'
-              : 'bg-bg-tertiary flex-1'
+                ? 'flex-[2] bg-coral-light'
+                : 'flex-1 bg-bg-tertiary'
           }`}
         />
       ))}
@@ -47,351 +52,304 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
   );
 }
 
-/* ------------------------------------------------------------------ */
-/*  Main page                                                          */
-/* ------------------------------------------------------------------ */
-
-export default function OnboardingPage() {
+function OnboardingInner() {
   const router = useRouter();
-  const [step, setStep] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+  const [step, setStep] = useState<Step>('connect');
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
+  const [loadingAccounts, setLoadingAccounts] = useState(true);
+  const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState('');
+  const [statusLine, setStatusLine] = useState(INGEST_STATUS_LINES[0]);
+  const [baseline, setBaseline] = useState<CreatorBaseline | null>(null);
+  const [finishing, setFinishing] = useState(false);
 
-  // Step 1: Profile basics
-  const [displayName, setDisplayName] = useState('');
-  const [bio, setBio] = useState('');
-
-  // Step 2: Content pillars
-  const [pillars, setPillars] = useState<ContentPillarConfig[]>(DEFAULT_PILLARS);
-
-  // Step 3: Voice (optional)
-  const [voiceDescription, setVoiceDescription] = useState('');
-  const [voiceRules, setVoiceRules] = useState('');
-
-  /* ---- Pillar helpers ---- */
-
-  const addPillar = useCallback(() => {
-    if (pillars.length >= 6) return;
-    setPillars((prev) => [
-      ...prev,
-      { name: '', color: PRESET_COLORS[prev.length % PRESET_COLORS.length], description: '' },
-    ]);
-  }, [pillars.length]);
-
-  const removePillar = useCallback((index: number) => {
-    setPillars((prev) => prev.filter((_, i) => i !== index));
+  const refreshAccounts = useCallback(async () => {
+    setLoadingAccounts(true);
+    try {
+      const res = await fetch('/api/social-accounts');
+      const data = await res.json();
+      const connected = (data.accounts ?? []).filter(
+        (a: ConnectedAccount & { unipile_account_id?: string }) =>
+          ['linkedin', 'twitter'].includes(a.platform),
+      );
+      setAccounts(connected);
+      return connected as ConnectedAccount[];
+    } catch {
+      setAccounts([]);
+      return [];
+    } finally {
+      setLoadingAccounts(false);
+    }
   }, []);
 
-  const updatePillar = useCallback(
-    (index: number, field: keyof ContentPillarConfig, value: string) => {
-      setPillars((prev) => {
-        const updated = [...prev];
-        updated[index] = { ...updated[index], [field]: value };
-        return updated;
-      });
-    },
-    []
-  );
-
-  /* ---- Navigation ---- */
-
-  const canProceed = (): boolean => {
-    if (step === 0) return displayName.trim().length > 0;
-    if (step === 1) return pillars.some((p) => p.name.trim().length > 0);
-    return true; // Steps 3 and 4 are optional
-  };
-
-  const handleNext = () => {
+  const runIngest = useCallback(async () => {
+    setStep('ingest');
     setError('');
-    if (!canProceed()) {
-      if (step === 0) setError('Please enter your display name');
-      if (step === 1) setError('Add at least one content pillar');
+    let lineIndex = 0;
+    const interval = setInterval(() => {
+      lineIndex = Math.min(lineIndex + 1, INGEST_STATUS_LINES.length - 1);
+      setStatusLine(INGEST_STATUS_LINES[lineIndex]);
+    }, 2200);
+
+    try {
+      const res = await fetch('/api/onboarding/ingest', { method: 'POST' });
+      const data = await res.json();
+      clearInterval(interval);
+
+      if (!res.ok) {
+        setError(data.error ?? 'Analysis failed. Try connecting another account.');
+        setStep('connect');
+        return;
+      }
+
+      setBaseline(data.baseline as CreatorBaseline);
+      setStep('baseline');
+    } catch {
+      clearInterval(interval);
+      setError('Something went wrong. Please try again.');
+      setStep('connect');
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshAccounts();
+  }, [refreshAccounts]);
+
+  useEffect(() => {
+    const connected = searchParams.get('connected') === 'true';
+    const connectError = searchParams.get('error');
+
+    if (connectError) {
+      setError('Connection failed. Please try again.');
+      router.replace('/onboarding', { scroll: false });
       return;
     }
-    setStep((s) => Math.min(s + 1, TOTAL_STEPS - 1));
-  };
 
-  const handleBack = () => {
-    setError('');
-    setStep((s) => Math.max(s - 1, 0));
-  };
+    if (!connected) return;
 
-  /* ---- Final save ---- */
+    router.replace('/onboarding', { scroll: false });
 
-  const handleFinish = async () => {
-    setLoading(true);
+    void (async () => {
+      await fetch('/api/social-accounts/sync', { method: 'POST' }).catch(() => undefined);
+      const refreshed = await refreshAccounts();
+      if (refreshed.length > 0) {
+        await runIngest();
+      }
+    })();
+  }, [searchParams, router, refreshAccounts, runIngest]);
+
+  function handleConnect() {
+    setConnecting(true);
+    window.location.href = '/api/social-accounts/connect/unipile?return=onboarding';
+  }
+
+  async function handleContinueToIngest() {
+    if (accounts.length === 0) {
+      setError('Connect at least one account to continue.');
+      return;
+    }
+    await runIngest();
+  }
+
+  async function handleWriteFirstPost() {
+    if (!baseline) return;
+    setFinishing(true);
     setError('');
 
     try {
-      const validPillars = pillars.filter((p) => p.name.trim().length > 0);
-
-      await completeOnboarding({
-        displayName,
-        bio,
-        voiceDescription,
-        voiceRules,
-        pillars: validPillars,
-        contextAdditions: '',
-      });
-
-      try {
-        await fetch('/api/brain/provision', { method: 'POST' });
-      } catch {
-        // Non-blocking
-      }
-
-      router.push('/dashboard');
-    } catch (e: unknown) {
-      const msg = e instanceof Error
-        ? e.message
-        : (typeof e === 'object' && e !== null && 'message' in e)
-          ? String((e as { message: unknown }).message)
-          : JSON.stringify(e);
-      setError(msg || 'Failed to save profile');
-    } finally {
-      setLoading(false);
+      await completeOnboardingFromBaseline(baseline);
+      void fetch('/api/brain/provision', { method: 'POST' }).catch(() => undefined);
+      const topic = encodeURIComponent(baseline.suggestedTopic);
+      router.push(`/generate?welcome=1&tab=script&topic=${topic}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to finish setup');
+      setFinishing(false);
     }
-  };
+  }
 
-  /* ---- Shared input classes ---- */
-
-  const inputCls =
-    'w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors';
-  const textareaCls = `${inputCls} resize-none`;
-  const labelCls = 'block font-body text-[13px] text-text-tertiary mb-2';
-
-  /* ---- Step renderers ---- */
-
-  const renderStep = () => {
-    switch (step) {
-      /* ---- Step 1: Profile Basics ---- */
-      case 0:
-        return (
-          <div className="space-y-5">
-            <div>
-              <h2 className="font-serif font-normal text-[24px] tracking-[-0.025em] text-ink mb-1">
-                {"Let's start with the basics"}
-              </h2>
-              <p className="font-body text-[13px] text-text-secondary">
-                What should we call you?
-              </p>
-            </div>
-
-            <div>
-              <label className={labelCls}>Display name *</label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Your name or brand"
-                className={inputCls}
-                autoFocus
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>Bio</label>
-              <textarea
-                value={bio}
-                onChange={(e) => setBio(e.target.value)}
-                rows={4}
-                placeholder="A short bio about who you are and what you do..."
-                className={textareaCls}
-              />
-            </div>
-          </div>
-        );
-
-      /* ---- Step 2: Content Pillars ---- */
-      case 1:
-        return (
-          <div className="space-y-5">
-            <div>
-              <h2 className="font-serif font-normal text-[24px] tracking-[-0.025em] text-ink mb-1">
-                Define your content pillars
-              </h2>
-              <p className="font-body text-[13px] text-text-secondary">
-                These are the core topics you create content about. Add at least one.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              {pillars.map((pillar, i) => (
-                <div
-                  key={i}
-                  className="border border-border rounded-lg p-4 space-y-3"
-                  style={{ borderLeftColor: pillar.color, borderLeftWidth: 3 }}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="font-body text-[12px] font-medium text-text-secondary">
-                      Pillar {i + 1}
-                    </span>
-                    {pillars.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removePillar(i)}
-                        className="text-[11px] text-text-secondary hover:text-accent-primary transition-colors"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex gap-3">
-                    <input
-                      type="text"
-                      value={pillar.name}
-                      onChange={(e) => updatePillar(i, 'name', e.target.value)}
-                      placeholder="Pillar name (e.g. Tech Takes)"
-                      className={`flex-1 ${inputCls}`}
-                    />
-                    <div className="flex gap-1.5 items-center">
-                      {PRESET_COLORS.map((color) => (
-                        <button
-                          key={color}
-                          type="button"
-                          onClick={() => updatePillar(i, 'color', color)}
-                          className={`w-6 h-6 rounded-full transition-transform ${
-                            pillar.color === color
-                              ? 'ring-2 ring-accent-primary ring-offset-1 ring-offset-bg-secondary scale-110'
-                              : 'hover:scale-110'
-                          }`}
-                          style={{ backgroundColor: color }}
-                        />
-                      ))}
-                    </div>
-                  </div>
-
-                  <textarea
-                    value={pillar.description || ''}
-                    onChange={(e) => updatePillar(i, 'description', e.target.value)}
-                    placeholder="What this pillar covers..."
-                    rows={2}
-                    className={textareaCls}
-                  />
-                </div>
-              ))}
-
-              {pillars.length < 6 && (
-                <button
-                  type="button"
-                  onClick={addPillar}
-                  className="w-full border border-dashed border-border rounded-lg py-3 text-[13px] text-text-secondary hover:border-accent-primary hover:text-accent-primary transition-colors"
-                >
-                  + Add pillar
-                </button>
-              )}
-            </div>
-          </div>
-        );
-
-      /* ---- Step 3: Voice ---- */
-      case 2:
-        return (
-          <div className="space-y-5">
-            <div>
-              <h2 className="font-serif font-normal text-[24px] tracking-[-0.025em] text-ink mb-1">
-                Describe your voice
-              </h2>
-              <p className="font-body text-[13px] text-text-secondary">
-                Optional — refine later in Your voice.
-              </p>
-            </div>
-
-            <div>
-              <label className={labelCls}>How do you talk?</label>
-              <textarea
-                value={voiceDescription}
-                onChange={(e) => setVoiceDescription(e.target.value)}
-                rows={5}
-                placeholder="e.g. Casual, direct, like explaining something cool to a friend. Use short sentences. Lots of analogies."
-                className={textareaCls}
-              />
-            </div>
-
-            <div>
-              <label className={labelCls}>What should the AI avoid?</label>
-              <textarea
-                value={voiceRules}
-                onChange={(e) => setVoiceRules(e.target.value)}
-                rows={4}
-                placeholder="e.g. Never use emoji. No corporate jargon. Don't start sentences with 'So...'"
-                className={textareaCls}
-              />
-            </div>
-          </div>
-        );
-
-      default:
-        return null;
-    }
-  };
-
-  /* ---- Main render ---- */
-
-  const isLastStep = step === TOTAL_STEPS - 1;
+  const stepIndex = step === 'connect' ? 0 : step === 'ingest' ? 1 : 2;
+  const hasLinkedIn = accounts.some((a) => a.platform === 'linkedin');
+  const hasX = accounts.some((a) => a.platform === 'twitter');
 
   return (
-    <div className="max-w-lg mx-auto py-12 px-4">
-      <p className="page-eyebrow mb-3">CONTENT OS</p>
-      <p className="font-mono text-[11px] uppercase tracking-[0.12em] text-ink3 mb-2">
-        Step {step + 1} of {TOTAL_STEPS}
-      </p>
-      <p className="font-body text-[13px] text-text-secondary mb-6">
-        About 2 minutes — then you&apos;re in the app.
+    <div className="mx-auto max-w-xl px-4 py-12">
+      <div className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-ink3">
+        {PRODUCT_NAME} setup
+      </div>
+      <h1 className="font-serif text-3xl font-normal tracking-[-0.03em] text-ink">
+        {step === 'baseline' ? 'Your Creator Baseline' : 'Connect your accounts'}
+      </h1>
+      <p className="mt-2 text-sm leading-6 text-ink2">
+        {step === 'connect' &&
+          'We analyze your posts to learn your voice — same connection powers publishing. No forms until we know you.'}
+        {step === 'ingest' && statusLine}
+        {step === 'baseline' &&
+          'Trained on your real posts. This is what we will sound like when we write for you.'}
       </p>
 
-      <StepIndicator current={step} total={TOTAL_STEPS} />
-
-      {renderStep()}
+      <StepIndicator current={stepIndex} total={3} />
 
       {error && (
-        <p className="font-body text-[13px] text-accent-primary mt-4">{error}</p>
+        <div className="mb-6 flex items-start gap-2 rounded-lg border border-coral/30 bg-coral/5 p-4 text-sm text-coral">
+          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+          {error}
+        </div>
       )}
 
-      <div className="flex items-center justify-between mt-8">
-        {step > 0 ? (
-          <button
-            type="button"
-            onClick={handleBack}
-            className="rounded-md py-[10px] px-[20px] font-body text-[13px] font-medium text-text-tertiary border border-border hover:border-border-hover transition-colors"
-          >
-            Back
-          </button>
-        ) : (
-          <div />
-        )}
+      {step === 'connect' && (
+        <div className="space-y-6">
+          <div className="rounded-lg border border-hair bg-paper2 p-5">
+            <p className="section-label">Connect X + LinkedIn</p>
+            <p className="mt-2 text-sm text-ink2">
+              Free Creator Baseline when you connect. We only read your posts to learn your voice.
+            </p>
 
-        {isLastStep ? (
-          <div className="flex items-center gap-3">
+            <ul className="mt-4 space-y-3">
+              {(['linkedin', 'twitter'] as const).map((platform) => {
+                const connected = accounts.find((a) => a.platform === platform);
+                return (
+                  <li
+                    key={platform}
+                    className="flex items-center justify-between rounded-md border border-hair bg-paper px-4 py-3"
+                  >
+                    <span className="text-sm font-medium text-ink">
+                      {PLATFORM_LABEL[platform]}
+                    </span>
+                    {connected ? (
+                      <span className="flex items-center gap-1.5 text-xs text-teal">
+                        <CheckCircle2 className="h-3.5 w-3.5" />
+                        {connected.account_name ?? 'Connected'}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-ink3">Not connected</span>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+
             <button
               type="button"
-              onClick={handleFinish}
-              disabled={loading}
-              className="rounded-md py-[10px] px-[24px] text-text-inverse font-body text-[13px] font-medium bg-accent-primary hover:bg-accent-dark transition-all duration-100 disabled:opacity-40"
+              onClick={handleConnect}
+              disabled={connecting || loadingAccounts}
+              className="btn-primary mt-5 flex w-full items-center justify-center gap-2"
             >
-              {loading ? 'Setting up...' : 'Finish setup'}
-            </button>
-            <button
-              type="button"
-              onClick={handleFinish}
-              disabled={loading}
-              className="rounded-md py-[10px] px-[16px] font-body text-[13px] font-medium text-text-tertiary hover:text-text-primary transition-colors"
-            >
-              Skip for now
+              {connecting || loadingAccounts ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Link2 className="h-4 w-4" />
+              )}
+              {accounts.length === 0 ? 'Connect accounts' : 'Connect more accounts'}
             </button>
           </div>
-        ) : (
+
+          {accounts.length > 0 && (
+            <button
+              type="button"
+              onClick={() => void handleContinueToIngest()}
+              className="btn-primary flex w-full items-center justify-center gap-2"
+            >
+              <Sparkles className="h-4 w-4" />
+              Build my baseline
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          )}
+
+          {(hasLinkedIn || hasX) && (
+            <p className="text-center text-xs text-ink3">
+              {hasLinkedIn && hasX
+                ? 'Both accounts connected — best baseline quality.'
+                : 'Connect both for the richest baseline, or continue with one.'}
+            </p>
+          )}
+        </div>
+      )}
+
+      {step === 'ingest' && (
+        <div className="flex flex-col items-center rounded-lg border border-hair bg-paper2 px-8 py-16 text-center">
+          <Loader2 className="h-10 w-10 animate-spin text-accent-primary" />
+          <p className="mt-6 font-serif text-xl text-ink">{statusLine}</p>
+          <p className="mt-2 max-w-sm text-sm text-ink2">
+            Analyzing posts from {accounts.map((a) => PLATFORM_LABEL[a.platform]).join(' and ')}…
+          </p>
+        </div>
+      )}
+
+      {step === 'baseline' && baseline && (
+        <div className="space-y-6">
+          <div className="rounded-lg border border-hair bg-paper2 p-5">
+            <p className="section-label">Voice summary</p>
+            <p className="mt-3 text-sm leading-7 text-ink">{baseline.voiceSummary}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-hair bg-paper2 p-4">
+              <p className="text-[11px] font-mono uppercase tracking-wider text-ink3">Posts read</p>
+              <p className="mt-1 font-serif text-2xl text-ink">{baseline.postsAnalyzed}</p>
+            </div>
+            <div className="rounded-lg border border-hair bg-paper2 p-4">
+              <p className="text-[11px] font-mono uppercase tracking-wider text-ink3">Platforms</p>
+              <p className="mt-1 text-sm font-medium text-ink">{baseline.platforms.join(', ')}</p>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-hair bg-paper2 p-5">
+            <p className="section-label">Your themes</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {baseline.themes.map((theme) => (
+                <span
+                  key={theme}
+                  className="rounded-full border border-hair bg-paper px-3 py-1 text-xs text-ink2"
+                >
+                  {theme}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-hair bg-paper2 p-5">
+            <p className="section-label">Voice rules</p>
+            <ul className="mt-3 space-y-2">
+              {baseline.voiceRules.slice(0, 6).map((rule) => (
+                <li key={rule} className="flex items-start gap-2 text-sm text-ink2">
+                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal" />
+                  {rule}
+                </li>
+              ))}
+            </ul>
+          </div>
+
           <button
             type="button"
-            onClick={handleNext}
-            disabled={!canProceed()}
-            className="rounded-md py-[10px] px-[24px] text-text-inverse font-body text-[13px] font-medium bg-accent-primary hover:bg-accent-dark transition-all duration-100 disabled:opacity-40"
+            onClick={() => void handleWriteFirstPost()}
+            disabled={finishing}
+            className="btn-primary flex w-full items-center justify-center gap-2"
           >
-            Continue
+            {finishing ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4" />
+            )}
+            Write my first post
+            <ArrowRight className="h-4 w-4" />
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+export default function OnboardingPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-[50vh] items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin text-accent-primary" />
+        </div>
+      }
+    >
+      <OnboardingInner />
+    </Suspense>
   );
 }
