@@ -206,13 +206,21 @@ describe('Layer 1: Event Capture', () => {
         status: 'drafting',
       };
 
+      // The idempotency guard is now atomic: the route runs the ownership SELECT
+      // (.single) then an UPDATE ending at .select('id'). For an already-'drafting'
+      // row that UPDATE matches zero rows, so awaiting the thenable chain yields an
+      // empty data array and the route returns 409.
+      const chain = {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        neq: vi.fn().mockReturnThis(),
+        update: vi.fn().mockReturnThis(),
+        single: vi.fn().mockResolvedValue({ data: draftingCapture, error: null }),
+        then: (resolve: (v: { data: unknown[]; error: null }) => void) => resolve({ data: [], error: null }),
+      };
       const fakeClient = {
         database: {
-          from: vi.fn(() => ({
-            select: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            single: vi.fn().mockResolvedValue({ data: draftingCapture, error: null }),
-          })),
+          from: vi.fn(() => chain),
         },
       };
 

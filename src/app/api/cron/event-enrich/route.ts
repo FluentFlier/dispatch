@@ -43,6 +43,38 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ skipped: true, reason: 'flag_disabled' });
   }
 
+  // --- Reclaim jobs stuck in 'processing' (crashed/timed-out cron run) ---
+  // A prior run can die mid-batch (Serper/Jina/Haiku calls are slow); without
+  // this, those jobs and their event_captures rows rot forever at
+  // 'processing'/'researching'. Requeue past the timeout, incrementing attempts
+  // exactly like the per-job error path below so a poison job still reaches
+  // 'failed' instead of reclaiming indefinitely.
+  const RECLAIM_TIMEOUT_MS = 10 * 60 * 1000;
+  const reclaimThreshold = new Date(Date.now() - RECLAIM_TIMEOUT_MS).toISOString();
+
+  const { data: staleJobs } = await client.database
+    .from('jobs')
+    .select('id, attempts, max_attempts')
+    .eq('type', 'enrich_event')
+    .eq('status', 'processing')
+    .lt('updated_at', reclaimThreshold);
+
+  let jobsReclaimed = 0;
+  for (const stale of (staleJobs ?? []) as Array<{ id: string; attempts: number; max_attempts: number }>) {
+    const newAttempts = stale.attempts + 1;
+    const newStatus = newAttempts >= stale.max_attempts ? 'failed' : 'pending';
+    await client.database
+      .from('jobs')
+      .update({
+        status: newStatus,
+        attempts: newAttempts,
+        last_error: 'Reclaimed after processing timeout',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', stale.id);
+    jobsReclaimed++;
+  }
+
   // --- Claim pending jobs (LIMIT 20 per run across all workspaces) ---
   const { data: pendingJobs, error: fetchError } = await client.database
     .from('jobs')
@@ -61,7 +93,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const jobs = (pendingJobs ?? []) as JobRow[];
 
   if (jobs.length === 0) {
-    return NextResponse.json({ ok: true, jobsProcessed: 0 });
+    return NextResponse.json({ ok: true, jobsReclaimed, jobsProcessed: 0 });
   }
 
   // Mark all claimed jobs as processing before doing any work.
@@ -110,6 +142,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   return NextResponse.json({
     ok: true,
+    jobsReclaimed,
     jobsProcessed: jobs.length,
     results,
   });
