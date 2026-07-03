@@ -30,7 +30,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
-  const plan = parsed.data.plan as Exclude<PlanId, 'free'>;
+  const plan = parsed.data.plan as Exclude<PlanId, 'free' | 'unlimited'>;
   const priceId = getPlanPriceIds()[plan];
   if (!priceId) {
     return NextResponse.json({ error: `Price not configured for ${plan}` }, { status: 503 });
