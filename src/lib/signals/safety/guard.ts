@@ -42,7 +42,7 @@ export async function assertOutreachAllowed(
   client: InsforgeClient,
   workspaceId: string,
   channel: OutreachChannel,
-  opts: { eventId?: string; socialAccountId?: string; now?: Date } = {},
+  opts: { eventId?: string; leadId?: string; socialAccountId?: string; now?: Date } = {},
 ): Promise<OutreachGuardResult> {
   const settings = await getSafetySettings(client, workspaceId);
   const now = opts.now ?? new Date();
@@ -53,6 +53,7 @@ export async function assertOutreachAllowed(
       action: 'outreach_blocked',
       channel,
       event_id: opts.eventId,
+      lead_id: opts.leadId,
       social_account_id: opts.socialAccountId,
       blocked_reason: reason,
     });

@@ -8,6 +8,8 @@ export interface AuditEntry {
   action: OutreachAuditAction;
   channel?: string;
   event_id?: string;
+  /** Set for directory-lead outreach (mutually exclusive with event_id). */
+  lead_id?: string;
   social_account_id?: string;
   blocked_reason?: string;
   metadata?: Record<string, unknown>;
@@ -22,6 +24,7 @@ export async function logSignalAudit(
     action: entry.action,
     channel: entry.channel ?? null,
     event_id: entry.event_id ?? null,
+    lead_id: entry.lead_id ?? null,
     social_account_id: entry.social_account_id ?? null,
     blocked_reason: entry.blocked_reason ?? null,
     metadata: entry.metadata ?? {},

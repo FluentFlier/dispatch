@@ -15,6 +15,7 @@ import {
   Radio,
   Settings,
   SlidersHorizontal,
+  Target,
 } from 'lucide-react';
 import { getInsforgeClient } from '@/lib/insforge/client';
 import { primaryNav, moreNav } from '@/lib/nav-config';
@@ -27,6 +28,7 @@ const navIcons: Record<string, ComponentType<{ className?: string }>> = {
   '/calendar': CalendarDays,
   '/inbox': MessageSquare,
   '/signals': Radio,
+  '/leads': Target,
   '/event-capture': CalendarDays,
   '/ideas': Lightbulb,
   '/voice-lab': SlidersHorizontal,

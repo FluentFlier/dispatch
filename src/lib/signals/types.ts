@@ -135,3 +135,127 @@ export interface SignalEventWithPost extends SignalEventRow {
   raw_post?: SignalRawPostRow | null;
   outreach?: SignalOutreachRow | null;
 }
+
+// --- Directory Lead Engine ---
+
+export type LeadSource = 'yc_directory' | 'yc_launches' | 'product_hunt' | 'manual';
+
+export type LeadContactStatus = 'unresolved' | 'resolved' | 'no_contact';
+
+export type LeadStatus =
+  | 'new'
+  | 'drafted'
+  | 'approved'
+  | 'sent'
+  | 'dismissed'
+  | 'resurfaced';
+
+export type LeadEventType =
+  | 'scraped'
+  | 'new'
+  | 'rescored'
+  | 'reactivated'
+  | 'resolved'
+  | 'unresolved'
+  | 'renamed'
+  | 'pivoted'
+  | 'merged';
+
+/** Flags that drive reactivation + intent boost. */
+export interface LeadIntentFlags {
+  hiring?: boolean;
+  raised?: boolean;
+  seeking_investors?: boolean;
+  seeking_tools?: boolean;
+}
+
+export interface SignalLeadRow {
+  id: string;
+  workspace_id: string;
+  source: LeadSource;
+  external_id: string | null;
+  company_name: string;
+  tagline: string | null;
+  website: string | null;
+  domain: string | null;
+  batch: string | null;
+  tags: string[];
+  intent_flags: LeadIntentFlags;
+  source_fact: Record<string, unknown>;
+  name_history: string[];
+  fit_score: number;
+  rank_score: number;
+  contact_status: LeadContactStatus;
+  lead_status: LeadStatus;
+  first_seen_at: string;
+  last_seen_at: string;
+  digest_date: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SignalLeadContactRow {
+  id: string;
+  lead_id: string;
+  workspace_id: string;
+  name: string | null;
+  role: string | null;
+  linkedin_url: string | null;
+  x_handle: string | null;
+  email: string | null;
+  provider_id: string | null;
+  resolution_source: 'scraped' | 'enriched' | 'manual' | null;
+  enriched_via: string | null;
+  is_primary: boolean;
+  created_at: string;
+}
+
+export interface SignalLeadWithContacts extends SignalLeadRow {
+  contacts?: SignalLeadContactRow[];
+  primary_contact?: SignalLeadContactRow | null;
+  outreach?: SignalOutreachRow | null;
+}
+
+export interface DirectorySettingsRow {
+  workspace_id: string;
+  enabled_sources: LeadSource[];
+  icp_verticals: string[];
+  icp_keywords: string[];
+  recency_window: string;
+  digest_run_hour_local: number;
+  digest_timezone: string | null;
+  digest_channels: { today: boolean; slack: boolean; email: boolean };
+  digest_top_n: number;
+  digest_delivered_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FollowedCompanyRow {
+  id: string;
+  workspace_id: string;
+  company_name: string;
+  domain: string | null;
+  external_id: string | null;
+  added_by_user_id: string | null;
+  created_at: string;
+}
+
+/** Normalized lead from a directory scrape (TinyFish) or seed. */
+export interface IngestedLead {
+  source: LeadSource;
+  externalId: string;
+  companyName: string;
+  tagline?: string;
+  website?: string;
+  batch?: string;
+  tags?: string[];
+  intentFlags?: LeadIntentFlags;
+  founders?: Array<{
+    name?: string;
+    role?: string;
+    linkedinUrl?: string;
+    xHandle?: string;
+    email?: string;
+  }>;
+}
