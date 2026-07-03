@@ -203,4 +203,69 @@ describe('Phase: Event Capture Hardening', () => {
       });
     });
   });
+
+  describe('Task 3: event-enrich cron reclaims stuck processing jobs', () => {
+    afterEach(() => {
+      vi.resetModules();
+      vi.doUnmock('@/lib/insforge/server');
+      vi.doUnmock('@/lib/feature-flags');
+    });
+
+    it('requeues a job stuck in processing past the timeout, incrementing attempts', async () => {
+      process.env.CRON_SECRET = 'correct-secret';
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const staleJob: any = { id: 'job-stale', attempts: 1, max_attempts: 3, status: 'processing' };
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const jobsTable: any[] = [staleJob];
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const fakeClient: any = {
+        database: {
+          from: vi.fn((table: string) => {
+            if (table !== 'jobs') throw new Error(`unexpected table ${table}`);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const chain: any = { _filters: {} as Record<string, unknown> };
+            chain.select = vi.fn().mockReturnValue(chain);
+            chain.eq = vi.fn((col: string, val: unknown) => { chain._filters[col] = val; return chain; });
+            chain.lt = vi.fn().mockReturnValue(chain);
+            chain.order = vi.fn().mockReturnValue(chain);
+            chain.limit = vi.fn().mockResolvedValue({
+              data: chain._filters.status === 'processing' ? jobsTable : [],
+              error: null,
+            });
+            // The real InsForge builder is thenable: awaiting it (as the reclaim
+            // query does, ending at .lt with no .limit) runs the query. The claim
+            // query resolves via .limit() above instead.
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            chain.then = (resolve: (v: any) => void) =>
+              resolve({ data: chain._filters.status === 'processing' ? jobsTable : [], error: null });
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            chain.update = vi.fn((patch: any) => ({
+              eq: vi.fn((col: string, val: unknown) => {
+                const row = jobsTable.find((j) => j[col] === val);
+                if (row) Object.assign(row, patch);
+                return Promise.resolve({ error: null });
+              }),
+              in: vi.fn().mockResolvedValue({ error: null }),
+            }));
+            return chain;
+          }),
+        },
+      };
+
+      vi.doMock('@/lib/insforge/server', () => ({ getServiceClient: vi.fn().mockReturnValue(fakeClient) }));
+      vi.doMock('@/lib/feature-flags', () => ({ isEnabled: vi.fn().mockResolvedValue(true) }));
+
+      const { GET } = await import('@/app/api/cron/event-enrich/route');
+      const req = new Request('http://localhost/api/cron/event-enrich', {
+        headers: { authorization: 'Bearer correct-secret' },
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await GET(req as any);
+
+      expect(staleJob.status).toBe('pending');
+      expect(staleJob.attempts).toBe(2);
+    });
+  });
 });
