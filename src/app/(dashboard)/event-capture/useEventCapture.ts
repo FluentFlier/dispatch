@@ -98,7 +98,7 @@ export function useInbox(): {
  * Cleans up the timer on unmount or when `id` changes to avoid stale polls
  * writing into a detail panel the user has already navigated away from.
  */
-export function useCaptureDetail(id: string | null): CaptureDetail | null {
+export function useCaptureDetail(id: string | null, refreshKey = 0): CaptureDetail | null {
   const [detail, setDetail] = useState<CaptureDetail | null>(null);
 
   useEffect(() => {
@@ -132,7 +132,7 @@ export function useCaptureDetail(id: string | null): CaptureDetail | null {
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, [id]);
+  }, [id, refreshKey]);
 
   return detail;
 }
@@ -158,6 +158,25 @@ export async function submitAnswers(
 /** Soft-dismisses a capture so it drops out of the inbox on the next refresh. */
 export async function dismissCapture(id: string): Promise<Response> {
   return fetch(`/api/event-capture/${id}/dismiss`, {
+    method: 'POST',
+    credentials: 'same-origin',
+  });
+}
+
+/**
+ * Reloads the question set for one capture (fresh research + new LLM questions)
+ * without re-importing the calendar. Clears stored answers server-side.
+ */
+export async function regenerateQuestions(id: string): Promise<Response> {
+  return fetch(`/api/event-capture/${id}/regenerate-questions`, {
+    method: 'POST',
+    credentials: 'same-origin',
+  });
+}
+
+/** Re-runs draft generation from stored answers (recovers a failed/empty draft). */
+export async function regenerateDraft(id: string): Promise<Response> {
+  return fetch(`/api/event-capture/${id}/regenerate-draft`, {
     method: 'POST',
     credentials: 'same-origin',
   });

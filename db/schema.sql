@@ -419,12 +419,14 @@ begin
   values (p_workspace_id, current_date, p_model, 0)
   on conflict (workspace_id, date, model) do nothing;
 
+  -- Qualify every call_count with the table name: the RETURNS TABLE out-column is
+  -- also named call_count, so bare references are ambiguous (Postgres 42702).
   update daily_ai_usage
-  set call_count = call_count + 1
-  where workspace_id = p_workspace_id
-    and date = current_date
-    and model = p_model
-    and call_count < p_hard_cap
+  set call_count = daily_ai_usage.call_count + 1
+  where daily_ai_usage.workspace_id = p_workspace_id
+    and daily_ai_usage.date = current_date
+    and daily_ai_usage.model = p_model
+    and daily_ai_usage.call_count < p_hard_cap
   returning daily_ai_usage.call_count into v_count;
 
   if v_count is null then

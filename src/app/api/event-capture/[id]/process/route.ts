@@ -5,6 +5,7 @@ import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { generateWithVoicePipeline, type VoicePipelineResult } from '@/lib/voice-pipeline';
 import { getBestHooksForContext } from '@/lib/hooks-intelligence';
+import { buildQuestionsAndAnswers, resolvePostPillar } from '@/lib/event-capture/draft-context';
 
 interface RouteParams {
   params: { id: string };
@@ -130,13 +131,8 @@ export async function POST(
   );
 
   // --- Build event context for generation ---
-  const questionsAndAnswers = capture.questions
-    ?.map((q, i) => {
-      const answer = capture.answers?.[String(i)];
-      return answer ? `Q: ${q}\nA: ${answer}` : null;
-    })
-    .filter(Boolean)
-    .join('\n\n') ?? '';
+  // Index-keyed pairing carries the user's answers into the written post.
+  const questionsAndAnswers = buildQuestionsAndAnswers(capture.questions, capture.answers);
 
   const researchContext = research?.raw_text
     ? `\nEvent research:\n${research.raw_text.slice(0, 2000)}`
@@ -218,6 +214,10 @@ Return ONLY the post text.`;
       user_id: capture.user_id,
       event_capture_id: params.id,
       platform,
+      // posts.pillar is NOT NULL — use the creator's first content pillar, else
+      // 'general'. Without this the insert 23502-fails and no draft ever reaches
+      // the Write section.
+      pillar: resolvePostPillar(profile),
       script: result.text,
       caption: result.text,
       hook: result.text.split('\n')[0].slice(0, 200),
@@ -236,14 +236,23 @@ Return ONLY the post text.`;
       updated_at: new Date().toISOString(),
     }));
 
+  let insertedPosts: Array<{ id: string; platform: string }> = [];
   if (postInserts.length > 0) {
-    const { error: insertError } = await client.database
+    const { data: inserted, error: insertError } = await client.database
       .from('posts')
-      .insert(postInserts);
+      .insert(postInserts)
+      .select('id, platform');
 
     if (insertError) {
+      // Do NOT swallow: reporting ok:true here means the UI shows "drafted" while
+      // no post exists (the pillar NOT-NULL failure looked exactly like this).
       console.error('[event-capture/process] Post insert error', insertError);
+      return NextResponse.json(
+        { ok: false, error: 'Could not save the generated draft.', detail: insertError.message },
+        { status: 500 },
+      );
     }
+    insertedPosts = (inserted ?? []) as Array<{ id: string; platform: string }>;
   }
 
   // Log any platform failures (X outage should not block LinkedIn draft).
@@ -265,7 +274,9 @@ Return ONLY the post text.`;
 
   return NextResponse.json({
     ok: true,
-    draftsGenerated: postInserts.length,
+    draftsGenerated: insertedPosts.length,
     platforms,
+    posts: insertedPosts,
+    primaryPostId: insertedPosts[0]?.id ?? null,
   });
 }
