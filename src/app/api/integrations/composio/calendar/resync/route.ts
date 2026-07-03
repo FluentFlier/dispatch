@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { isComposioConfigured } from '@/lib/composio/config';
 import { getIntegration, patchIntegrationConfig } from '@/lib/signals/integrations/store';
@@ -64,7 +64,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       last_manual_resync_at: now.toISOString(),
     });
 
-    const result = await resyncCalendar(client, integration, { timeMin, timeMax }, now);
+    // Ingest writes event_captures + jobs, which are service-managed tables (the
+    // hourly cron writes them via the service client too). Use the service client
+    // here as well so the manual reload isn't blocked by their RLS policies.
+    const result = await resyncCalendar(getServiceClient(), integration, { timeMin, timeMax }, now);
 
     const touched = result.created + result.updated + result.cancelled;
     if (result.errors.length > 0) {
@@ -73,7 +76,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const message =
       touched === 0
         ? 'No events found in this range. Check the window or your calendar selection.'
-        : `Imported ${result.created} new, updated ${result.updated}, removed ${result.cancelled}.`;
+        : `Imported ${result.created} new, updated ${result.updated}, removed ${result.cancelled}. ${result.enriched} ready to view now.`;
 
     return NextResponse.json({ ...result, message });
   } catch (err) {

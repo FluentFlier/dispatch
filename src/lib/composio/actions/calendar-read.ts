@@ -47,8 +47,25 @@ export interface CalendarFetchResult {
 }
 
 /**
+ * Pulls the Google Calendar events array out of a Composio tool response. Composio
+ * wraps the raw provider payload under `data`, and the exact nesting has varied
+ * (`data.items` vs `data.data.items` vs `data.response_data.items`), so probe the
+ * known shapes rather than assuming one. Returns [] when none match.
+ */
+function extractEventItems(data: unknown): GoogleCalendarItem[] {
+  const d = (data ?? {}) as Record<string, unknown>;
+  const candidates: unknown[] = [
+    d.items,
+    (d.data as { items?: unknown } | undefined)?.items,
+    (d.response_data as { items?: unknown } | undefined)?.items,
+  ];
+  const arr = candidates.find(Array.isArray);
+  return (arr as GoogleCalendarItem[] | undefined) ?? [];
+}
+
+/**
  * Fetches timed calendar events for a Composio-connected user within a window
- * using the GOOGLECALENDAR_FIND_EVENTS tool, then normalizes them. Never throws,
+ * using the GOOGLECALENDAR_EVENTS_LIST tool, then normalizes them. Never throws,
  * but no longer silently masks failures: a provider error returns { ok: false }
  * so the caller MUST check `ok` before running any destructive deletion pass — an
  * empty result from a failed fetch would otherwise soft-cancel the whole window.
@@ -59,22 +76,26 @@ export async function findCalendarEvents(
   timeMax: Date,
   calendarId = 'primary',
 ): Promise<CalendarFetchResult> {
-  // TODO(verify): confirm GOOGLECALENDAR_FIND_EVENTS arg names + response shape against Composio dashboard before production
-  const result = await executeComposioTool<{ items?: GoogleCalendarItem[] }>(
+  // Composio's Google Calendar toolkit exposes the events listing as
+  // GOOGLECALENDAR_EVENTS_LIST (the earlier GOOGLECALENDAR_FIND_EVENTS slug does
+  // not exist and 502s). max_results defaults to 10 on Composio, far too few for a
+  // manual reload window, so raise it.
+  const result = await executeComposioTool<Record<string, unknown>>(
     composioUserId,
-    'GOOGLECALENDAR_FIND_EVENTS',
+    'GOOGLECALENDAR_EVENTS_LIST',
     {
       calendar_id: calendarId,
       timeMin: timeMin.toISOString(),
       timeMax: timeMax.toISOString(),
       single_events: true,
       order_by: 'startTime',
+      max_results: 250,
     },
   );
 
   if (!result.success) {
-    console.warn('[event-capture:calendar-read] Composio find events failed', { error: result.error });
+    console.warn('[event-capture:calendar-read] Composio events list failed', { error: result.error });
     return { ok: false, events: [], error: String(result.error ?? 'Calendar fetch failed') };
   }
-  return { ok: true, events: normalizeGoogleEvents(result.data?.items ?? []) };
+  return { ok: true, events: normalizeGoogleEvents(extractEventItems(result.data)) };
 }
