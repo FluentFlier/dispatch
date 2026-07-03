@@ -135,6 +135,8 @@ function GeneratePageInner() {
   const initialResult = searchParams.get("result") || "";
   const initialTopic = searchParams.get("topic") || "";
   const initialPillar = searchParams.get("pillar") || "";
+  const initialMentionsParam =
+    searchParams.get("mentions") || searchParams.get("tag") || "";
   const isWelcome = searchParams.get("welcome") === "1";
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
   const welcomePlatform = (searchParams.get("platform") as Platform | null) ?? "linkedin";
@@ -153,6 +155,11 @@ function GeneratePageInner() {
             initialResult={initialResult}
             initialTopic={initialTopic}
             initialPillar={initialPillar}
+            initialMentions={
+              initialMentionsParam
+                ? initialMentionsParam.split(/[,;\s]+/).filter(Boolean)
+                : undefined
+            }
             initialPlatform={isWelcome ? welcomePlatform : undefined}
             autoGenerate={isWelcome && Boolean(initialTopic)}
           />

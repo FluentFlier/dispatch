@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, type KeyboardEvent } from 'react';
+import { AtSign, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Toggle } from '@/components/ui/Toggle';
 import { MicDictate } from './MicDictate';
@@ -12,6 +13,12 @@ import type { Platform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { isPillarCovered } from '@/lib/pillar-dedup';
 import { useCreatorPreferences, POST_LENGTH_CONFIG, type PostLength } from '@/hooks/useCreatorPreferences';
+import {
+  extractTagMentions,
+  MAX_MENTIONS,
+  mergeMentions,
+  parseMentionList,
+} from '@/lib/mentions';
 
 const PILLAR_PROMPTS: Record<string, string> = {
   'hot-take': `Generate a hot take Reel script.
@@ -69,11 +76,18 @@ async function callGenerate(
   prompt: string,
   platform: Platform,
   useVoice: boolean,
+  mentions: string[],
 ): Promise<{ text: string; voiceMetrics: GenerateVoiceMetrics }> {
   const res = await fetchWithAuth('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt, platform, topic: prompt.slice(0, 200), useVoice }),
+    body: JSON.stringify({
+      prompt,
+      platform,
+      topic: prompt.slice(0, 200),
+      useVoice,
+      ...(mentions.length > 0 ? { mentions } : {}),
+    }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -101,6 +115,8 @@ interface ScriptGeneratorProps {
   initialTopic?: string;
   initialPillar?: string;
   initialPlatform?: Platform;
+  /** Pre-filled @mentions (handles without @). Supports `tag@handle` in topic/thoughts too. */
+  initialMentions?: string[];
   /** When true, auto-runs generation once on mount (welcome flow after onboarding). */
   autoGenerate?: boolean;
 }
@@ -110,6 +126,7 @@ export function ScriptGenerator({
   initialTopic = '',
   initialPillar = '',
   initialPlatform,
+  initialMentions = [],
   autoGenerate = false,
 }: ScriptGeneratorProps) {
   const { pillars: pillarList, loading: pillarsLoading, getLabel } = usePillars();
@@ -118,6 +135,8 @@ export function ScriptGenerator({
   const [pillar, setPillar] = useState<string>(initialPillar);
   const [topic, setTopic] = useState(initialTopic);
   const [thoughts, setThoughts] = useState('');
+  const [mentions, setMentions] = useState<string[]>(() => mergeMentions(initialMentions));
+  const [mentionInput, setMentionInput] = useState('');
   const [platform, setPlatform] = useState<Platform>(initialPlatform ?? 'instagram');
   const [postLength, setPostLength] = useState<PostLength>('standard');
   const [useVoice, setUseVoice] = useState(true);
@@ -206,6 +225,27 @@ export function ScriptGenerator({
   const [error, setError] = useState('');
   const autoGenTriggered = useRef(false);
 
+  /** Add one or more handles from the tag input (comma/space separated). */
+  function addMentionHandles(raw: string) {
+    const next = mergeMentions(mentions, parseMentionList(raw));
+    setMentions(next);
+    setMentionInput('');
+  }
+
+  function removeMention(handle: string) {
+    const key = handle.toLowerCase();
+    setMentions((prev) => prev.filter((m) => m.toLowerCase() !== key));
+  }
+
+  function handleMentionKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      if (mentionInput.trim()) addMentionHandles(mentionInput);
+    } else if (e.key === 'Backspace' && !mentionInput && mentions.length > 0) {
+      setMentions((prev) => prev.slice(0, -1));
+    }
+  }
+
   const generate = useCallback(async () => {
     if (loading) return; // guard against double-submit (avoids duplicate /api/generate + 401 race)
     setLoading(true);
@@ -242,7 +282,12 @@ CTA: One direct question.`;
         thoughts,
         lengthHint: POST_LENGTH_CONFIG[postLength].hint,
       });
-      const result = await callGenerate(prompt, platform, useVoice);
+      const resolvedMentions = mergeMentions(
+        mentions,
+        extractTagMentions(topic),
+        extractTagMentions(thoughts),
+      );
+      const result = await callGenerate(prompt, platform, useVoice, resolvedMentions);
       setOutput(result.text);
       setVoiceMetrics(result.voiceMetrics);
     } catch (e: unknown) {
@@ -250,7 +295,7 @@ CTA: One direct question.`;
     } finally {
       setLoading(false);
     }
-  }, [loading, allPillars, pillar, getLabel, platform, topic, thoughts, postLength, useVoice]);
+  }, [loading, allPillars, pillar, getLabel, platform, topic, thoughts, postLength, useVoice, mentions]);
 
   // Welcome flow: auto-draft the first post once pillars + prefs are loaded.
   useEffect(() => {
@@ -383,6 +428,50 @@ CTA: One direct question.`;
           placeholder="Dump the details, facts, angle, or story you want in this post. Speak or type. This is always sent to the AI."
           className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover resize-y transition-colors duration-100"
         />
+      </div>
+
+      <div>
+        <label className="block section-label mb-2">
+          Tag people
+          <span className="ml-2 text-text-tertiary font-normal normal-case tracking-normal">
+            (LinkedIn @mentions woven into the draft)
+          </span>
+        </label>
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg-tertiary px-3 py-2">
+          <AtSign className="h-4 w-4 shrink-0 text-text-tertiary" aria-hidden />
+          {mentions.map((handle) => (
+            <span
+              key={handle}
+              className="inline-flex items-center gap-1 rounded-full border border-border bg-paper px-2.5 py-0.5 font-body text-[12px] text-text-primary"
+            >
+              @{handle}
+              <button
+                type="button"
+                onClick={() => removeMention(handle)}
+                className="rounded-full p-0.5 text-text-secondary hover:text-text-primary"
+                aria-label={`Remove @${handle}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+          {mentions.length < MAX_MENTIONS && (
+            <input
+              type="text"
+              value={mentionInput}
+              onChange={(e) => setMentionInput(e.target.value)}
+              onKeyDown={handleMentionKeyDown}
+              onBlur={() => {
+                if (mentionInput.trim()) addMentionHandles(mentionInput);
+              }}
+              placeholder={mentions.length === 0 ? 'rudheer — or type tag@rudheer in thoughts' : 'Add another…'}
+              className="min-w-[120px] flex-1 bg-transparent py-1 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none"
+            />
+          )}
+        </div>
+        {mentions.length >= MAX_MENTIONS && (
+          <p className="mt-1 text-[11px] text-text-tertiary">Max {MAX_MENTIONS} tags per post.</p>
+        )}
       </div>
 
       <div>
