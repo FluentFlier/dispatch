@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, Suspense } from 'react';
+import { useCallback, useEffect, useRef, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Loader2,
@@ -10,7 +10,7 @@ import {
   ArrowRight,
   AlertCircle,
 } from 'lucide-react';
-import { completeOnboardingFromBaseline } from './actions';
+import { completeOnboardingFromBaseline, completeOnboardingMinimal } from './actions';
 import type { CreatorBaseline } from '@/lib/onboarding/baseline';
 import { PRODUCT_NAME } from '@/lib/brand';
 
@@ -19,6 +19,7 @@ type Step = 'connect' | 'ingest' | 'baseline';
 interface ConnectedAccount {
   platform: string;
   account_name: string | null;
+  unipile_account_id?: string | null;
 }
 
 const INGEST_STATUS_LINES = [
@@ -63,6 +64,9 @@ function OnboardingInner() {
   const [statusLine, setStatusLine] = useState(INGEST_STATUS_LINES[0]);
   const [baseline, setBaseline] = useState<CreatorBaseline | null>(null);
   const [finishing, setFinishing] = useState(false);
+  const [unipileReady, setUnipileReady] = useState<boolean | null>(null);
+  const [skipping, setSkipping] = useState(false);
+  const connectedHandled = useRef(false);
 
   const refreshAccounts = useCallback(async () => {
     setLoadingAccounts(true);
@@ -70,8 +74,8 @@ function OnboardingInner() {
       const res = await fetch('/api/social-accounts');
       const data = await res.json();
       const connected = (data.accounts ?? []).filter(
-        (a: ConnectedAccount & { unipile_account_id?: string }) =>
-          ['linkedin', 'twitter'].includes(a.platform),
+        (a: ConnectedAccount) =>
+          ['linkedin', 'twitter'].includes(a.platform) && Boolean(a.unipile_account_id),
       );
       setAccounts(connected);
       return connected as ConnectedAccount[];
@@ -114,6 +118,10 @@ function OnboardingInner() {
 
   useEffect(() => {
     void refreshAccounts();
+    fetch('/api/onboarding/status')
+      .then((r) => r.json())
+      .then((d) => setUnipileReady(Boolean(d.unipileConfigured)))
+      .catch(() => setUnipileReady(false));
   }, [refreshAccounts]);
 
   useEffect(() => {
@@ -126,7 +134,8 @@ function OnboardingInner() {
       return;
     }
 
-    if (!connected) return;
+    if (!connected || connectedHandled.current) return;
+    connectedHandled.current = true;
 
     router.replace('/onboarding', { scroll: false });
 
@@ -135,11 +144,17 @@ function OnboardingInner() {
       const refreshed = await refreshAccounts();
       if (refreshed.length > 0) {
         await runIngest();
+      } else {
+        setError('Connected, but accounts not synced yet. Tap "Build my baseline" to retry.');
       }
     })();
   }, [searchParams, router, refreshAccounts, runIngest]);
 
   function handleConnect() {
+    if (unipileReady === false) {
+      setError('Social connect is still being configured. Use "Start writing" below or try again shortly.');
+      return;
+    }
     setConnecting(true);
     window.location.href = '/api/social-accounts/connect/unipile?return=onboarding';
   }
@@ -161,10 +176,23 @@ function OnboardingInner() {
       await completeOnboardingFromBaseline(baseline);
       void fetch('/api/brain/provision', { method: 'POST' }).catch(() => undefined);
       const topic = encodeURIComponent(baseline.suggestedTopic);
-      router.push(`/generate?welcome=1&tab=script&topic=${topic}`);
+      router.push(`/generate?welcome=1&tab=script&topic=${topic}&platform=linkedin`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to finish setup');
       setFinishing(false);
+    }
+  }
+
+  async function handleSkipForNow() {
+    setSkipping(true);
+    setError('');
+    try {
+      await completeOnboardingMinimal('');
+      void fetch('/api/brain/provision', { method: 'POST' }).catch(() => undefined);
+      router.push('/generate?welcome=1&tab=script&topic=Something%20I%20learned%20this%20week&platform=linkedin');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to continue');
+      setSkipping(false);
     }
   }
 
@@ -189,6 +217,12 @@ function OnboardingInner() {
       </p>
 
       <StepIndicator current={stepIndex} total={3} />
+
+      {unipileReady === false && step === 'connect' && (
+        <div className="mb-6 rounded-lg border border-hair bg-paper2 p-4 text-sm text-ink2">
+          Social connect is finishing setup. You can connect shortly, or start writing now.
+        </div>
+      )}
 
       {error && (
         <div className="mb-6 flex items-start gap-2 rounded-lg border border-coral/30 bg-coral/5 p-4 text-sm text-coral">
@@ -263,6 +297,16 @@ function OnboardingInner() {
                 : 'Connect both for the richest baseline, or continue with one.'}
             </p>
           )}
+
+          <button
+            type="button"
+            onClick={() => void handleSkipForNow()}
+            disabled={skipping}
+            className="flex w-full items-center justify-center gap-2 text-sm text-ink3 hover:text-ink2"
+          >
+            {skipping ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+            Start writing without connecting
+          </button>
         </div>
       )}
 

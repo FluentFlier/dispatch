@@ -16,7 +16,10 @@ import { analyzeVoiceSamples } from '@/lib/voice-lab/analyze-samples';
 import { persistImportedPosts } from '@/lib/voice-lab/persist-imported-posts';
 import { syncBrainVoiceLab } from '@/lib/brain/sync';
 
-const MIN_SAMPLES = 3;
+/** Vercel: ingest runs paginated Unipile fetch + 2 LLM calls — allow up to 5 min. */
+export const maxDuration = 300;
+
+const MIN_SAMPLES = 1;
 const TARGET_PLATFORMS: OnboardingPlatform[] = ['linkedin', 'twitter'];
 
 export interface OnboardingIngestResponse {

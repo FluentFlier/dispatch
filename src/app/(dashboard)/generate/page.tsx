@@ -15,6 +15,7 @@ import { Repurpose } from "@/components/generate/Repurpose";
 import { TrendCatcher } from "@/components/generate/TrendCatcher";
 import { CommentReplies } from "@/components/generate/CommentReplies";
 import { SeriesPlanner } from "@/components/generate/SeriesPlanner";
+import type { Platform } from "@/lib/constants";
 
 type TabId =
   | "script"
@@ -136,6 +137,7 @@ function GeneratePageInner() {
   const initialPillar = searchParams.get("pillar") || "";
   const isWelcome = searchParams.get("welcome") === "1";
   const [welcomeDismissed, setWelcomeDismissed] = useState(false);
+  const welcomePlatform = (searchParams.get("platform") as Platform | null) ?? "linkedin";
 
   useEffect(() => {
     if (isWelcome && searchParams.get("tab") !== "script") {
@@ -151,6 +153,8 @@ function GeneratePageInner() {
             initialResult={initialResult}
             initialTopic={initialTopic}
             initialPillar={initialPillar}
+            initialPlatform={isWelcome ? welcomePlatform : undefined}
+            autoGenerate={isWelcome && Boolean(initialTopic)}
           />
         );
       case "voice-note":
@@ -184,7 +188,7 @@ function GeneratePageInner() {
                 Your baseline is ready
               </p>
               <p className="mt-1 text-sm text-ink2">
-                We learned your voice from your posts. Edit the draft below — it already sounds like you.
+                We learned your voice from your posts. Your first draft is generating below — edit before you publish.
               </p>
             </div>
             <button

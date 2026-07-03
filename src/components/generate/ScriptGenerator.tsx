@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Toggle } from '@/components/ui/Toggle';
 import { MicDictate } from './MicDictate';
@@ -97,6 +97,8 @@ interface ScriptGeneratorProps {
   initialTopic?: string;
   initialPillar?: string;
   initialPlatform?: Platform;
+  /** When true, auto-runs generation once on mount (welcome flow after onboarding). */
+  autoGenerate?: boolean;
 }
 
 export function ScriptGenerator({
@@ -104,6 +106,7 @@ export function ScriptGenerator({
   initialTopic = '',
   initialPillar = '',
   initialPlatform,
+  autoGenerate = false,
 }: ScriptGeneratorProps) {
   const { pillars: pillarList, loading: pillarsLoading, getLabel } = usePillars();
   const { preferredPostLength, voiceEnabled, loading: prefLoading } = useCreatorPreferences();
@@ -197,8 +200,9 @@ export function ScriptGenerator({
   }, [output]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const autoGenTriggered = useRef(false);
 
-  const generate = async () => {
+  const generate = useCallback(async () => {
     if (loading) return; // guard against double-submit (avoids duplicate /api/generate + 401 race)
     setLoading(true);
     setError('');
@@ -242,7 +246,15 @@ CTA: One direct question.`;
     } finally {
       setLoading(false);
     }
-  };
+  }, [loading, allPillars, pillar, getLabel, platform, topic, thoughts, postLength, useVoice]);
+
+  // Welcome flow: auto-draft the first post once pillars + prefs are loaded.
+  useEffect(() => {
+    if (!autoGenerate || autoGenTriggered.current || pillarsLoading || prefLoading) return;
+    if (!topic.trim()) return;
+    autoGenTriggered.current = true;
+    void generate();
+  }, [autoGenerate, pillarsLoading, prefLoading, topic, generate]);
 
   return (
     <div className="space-y-5">

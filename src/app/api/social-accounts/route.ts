@@ -15,7 +15,7 @@ export async function GET(): Promise<NextResponse> {
 
   let query = client.database
     .from('social_accounts')
-    .select('id, platform, account_name, account_id, connected_at, token_expires_at, connection_method')
+    .select('id, platform, account_name, account_id, connected_at, token_expires_at, connection_method, unipile_account_id')
     .eq('user_id', user.id);
   // Scope to the active workspace (rows are backfilled with workspace_id).
   if (workspaceId) query = query.eq('workspace_id', workspaceId);

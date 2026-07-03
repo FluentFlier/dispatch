@@ -97,6 +97,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ samples, count: samples.length });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to fetch posts';
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = message.startsWith('Failed to fetch posts') ? 502 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }
