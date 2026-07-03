@@ -1,119 +1,196 @@
 import { generateContent } from './ai';
 import type { CreatorProfileForPrompt } from './ai';
+import { chatCompletion } from './llm';
 import { HfInference } from '@huggingface/inference';
+import {
+  HUMANIZE_AUDIT_PROMPT,
+  HUMANIZE_CLEAN_PROMPT,
+  HUMANIZER_PROMPT,
+  VOICE_APPLY_PROMPT,
+} from './humanizer-prompts';
+
+export type HumanizePass = 'pre_clean' | 'clean' | 'audit' | 'voice';
+
+export interface HumanizePipelineResult {
+  text: string;
+  passes: HumanizePass[];
+  aiScoreBefore?: number;
+  aiScoreAfter?: number;
+}
 
 /**
- * Humanizer: Detects and removes 29 AI writing patterns to make content
- * sound authentically human. Based on Wikipedia's "Signs of AI writing" guide.
- *
- * Patterns detected:
- * - Content: significance inflation, name-dropping, vague attributions
- * - Language: overused AI vocabulary, copula avoidance, excessive hedging
- * - Style: em dash overuse, title case, emoji padding
- * - Communication: chatbot artifacts, sycophantic tone, filler conclusions
+ * Deterministic AI-writing patterns. Each match is a "tell" that the text reads
+ * like generic LLM output. Used as a floor under the ML detector and for cheap pre-clean.
  */
+export const AI_SLOP_PATTERNS: RegExp[] = [
+  /\b(delve|tapestry|leverage|foster|landscape|nuanced|multifaceted|comprehensive|robust|holistic|pivotal|crucial|paramount|innovative|transformative|utilize|realm|underscore|testament|seamless|elevate|empower|unlock|harness|navigate|cultivate|embark|profound)\b/gi,
+  /\bin today'?s (?:fast-paced |digital |modern |competitive )?world\b/gi,
+  /\bit'?s (?:worth|important) (?:noting|to note|mentioning)\b/gi,
+  /\b(?:in conclusion|to sum up|in summary|ultimately,|at the end of the day)\b/gi,
+  /\blet'?s (?:dive|unpack|explore|break (?:it|this) down)\b/gi,
+  /\bnot only\b[^.]*\bbut also\b/gi,
+  /\bwhether you'?re\b/gi,
+  /\bgame[- ]chang(?:er|ing)\b/gi,
+  /—/g,
+  /–/g,
+];
 
-const HUMANIZER_PROMPT = `You are a text humanizer. Your job is to rewrite AI-generated text so it reads like a real human wrote it.
-
-DETECT AND FIX these 29 AI writing patterns:
-
-**Content patterns:**
-1. Significance inflation ("groundbreaking", "pivotal", "revolutionary" when not warranted)
-2. Name-dropping and false authority
-3. Vague attributions ("experts say", "studies show" without specifics)
-4. Padding with obvious statements
-5. Repetitive thesis restatement
-6. Generic examples that could apply to anything
-
-**Language patterns:**
-7. Overused AI words: delve, tapestry, leverage, foster, landscape, nuanced, multifaceted, comprehensive, robust, holistic, pivotal, crucial, paramount, innovative, transformative, utilize
-8. Copula avoidance ("serves as" instead of "is", "features" instead of "has")
-9. Excessive hedging ("It is worth noting that...")
-10. Paired near-synonyms ("diverse and varied", "challenges and obstacles")
-11. Unnecessary transitional phrases
-12. Overly formal register for casual topics
-
-**Style patterns:**
-13. Em dash overuse
-14. Excessive use of colons for lists
-15. Title case in headings where sentence case is normal
-16. Emoji as section decorators
-17. Bullet point padding
-18. Artificially balanced paragraph lengths
-
-**Communication patterns:**
-19. Chatbot artifacts ("I hope this helps!", "Great question!")
-20. Sycophantic openers ("That's a fantastic point")
-21. Filler conclusions ("In conclusion, it is clear that...")
-22. Meta-commentary ("Let me break this down for you")
-23. Disclaimer hedging ("While I cannot provide medical advice...")
-24. Artificial enthusiasm markers (excessive exclamation marks)
-
-**Structure patterns:**
-25. Perfect three-point structure (everything in threes)
-26. Mirror structure (repeating the question back)
-27. Numbered list as default organization
-28. Topic sentence + 3 supporting points + conclusion in every paragraph
-29. Artificial balance (equal weight to all sides)
-
-RULES:
-- Keep the core message and facts intact
-- Match the voice/tone described below
-- Make it sound like a real person typed it quickly
-- Vary sentence length naturally
-- Use contractions where natural
-- Don't add new information
-- Don't make it longer than the original
-- No markdown formatting. No **bold**, no *italic*, no # headers. Plain text only.
-
-Return ONLY the rewritten text. No explanations, no meta-commentary.`;
+const AI_WORD_REPLACEMENTS: Array<[RegExp, string]> = [
+  [/\butilize\b/gi, 'use'],
+  [/\bleverage\b/gi, 'use'],
+  [/\bdelve\b/gi, 'look'],
+  [/\brobust\b/gi, 'solid'],
+  [/\bpivotal\b/gi, 'key'],
+  [/\blandscape\b/gi, 'space'],
+  [/\bnuanced\b/gi, 'subtle'],
+  [/\bcomprehensive\b/gi, 'full'],
+  [/\bholistic\b/gi, 'whole'],
+  [/\btransformative\b/gi, 'big'],
+  [/\binnovative\b/gi, 'new'],
+  [/\bit'?s worth noting that\b/gi, ''],
+  [/\bin today'?s world\b/gi, ''],
+  [/\bin conclusion\b/gi, ''],
+  [/\bat the end of the day\b/gi, ''],
+];
 
 /**
- * Humanize AI-generated content by removing telltale AI patterns.
- * Optionally matches the creator's voice profile.
+ * Zero-LLM pass: strip obvious AI vocabulary and em dashes before expensive rewrites.
+ */
+export function deterministicPreClean(text: string): string {
+  let out = text.replace(/—/g, ' - ').replace(/–/g, '-');
+  for (const [re, replacement] of AI_WORD_REPLACEMENTS) {
+    out = out.replace(re, replacement);
+  }
+  return out.replace(/\s{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+}
+
+function stripEmDashes(text: string): string {
+  return text.replace(/—/g, ' - ').replace(/–/g, '-');
+}
+
+function buildVoiceContextBlock(profile?: CreatorProfileForPrompt | null): string {
+  if (!profile) return '';
+  return `\n\nVOICE TO MATCH:\nName: ${profile.display_name}\n${profile.bio_facts ? `Background: ${profile.bio_facts}\n` : ''}${profile.voice_description ? `Voice: ${profile.voice_description}\n` : ''}${profile.voice_rules ? `Rules: ${profile.voice_rules}` : ''}`;
+}
+
+/**
+ * Pass 1: Remove AI patterns without applying creator voice.
+ */
+export async function humanizeClean(text: string): Promise<string> {
+  const result = await generateContent(
+    `Humanize this text (remove AI tells only):\n\n---\n${text}\n---`,
+    undefined,
+    HUMANIZE_CLEAN_PROMPT,
+  );
+  return stripEmDashes(result.trim());
+}
+
+/**
+ * Pass 2: Final audit — catch anything the first pass missed.
+ */
+export async function humanizeAudit(text: string): Promise<string> {
+  const result = await generateContent(
+    `Audit this draft:\n\n---\n${text}\n---`,
+    undefined,
+    HUMANIZE_AUDIT_PROMPT,
+  );
+  return stripEmDashes(result.trim());
+}
+
+/**
+ * Pass 3: Apply creator voice identity (run AFTER humanize passes).
+ */
+export async function applyCreatorVoice(
+  text: string,
+  profile: CreatorProfileForPrompt | null,
+  contextAdditions?: string,
+): Promise<string> {
+  if (!profile?.voice_description && !profile?.voice_rules) {
+    return text;
+  }
+
+  const voiceBlock = buildVoiceContextBlock(profile);
+  const contextBlock = contextAdditions?.trim()
+    ? `\n\nCREATOR CONTEXT:\n${contextAdditions.trim()}`
+    : '';
+
+  const result = await chatCompletion(
+    `${VOICE_APPLY_PROMPT}${voiceBlock}${contextBlock}`,
+    `Rewrite in this creator's voice:\n\n---\n${text}\n---`,
+    { temperature: 0.65 },
+  );
+  return stripEmDashes(result.trim());
+}
+
+export interface HumanizePipelineOptions {
+  profile?: CreatorProfileForPrompt | null;
+  contextAdditions?: string;
+  /** Skip voice pass (humanize only). */
+  skipVoice?: boolean;
+  /** Skip audit pass (faster, lower quality). */
+  skipAudit?: boolean;
+}
+
+/**
+ * Full 3-pass humanization for creator content: pre-clean → LLM clean → audit → voice.
+ * Separating voice from slop-removal prevents the model from averaging toward generic.
+ */
+export async function humanizePipeline(
+  text: string,
+  options: HumanizePipelineOptions = {},
+): Promise<HumanizePipelineResult> {
+  const passes: HumanizePass[] = [];
+  let scoreBefore: number | undefined;
+  let scoreAfter: number | undefined;
+
+  let working = deterministicPreClean(text);
+  passes.push('pre_clean');
+
+  try {
+    scoreBefore = (await aiScore(working)).score;
+  } catch {
+    // scoring optional
+  }
+
+  working = await humanizeClean(working);
+  passes.push('clean');
+
+  if (!options.skipAudit) {
+    working = await humanizeAudit(working);
+    passes.push('audit');
+  }
+
+  if (!options.skipVoice && options.profile) {
+    working = await applyCreatorVoice(working, options.profile, options.contextAdditions);
+    passes.push('voice');
+  }
+
+  try {
+    scoreAfter = (await aiScore(working)).score;
+  } catch {
+    // scoring optional
+  }
+
+  return { text: working, passes, aiScoreBefore: scoreBefore, aiScoreAfter: scoreAfter };
+}
+
+/**
+ * Single-pass humanize (legacy / manual Humanize button).
+ * Prefer humanizePipeline for generation.
  */
 export async function humanize(
   text: string,
-  profile?: CreatorProfileForPrompt | null
+  profile?: CreatorProfileForPrompt | null,
 ): Promise<string> {
-  const voiceContext = profile
-    ? `\n\nVOICE TO MATCH:\nName: ${profile.display_name}\n${profile.bio_facts ? `Background: ${profile.bio_facts}\n` : ''}${profile.voice_description ? `Voice: ${profile.voice_description}\n` : ''}${profile.voice_rules ? `Rules: ${profile.voice_rules}` : ''}`
-    : '';
-
+  const voiceContext = buildVoiceContextBlock(profile);
   const result = await generateContent(
     `Humanize this text:${voiceContext}\n\n---\n${text}\n---`,
     undefined,
     HUMANIZER_PROMPT,
   );
-
-  return result.trim();
+  return stripEmDashes(result.trim());
 }
 
-/**
- * Deterministic AI-writing patterns. Each match is a "tell" that the text reads
- * like generic LLM output. Used as a floor under the ML detector so the score
- * never collapses to a neutral 50 when the model is weak or unavailable.
- */
-const AI_SLOP_PATTERNS: RegExp[] = [
-  // Overused LLM vocabulary
-  /\b(delve|tapestry|leverage|foster|landscape|nuanced|multifaceted|comprehensive|robust|holistic|pivotal|crucial|paramount|innovative|transformative|utilize|realm|underscore|testament|seamless|elevate|empower|unlock|harness|navigate|cultivate|embark|profound)\b/gi,
-  // Throat-clearing openers / framing
-  /\bin today'?s (?:fast-paced |digital |modern |competitive )?world\b/gi,
-  /\bit'?s (?:worth|important) (?:noting|to note|mentioning)\b/gi,
-  /\b(?:in conclusion|to sum up|in summary|ultimately,|at the end of the day)\b/gi,
-  /\blet'?s (?:dive|unpack|explore|break (?:it|this) down)\b/gi,
-  // Symmetric / hedging constructions
-  /\bnot only\b[^.]*\bbut also\b/gi,
-  /\bwhether you'?re\b/gi,
-  // Hype + decorative em dashes
-  /\bgame[- ]chang(?:er|ing)\b/gi,
-  /—/g,
-];
-
-/**
- * Heuristic AI score (0-100). Counts AI "tells"; ~12 points per tell, capped.
- * Conservative but reliable for obvious slop; complements the ML detector.
- */
 function heuristicAiScore(text: string): number {
   let hits = 0;
   for (const re of AI_SLOP_PATTERNS) {
@@ -123,10 +200,6 @@ function heuristicAiScore(text: string): number {
   return Math.min(100, hits * 12);
 }
 
-/**
- * Splits text into <=480-char windows (roberta truncates ~512 tokens) so long
- * posts are scored end-to-end, not just their opening line.
- */
 function chunkForDetector(text: string, maxChunks = 3): string[] {
   const size = 480;
   const chunks: string[] = [];
@@ -137,13 +210,7 @@ function chunkForDetector(text: string, maxChunks = 3): string[] {
 }
 
 /**
- * Score how "AI-sounding" text is. Combines HuggingFace's chatgpt-detector-roberta
- * (scored across chunks, taking the max) with a deterministic heuristic floor, and
- * returns the higher of the two. Returns 0-100 (100 = obviously AI).
- *
- * WHY the floor: the ML model under-flags short marketing/LinkedIn copy and, on any
- * error or label-shape drift, previously returned a misleading neutral 50. The
- * heuristic guarantees obvious slop is caught even when the model is weak or down.
+ * Score how "AI-sounding" text is (0-100, higher = more AI).
  */
 export async function aiScore(text: string): Promise<{ score: number; flags: string[] }> {
   const heuristic = heuristicAiScore(text);
@@ -159,8 +226,6 @@ export async function aiScore(text: string): Promise<{ score: number; flags: str
     );
 
     const chunkScores = results.map((result) => {
-      // Robust label matching: prefer an explicit AI/ChatGPT label; else derive
-      // from the Human label; else fall back to roberta's LABEL_1 (= ChatGPT).
       const ai = result.find((r) => /chat\s?gpt|^ai$|fake|label_1/i.test(r.label));
       if (ai) return ai.score;
       const human = result.find((r) => /human|label_0/i.test(r.label));
@@ -171,11 +236,10 @@ export async function aiScore(text: string): Promise<{ score: number; flags: str
     const valid = chunkScores.filter((s): s is number => s !== null);
     if (valid.length > 0) modelScore = Math.round(Math.max(...valid) * 100);
   } catch {
-    modelScore = null; // fall through to heuristic-only
+    modelScore = null;
   }
 
   const score = modelScore === null ? heuristic : Math.max(modelScore, heuristic);
-
   const flags: string[] = [];
   if (modelScore === null) flags.push('model_unavailable');
   if (score > 70) flags.push('detected_as_ai');

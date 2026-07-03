@@ -1,26 +1,10 @@
-﻿import { buildSystemPrompt, type CreatorProfileForPrompt } from '@/lib/ai';
-import { chatCompletion } from '@/lib/llm';
-import { humanize } from '@/lib/humanizer';
-import { evaluateDraft, evaluationPasses, type VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
-import { buildVoiceComposeHints, type VoiceContentType } from '@/lib/voice-prompts';
-import { getBestHooksForContext } from '@/lib/hooks-intelligence';
-import { PILLAR_TO_VERTICAL, type HookVertical } from '@/lib/hooks-intelligence/types';
-import { profilePillarWeights } from '@/lib/pillars';
+﻿import type { createClient } from '@insforge/sdk';
+import { runContentPipeline, type ContentPipelineInput, type ContentPipelineResult } from '@/lib/content-pipeline';
+import type { VoiceContentType } from '@/lib/voice-prompts';
+import type { CreatorProfileForPrompt } from '@/lib/ai';
+import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 
-/**
- * Picks the hook-dataset vertical for the creator's highest-importance pillar so
- * retrieval is biased toward the topics they weight most. Returns undefined when
- * there is no profile or the top pillar has no vertical mapping (global ranking).
- */
-function topWeightedVertical(
-  profile: CreatorProfileForPrompt | null,
-): HookVertical | undefined {
-  const weights = profilePillarWeights(profile?.content_pillars);
-  const entries = Object.entries(weights);
-  if (entries.length === 0) return undefined;
-  entries.sort((a, b) => b[1] - a[1]);
-  return PILLAR_TO_VERTICAL[entries[0][0]];
-}
+type InsforgeClient = ReturnType<typeof createClient>;
 
 export interface VoicePipelineInput {
   userPrompt: string;
@@ -29,26 +13,13 @@ export interface VoicePipelineInput {
   systemOverride?: string;
   platform?: string;
   contentType?: VoiceContentType;
-  /** Skip critique/revise pass (faster, cheaper) */
   fast?: boolean;
-  /**
-   * When false, generate WITHOUT importing the creator's voice: the profile is
-   * ignored (no voice description/rules/pillars in the prompt) and the voice-QA
-   * critique loop is skipped. Lets users produce a clean, neutral draft when
-   * they don't want their personal voice applied. Defaults to true.
-   */
   useVoice?: boolean;
-  /**
-   * Deprecated. Provider is now chosen by env (LLM_BASE_URL/LLM_API_KEY/LLM_MODEL).
-   * Kept for backward compatibility with existing call sites; has no effect.
-   */
   preferOpenAi?: boolean;
-  /** Skip hook intelligence injection (faster outreach) */
   skipHooks?: boolean;
-  /** Always run humanizer after draft (Signals outreach) */
   humanizeAlways?: boolean;
-  /** Max draft→evaluate→revise loops (Imagine uses until all metrics pass) */
   maxIterations?: number;
+  hooksClient?: InsforgeClient;
 }
 
 export interface VoicePipelineResult {
@@ -59,139 +30,45 @@ export interface VoicePipelineResult {
   flags: string[];
   evaluation?: VoiceEvaluationMatrix;
   iterations: number;
-  /** IDs of hooks injected into the generation prompt, stored on the post for nightly RL scoring. */
   usedHookIds?: string[];
-}
-
-function stripEmDashes(text: string): string {
-  return text.replace(/—/g, ' - ').replace(/–/g, '-');
-}
-
-/**
- * Generates one draft via the configured LLM provider (env-driven, see lib/llm).
- * Em-dashes are stripped to enforce the plain-text house style.
- */
-async function generateDraftText(
-  systemPrompt: string,
-  userPrompt: string,
-): Promise<string> {
-  return stripEmDashes(await chatCompletion(systemPrompt, userPrompt));
+  stagesCompleted?: string[];
+  humanizePasses?: string[];
 }
 
 /**
- * End-to-end voice generation: draft → score → optional revise → humanize.
- * Mirrors multi-step agent graphs (Imagine/LangGraph) without hosted graph infra.
+ * End-to-end voice generation via the 4-stage content pipeline:
+ * base → hooks → humanize → voice → evaluate.
  */
 export async function generateWithVoicePipeline(
   input: VoicePipelineInput,
 ): Promise<VoicePipelineResult> {
-  const contentType = input.contentType ?? 'post';
-  const composeHints = buildVoiceComposeHints(input.platform, contentType);
+  const pipelineInput: ContentPipelineInput = {
+    userPrompt: input.userPrompt,
+    profile: input.profile,
+    contextAdditions: input.contextAdditions,
+    systemOverride: input.systemOverride,
+    platform: input.platform,
+    contentType: input.contentType,
+    fast: input.fast,
+    useVoice: input.useVoice,
+    skipHooks: input.skipHooks,
+    humanizeAlways: input.humanizeAlways,
+    maxIterations: input.maxIterations,
+    hooksClient: input.hooksClient,
+  };
 
-  // Voice opt-out: when disabled, drop the creator profile entirely so none of
-  // their voice, rules, or pillars leak into the prompt, and skip the voice-QA
-  // loop (persona fidelity is meaningless without a voice to match).
-  const useVoice = input.useVoice !== false;
-  const profile = useVoice ? input.profile : null;
-  const skipEval = input.fast || !useVoice;
-
-  // Usage is tracked at the API boundary (/api/generate) so it is counted once
-  // per request; the pipeline stays a pure content function.
-  const taskHint = input.platform
-    ? `Platform: ${input.platform}. Match native format and length.`
-    : undefined;
-
-  // === PHENOMENAL HOOK INTELLIGENCE INJECTION ===
-  // Bias retrieval toward the creator's highest-weighted pillar's vertical so the
-  // injected examples match the topic they care most about.
-  const topHooks = input.skipHooks
-    ? []
-    : getBestHooksForContext(topWeightedVertical(profile), 6);
-  const usedHookIds = topHooks.map((h) => h.id);
-  const hookExamples = topHooks.length > 0
-    ? `\n\nREAL HIGH-CONVERTING HOOK EXAMPLES (use these structures + adapt to voice):\n${topHooks.map((h, i) => `${i+1}. "${h.text}" (@${h.author})`).join('\n')}`
-    : '';
-
-  const mergedContext = [composeHints, taskHint, input.contextAdditions, hookExamples]
-    .filter(Boolean)
-    .join('\n\n');
-
-  const systemPrompt = input.systemOverride
-    ? `${input.systemOverride}\n\n${composeHints}`
-    : buildSystemPrompt(profile, mergedContext || undefined);
-
-  // Default 2 (was 3) to cut token burn ~33% on the revise loop. Callers that
-  // need exhaustive refinement (e.g. Imagine) can still pass a higher value.
-  const maxIterations = input.maxIterations ?? 2;
-  let text = '';
-  let revised = false;
-  let evaluation: VoiceEvaluationMatrix | undefined;
-  let iterations = 0;
-
-  for (let i = 0; i < maxIterations; i++) {
-    iterations = i + 1;
-    const draftPrompt =
-      i === 0
-        ? input.userPrompt
-        : `Rewrite from scratch. Previous draft failed voice QA.
-
-ORIGINAL REQUEST:
-${input.userPrompt}
-
-REVISION NOTES:
-${evaluation?.revision_notes ?? 'Sound more like the creator. Less generic.'}
-
-Return ONLY the new text.`;
-
-    text = await generateDraftText(systemPrompt, draftPrompt);
-
-    if (skipEval) break;
-
-    // The evaluator only scores prose content types; list/caption modes run in
-    // fast mode (break above) so this maps any other type to 'post' for safety.
-    const evalContentType =
-      contentType === 'reply' || contentType === 'comment' ? contentType : 'post';
-    evaluation = await evaluateDraft(
-      text,
-      profile,
-      mergedContext || undefined,
-      evalContentType,
-    );
-
-    if (evaluationPasses(evaluation)) break;
-    revised = i > 0;
-  }
-
-  if (!skipEval && evaluation && evaluation.ai_slop > 3) {
-    try {
-      text = stripEmDashes(await humanize(text, profile));
-    } catch {
-      // keep draft
-    }
-  } else if (input.humanizeAlways) {
-    try {
-      text = stripEmDashes(await humanize(text, profile));
-    } catch {
-      // keep draft
-    }
-  }
-
-  const voice_match_score = evaluation
-    ? Math.round((evaluation.persona_fidelity / 10) * 100)
-    : 0;
-  const ai_score = evaluation ? evaluation.ai_slop * 10 : 0;
-  const flags: string[] = evaluation && !evaluation.pass
-    ? ['below_voice_threshold']
-    : [];
+  const result: ContentPipelineResult = await runContentPipeline(pipelineInput);
 
   return {
-    text,
-    voice_match_score,
-    ai_score,
-    revised,
-    flags,
-    evaluation,
-    iterations,
-    usedHookIds: usedHookIds.length > 0 ? usedHookIds : undefined,
+    text: result.text,
+    voice_match_score: result.voice_match_score,
+    ai_score: result.ai_score,
+    revised: result.revised,
+    flags: result.flags,
+    evaluation: result.evaluation,
+    iterations: result.iterations,
+    usedHookIds: result.usedHookIds,
+    stagesCompleted: result.stagesCompleted,
+    humanizePasses: result.humanizePasses,
   };
 }

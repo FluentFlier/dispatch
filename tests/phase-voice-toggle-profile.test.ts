@@ -20,7 +20,14 @@ vi.mock('@/lib/voice-evaluator', () => ({
   }),
   evaluationPasses: vi.fn().mockReturnValue(true),
 }));
-vi.mock('@/lib/humanizer', () => ({ humanize: vi.fn().mockResolvedValue('humanized') }));
+vi.mock('@/lib/humanizer', () => ({
+  humanizePipeline: vi.fn().mockImplementation(async (text: string) => ({ text, passes: ['pre_clean', 'clean'] })),
+  aiScore: vi.fn().mockResolvedValue({ score: 20, flags: [] }),
+  humanize: vi.fn().mockResolvedValue('humanized'),
+}));
+vi.mock('@/lib/hooks-intelligence/resolve-hooks', () => ({
+  getBestHooksForGeneration: vi.fn().mockResolvedValue([]),
+}));
 vi.mock('@/lib/hooks-intelligence', () => ({ getBestHooksForContext: vi.fn().mockReturnValue([]) }));
 vi.mock('@/lib/voice-prompts', () => ({ buildVoiceComposeHints: vi.fn().mockReturnValue('') }));
 vi.mock('@/lib/pillars', () => ({ profilePillarWeights: vi.fn().mockReturnValue({}) }));
@@ -45,10 +52,10 @@ describe('Phase: Voice Toggle', () => {
       profile: PROFILE,
       useVoice: false,
     });
-    // Profile must not reach the system prompt.
-    expect(buildSystemPrompt).toHaveBeenCalledWith(null, undefined);
-    // Voice-QA critique loop is skipped.
+    // Base stage uses neutral strategist prompt — not buildSystemPrompt.
+    expect(buildSystemPrompt).not.toHaveBeenCalled();
     expect(evaluateDraft).not.toHaveBeenCalled();
+    expect(res.stagesCompleted).toEqual(['base']);
     expect(res.text).toBe('a generated draft');
     expect(res.voice_match_score).toBe(0);
   });
@@ -66,12 +73,13 @@ describe('Phase: Voice Toggle', () => {
   });
 
   it('still skips voice QA in fast mode even with voice on', async () => {
-    await generateWithVoicePipeline({
+    const res = await generateWithVoicePipeline({
       userPrompt: 'quick draft',
       profile: PROFILE,
       fast: true,
     });
     expect(evaluateDraft).not.toHaveBeenCalled();
-    expect(buildSystemPrompt).toHaveBeenCalledWith(PROFILE, undefined);
+    expect(buildSystemPrompt).not.toHaveBeenCalled();
+    expect(res.stagesCompleted).toEqual(['base']);
   });
 });

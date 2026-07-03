@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { humanize, aiScore } from '@/lib/humanizer';
+import { humanizePipeline, aiScore } from '@/lib/humanizer';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { getActiveWorkspaceId } from '@/lib/workspace';
 import { z } from 'zod';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { errorResponse } from '@/lib/api-errors';
@@ -35,11 +36,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
   const client = getServerClient();
-  const { profile } = await loadCreatorVoiceContext(client, user.id);
+  const workspaceId = await getActiveWorkspaceId(user.id);
+  const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {
+    workspaceId: workspaceId ?? undefined,
+  });
 
   try {
-    const humanized = await humanize(parsed.data.text, profile);
-    return NextResponse.json({ text: humanized });
+    const result = await humanizePipeline(parsed.data.text, {
+      profile,
+      contextAdditions: contextAdditions || undefined,
+    });
+    return NextResponse.json({
+      text: result.text,
+      passes: result.passes,
+      ai_score_before: result.aiScoreBefore,
+      ai_score_after: result.aiScoreAfter,
+    });
   } catch (err) {
     return errorResponse('Humanization failed.', 500, err);
   }
