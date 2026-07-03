@@ -226,6 +226,7 @@ export interface DirectorySettingsRow {
   digest_timezone: string | null;
   digest_channels: { today: boolean; slack: boolean; email: boolean };
   digest_top_n: number;
+  sender_identity: string | null;
   digest_delivered_at: string | null;
   created_at: string;
   updated_at: string;

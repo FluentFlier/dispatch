@@ -45,6 +45,7 @@ export default function LeadSettingsPage() {
           recency_window: settings.recency_window,
           digest_top_n: settings.digest_top_n,
           digest_channels: settings.digest_channels,
+          sender_identity: settings.sender_identity,
         }),
       });
       const data = await res.json();
@@ -121,6 +122,22 @@ export default function LeadSettingsPage() {
             {ch === 'today' ? 'Today tab (always on)' : `${ch} digest`}
           </label>
         ))}
+      </Card>
+
+      <Card className="p-5 space-y-3">
+        <h2 className="text-sm font-medium text-text-primary">Cold email footer</h2>
+        <label className="block text-sm text-text-secondary">
+          Sender identity (optional)
+          <input
+            value={settings.sender_identity ?? ''}
+            onChange={(e) => patch({ sender_identity: e.target.value })}
+            placeholder="Acme Inc, 1 Main St, San Francisco CA"
+            className="mt-1 block w-full max-w-md rounded-md border border-border bg-bg-primary px-3 py-2 text-sm"
+          />
+          <span className="text-xs text-text-tertiary">
+            Added to cold-email footers for CAN-SPAM/GDPR. Leave blank to send just the unsubscribe line.
+          </span>
+        </label>
       </Card>
 
       <div className="flex gap-2">

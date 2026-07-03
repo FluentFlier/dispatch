@@ -5,18 +5,32 @@ import { DEFAULT_SAFETY_SETTINGS, channelToLimitKey } from '@/lib/signals/safety
 
 describe('Phase 9: cold-email compliance + safety', () => {
   describe('withComplianceFooter', () => {
+    const prevEnv = process.env.OUTREACH_SENDER_IDENTITY;
+    afterEach(() => {
+      if (prevEnv === undefined) delete process.env.OUTREACH_SENDER_IDENTITY;
+      else process.env.OUTREACH_SENDER_IDENTITY = prevEnv;
+    });
+
     it('always appends an unsubscribe line', () => {
+      delete process.env.OUTREACH_SENDER_IDENTITY;
       const out = withComplianceFooter('Hi there, quick question.');
       expect(out).toContain('Hi there, quick question.');
       expect(out.toLowerCase()).toContain('unsubscribe');
     });
 
-    it('includes sender identity when configured', () => {
-      const prev = process.env.OUTREACH_SENDER_IDENTITY;
-      process.env.OUTREACH_SENDER_IDENTITY = 'Acme GTM, 1 Main St';
-      expect(withComplianceFooter('Hey')).toContain('Acme GTM, 1 Main St');
-      if (prev === undefined) delete process.env.OUTREACH_SENDER_IDENTITY;
-      else process.env.OUTREACH_SENDER_IDENTITY = prev;
+    it('uses the per-workspace sender identity when provided', () => {
+      delete process.env.OUTREACH_SENDER_IDENTITY;
+      expect(withComplianceFooter('Hey', 'Acme GTM, 1 Main St')).toContain('Acme GTM, 1 Main St');
+    });
+
+    it('omits the identity line when blank and no env default', () => {
+      delete process.env.OUTREACH_SENDER_IDENTITY;
+      expect(withComplianceFooter('Hey', '')).not.toContain('Sent by');
+    });
+
+    it('falls back to the env default when the workspace value is blank', () => {
+      process.env.OUTREACH_SENDER_IDENTITY = 'Env Default LLC';
+      expect(withComplianceFooter('Hey', null)).toContain('Env Default LLC');
     });
   });
 
