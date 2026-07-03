@@ -1,8 +1,16 @@
 'use client';
 
-import { useState } from 'react';
-import { Sparkles } from 'lucide-react';
-import { useCaptureDetail, submitAnswers } from './useEventCapture';
+import { useEffect, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Sparkles, PenLine, RefreshCw } from 'lucide-react';
+import {
+  useCaptureDetail,
+  submitAnswers,
+  regenerateQuestions,
+  regenerateDraft,
+  type CapturePost,
+} from './useEventCapture';
+import { buildWriteUrl } from '@/lib/event-capture/draft-context';
 
 interface EventDetailPanelProps {
   id: string;
@@ -10,54 +18,137 @@ interface EventDetailPanelProps {
   onSubmitted?: () => void;
 }
 
+/** Opens the Write (/generate) editor prefilled with a generated draft. */
+function writeUrl(post: CapturePost, title: string): string {
+  return buildWriteUrl(post.script ?? post.caption ?? '', title);
+}
+
 /**
- * Detail panel for a single capture. Shows the research summary, then a Q&A form
- * (at least one answer required to submit). Once submitted the capture flips to
- * 'drafting' and the polling hook swaps this over to a generating state, then to
- * the generated draft(s) when status becomes 'drafted'. Voice score is not shown
- * because the posts API does not return one.
+ * Detail panel for a single capture. Q&A form (with a reload-questions option),
+ * a generating state, and the drafted state which auto-opens the draft in the
+ * Write editor. A failed/empty draft offers a one-click regenerate.
  */
 export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
-  const detail = useCaptureDetail(id);
+  const router = useRouter();
+  const [refreshKey, setRefreshKey] = useState(0);
+  const detail = useCaptureDetail(id, refreshKey);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
+  const [busy, setBusy] = useState<null | 'reload' | 'regen'>(null);
   const [error, setError] = useState<string | null>(null);
+  const openedRef = useRef<string | null>(null);
 
-  if (!detail) {
+  const capture = detail?.capture;
+  const posts = detail?.posts ?? [];
+
+  // Auto-open the draft in Write once it is ready (per product decision).
+  // Depend on the stable `detail` object (new ref only on refetch) so the effect
+  // does not re-fire every render on a fresh `posts` array literal.
+  useEffect(() => {
+    const cap = detail?.capture;
+    const ps = detail?.posts ?? [];
+    if (cap?.status === 'drafted' && ps.length > 0 && openedRef.current !== cap.id) {
+      openedRef.current = cap.id;
+      router.push(writeUrl(ps[0], cap.title));
+    }
+  }, [detail, router]);
+
+  if (!detail || !capture) {
     return <p className="text-sm text-text-tertiary">Loading…</p>;
   }
 
-  const { capture, research, posts } = detail;
+  const { research } = detail;
 
-  // --- Drafted: show the generated post(s) ---
+  const handleReload = async (): Promise<void> => {
+    if (!window.confirm('Reload questions? This replaces the current questions and clears your saved answers.')) return;
+    setBusy('reload');
+    setError(null);
+    try {
+      const res = await regenerateQuestions(id);
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? 'Could not reload questions');
+      }
+      setAnswers({});
+      setRefreshKey((k) => k + 1);
+      onSubmitted?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not reload questions');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleRegenerate = async (): Promise<void> => {
+    setBusy('regen');
+    setError(null);
+    try {
+      const res = await regenerateDraft(id);
+      if (!res.ok && res.status !== 202) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? 'Could not regenerate draft');
+      }
+      openedRef.current = null; // allow auto-open when the new draft lands
+      setRefreshKey((k) => k + 1);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not regenerate draft');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // --- Drafted ---
   if (capture.status === 'drafted') {
     return (
       <div className="space-y-4">
         <h2 className="text-xl font-display text-text-primary">{capture.title}</h2>
         {posts.length === 0 ? (
-          <p className="text-sm text-text-tertiary">
-            No draft was generated. Try dismissing and re-capturing this event.
-          </p>
+          <div className="space-y-3">
+            <p className="text-sm text-text-tertiary">
+              Draft generation didn&apos;t save a post. Regenerate it, or reload the questions to answer again.
+            </p>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <div className="flex gap-2">
+              <button
+                onClick={handleRegenerate}
+                disabled={busy !== null}
+                className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-md bg-accent-primary text-white disabled:opacity-50"
+              >
+                <RefreshCw className={`h-4 w-4 ${busy === 'regen' ? 'animate-spin' : ''}`} /> Regenerate draft
+              </button>
+              <button
+                onClick={handleReload}
+                disabled={busy !== null}
+                className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-md border border-border text-text-secondary hover:bg-bg-tertiary disabled:opacity-50"
+              >
+                Reload questions
+              </button>
+            </div>
+          </div>
         ) : (
-          posts.map((p) => (
-            <article
-              key={p.id}
-              className="rounded-lg border border-border bg-bg-primary p-4 space-y-2"
-            >
-              <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">
-                {p.platform}
-              </p>
-              <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
-                {p.script ?? p.caption ?? ''}
-              </p>
-            </article>
-          ))
+          <>
+            <p className="text-sm text-text-secondary">Opening in Write… you can edit and humanize it there.</p>
+            {posts.map((p) => (
+              <article key={p.id} className="rounded-lg border border-border bg-bg-primary p-4 space-y-2">
+                <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">{p.platform}</p>
+                <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
+                  {p.script ?? p.caption ?? ''}
+                </p>
+                <button
+                  onClick={() => router.push(writeUrl(p, capture.title))}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-accent-primary text-white hover:bg-accent-dark"
+                >
+                  <PenLine className="h-3.5 w-3.5" /> Edit in Write
+                </button>
+              </article>
+            ))}
+          </>
         )}
       </div>
     );
   }
 
-  // --- Drafting: generation in progress (poll will flip us to drafted) ---
+  // --- Drafting ---
   if (capture.status === 'drafting') {
     return (
       <div className="space-y-3">
@@ -70,7 +161,7 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
     );
   }
 
-  // --- Questions ready: answer the generated questions (at least one required) ---
+  // --- Questions ready ---
   const questions = capture.questions ?? [];
   const answeredCount = Object.values(answers).filter((v) => v.trim().length > 0).length;
 
@@ -85,6 +176,7 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? 'Could not submit answers');
       }
+      setRefreshKey((k) => k + 1); // pick up the 'drafting' status + resume poll
       onSubmitted?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not submit answers');
@@ -95,18 +187,25 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
-      <h2 className="text-xl font-display text-text-primary">{capture.title}</h2>
+      <div className="flex items-start justify-between gap-3">
+        <h2 className="text-xl font-display text-text-primary">{capture.title}</h2>
+        <button
+          type="button"
+          onClick={handleReload}
+          disabled={busy !== null}
+          title="Generate a fresh set of questions for this event (clears current answers)"
+          className="inline-flex items-center gap-1.5 shrink-0 text-xs font-medium px-3 py-1.5 rounded-md border border-border text-text-secondary hover:bg-bg-tertiary disabled:opacity-50"
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${busy === 'reload' ? 'animate-spin' : ''}`} /> Reload questions
+        </button>
+      </div>
 
       {research?.summary && (
-        <p className="text-sm text-text-secondary border-l-2 border-border pl-3 py-1">
-          {research.summary}
-        </p>
+        <p className="text-sm text-text-secondary border-l-2 border-border pl-3 py-1">{research.summary}</p>
       )}
 
       {error && (
-        <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">
-          {error}
-        </p>
+        <p className="text-sm text-red-600 bg-red-50 border border-red-100 rounded-md px-3 py-2">{error}</p>
       )}
 
       {questions.map((q, i) => (
@@ -117,9 +216,7 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
             rows={2}
             maxLength={500}
             value={answers[String(i)] ?? ''}
-            onChange={(e) =>
-              setAnswers((a) => ({ ...a, [String(i)]: e.target.value }))
-            }
+            onChange={(e) => setAnswers((a) => ({ ...a, [String(i)]: e.target.value }))}
           />
         </label>
       ))}
@@ -130,9 +227,7 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
         className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2.5 rounded-md bg-accent-primary text-white disabled:opacity-50 min-h-[44px]"
       >
         <Sparkles className="h-4 w-4" />
-        {submitting
-          ? 'Submitting…'
-          : `Generate draft (${answeredCount}/${questions.length} answered)`}
+        {submitting ? 'Submitting…' : `Generate draft (${answeredCount}/${questions.length} answered)`}
       </button>
     </form>
   );

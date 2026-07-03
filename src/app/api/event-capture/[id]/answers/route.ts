@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
+import { sanitizeAnswer } from '@/lib/event-capture/draft-context';
 
 interface RouteParams {
   params: { id: string };
@@ -11,19 +12,6 @@ interface RouteParams {
 const AnswersSchema = z.object({
   answers: z.record(z.string(), z.string()),
 });
-
-/**
- * Sanitizes a single answer string per spec requirements:
- * - trim() leading/trailing whitespace
- * - strip control characters (\x00-\x1F except \t and \n which are readable)
- * - enforce max 500 character limit
- */
-function sanitizeAnswer(raw: string): string {
-  return raw
-    .trim()
-    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '') // strip control chars except \t(\x09) and \n(\x0A)
-    .slice(0, 500);
-}
 
 /**
  * POST /api/event-capture/[id]/answers

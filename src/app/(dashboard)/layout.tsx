@@ -6,6 +6,7 @@ import { ToastProvider } from '@/components/ui/Toast';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import TokenRefreshGate from '@/components/auth/TokenRefreshGate';
+import SessionKeepAlive from '@/components/auth/SessionKeepAlive';
 import { getOrCreateSubscription } from '@/lib/entitlements';
 import { getPostAuthPath } from '@/lib/auth-routing';
 import { mustSubscribe } from '@/lib/trial';
@@ -77,6 +78,7 @@ export default async function DashboardLayout({
 
   return (
     <ToastProvider>
+      <SessionKeepAlive />
       <div className="flex h-screen min-h-screen bg-bg-primary text-text-primary">
         <Sidebar />
         <main className="flex-1 md:ml-[264px] overflow-y-auto overflow-x-hidden px-4 md:px-8 py-6 pb-24 md:pb-8 min-w-0 w-full">
