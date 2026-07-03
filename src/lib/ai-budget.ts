@@ -16,16 +16,46 @@ export type BudgetStatus = 'ok' | 'warn' | 'blocked';
  * Returns 'blocked' when the hard cap is hit — skip the AI call for that workspace today.
  * Returns 'warn' at 80% — log it and continue.
  * Returns 'ok' below warn threshold.
+ *
+ * Uses the `check_and_increment_ai_usage` Postgres RPC (see db/schema.sql) which
+ * does the read-check-write as a single atomic UPDATE ... WHERE count < hard_cap
+ * RETURNING, so concurrent callers for the same workspace (e.g. a manual reload's
+ * parallel enrichCapture fan-out) serialize on the row instead of all reading the
+ * same pre-increment count and all passing the cap. Falls back to the old
+ * SELECT-then-UPDATE path (racy, but bounded) if the RPC is unavailable.
  */
 export async function checkAndIncrementUsage(
   client: InsforgeClient,
   workspaceId: string,
   model: 'haiku' | 'sonnet',
 ): Promise<BudgetStatus> {
+  const { warn, hard } = DAILY_LIMITS[model];
+
+  try {
+    const { data, error } = await (client.database as unknown as {
+      rpc: (fn: string, params: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;
+    }).rpc('check_and_increment_ai_usage', {
+      p_workspace_id: workspaceId,
+      p_model: model,
+      p_hard_cap: hard,
+      p_warn_cap: warn,
+    });
+
+    if (!error && data) {
+      const row = (Array.isArray(data) ? data[0] : data) as { status: BudgetStatus; call_count: number } | undefined;
+      if (row?.status) {
+        if (row.status === 'blocked') console.warn('[ai-budget] hard cap hit', { workspaceId, model, count: row.call_count });
+        if (row.status === 'warn') console.warn('[ai-budget] warn threshold reached', { workspaceId, model, count: row.call_count });
+        return row.status;
+      }
+    }
+    console.warn('[ai-budget] RPC returned no row, falling back to racy path', { workspaceId, model, error });
+  } catch {
+    // RPC not available yet (pre-migration) — fall through to the racy fallback.
+  }
+
   const today = new Date().toISOString().split('T')[0];
 
-  // Insert the row only if it doesn't exist — ignoreDuplicates prevents resetting
-  // an existing call_count to 0 on conflict (a silent counter-reset bug).
   await client.database
     .from('daily_ai_usage')
     .upsert(
@@ -42,7 +72,6 @@ export async function checkAndIncrementUsage(
     .single();
 
   const count = data?.call_count ?? 0;
-  const { warn, hard } = DAILY_LIMITS[model];
 
   if (count >= hard) {
     console.warn('[ai-budget] hard cap hit', { workspaceId, model, count });

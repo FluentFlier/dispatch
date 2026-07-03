@@ -22,6 +22,29 @@ interface PendingJobRow {
 }
 
 /**
+ * Cap on concurrent enrichCapture calls during an inline reload enrich pass.
+ * A large manual reload window (capture-all filter, up to a 2-year span) can
+ * ingest dozens of events in one request; running enrichCapture for all of them
+ * unbounded-concurrently would fire that many simultaneous Haiku/Serper/Jina
+ * calls per workspace. Bounded batching keeps latency/cost predictable per reload.
+ */
+const ENRICH_CONCURRENCY = 4;
+
+/** Runs `fn` over `items` with at most `limit` in flight at once, preserving Promise.allSettled semantics. */
+async function runBatched<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  const results: PromiseSettledResult<R>[] = [];
+  for (let i = 0; i < items.length; i += limit) {
+    const batch = items.slice(i, i + limit);
+    results.push(...(await Promise.allSettled(batch.map(fn))));
+  }
+  return results;
+}
+
+/**
  * Runs a full manual reload for one workspace's Google Calendar integration over
  * an explicit window: pulls events, ingests them in 'replace' mode (fresh-start
  * overwrite, id-stable), soft-cancels window events deleted in Google, then runs
@@ -96,7 +119,7 @@ async function enrichNow(
 ): Promise<number> {
   if (captureIds.length === 0) return 0;
 
-  const outcomes = await Promise.allSettled(captureIds.map((id) => enrichCapture(client, id, now)));
+  const outcomes = await runBatched(captureIds, ENRICH_CONCURRENCY, (id) => enrichCapture(client, id, now));
   const succeeded = outcomes.filter((o) => o.status === 'fulfilled' && o.value === 'questions_ready').length;
 
   const { data: pendingJobs } = await client.database
