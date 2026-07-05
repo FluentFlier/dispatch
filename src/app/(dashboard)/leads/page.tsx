@@ -7,6 +7,7 @@ import { FeedFilters, type FeedFilterState } from '@/components/leads/FeedFilter
 import { UnifiedFeed } from '@/components/leads/UnifiedFeed';
 import { LeadDetail } from '@/components/leads/LeadDetail';
 import { SignalDetail } from '@/components/leads/SignalDetail';
+import { resolveSignalOutreach } from '@/components/leads/signal-outreach';
 import { AdvancedDrawer } from '@/components/leads/AdvancedDrawer';
 import { SignalsSetup } from '@/components/leads/SignalsSetup';
 import { LeadsHeaderActions, LeadsEmptyState } from '@/components/leads/LeadsFeedChrome';
@@ -50,6 +51,8 @@ export default function LeadsPage() {
   const [filters, setFilters] = useState<FeedFilterState>(INITIAL_FILTERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // Inline safety-guard notice per signal (expected 422 block: dry-run/cap/hours).
+  const [signalNotices, setSignalNotices] = useState<Record<string, string>>({});
 
   const [loading, setLoading] = useState(true);
   const [listLoading, setListLoading] = useState(false);
@@ -145,6 +148,13 @@ export default function LeadsPage() {
         c.id === updated.id ? { ...c, status: updated.lead_status, contactStatus: updated.contact_status, score: updated.rank_score ?? c.score } : c,
       ),
     );
+  }, []);
+
+  // Reflect a signal event's new status on its feed card so a sent signal
+  // leaves the "New" filter, mirroring how mergeLead reflects directory-lead
+  // status changes back to the list.
+  const mergeSignalStatus = useCallback((id: string, status: string) => {
+    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
   }, []);
 
   // Fetch rich company info the first time a directory lead is opened.
@@ -378,6 +388,80 @@ export default function LeadsPage() {
     }
   };
 
+  // --- Actions (signal cards) ---
+  // Generate (or regenerate) an AI outreach draft for a signal event. The
+  // channel is chosen from the card's reachable contact so the draft is tuned
+  // for the surface it will actually be sent on.
+  const handleSignalDraft = async (card: UnifiedLeadCard) => {
+    const id = card.id;
+    setBusyId(id);
+    setSignalNotices((n) => {
+      const next = { ...n };
+      delete next[id];
+      return next;
+    });
+    try {
+      const plan = resolveSignalOutreach(card);
+      const res = await fetch(`/api/signals/${id}/draft`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ channel: plan.channel }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'draft failed');
+      setDrafts((d) => ({ ...d, [id]: data.draft?.draftText ?? '' }));
+      mergeSignalStatus(id, 'drafted');
+      toast('Draft ready.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not draft.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // Approve + send a signal draft. An HTTP 422 is the safety guard blocking the
+  // send (dry-run / cap / working hours) — expected, not a crash — so its reason
+  // is surfaced as an inline notice rather than an error toast.
+  const handleSignalSend = async (card: UnifiedLeadCard) => {
+    const id = card.id;
+    const plan = resolveSignalOutreach(card);
+    if (!plan.sendable) {
+      toast('No messaging channel on this signal. Copy the draft to send by hand.', 'error');
+      return;
+    }
+    setBusyId(id);
+    setSignalNotices((n) => {
+      const next = { ...n };
+      delete next[id];
+      return next;
+    });
+    try {
+      const res = await fetch(`/api/signals/${id}/send`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          channel: plan.channel,
+          linkedin_identifier: plan.linkedinIdentifier,
+          recipient_email: plan.recipientEmail,
+          message_text: drafts[id] ?? '',
+        }),
+      });
+      const data = await res.json();
+      if (res.status === 422) {
+        // Safety guard blocked the send: show the reason inline, leave the draft.
+        setSignalNotices((n) => ({ ...n, [id]: data.error || 'Sending is blocked by your safety settings right now.' }));
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || 'send failed');
+      mergeSignalStatus(id, 'sent');
+      toast('Sent.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not send.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   // --- Selection resolution ---
   const selectedCard = cards.find((c) => c.id === selectedId) ?? null;
   const selectedLead = selectedId ? leadsById[selectedId] ?? null : null;
@@ -477,7 +561,15 @@ export default function LeadsPage() {
                 onFollow={() => handleFollowLead(selectedLead)}
               />
             ) : (
-              <SignalDetail card={selectedCard} />
+              <SignalDetail
+                card={selectedCard}
+                draft={drafts[selectedCard.id] ?? ''}
+                onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedCard.id]: v }))}
+                busy={busyId === selectedCard.id}
+                notice={signalNotices[selectedCard.id] ?? null}
+                onDraft={() => handleSignalDraft(selectedCard)}
+                onSend={() => handleSignalSend(selectedCard)}
+              />
             )}
           </div>
         </div>

@@ -12,6 +12,7 @@ import { normalizeEvent, normalizeLead } from '@/lib/signals/feed/normalize';
 import { mergeFeed, buildUnifiedFeed } from '@/lib/signals/feed/store';
 import { listEventsWithPosts } from '@/lib/signals/store';
 import { isReachable, contactPillLabel } from '@/components/leads/feed-format';
+import { resolveSignalOutreach, isGuardBlock, SIGNAL_CONNECT_LIMIT } from '@/components/leads/signal-outreach';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import type { IngestedPost, SignalEventRow, SignalLeadRow } from '@/lib/signals/types';
 
@@ -388,6 +389,81 @@ describe('Phase: Unified Leads', () => {
         contact: { name: 'Jane Doe', email: 'jane@acme.com' },
       };
       expect(isReachable(card)).toBe(false);
+    });
+  });
+
+  describe('Task 10: Signal-card outreach channel selection + guard block', () => {
+    const signalCard = (over: Partial<UnifiedLeadCard> = {}): UnifiedLeadCard => ({
+      id: 's1', kind: 'signal', source: 'x', companyName: 'Acme', tagline: null,
+      signalType: 'funding_round', signalSummary: 'raised', sourceUrl: null, batch: null,
+      accelerator: null, contact: null, contactStatus: null, score: 0.8, status: 'new',
+      detectedAt: '2026-07-05T00:00:00Z', ...over,
+    });
+
+    it('prefers a LinkedIn connect when the contact has a linkedin_url', () => {
+      const plan = resolveSignalOutreach(signalCard({
+        source: 'linkedin',
+        contact: { name: 'Jane', linkedin_url: 'https://linkedin.com/in/jane' },
+      }));
+      expect(plan.channel).toBe('linkedin_connect');
+      expect(plan.linkedinIdentifier).toBe('https://linkedin.com/in/jane');
+      expect(plan.sendable).toBe(true);
+    });
+
+    it('derives a LinkedIn identifier from a LinkedIn author URL when no explicit contact url', () => {
+      const plan = resolveSignalOutreach(signalCard({
+        source: 'linkedin',
+        sourceUrl: 'https://www.linkedin.com/in/samfounder/recent-activity',
+        contact: { name: 'Sam Founder' },
+      }));
+      expect(plan.channel).toBe('linkedin_connect');
+      expect(plan.linkedinIdentifier).toContain('linkedin.com/in/samfounder');
+      expect(plan.sendable).toBe(true);
+    });
+
+    it('falls back to x_dm when only an x_handle is present (X signal, no LinkedIn)', () => {
+      const plan = resolveSignalOutreach(signalCard({
+        source: 'x',
+        contact: { name: 'Jane', x_handle: '@jane' },
+      }));
+      expect(plan.channel).toBe('x_dm');
+      expect(plan.linkedinIdentifier).toBe('@jane');
+      expect(plan.sendable).toBe(true);
+    });
+
+    it('falls back to gmail when only an email is present', () => {
+      const plan = resolveSignalOutreach(signalCard({
+        source: 'x',
+        contact: { name: 'Jane', email: 'jane@acme.com' },
+      }));
+      expect(plan.channel).toBe('gmail');
+      expect(plan.recipientEmail).toBe('jane@acme.com');
+      expect(plan.sendable).toBe(true);
+    });
+
+    it('resolves to copy (not sendable) for an X signal with a name-only contact', () => {
+      const plan = resolveSignalOutreach(signalCard({ source: 'x', contact: { name: 'Jane' } }));
+      expect(plan.channel).toBe('copy');
+      expect(plan.sendable).toBe(false);
+      expect(plan.linkedinIdentifier).toBeUndefined();
+      expect(plan.recipientEmail).toBeUndefined();
+    });
+
+    it('resolves to copy (not sendable) when there is no contact at all', () => {
+      const plan = resolveSignalOutreach(signalCard({ source: 'x', contact: null }));
+      expect(plan.channel).toBe('copy');
+      expect(plan.sendable).toBe(false);
+    });
+
+    it('treats HTTP 422 as an expected safety-guard block, other statuses as real errors', () => {
+      expect(isGuardBlock(422)).toBe(true);
+      expect(isGuardBlock(200)).toBe(false);
+      expect(isGuardBlock(500)).toBe(false);
+      expect(isGuardBlock(401)).toBe(false);
+    });
+
+    it('exposes the LinkedIn connect char ceiling for the draft counter', () => {
+      expect(SIGNAL_CONNECT_LIMIT).toBe(300);
     });
   });
 

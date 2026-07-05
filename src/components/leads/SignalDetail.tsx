@@ -1,27 +1,87 @@
 'use client';
 
-import { Radio, ExternalLink, Linkedin, Twitter, Building2 } from 'lucide-react';
+import {
+  Radio,
+  ExternalLink,
+  Linkedin,
+  Twitter,
+  Building2,
+  Sparkles,
+  Send,
+  RefreshCw,
+  Mail,
+  Info,
+} from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import { sourceBadge, signalTypeLabel, isReachable } from './feed-format';
+import {
+  resolveSignalOutreach,
+  SIGNAL_CONNECT_LIMIT,
+  type SignalSendChannel,
+} from './signal-outreach';
+
+/** Short human label for the chosen send channel, shown on the Approve button. */
+function channelActionLabel(channel: SignalSendChannel): string {
+  switch (channel) {
+    case 'linkedin_connect':
+      return 'Approve · LinkedIn';
+    case 'x_dm':
+      return 'Approve · X DM';
+    case 'gmail':
+      return 'Approve · Email';
+    case 'copy':
+      return 'Approve';
+    default: {
+      const _exhaustive: never = channel;
+      return _exhaustive;
+    }
+  }
+}
 
 interface SignalDetailProps {
   card: UnifiedLeadCard;
+  /** Current draft text for this signal (edited in place); empty means "not drafted yet". */
+  draft: string;
+  onDraftChange: (v: string) => void;
+  /** True while a draft/send request for this signal is in flight. */
+  busy: boolean;
+  /** Inline guard notice (from an expected 422 block) to render, or null. */
+  notice: string | null;
+  onDraft: () => void;
+  onSend: () => void;
 }
 
 /**
- * Detail panel for a live signal-event card. Directory leads have a rich,
- * actionable panel (`LeadDetail`); a signal event is a lighter, read-only
- * record: the company, the detected signal, its summary/source fact, a link to
- * the originating post, and either the surfaced contact or a clear "no reachable
- * contact" callout. Signal-outreach actions are not wired into this screen, so
- * this panel deliberately exposes no send controls rather than showing dead
- * buttons.
+ * Detail panel for a live signal-event card, now with the same draft +
+ * approve/send flow directory leads have (`LeadDetail`). It renders the
+ * best-effort context (company, detected signal, summary, source link, and a
+ * reachable contact or a clear "no reachable contact" callout), then an
+ * editable AI draft with a char count and Regenerate, and an Approve action
+ * that sends via the channel resolved from the contact (LinkedIn connect > X DM
+ * > email). When the safety guard blocks a send (dry-run / cap / working-hours)
+ * the endpoint returns 422; that reason is surfaced here as a neutral inline
+ * notice rather than an error, keeping the human-approval model consistent with
+ * directory leads. When no messaging channel exists the draft can still be
+ * generated and copied, but Send is disabled instead of shown as a dead button.
  */
-export function SignalDetail({ card }: SignalDetailProps) {
+export function SignalDetail({
+  card,
+  draft,
+  onDraftChange,
+  busy,
+  notice,
+  onDraft,
+  onSend,
+}: SignalDetailProps) {
   const badge = sourceBadge(card);
   const reachable = isReachable(card);
   const contact = card.contact;
   const signal = card.signalType ? signalTypeLabel(card.signalType) : 'Signal';
+  const plan = resolveSignalOutreach(card);
+  const isConnect = plan.channel === 'linkedin_connect';
+  const overLimit = isConnect && draft.length > SIGNAL_CONNECT_LIMIT;
+  const alreadySent = card.status === 'sent';
 
   return (
     <div className="space-y-4 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
@@ -82,7 +142,10 @@ export function SignalDetail({ card }: SignalDetailProps) {
         </div>
       ) : (
         <div className="bg-bg-tertiary rounded-md p-3 text-sm text-text-secondary">
-          No reachable contact on this signal yet. It can&apos;t be messaged directly.
+          No reachable contact on this signal yet.{' '}
+          {plan.sendable
+            ? 'We can still reach the author via the post channel below.'
+            : "It can't be messaged directly, but you can draft a message to copy."}
         </div>
       )}
 
@@ -98,6 +161,66 @@ export function SignalDetail({ card }: SignalDetailProps) {
           </>
         )}
       </blockquote>
+
+      {/* Inline guard notice (expected 422 block: dry-run / cap / working hours) */}
+      {notice && (
+        <div className="flex items-start gap-2 rounded-md border border-border bg-sage-light/60 p-3 text-sm text-text-secondary">
+          <Info className="h-4 w-4 mt-0.5 shrink-0 text-accent-secondary" aria-hidden="true" />
+          <span>{notice}</span>
+        </div>
+      )}
+
+      {/* Sent confirmation */}
+      {alreadySent && (
+        <div className="rounded-md border border-border bg-sage-light/60 p-3 text-sm text-accent-secondary">
+          This signal has been sent.
+        </div>
+      )}
+
+      {/* Draft */}
+      {draft ? (
+        <div className="space-y-1">
+          <label className="sr-only" htmlFor="signal-draft">Outreach draft</label>
+          <textarea
+            id="signal-draft"
+            value={draft}
+            onChange={(e) => onDraftChange(e.target.value)}
+            rows={5}
+            disabled={alreadySent}
+            className="w-full rounded-md border border-border bg-bg-primary p-3 text-sm text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary disabled:opacity-60"
+          />
+          {isConnect && (
+            <div className={`text-xs text-right ${overLimit ? 'text-red-600' : 'text-text-tertiary'}`}>
+              {draft.length}/{SIGNAL_CONNECT_LIMIT}
+            </div>
+          )}
+        </div>
+      ) : (
+        !alreadySent && (
+          <Button variant="primary" size="sm" onClick={onDraft} loading={busy}>
+            <Sparkles className="h-4 w-4" /> Draft message
+          </Button>
+        )
+      )}
+
+      {/* Actions */}
+      {draft && !alreadySent && (
+        <div className="flex items-center gap-2 pt-1">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={onSend}
+            disabled={!plan.sendable || overLimit || busy}
+            title={plan.sendable ? undefined : 'No messaging channel on this signal — copy the draft to send by hand.'}
+          >
+            {plan.channel === 'gmail' ? <Mail className="h-4 w-4" /> : <Send className="h-4 w-4" />}{' '}
+            {channelActionLabel(plan.channel)}
+          </Button>
+          <Button variant="ghost" size="sm" onClick={onDraft} loading={busy}>
+            <RefreshCw className="h-4 w-4" /> Regenerate
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
