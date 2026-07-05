@@ -1,5 +1,5 @@
 import type { createClient } from '@insforge/sdk';
-import { classifyPost } from '@/lib/signals/classifier';
+import { classifyPostHybrid } from '@/lib/signals/detect/hybrid';
 import {
   filterPostsSinceCursor,
   newestPostId,
@@ -36,7 +36,7 @@ export async function processIngestedPosts(
   const fresh = filterPostsSinceCursor(posts, cursor.last_seen_post_id, maxItems);
 
   for (const post of fresh) {
-    const classified = classifyPost(post);
+    const classified = await classifyPostHybrid(post);
     if (!classified) continue;
 
     if (opts.dryRun) {
@@ -95,7 +95,7 @@ export async function ingestSinglePost(
   post: IngestedPost,
   sourceId: string | null = null,
 ): Promise<{ created: boolean; eventId?: string }> {
-  const classified = classifyPost(post);
+  const classified = await classifyPostHybrid(post);
   if (!classified) return { created: false };
 
   const rawPostId = await upsertRawPost(client, workspaceId, sourceId, post);

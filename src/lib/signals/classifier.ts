@@ -90,31 +90,46 @@ function buildSummary(
   return `${signalType.replace(/_/g, ' ')}: ${snippet}`;
 }
 
+export interface PostScore {
+  bestType: SignalType;
+  bestScore: number;
+  matched: string[];
+  normalizedText: string;
+}
+
+/**
+ * Runs the keyword packs and returns the raw best score WITHOUT applying the
+ * accept threshold. The hybrid orchestrator uses the raw score to decide whether
+ * a post is an obvious hit, obvious junk, or a borderline case needing the LLM.
+ */
+export function scorePost(post: IngestedPost): PostScore {
+  const text = normalizeText(post.content);
+  let bestType: SignalType = 'other';
+  let bestScore = 0;
+  const matched: string[] = [];
+  if (text.length >= 20) {
+    for (const pack of KEYWORD_PACKS) {
+      for (const kw of pack.keywords) {
+        if (text.includes(kw.toLowerCase())) {
+          matched.push(kw);
+          const score = pack.weight * (1 + Math.min(matched.length, 3) * 0.05);
+          if (score > bestScore) {
+            bestScore = score;
+            bestType = pack.type;
+          }
+        }
+      }
+    }
+  }
+  return { bestType, bestScore, matched, normalizedText: text };
+}
+
 /**
  * Rule-based GTM signal classifier (v1).
  * Returns null if confidence is below threshold.
  */
 export function classifyPost(post: IngestedPost): ClassifiedSignal | null {
-  const text = normalizeText(post.content);
-  if (text.length < 20) return null;
-
-  let bestType: SignalType = 'other';
-  let bestScore = 0;
-  const matched: string[] = [];
-
-  for (const pack of KEYWORD_PACKS) {
-    for (const kw of pack.keywords) {
-      if (text.includes(kw.toLowerCase())) {
-        matched.push(kw);
-        const score = pack.weight * (1 + Math.min(matched.length, 3) * 0.05);
-        if (score > bestScore) {
-          bestScore = score;
-          bestType = pack.type;
-        }
-      }
-    }
-  }
-
+  const { bestType, bestScore, matched } = scorePost(post);
   if (bestScore < SIGNAL_CONFIDENCE_THRESHOLD) return null;
 
   const batch = extractBatch(post.content);
