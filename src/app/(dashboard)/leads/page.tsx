@@ -191,13 +191,36 @@ export default function LeadsPage() {
     }
   };
 
-  const handleResolve = async (id: string) => {
+  const handleResolve = async (id: string, force = false) => {
     setBusyId(id);
     try {
-      const res = await fetch(`/api/leads/${id}/resolve`, { method: 'POST' });
+      const res = await fetch(`/api/leads/${id}/resolve`, {
+        method: 'POST',
+        headers: json(),
+        body: JSON.stringify({ force }),
+      });
       const data = await res.json();
       mergeLead(data.lead);
-      toast(data.lead?.contact_status === 'resolved' ? 'Contact found.' : 'Still no contact.', data.lead?.contact_status === 'resolved' ? 'success' : 'error');
+      if (data.lead?.contact_status !== 'resolved') {
+        toast(force ? 'Rescan found no contact.' : 'Still no contact found.', 'error');
+        return;
+      }
+      // Contact found. Auto-draft (unless a draft already exists) so the user
+      // lands on a ready-to-approve message instead of a "draft again" prompt.
+      // A forced rescan may have changed the contact, so always re-draft then.
+      const hasDraft = !force && Boolean(data.lead?.outreach?.draft_text || drafts[id]);
+      if (hasDraft) {
+        toast('Contact found.', 'success');
+        return;
+      }
+      toast('Contact found — drafting…', 'success');
+      const dres = await fetch(`/api/leads/${id}/draft`, { method: 'POST', headers: json(), body: '{}' });
+      const ddata = await dres.json();
+      if (dres.ok) {
+        mergeLead(ddata.lead);
+        setDrafts((d) => ({ ...d, [id]: ddata.draftText }));
+        toast('Draft ready.');
+      }
     } catch {
       toast('Could not resolve.', 'error');
     } finally {
@@ -316,7 +339,7 @@ export default function LeadsPage() {
                 onApprove={() => handleApprove(selected.id)}
                 onEmail={() => handleEmail(selected.id)}
                 onDismiss={() => handleDismiss(selected.id)}
-                onResolve={() => handleResolve(selected.id)}
+                onResolve={(force?: boolean) => handleResolve(selected.id, force ?? false)}
                 onFollow={() => handleFollow(selected)}
               />
             )}
@@ -415,7 +438,7 @@ function LeadDetail({
   onApprove: () => void;
   onEmail: () => void;
   onDismiss: () => void;
-  onResolve: () => void;
+  onResolve: (force?: boolean) => void;
   onFollow: () => void;
 }) {
   const contact = lead.primary_contact;
@@ -448,18 +471,24 @@ function LeadDetail({
       {noContact ? (
         <div className="bg-bg-tertiary rounded-md p-3 text-sm text-text-secondary flex items-center justify-between gap-3">
           <span>No reachable contact found. This lead can&apos;t be messaged yet.</span>
-          <Button variant="ghost" size="sm" onClick={onResolve} loading={busy}>Try to resolve</Button>
+          <Button variant="ghost" size="sm" onClick={() => onResolve(false)} loading={busy}>Try to resolve</Button>
         </div>
       ) : contact ? (
-        <p className="text-sm text-text-secondary">
-          {contact.name}
-          {contact.role ? ` · ${contact.role}` : ''}
-          {contact.linkedin_url && (
-            <a href={contact.linkedin_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent-primary hover:underline ml-2">
-              LinkedIn <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
-        </p>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-sm text-text-secondary">
+            {contact.name}
+            {contact.role ? ` · ${contact.role}` : ''}
+            {contact.linkedin_url && (
+              <a href={contact.linkedin_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent-primary hover:underline ml-2">
+                LinkedIn <ExternalLink className="h-3 w-3" />
+              </a>
+            )}
+          </p>
+          {/* Rescan: force a fresh contact re-pull (e.g. wrong/stale founder). */}
+          <Button variant="ghost" size="sm" onClick={() => onResolve(true)} loading={busy} title="Re-pull the founder contact from source">
+            <RefreshCw className="h-3.5 w-3.5" /> Rescan
+          </Button>
+        </div>
       ) : null}
 
       {/* Source-fact strip */}

@@ -11,7 +11,7 @@ import { errorResponse } from '@/lib/api-errors';
  * on a no_contact lead).
  */
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } },
 ): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -20,12 +20,15 @@ export async function POST(
   const workspaceId = await getActiveWorkspaceId(user.id);
   if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
 
+  // force: a user "Rescan" re-pulls fresh contact data even if already resolved.
+  const body = (await request.json().catch(() => ({}))) as { force?: boolean };
+
   try {
     const client = getServerClient();
     const lead = await getLead(client, workspaceId, params.id);
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-    const res = await resolveLeadContacts(client, workspaceId, lead);
+    const res = await resolveLeadContacts(client, workspaceId, lead, { force: body.force === true });
     const updated = await getLead(client, workspaceId, params.id);
     return NextResponse.json({ lead: updated, result: res });
   } catch (err) {

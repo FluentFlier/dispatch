@@ -33,21 +33,37 @@ function buildLeadPrompt(
   channel: OutreachChannel,
 ): string {
   const sourceLabel = lead.source === 'product_hunt' ? 'Product Hunt' : 'YC';
+  const firstName = contact?.name ? contact.name.split(' ')[0] : null;
+  const detail = lead.tagline || (lead.source_fact as { tagline?: string })?.tagline || null;
+
   return [
-    `Write a ${channelLabel(channel)} for GTM outreach to a startup founder.`,
+    `Write a ${channelLabel(channel)} to a startup founder. It must read like a real,`,
+    `thoughtful note from one founder to another: specific, warm, and low-pressure —`,
+    `good enough to send as-is with zero edits.`,
     '',
-    'CONTEXT:',
+    'WHO YOU ARE MESSAGING:',
+    firstName
+      ? `- Founder: ${contact!.name}${contact?.role ? ` (${contact.role})` : ''} — address them as "${firstName}".`
+      : `- A founder at ${lead.company_name} (name unknown — do NOT invent one; open with the company/what they build).`,
     `- Company: ${lead.company_name}`,
-    lead.tagline ? `- What they do: ${lead.tagline}` : null,
-    lead.batch ? `- ${sourceLabel} batch: ${lead.batch}` : `- Source: ${sourceLabel}`,
-    contact?.name ? `- Founder: ${contact.name}${contact.role ? ` (${contact.role})` : ''}` : null,
+    detail ? `- What they build: ${detail}` : null,
+    lead.batch ? `- ${sourceLabel} batch: ${lead.batch}` : `- Discovered via ${sourceLabel}`,
+    Array.isArray(lead.tags) && lead.tags.length ? `- Space: ${lead.tags.slice(0, 3).join(', ')}` : null,
     lead.intent_flags?.raised ? '- Signal: recently raised funding' : null,
     '',
-    'RULES:',
-    '- Reference the concrete signal (e.g. "saw you joined YC S24" or their launch).',
-    '- Sound like a founder-friendly peer, not a bot. 2-4 sentences.',
-    '- No "I came across your profile" spam. No em dashes. No mention of AI/automation.',
-    channel === 'linkedin_connect' ? '- Hard limit 300 characters.' : null,
+    'THE MESSAGE MUST:',
+    '1. Open with a specific, genuine observation about THEM or what they build — reference a concrete detail above, not generic praise.',
+    '2. Give one authentic reason you are reaching out (a real overlap or shared interest), not a pitch.',
+    '3. End with a light, specific ask (swap notes / a quick chat), no hard sell.',
+    '',
+    'HARD RULES:',
+    '- Human and peer-to-peer. Never salesy, never templated.',
+    '- BANNED openers: "I came across", "I hope this finds you well", "As a fellow", "I noticed".',
+    '- No emojis, no hashtags, no em dashes, no links, no mention of AI, automation, or tools.',
+    channel === 'linkedin_connect'
+      ? '- HARD LIMIT 300 characters total. Every word must earn its place.'
+      : '- Keep it tight: 3-5 sentences.',
+    'Return ONLY the message text, nothing else.',
   ]
     .filter(Boolean)
     .join('\n');
@@ -81,11 +97,12 @@ export async function draftOutreachForLead(
     contextAdditions: voiceContext.contextAdditions,
     platform,
     contentType: 'reply',
-    fast: true,
-    preferOpenAi: true,
+    // Quality over speed for a one-shot outreach line: run the critique/revise
+    // loop (fast:false) with an extra pass so a weak first draft gets improved.
+    fast: false,
     skipHooks: true,
-    maxIterations: 1,
-    humanizeAlways: false,
+    maxIterations: 2,
+    humanizeAlways: true,
   });
 
   await saveLeadDraft(client, workspaceId, lead.id, result.text, channel);

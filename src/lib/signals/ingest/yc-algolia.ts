@@ -36,6 +36,70 @@ interface YcHit {
   tags?: string[];
 }
 
+/** A founder contact scraped from a YC company detail page. */
+export interface YcFounder {
+  name?: string;
+  role?: string;
+  linkedinUrl?: string;
+  xHandle?: string;
+}
+
+const YC_COMPANY_BASE = 'https://www.ycombinator.com/companies/';
+const DATA_PAGE_RE = /data-page="([^"]*)"/;
+
+/** Decodes the HTML entities YC uses inside the data-page attribute JSON. */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&gt;/g, '>')
+    .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&');
+}
+
+/** Extracts a bare X/Twitter handle from a profile URL, if present. */
+function handleFromTwitter(url: unknown): string | undefined {
+  if (!url) return undefined;
+  const m = String(url).match(/(?:twitter|x)\.com\/(@?[A-Za-z0-9_]+)/i);
+  return m ? m[1].replace(/^@/, '') : undefined;
+}
+
+/**
+ * Fetches founder contacts (name, role, LinkedIn, X) for a YC company from its
+ * detail page. YC embeds the full company record — including founders with
+ * linkedin_url — as entity-encoded JSON in the page's `data-page` attribute, so
+ * this is one HTTP fetch + parse: reliable and free, unlike an AI-agent read of
+ * the rendered SPA. Returns [] on any failure so enrichment degrades gracefully.
+ */
+export async function fetchYcFounders(slug: string): Promise<YcFounder[]> {
+  const clean = slug.trim();
+  if (!clean) return [];
+  try {
+    const res = await fetch(`${YC_COMPANY_BASE}${encodeURIComponent(clean)}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+    });
+    if (!res.ok) return [];
+    const html = await res.text();
+    const match = html.match(DATA_PAGE_RE);
+    if (!match) return [];
+    const data = JSON.parse(decodeEntities(match[1])) as {
+      props?: { company?: { founders?: Array<Record<string, unknown>> } };
+    };
+    const founders = data.props?.company?.founders ?? [];
+    return founders.map((f) => ({
+      name: f.full_name ? String(f.full_name) : undefined,
+      role: f.title ? String(f.title) : undefined,
+      linkedinUrl: f.linkedin_url ? String(f.linkedin_url) : undefined,
+      xHandle: handleFromTwitter(f.twitter_url),
+    }));
+  } catch (err) {
+    if (signalsDebugEnabled()) {
+      console.warn(`[yc-detail] ${clean} failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return [];
+  }
+}
+
 /** Reads the live app id + secured search key YC injects into its page. */
 async function readAlgoliaOpts(): Promise<AlgoliaOpts> {
   const res = await fetch(YC_COMPANIES_URL, { headers: { 'User-Agent': 'Mozilla/5.0' } });

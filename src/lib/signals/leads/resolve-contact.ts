@@ -28,26 +28,33 @@ export async function resolveLeadContacts(
   client: InsforgeClient,
   workspaceId: string,
   lead: SignalLeadWithContacts,
-  opts: { enrich?: boolean } = {},
+  opts: { enrich?: boolean; force?: boolean; fastOnly?: boolean } = {},
 ): Promise<ResolveResult> {
-  // Enrichment is a per-lead TinyFish Agent run (~60s). On by default (the
-  // single-lead "Try to resolve" action), but the batch sync passes enrich:false
-  // so a scrape of N leads doesn't fan out into N slow agent runs.
+  // Enrichment ladder. The batch scrape passes fastOnly:true so only the fast
+  // YC-detail lookup runs inline (auto-resolving leads without the slow ~60s
+  // agent); on-demand "Try to resolve" runs the full ladder.
   const enrich = opts.enrich ?? true;
+  const fastOnly = opts.fastOnly ?? false;
+  // force: a user "Rescan" — re-pull fresh founder data even if the lead already
+  // has a resolved contact (skips the step-1 short-circuit below).
+  const force = opts.force ?? false;
   const contacts = lead.contacts ?? [];
   const primary = contacts.find((c) => c.is_primary) ?? contacts[0] ?? null;
 
-  // Step 1: scraped identifier (prefers CEO/Founder title — see decideContactStatus).
-  const decision = decideContactStatus(contacts);
-  if (decision.status === 'resolved' && decision.primaryIndex !== null) {
-    await markPrimary(client, contacts[decision.primaryIndex]);
-    await setStatus(client, workspaceId, lead.id, 'resolved', decision.via);
-    return { status: 'resolved', via: decision.via };
+  // Step 1: existing scraped/resolved identifier wins (prefers CEO/Founder title).
+  // Skipped on a forced rescan so we re-fetch instead of returning the old contact.
+  if (!force) {
+    const decision = decideContactStatus(contacts);
+    if (decision.status === 'resolved' && decision.primaryIndex !== null) {
+      await markPrimary(client, contacts[decision.primaryIndex]);
+      await setStatus(client, workspaceId, lead.id, 'resolved', decision.via);
+      return { status: 'resolved', via: decision.via };
+    }
   }
 
   // Steps 2-4: enrichment (gated). When a provider resolves a URL, upsert it
   // onto the contact row and mark resolved. Skipped in batch mode.
-  const enriched = enrich ? await tryEnrichment(client, workspaceId, lead, primary) : null;
+  const enriched = enrich ? await tryEnrichment(client, workspaceId, lead, primary, fastOnly) : null;
   if (enriched) {
     await setStatus(client, workspaceId, lead.id, 'resolved', enriched);
     return { status: 'resolved', via: enriched };
@@ -75,10 +82,18 @@ async function tryEnrichment(
   workspaceId: string,
   lead: SignalLeadWithContacts,
   _primary: SignalLeadContactRow | null,
+  fastOnly = false,
 ): Promise<string | null> {
-  const found = await enrichFounderContact(lead);
+  const found = await enrichFounderContact(lead, { fastOnly });
   if (!found?.linkedinUrl) return null;
 
+  // Replace any prior enrichment-sourced contact (avoids duplicates on a rescan);
+  // done only after a fresh hit, so a failed rescan never destroys a good contact.
+  await client.database
+    .from('signal_lead_contacts')
+    .delete()
+    .eq('lead_id', lead.id)
+    .eq('resolution_source', 'enriched');
   await client.database.from('signal_lead_contacts').update({ is_primary: false }).eq('lead_id', lead.id);
   await client.database.from('signal_lead_contacts').insert([
     {
