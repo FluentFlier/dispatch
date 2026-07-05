@@ -1,5 +1,5 @@
 import type { createClient } from '@insforge/sdk';
-import { classifyPostHybrid } from '@/lib/signals/detect/hybrid';
+import { classifyPostHybrid, classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import {
   filterPostsSinceCursor,
   newestPostId,
@@ -24,8 +24,10 @@ export interface ProcessBatchResult {
   errors: string[];
 }
 
-/** Per-batch ceiling on keyword-miss posts escalated to the LLM confirm stage.
- *  Bounds cost when a single chatty tracked account floods a batch. */
+/** Per-batch ceiling on actual LLM confirm calls (keyword-miss posts from a
+ *  high-value source that get escalated). Bounds cost when a single chatty
+ *  tracked account floods a batch. Keyword hits never consume this cap since
+ *  they never reach the LLM stage. */
 const MAX_LLM_CONFIRMS_PER_BATCH = 10;
 
 // Source types the user explicitly tracks (follows). Only these are worth an
@@ -70,18 +72,24 @@ export async function processIngestedPosts(
 
   for (const post of fresh) {
     // Only a keyword-miss post from a tracked source is LLM-eligible at all, so
-    // the cap only throttles that specific (bounded) case, not every post.
-    let highValueSource = sourceIsHighValue;
-    if (highValueSource) {
-      if (llmConfirmsUsed < MAX_LLM_CONFIRMS_PER_BATCH) {
-        llmConfirmsUsed += 1;
-      } else {
-        highValueSource = false;
-        llmConfirmsSkippedByCap += 1;
-      }
-    }
+    // gating on the cap here only ever throttles that specific (bounded) case.
+    // Keyword hits never reach the LLM regardless of this flag, so they never
+    // consume or get blocked by the cap.
+    const capAvailable = llmConfirmsUsed < MAX_LLM_CONFIRMS_PER_BATCH;
+    const highValueSource = sourceIsHighValue && capAvailable;
 
-    const classified = await classifyPostHybrid(post, { highValueSource });
+    const { signal: classified, escalated } = await classifyPostHybridWithMeta(post, { highValueSource });
+    if (escalated) {
+      // A real LLM call happened: count it against the cap.
+      llmConfirmsUsed += 1;
+    } else if (sourceIsHighValue && !capAvailable && classified === null) {
+      // The cap blocked escalation AND this was a genuine keyword miss (a
+      // keyword hit would have returned a non-null signal regardless of the
+      // forced highValueSource: false). This is the case the skip log exists
+      // to surface: a novel-phrasing post that the LLM would have judged, but
+      // the batch's LLM budget was already spent.
+      llmConfirmsSkippedByCap += 1;
+    }
     if (!classified) continue;
 
     if (opts.dryRun) {

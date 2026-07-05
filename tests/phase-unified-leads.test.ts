@@ -5,7 +5,7 @@ vi.mock('@/lib/llm', () => ({
 }));
 import { chatCompletion } from '@/lib/llm';
 import { confirmSignalWithLLM } from '@/lib/signals/detect/llm-confirm';
-import { classifyPostHybrid } from '@/lib/signals/detect/hybrid';
+import { classifyPostHybrid, classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import type { IngestedPost } from '@/lib/signals/types';
 
 const post = (content: string): IngestedPost => ({
@@ -110,6 +110,81 @@ describe('Phase: Unified Leads', () => {
         { highValueSource: true },
       );
       expect(r).toBeNull();
+    });
+  });
+
+  describe('Task 2.5b: classifyPostHybridWithMeta cost-cap accounting', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('reports escalated:false on a keyword hit, even from a high-value source (no LLM call, cap untouched)', async () => {
+      const r = await classifyPostHybridWithMeta(
+        post('Excited to join YC S24!'),
+        { highValueSource: true },
+      );
+      expect(r.escalated).toBe(false);
+      expect(r.signal?.signalType).toBe('accelerator_join');
+      expect(chatCompletion).not.toHaveBeenCalled();
+    });
+
+    it('reports escalated:true on a keyword miss from a high-value source (real LLM call, should count against the cap)', async () => {
+      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({
+        is_signal: true, signal_type: 'funding_round', company_name: 'Acme', confidence: 0.8,
+      }));
+      const r = await classifyPostHybridWithMeta(
+        post('thrilled the a16z team is backing us'),
+        { highValueSource: true },
+      );
+      expect(r.escalated).toBe(true);
+      expect(chatCompletion).toHaveBeenCalledTimes(1);
+      expect(r.signal?.companyName).toBe('Acme');
+    });
+
+    it('reports escalated:false on a keyword miss from a non-high-value source (no LLM call)', async () => {
+      const r = await classifyPostHybridWithMeta(
+        post('thrilled the a16z team is backing us'),
+        { highValueSource: false },
+      );
+      expect(r.escalated).toBe(false);
+      expect(r.signal).toBeNull();
+      expect(chatCompletion).not.toHaveBeenCalled();
+    });
+
+    it('does not let keyword-HIT posts from a high-value source consume the cap: a later genuine keyword-miss still escalates', async () => {
+      // Simulate the process-batch loop's cap-gating logic directly: a long run
+      // of keyword-hit posts from a tracked source must never decrement the
+      // per-batch LLM budget, because classifyPostHybridWithMeta never calls the
+      // LLM for a hit regardless of highValueSource. Only escalated:true should
+      // increment the counter (this is the exact bug being fixed).
+      let llmConfirmsUsed = 0;
+      const cap = 10;
+
+      for (let i = 0; i < 50; i++) {
+        const capAvailable = llmConfirmsUsed < cap;
+        const highValueSource = capAvailable; // sourceIsHighValue is true throughout
+        const { escalated } = await classifyPostHybridWithMeta(
+          post('Excited to join YC S24!'), // keyword hit every time
+          { highValueSource },
+        );
+        if (escalated) llmConfirmsUsed += 1;
+      }
+
+      expect(llmConfirmsUsed).toBe(0);
+      expect(chatCompletion).not.toHaveBeenCalled();
+
+      // Now the very first genuine keyword-miss from the same tracked source
+      // must still escalate, because the cap was never actually consumed.
+      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({
+        is_signal: true, signal_type: 'funding_round', company_name: 'Acme', confidence: 0.8,
+      }));
+      const capAvailable = llmConfirmsUsed < cap;
+      const r = await classifyPostHybridWithMeta(
+        post('thrilled the a16z team is backing us'),
+        { highValueSource: capAvailable },
+      );
+
+      expect(r.escalated).toBe(true);
+      expect(chatCompletion).toHaveBeenCalledTimes(1);
+      expect(r.signal?.companyName).toBe('Acme');
     });
   });
 });
