@@ -12,7 +12,6 @@ import {
   Menu,
   MessageSquare,
   PenLine,
-  Radio,
   Settings,
   SlidersHorizontal,
 } from 'lucide-react';
@@ -24,7 +23,6 @@ const navIcons = {
   '/library': FileText,
   '/calendar': CalendarDays,
   '/inbox': MessageSquare,
-  '/signals': Radio,
   '/ideas': Lightbulb,
   '/voice-lab': SlidersHorizontal,
   '/analytics': BarChart3,

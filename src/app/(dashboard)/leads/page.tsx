@@ -1,23 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Link from 'next/link';
-import {
-  RefreshCw,
-  Sparkles,
-  SlidersHorizontal,
-  Settings,
-  TrendingUp,
-  Download,
-} from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { FeedFilters, type FeedFilterState } from '@/components/leads/FeedFilters';
 import { UnifiedFeed } from '@/components/leads/UnifiedFeed';
 import { LeadDetail } from '@/components/leads/LeadDetail';
 import { SignalDetail } from '@/components/leads/SignalDetail';
 import { AdvancedDrawer } from '@/components/leads/AdvancedDrawer';
+import { SignalsSetup } from '@/components/leads/SignalsSetup';
+import { LeadsHeaderActions, LeadsEmptyState } from '@/components/leads/LeadsFeedChrome';
 import type {
   DirectorySettingsRow,
   FollowedCompanyRow,
@@ -64,6 +56,9 @@ export default function LeadsPage() {
   const [scraping, setScraping] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Header toggle: "feed" is the unified lead list (default); "setup" is the
+  // signal + directory configuration surface folded in from the retired /signals page.
+  const [view, setView] = useState<'feed' | 'setup'>('feed');
   const [companyById, setCompanyById] = useState<Record<string, YcCompanyDetail | 'loading'>>({});
   const [draftAll, setDraftAll] = useState<{ done: number; total: number } | null>(null);
   const bootstrapped = useRef(false);
@@ -394,29 +389,47 @@ export default function LeadsPage() {
     <div className="max-w-6xl mx-auto space-y-6">
       <PageHeader
         eyebrow="TODAY"
-        title="Leads feed"
-        subtitle={`${visibleCards.length} lead${visibleCards.length === 1 ? '' : 's'} · ${new Date().toLocaleDateString()}`}
+        title="Leads"
+        subtitle={
+          view === 'feed'
+            ? `${visibleCards.length} lead${visibleCards.length === 1 ? '' : 's'} · ${new Date().toLocaleDateString()}`
+            : 'Configure who to watch, trigger rules, sending safety, and integrations.'
+        }
         action={
-          <div className="flex items-center gap-2">
-            <HeaderBtn onClick={handleScrape} disabled={scraping} icon={<Download className={`h-3.5 w-3.5 ${scraping ? 'animate-pulse' : ''}`} />}>
-              {scraping ? 'Scraping…' : 'Scrape now'}
-            </HeaderBtn>
-            <HeaderBtn onClick={handleDraftAll} disabled={draftAll !== null} icon={<Sparkles className={`h-3.5 w-3.5 ${draftAll ? 'animate-pulse' : ''}`} />}>
-              {draftAll ? `Drafting ${draftAll.done}/${draftAll.total}…` : 'Draft all'}
-            </HeaderBtn>
-            <HeaderBtn onClick={refetchList} disabled={listLoading} icon={<RefreshCw className={`h-3.5 w-3.5 ${listLoading ? 'animate-spin' : ''}`} />}>
-              Refresh
-            </HeaderBtn>
-            <HeaderBtn onClick={() => setDrawerOpen(true)} icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
-              Advanced
-            </HeaderBtn>
-            <Link href="/leads/settings" className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md border border-border bg-bg-secondary hover:bg-bg-primary text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary">
-              <Settings className="h-3.5 w-3.5" /> Settings
-            </Link>
-          </div>
+          <LeadsHeaderActions
+            view={view}
+            scraping={scraping}
+            listLoading={listLoading}
+            draftAll={draftAll}
+            onScrape={handleScrape}
+            onDraftAll={handleDraftAll}
+            onRefresh={refetchList}
+            onOpenDrawer={() => setDrawerOpen(true)}
+          />
         }
       />
 
+      {/* Feed | Setup segmented control */}
+      <div className="inline-flex rounded-md border border-border bg-bg-secondary p-1 gap-1">
+        {(['feed', 'setup'] as const).map((v) => (
+          <button
+            key={v}
+            type="button"
+            onClick={() => setView(v)}
+            className={`px-4 py-1.5 rounded text-sm font-medium transition-colors min-h-[36px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary ${
+              view === v ? 'bg-accent-primary text-white' : 'text-text-secondary hover:text-text-primary'
+            }`}
+            aria-pressed={view === v}
+          >
+            {v === 'feed' ? 'Feed' : 'Setup'}
+          </button>
+        ))}
+      </div>
+
+      {view === 'setup' ? (
+        <SignalsSetup />
+      ) : (
+      <>
       <FeedFilters state={filters} onChange={setFilters} verticals={verticals} />
 
       {loading ? (
@@ -429,7 +442,7 @@ export default function LeadsPage() {
           </div>
         </div>
       ) : cards.length === 0 ? (
-        <EmptyState onScrape={handleScrape} scraping={scraping} />
+        <LeadsEmptyState onScrape={handleScrape} scraping={scraping} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
           {/* List */}
@@ -469,6 +482,8 @@ export default function LeadsPage() {
           </div>
         </div>
       )}
+      </>
+      )}
 
       <AdvancedDrawer
         open={drawerOpen}
@@ -479,43 +494,6 @@ export default function LeadsPage() {
         onFollowedChange={setFollowed}
         toast={toast}
       />
-    </div>
-  );
-}
-
-// --- Helpers ---
-function HeaderBtn({ onClick, disabled, icon, children }: { onClick: () => void; disabled?: boolean; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md border border-border bg-bg-secondary hover:bg-bg-primary text-text-secondary disabled:opacity-50 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
-    >
-      {icon}
-      {children}
-    </button>
-  );
-}
-
-/** Empty state shown when the feed has no cards for the active filters. */
-function EmptyState({ onScrape, scraping }: { onScrape: () => void; scraping: boolean }) {
-  return (
-    <div className="flex flex-col items-center justify-center text-center min-h-[360px] gap-3">
-      <div className="p-3 rounded-lg bg-coral-light">
-        <TrendingUp className="h-6 w-6 text-accent-primary" />
-      </div>
-      <h2 className="font-serif text-[20px] text-text-primary">No leads yet today</h2>
-      <p className="text-sm text-text-secondary max-w-sm">
-        Scrape the directories now, or your next batch lands at your configured digest hour. Tune sources and ICP in Advanced.
-      </p>
-      <div className="flex gap-2 mt-1">
-        <Button variant="primary" size="sm" onClick={onScrape} loading={scraping}>
-          Scrape now
-        </Button>
-        <Link href="/leads/settings">
-          <Button variant="secondary" size="sm">Open settings</Button>
-        </Link>
-      </div>
     </div>
   );
 }
