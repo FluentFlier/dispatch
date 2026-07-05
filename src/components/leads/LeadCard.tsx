@@ -37,6 +37,7 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown }: Lead
   return (
     <button
       type="button"
+      id={card.id}
       role="option"
       aria-selected={selected}
       aria-label={`${card.companyName ?? 'Unknown company'}, ${badge.label} ${
