@@ -7,6 +7,7 @@ import { chatCompletion } from '@/lib/llm';
 import { confirmSignalWithLLM } from '@/lib/signals/detect/llm-confirm';
 import { classifyPostHybrid, classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import { scoreIcpFit } from '@/lib/signals/leads/icp-score';
+import { enrichViaUnipileSearch } from '@/lib/signals/leads/enrich-contact';
 import type { IngestedPost } from '@/lib/signals/types';
 
 const post = (content: string): IngestedPost => ({
@@ -211,6 +212,29 @@ describe('Phase: Unified Leads', () => {
       vi.mocked(chatCompletion).mockResolvedValue('banana');
       const s = await scoreIcpFit({ companyName: 'X', verticals: ['fintech'], keywords: [] });
       expect(s).toBe(0.5);
+    });
+  });
+
+  describe('Task 4: Unipile name-search contact step', () => {
+    it('returns a contact when Unipile finds the founder', async () => {
+      const fakeSearch = vi.fn().mockResolvedValue({
+        name: 'Sam Founder', role: 'CEO',
+        linkedinUrl: 'https://www.linkedin.com/in/samfounder',
+      });
+      const found = await enrichViaUnipileSearch(
+        { companyName: 'Acme', founderName: 'Sam Founder' },
+        { search: fakeSearch },
+      );
+      expect(found?.linkedinUrl).toContain('linkedin.com/in/');
+      expect(found?.via).toBe('unipile');
+    });
+
+    it('returns null when Unipile finds nothing', async () => {
+      const found = await enrichViaUnipileSearch(
+        { companyName: 'Acme', founderName: 'Nobody' },
+        { search: vi.fn().mockResolvedValue(null) },
+      );
+      expect(found).toBeNull();
     });
   });
 });
