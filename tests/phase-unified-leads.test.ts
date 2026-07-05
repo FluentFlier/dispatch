@@ -6,6 +6,7 @@ vi.mock('@/lib/llm', () => ({
 import { chatCompletion } from '@/lib/llm';
 import { confirmSignalWithLLM } from '@/lib/signals/detect/llm-confirm';
 import { classifyPostHybrid, classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
+import { scoreIcpFit } from '@/lib/signals/leads/icp-score';
 import type { IngestedPost } from '@/lib/signals/types';
 
 const post = (content: string): IngestedPost => ({
@@ -185,6 +186,31 @@ describe('Phase: Unified Leads', () => {
       expect(r.escalated).toBe(true);
       expect(chatCompletion).toHaveBeenCalledTimes(1);
       expect(r.signal?.companyName).toBe('Acme');
+    });
+  });
+
+  describe('Task 3: ICP-fit scoring', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('returns the LLM fit score for an on-ICP company', async () => {
+      vi.mocked(chatCompletion).mockResolvedValue('0.9');
+      const s = await scoreIcpFit({
+        companyName: 'PayFlow', tagline: 'fintech payments for startups',
+        tags: ['fintech'], verticals: ['fintech'], keywords: ['payments'],
+      });
+      expect(s).toBeCloseTo(0.9);
+    });
+
+    it('returns neutral 0.5 when no ICP is configured (no LLM call)', async () => {
+      const s = await scoreIcpFit({ companyName: 'X', verticals: [], keywords: [] });
+      expect(s).toBe(0.5);
+      expect(chatCompletion).not.toHaveBeenCalled();
+    });
+
+    it('clamps garbage LLM output to a neutral score', async () => {
+      vi.mocked(chatCompletion).mockResolvedValue('banana');
+      const s = await scoreIcpFit({ companyName: 'X', verticals: ['fintech'], keywords: [] });
+      expect(s).toBe(0.5);
     });
   });
 });
