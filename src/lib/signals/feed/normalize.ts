@@ -1,0 +1,115 @@
+/**
+ * Unified feed normalizer.
+ *
+ * The Leads feed mixes two very different data sources: real-time signal
+ * events (posts detected on X/LinkedIn) and directory leads (YC/Product Hunt
+ * company records). The feed endpoint and UI should not need to know which
+ * source a card came from, so this module maps both shapes into one
+ * `UnifiedLeadCard` that downstream code can render generically.
+ */
+
+import type {
+  SignalEventStatus, SignalEventWithPost, SignalLeadWithContacts, SignalType,
+} from '@/lib/signals/types';
+
+/** Contact info surfaced on a unified card, regardless of which source it came from. */
+export interface UnifiedContact {
+  name?: string | null;
+  role?: string | null;
+  linkedin_url?: string | null;
+  x_handle?: string | null;
+  email?: string | null;
+}
+
+/** Common shape both signal events and directory leads are normalized into for the feed. */
+export interface UnifiedLeadCard {
+  id: string;
+  kind: 'signal' | 'directory';
+  source: 'x' | 'linkedin' | 'yc_directory' | 'yc_launches' | 'product_hunt' | 'manual';
+  companyName: string | null;
+  tagline: string | null;
+  signalType: SignalType | null;
+  signalSummary: string | null;
+  sourceUrl: string | null;
+  batch: string | null;
+  accelerator: string | null;
+  contact: UnifiedContact | null;
+  contactStatus: string | null;
+  score: number;
+  status: string;
+  detectedAt: string;
+}
+
+/**
+ * Maps a signal event's `SignalEventStatus` into the `LeadStatus` vocabulary
+ * the feed UI actually filters on. Signal events and directory leads are two
+ * distinct sources feeding one filter (see `FeedFilters` / `mergeFeed`), so
+ * without this explicit map a `pending` signal event would never match the
+ * UI's default `status: 'new'` tab and would silently vanish from the feed.
+ * `failed` is treated as `new` too: a failed signal still needs attention and
+ * must stay visible, not disappear. `drafted`/`sent`/`dismissed` are shared
+ * vocabulary already and pass through unchanged.
+ */
+const SIGNAL_STATUS_TO_LEAD_STATUS: Record<SignalEventStatus, string> = {
+  pending: 'new',
+  failed: 'new',
+  drafted: 'drafted',
+  sent: 'sent',
+  dismissed: 'dismissed',
+};
+
+/**
+ * Maps a real-time signal event (a detected X/LinkedIn post) into a unified
+ * feed card. Falls back to 'x' when the source platform is unknown so the
+ * card always has a valid `source`, since raw_post can be missing if the
+ * post row was purged or never hydrated.
+ */
+export function normalizeEvent(e: SignalEventWithPost): UnifiedLeadCard {
+  const platform = e.raw_post?.platform ?? 'x';
+  return {
+    id: e.id,
+    kind: 'signal',
+    source: platform === 'linkedin' ? 'linkedin' : 'x',
+    companyName: e.company_name,
+    tagline: null,
+    signalType: e.signal_type,
+    signalSummary: e.signal_summary,
+    sourceUrl: e.raw_post?.post_url ?? null,
+    batch: e.batch,
+    accelerator: e.accelerator_name,
+    contact: e.person_name ? { name: e.person_name } : null,
+    contactStatus: null,
+    score: e.confidence ?? 0,
+    status: SIGNAL_STATUS_TO_LEAD_STATUS[e.status],
+    detectedAt: e.created_at,
+  };
+}
+
+/**
+ * Maps a directory lead (YC/Product Hunt company record, with its hydrated
+ * primary contact) into a unified feed card. Prefers rank_score (the
+ * post-ICP-scoring rank) over fit_score, falling back to 0 when neither is
+ * set.
+ */
+export function normalizeLead(l: SignalLeadWithContacts): UnifiedLeadCard {
+  const pc = l.primary_contact ?? null;
+  return {
+    id: l.id,
+    kind: 'directory',
+    source: l.source,
+    companyName: l.company_name,
+    tagline: l.tagline,
+    signalType: null,
+    signalSummary: l.tagline,
+    sourceUrl: l.website,
+    batch: l.batch,
+    accelerator: l.source === 'yc_directory' || l.source === 'yc_launches' ? 'Y Combinator' : null,
+    contact: pc
+      ? { name: pc.name, role: pc.role, linkedin_url: pc.linkedin_url, x_handle: pc.x_handle, email: pc.email }
+      : null,
+    contactStatus: l.contact_status,
+    score: l.rank_score ?? l.fit_score ?? 0,
+    status: l.lead_status,
+    detectedAt: l.last_seen_at ?? l.first_seen_at,
+  };
+}

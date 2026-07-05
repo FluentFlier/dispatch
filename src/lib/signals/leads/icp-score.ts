@@ -1,0 +1,44 @@
+import { chatCompletion } from '@/lib/llm';
+
+/** Input for scoring a scraped directory company against the workspace ICP. */
+export interface IcpFitInput {
+  companyName: string;
+  tagline?: string | null;
+  tags?: string[];
+  verticals: string[];
+  keywords: string[];
+}
+
+const SYSTEM = [
+  'You score how well a company matches a sales team ideal-customer-profile (ICP).',
+  'Reply with ONLY a decimal number between 0 and 1. No words. 1 = perfect fit, 0 = no fit.',
+].join(' ');
+
+/**
+ * Scores a scraped directory company against the workspace ICP using the LLM.
+ * Returns a neutral 0.5 (no LLM call) when the workspace has not configured any
+ * ICP verticals or keywords, so ranking degrades gracefully instead of hiding
+ * every lead. Fail-closed to 0.5 on any LLM error or unparseable output so a
+ * flaky provider never blocks or corrupts lead ranking.
+ */
+export async function scoreIcpFit(input: IcpFitInput): Promise<number> {
+  if (input.verticals.length === 0 && input.keywords.length === 0) return 0.5;
+
+  const user = [
+    `ICP verticals: ${input.verticals.join(', ') || 'none'}`,
+    `ICP keywords: ${input.keywords.join(', ') || 'none'}`,
+    `Company: ${input.companyName}`,
+    `Tagline: ${input.tagline ?? 'n/a'}`,
+    `Tags: ${(input.tags ?? []).join(', ') || 'n/a'}`,
+  ].join('\n');
+
+  let raw: string;
+  try {
+    raw = await chatCompletion(SYSTEM, user, { temperature: 0 });
+  } catch {
+    return 0.5;
+  }
+  const n = Number.parseFloat(raw.trim().match(/[0-9]*\.?[0-9]+/)?.[0] ?? '');
+  if (Number.isNaN(n)) return 0.5;
+  return Math.max(0, Math.min(1, n));
+}

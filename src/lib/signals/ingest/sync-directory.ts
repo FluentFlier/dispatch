@@ -10,6 +10,7 @@ import {
 } from '@/lib/signals/leads/store';
 import { resolveLeadContacts } from '@/lib/signals/leads/resolve-contact';
 import { computeFitScore, computeRankScore } from '@/lib/signals/leads/score';
+import { scoreIcpFit } from '@/lib/signals/leads/icp-score';
 import { signalsDebugEnabled, signalsEnrichInlineEnabled } from '@/lib/signals/ingest/config';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -108,8 +109,19 @@ export async function syncWorkspaceDirectory(
       lead.contact_status = res.status;
     }
     const fit = computeFitScore(lead, settings);
-    const rank = computeRankScore(lead, fit, today);
-    await updateLead(client, workspaceId, lead.id, { fit_score: fit, rank_score: rank });
+    // LLM-graded ICP fit dominates the blend; the deterministic heuristic
+    // `fit` above only breaks ties (and is the sole signal when the LLM call
+    // fails closed to neutral 0.5).
+    const icpFit = await scoreIcpFit({
+      companyName: lead.company_name,
+      tagline: lead.tagline,
+      tags: lead.tags,
+      verticals: settings.icp_verticals,
+      keywords: settings.icp_keywords,
+    });
+    const blendedFit = Number((0.7 * icpFit + 0.3 * fit).toFixed(3));
+    const rank = computeRankScore(lead, blendedFit, today);
+    await updateLead(client, workspaceId, lead.id, { fit_score: blendedFit, rank_score: rank });
   }
 
   return result;

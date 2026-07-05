@@ -166,6 +166,27 @@ export async function sendLinkedInConnectionInvite(
   };
 }
 
+export interface LinkedInPersonSearchResult {
+  name?: string;
+  role?: string;
+  linkedinUrl?: string;
+}
+
+/**
+ * Best-effort LinkedIn people-search by name + company, used by the contact
+ * ladder's Unipile rung. Unipile's classic search requires a connected LinkedIn
+ * account_id, which this module has no workspace context to resolve, and the
+ * platform's people-search surface is not yet wired up here. Returns null
+ * (never throws) so the ladder always degrades cleanly to `no_contact` instead
+ * of blocking lead resolution on an unavailable lookup.
+ */
+export async function searchLinkedInPerson(_query: {
+  name: string;
+  company: string;
+}): Promise<LinkedInPersonSearchResult | null> {
+  return null;
+}
+
 export async function sendLinkedInDirectMessage(
   accountId: string,
   providerId: string,

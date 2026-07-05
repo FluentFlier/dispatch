@@ -1,85 +1,112 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import Link from 'next/link';
-import {
-  RefreshCw,
-  Sparkles,
-  Send,
-  X,
-  Pin,
-  ExternalLink,
-  SlidersHorizontal,
-  Settings,
-  TrendingUp,
-  Download,
-  Mail,
-  Building2,
-  Linkedin,
-  Globe,
-  Twitter,
-} from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { Button } from '@/components/ui/Button';
-import { Drawer } from '@/components/ui/Drawer';
 import { useToast } from '@/components/ui/Toast';
+import { FeedFilters, type FeedFilterState } from '@/components/leads/FeedFilters';
+import { UnifiedFeed } from '@/components/leads/UnifiedFeed';
+import { LeadDetail } from '@/components/leads/LeadDetail';
+import { SignalDetail } from '@/components/leads/SignalDetail';
+import { resolveSignalOutreach } from '@/components/leads/signal-outreach';
+import { AdvancedDrawer } from '@/components/leads/AdvancedDrawer';
+import { SignalsSetup } from '@/components/leads/SignalsSetup';
+import { LeadsHeaderActions, LeadsEmptyState } from '@/components/leads/LeadsFeedChrome';
 import type {
   DirectorySettingsRow,
   FollowedCompanyRow,
-  LeadStatus,
   SignalLeadWithContacts,
 } from '@/lib/signals/types';
+import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 
-const FILTERS: Array<{ key: LeadStatus | 'all'; label: string }> = [
-  { key: 'new', label: 'New' },
-  { key: 'drafted', label: 'Drafted' },
-  { key: 'approved', label: 'Approved' },
-  { key: 'sent', label: 'Sent' },
-  { key: 'dismissed', label: 'Dismissed' },
-  { key: 'all', label: 'All' },
-];
+const jsonHeaders = { 'Content-Type': 'application/json' } as const;
 
-const CONNECT_LIMIT = 300;
+/** Empty client-side extras applied on top of the server-filtered feed. */
+const INITIAL_FILTERS: FeedFilterState = {
+  status: 'new',
+  source: 'all',
+  signalType: 'all',
+  vertical: 'all',
+  search: '',
+  sort: 'score',
+};
 
+/**
+ * Unified leads feed page. One inbox that renders both live signal events and
+ * directory companies (from `/api/leads/feed`) in a single list, and reuses the
+ * existing directory detail/draft/approve panel (`LeadDetail`) when a directory
+ * card is opened. Directory leads are also loaded (via `/api/leads/bootstrap`)
+ * because the detail panel and its actions need the full `SignalLeadWithContacts`
+ * record; signal cards open a lighter read-only `SignalDetail`.
+ */
 export default function LeadsPage() {
   const { toast } = useToast();
-  const [leads, setLeads] = useState<SignalLeadWithContacts[]>([]);
+
+  // Feed = the unified list (both kinds). Directory-lead map = detail source.
+  const [cards, setCards] = useState<UnifiedLeadCard[]>([]);
+  const [leadsById, setLeadsById] = useState<Record<string, SignalLeadWithContacts>>({});
   const [settings, setSettings] = useState<DirectorySettingsRow | null>(null);
   const [followed, setFollowed] = useState<FollowedCompanyRow[]>([]);
-  const [filter, setFilter] = useState<LeadStatus | 'all'>('new');
+
+  const [filters, setFilters] = useState<FeedFilterState>(INITIAL_FILTERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // Inline safety-guard notice per signal (expected 422 block: dry-run/cap/hours).
+  const [signalNotices, setSignalNotices] = useState<Record<string, string>>({});
+
   const [loading, setLoading] = useState(true);
   const [listLoading, setListLoading] = useState(false);
   const [scraping, setScraping] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  // Rich company info for the card, cached by lead id ('loading' while fetching).
+  // Header toggle: "feed" is the unified lead list (default); "setup" is the
+  // signal + directory configuration surface folded in from the retired /signals page.
+  const [view, setView] = useState<'feed' | 'setup'>('feed');
   const [companyById, setCompanyById] = useState<Record<string, YcCompanyDetail | 'loading'>>({});
-  // Bulk-draft progress (null when idle).
   const [draftAll, setDraftAll] = useState<{ done: number; total: number } | null>(null);
   const bootstrapped = useRef(false);
 
   // --- Data loading ---
+  // Directory-lead detail + settings + watchlist come from bootstrap; the feed
+  // list comes from /api/leads/feed. The two are kept in sync by status filter.
+  const feedQuery = useCallback(() => {
+    const p = new URLSearchParams();
+    if (filters.status !== 'all') p.set('status', filters.status);
+    if (filters.source !== 'all') p.set('source', filters.source);
+    if (filters.signalType !== 'all') p.set('signalType', filters.signalType);
+    return p.toString();
+  }, [filters.status, filters.source, filters.signalType]);
+
+  const indexLeads = (leads: SignalLeadWithContacts[]) =>
+    setLeadsById((prev) => {
+      const next = { ...prev };
+      for (const l of leads) next[l.id] = l;
+      return next;
+    });
+
   const loadBootstrap = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/leads/bootstrap?status=${filter}`);
-      if (!res.ok) throw new Error('load failed');
-      const data = await res.json();
-      setLeads(data.leads ?? []);
-      setSettings(data.settings ?? null);
-      setFollowed(data.followedCompanies ?? []);
-      // Timezone detection: persist the browser tz once if the workspace has none.
+      const [feedRes, bootRes] = await Promise.all([
+        fetch(`/api/leads/feed?${feedQuery()}`),
+        fetch(`/api/leads/bootstrap?status=${filters.status}`),
+      ]);
+      if (!feedRes.ok || !bootRes.ok) throw new Error('load failed');
+      const feed = await feedRes.json();
+      const boot = await bootRes.json();
+      setCards(feed.cards ?? []);
+      indexLeads(boot.leads ?? []);
+      setSettings(boot.settings ?? null);
+      setFollowed(boot.followedCompanies ?? []);
+      // Persist the browser timezone once if the workspace has none.
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (tz) void fetch('/api/leads/settings', { method: 'PUT', headers: json(), body: JSON.stringify({ timezone: tz }) });
+      if (tz) void fetch('/api/leads/settings', { method: 'PUT', headers: jsonHeaders, body: JSON.stringify({ timezone: tz }) });
     } catch {
       toast('Could not load leads.', 'error');
     } finally {
       setLoading(false);
     }
-  }, [filter, toast]);
+  }, [feedQuery, filters.status, toast]);
 
   useEffect(() => {
     if (bootstrapped.current) return;
@@ -87,30 +114,54 @@ export default function LeadsPage() {
     void loadBootstrap();
   }, [loadBootstrap]);
 
+  // Refetch the feed list (and keep the directory-lead map fresh) when the
+  // server-side filters change, without reloading settings/watchlist.
   const refetchList = useCallback(async () => {
     setListLoading(true);
     try {
-      const res = await fetch(`/api/leads?status=${filter}`);
-      const data = await res.json();
-      setLeads(data.leads ?? []);
+      const [feedRes, leadsRes] = await Promise.all([
+        fetch(`/api/leads/feed?${feedQuery()}`),
+        fetch(`/api/leads?status=${filters.status}`),
+      ]);
+      const feed = await feedRes.json();
+      const leadsData = await leadsRes.json();
+      setCards(feed.cards ?? []);
+      indexLeads(leadsData.leads ?? []);
     } catch {
       toast('Could not refresh.', 'error');
     } finally {
       setListLoading(false);
     }
-  }, [filter, toast]);
+  }, [feedQuery, filters.status, toast]);
 
   useEffect(() => {
     if (!bootstrapped.current) return;
     void refetchList();
-  }, [filter, refetchList]);
+  }, [filters.status, filters.source, filters.signalType, refetchList]);
 
-  const mergeLead = (updated: SignalLeadWithContacts) =>
-    setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+  // Merge an updated directory lead back into the map and reflect its new status
+  // on the matching feed card so the list stays consistent without a refetch.
+  const mergeLead = useCallback((updated: SignalLeadWithContacts) => {
+    setLeadsById((prev) => ({ ...prev, [updated.id]: updated }));
+    setCards((prev) =>
+      prev.map((c) =>
+        c.id === updated.id ? { ...c, status: updated.lead_status, contactStatus: updated.contact_status, score: updated.rank_score ?? c.score } : c,
+      ),
+    );
+  }, []);
 
-  // Fetch rich company info the first time a lead is opened (cached by id).
+  // Reflect a signal event's new status on its feed card so a sent signal
+  // leaves the "New" filter, mirroring how mergeLead reflects directory-lead
+  // status changes back to the list.
+  const mergeSignalStatus = useCallback((id: string, status: string) => {
+    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
+  }, []);
+
+  // Fetch rich company info the first time a directory lead is opened.
   useEffect(() => {
     if (!selectedId || companyById[selectedId]) return;
+    const card = cards.find((c) => c.id === selectedId);
+    if (!card || card.kind !== 'directory') return;
     const id = selectedId;
     setCompanyById((m) => ({ ...m, [id]: 'loading' }));
     fetch(`/api/leads/${id}/company`)
@@ -123,13 +174,46 @@ export default function LeadsPage() {
           return next;
         }),
       );
-  }, [selectedId, companyById]);
+  }, [selectedId, companyById, cards]);
 
-  // --- Actions ---
-  // Bulk-draft: draft every resolved lead without a draft, 3 at a time (each is
-  // a ~10s LLM call), with live progress. Reuses the per-lead /draft endpoint.
+  // --- Followed helpers ---
+  const isFollowed = useCallback(
+    (card: UnifiedLeadCard) => {
+      const lead = leadsById[card.id];
+      const domain = lead?.domain ?? null;
+      return followed.some((f) => (domain && f.domain === domain) || f.company_name === card.companyName);
+    },
+    [followed, leadsById],
+  );
+
+  // --- Client-side view: pin followed, apply vertical/search, re-sort ---
+  const visibleCards = useMemo(() => {
+    const term = filters.search.trim().toLowerCase();
+    const vertical = filters.vertical === 'all' ? null : filters.vertical.toLowerCase();
+    const filtered = cards.filter((c) => {
+      if (term) {
+        const hay = `${c.companyName ?? ''} ${c.tagline ?? ''} ${c.signalSummary ?? ''}`.toLowerCase();
+        if (!hay.includes(term)) return false;
+      }
+      if (vertical) {
+        const lead = leadsById[c.id];
+        const tags = (lead?.tags ?? []).map((t) => t.toLowerCase());
+        const hay = `${c.companyName ?? ''} ${c.tagline ?? ''} ${c.signalSummary ?? ''}`.toLowerCase();
+        if (!tags.some((t) => t.includes(vertical)) && !hay.includes(vertical)) return false;
+      }
+      return true;
+    });
+    const sorted = filtered.slice().sort((a, b) => {
+      if (filters.sort === 'recency') return Date.parse(b.detectedAt) - Date.parse(a.detectedAt);
+      return b.score - a.score;
+    });
+    // Followed companies pinned on top (stable within each group).
+    return sorted.sort((a, b) => Number(isFollowed(b)) - Number(isFollowed(a)));
+  }, [cards, filters.search, filters.vertical, filters.sort, isFollowed, leadsById]);
+
+  // --- Actions (directory leads) ---
   const handleDraftAll = async () => {
-    const targets = leads.filter(
+    const targets = Object.values(leadsById).filter(
       (l) => l.contact_status === 'resolved' && !(l.outreach?.draft_text || drafts[l.id]),
     );
     if (targets.length === 0) {
@@ -142,7 +226,7 @@ export default function LeadsPage() {
     const worker = async () => {
       for (let lead = queue.shift(); lead; lead = queue.shift()) {
         try {
-          const res = await fetch(`/api/leads/${lead.id}/draft`, { method: 'POST', headers: json(), body: '{}' });
+          const res = await fetch(`/api/leads/${lead.id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
           const data = await res.json();
           if (res.ok) {
             mergeLead(data.lead);
@@ -159,6 +243,7 @@ export default function LeadsPage() {
     setDraftAll(null);
     toast(`Drafted ${done} message${done === 1 ? '' : 's'}.`);
   };
+
   const handleScrape = async () => {
     setScraping(true);
     try {
@@ -167,7 +252,6 @@ export default function LeadsPage() {
       if (!res.ok) throw new Error(data.error);
       const r = data.result;
       const warnings: string[] = r.warnings ?? [];
-      // Surface the real reason instead of a false "done" when sources errored.
       if (r.inserted === 0 && warnings.length > 0) {
         toast(`0 new leads — ${warnings[0]}`, 'error');
       } else if (warnings.length > 0) {
@@ -186,7 +270,7 @@ export default function LeadsPage() {
   const handleDraft = async (id: string) => {
     setBusyId(id);
     try {
-      const res = await fetch(`/api/leads/${id}/draft`, { method: 'POST', headers: json(), body: '{}' });
+      const res = await fetch(`/api/leads/${id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       mergeLead(data.lead);
@@ -215,13 +299,12 @@ export default function LeadsPage() {
   };
 
   const handleEmail = async (id: string) => {
-    // Cold-email compliance: explicit per-lead opt-in confirmation before the first send.
     if (!window.confirm('Send a cold email to this lead? This is a one-time opt-in; an unsubscribe line is added automatically.')) return;
     setBusyId(id);
     try {
       const res = await fetch(`/api/leads/${id}/approve`, {
         method: 'POST',
-        headers: json(),
+        headers: jsonHeaders,
         body: JSON.stringify({ channel: 'gmail', emailOptIn: true }),
       });
       const data = await res.json();
@@ -238,9 +321,14 @@ export default function LeadsPage() {
   const handleDismiss = async (id: string) => {
     setBusyId(id);
     try {
-      const res = await fetch(`/api/leads/${id}`, { method: 'PATCH', headers: json(), body: JSON.stringify({ action: 'dismiss' }) });
+      const res = await fetch(`/api/leads/${id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ action: 'dismiss' }) });
       if (!res.ok) throw new Error();
-      setLeads((prev) => prev.filter((l) => l.id !== id));
+      setCards((prev) => prev.filter((c) => c.id !== id));
+      setLeadsById((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       if (selectedId === id) setSelectedId(null);
       toast('Lead dismissed.');
     } catch {
@@ -255,7 +343,7 @@ export default function LeadsPage() {
     try {
       const res = await fetch(`/api/leads/${id}/resolve`, {
         method: 'POST',
-        headers: json(),
+        headers: jsonHeaders,
         body: JSON.stringify({ force }),
       });
       const data = await res.json();
@@ -264,16 +352,13 @@ export default function LeadsPage() {
         toast(force ? 'Rescan found no contact.' : 'Still no contact found.', 'error');
         return;
       }
-      // Contact found. Auto-draft (unless a draft already exists) so the user
-      // lands on a ready-to-approve message instead of a "draft again" prompt.
-      // A forced rescan may have changed the contact, so always re-draft then.
       const hasDraft = !force && Boolean(data.lead?.outreach?.draft_text || drafts[id]);
       if (hasDraft) {
         toast('Contact found.', 'success');
         return;
       }
       toast('Contact found — drafting…', 'success');
-      const dres = await fetch(`/api/leads/${id}/draft`, { method: 'POST', headers: json(), body: '{}' });
+      const dres = await fetch(`/api/leads/${id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
       const ddata = await dres.json();
       if (dres.ok) {
         mergeLead(ddata.lead);
@@ -287,11 +372,11 @@ export default function LeadsPage() {
     }
   };
 
-  const handleFollow = async (lead: SignalLeadWithContacts) => {
+  const handleFollowLead = async (lead: SignalLeadWithContacts) => {
     try {
       const res = await fetch('/api/leads/followed', {
         method: 'POST',
-        headers: json(),
+        headers: jsonHeaders,
         body: JSON.stringify({ companyName: lead.company_name, domain: lead.domain, externalId: lead.external_id }),
       });
       const data = await res.json();
@@ -303,111 +388,193 @@ export default function LeadsPage() {
     }
   };
 
-  const isFollowed = (lead: SignalLeadWithContacts) =>
-    followed.some((f) => (lead.domain && f.domain === lead.domain) || f.company_name === lead.company_name);
+  // --- Actions (signal cards) ---
+  // Generate (or regenerate) an AI outreach draft for a signal event. The
+  // channel is chosen from the card's reachable contact so the draft is tuned
+  // for the surface it will actually be sent on.
+  const handleSignalDraft = async (card: UnifiedLeadCard) => {
+    const id = card.id;
+    setBusyId(id);
+    setSignalNotices((n) => {
+      const next = { ...n };
+      delete next[id];
+      return next;
+    });
+    try {
+      const plan = resolveSignalOutreach(card);
+      const res = await fetch(`/api/signals/${id}/draft`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ channel: plan.channel }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'draft failed');
+      setDrafts((d) => ({ ...d, [id]: data.draft?.draftText ?? '' }));
+      mergeSignalStatus(id, 'drafted');
+      toast('Draft ready.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not draft.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
 
-  const selected = leads.find((l) => l.id === selectedId) ?? null;
+  // Approve + send a signal draft. An HTTP 422 is the safety guard blocking the
+  // send (dry-run / cap / working hours) — expected, not a crash — so its reason
+  // is surfaced as an inline notice rather than an error toast.
+  const handleSignalSend = async (card: UnifiedLeadCard) => {
+    const id = card.id;
+    const plan = resolveSignalOutreach(card);
+    if (!plan.sendable) {
+      toast('No messaging channel on this signal. Copy the draft to send by hand.', 'error');
+      return;
+    }
+    setBusyId(id);
+    setSignalNotices((n) => {
+      const next = { ...n };
+      delete next[id];
+      return next;
+    });
+    try {
+      const res = await fetch(`/api/signals/${id}/send`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          channel: plan.channel,
+          linkedin_identifier: plan.linkedinIdentifier,
+          recipient_email: plan.recipientEmail,
+          message_text: drafts[id] ?? '',
+        }),
+      });
+      const data = await res.json();
+      if (res.status === 422) {
+        // Safety guard blocked the send: show the reason inline, leave the draft.
+        setSignalNotices((n) => ({ ...n, [id]: data.error || 'Sending is blocked by your safety settings right now.' }));
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || 'send failed');
+      mergeSignalStatus(id, 'sent');
+      toast('Sent.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not send.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // --- Selection resolution ---
+  const selectedCard = cards.find((c) => c.id === selectedId) ?? null;
+  const selectedLead = selectedId ? leadsById[selectedId] ?? null : null;
 
   // --- Render ---
+  const verticals = settings?.icp_verticals ?? [];
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <PageHeader
         eyebrow="TODAY"
-        title="Today's leads"
-        subtitle={`${leads.length} ${filter === 'all' ? '' : filter} lead${leads.length === 1 ? '' : 's'} · ${new Date().toLocaleDateString()}`}
+        title="Leads"
+        subtitle={
+          view === 'feed'
+            ? `${visibleCards.length} lead${visibleCards.length === 1 ? '' : 's'} · ${new Date().toLocaleDateString()}`
+            : 'Configure who to watch, trigger rules, sending safety, and integrations.'
+        }
         action={
-          <div className="flex items-center gap-2">
-            <HeaderBtn onClick={handleScrape} disabled={scraping} icon={<Download className={`h-3.5 w-3.5 ${scraping ? 'animate-pulse' : ''}`} />}>
-              {scraping ? 'Scraping…' : 'Scrape now'}
-            </HeaderBtn>
-            <HeaderBtn onClick={handleDraftAll} disabled={draftAll !== null} icon={<Sparkles className={`h-3.5 w-3.5 ${draftAll ? 'animate-pulse' : ''}`} />}>
-              {draftAll ? `Drafting ${draftAll.done}/${draftAll.total}…` : 'Draft all'}
-            </HeaderBtn>
-            <HeaderBtn onClick={refetchList} disabled={listLoading} icon={<RefreshCw className={`h-3.5 w-3.5 ${listLoading ? 'animate-spin' : ''}`} />}>
-              Refresh
-            </HeaderBtn>
-            <HeaderBtn onClick={() => setDrawerOpen(true)} icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
-              Advanced
-            </HeaderBtn>
-            <Link href="/leads/settings" className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md border border-border bg-bg-secondary hover:bg-bg-primary text-text-secondary">
-              <Settings className="h-3.5 w-3.5" /> Settings
-            </Link>
-          </div>
+          <LeadsHeaderActions
+            view={view}
+            scraping={scraping}
+            listLoading={listLoading}
+            draftAll={draftAll}
+            onScrape={handleScrape}
+            onDraftAll={handleDraftAll}
+            onRefresh={refetchList}
+            onOpenDrawer={() => setDrawerOpen(true)}
+          />
         }
       />
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-2">
-        {FILTERS.map((f) => (
+      {/* Feed | Setup segmented control */}
+      <div className="inline-flex rounded-md border border-border bg-bg-secondary p-1 gap-1">
+        {(['feed', 'setup'] as const).map((v) => (
           <button
-            key={f.key}
-            onClick={() => setFilter(f.key)}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-              filter === f.key ? 'bg-accent-primary text-white' : 'bg-bg-secondary text-text-secondary hover:text-text-primary'
+            key={v}
+            type="button"
+            onClick={() => setView(v)}
+            className={`px-4 py-1.5 rounded text-sm font-medium transition-colors min-h-[36px] focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary ${
+              view === v ? 'bg-accent-primary text-white' : 'text-text-secondary hover:text-text-primary'
             }`}
+            aria-pressed={view === v}
           >
-            {f.label}
+            {v === 'feed' ? 'Feed' : 'Setup'}
           </button>
         ))}
       </div>
 
+      {view === 'setup' ? (
+        <SignalsSetup />
+      ) : (
+      <>
+      <FeedFilters state={filters} onChange={setFilters} verticals={verticals} />
+
       {loading ? (
-        <div className="flex items-center justify-center min-h-[320px] text-text-tertiary text-sm">Loading leads…</div>
-      ) : leads.length === 0 ? (
-        <EmptyState onScrape={handleScrape} scraping={scraping} />
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
+          <div className="lg:col-span-2">
+            <UnifiedFeed cards={[]} selectedId={null} loading onSelect={() => {}} isFollowed={() => false} />
+          </div>
+          <div className="lg:col-span-3 border border-border rounded-lg bg-bg-secondary p-5 hidden lg:flex items-center justify-center text-text-tertiary text-sm">
+            Loading leads…
+          </div>
+        </div>
+      ) : cards.length === 0 ? (
+        <LeadsEmptyState onScrape={handleScrape} scraping={scraping} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
           {/* List */}
-          <div className={`lg:col-span-2 border border-border rounded-lg bg-bg-secondary overflow-hidden ${listLoading ? 'opacity-60' : ''}`}>
-            {leads
-              .slice()
-              .sort((a, b) => Number(isFollowed(b)) - Number(isFollowed(a)) || b.rank_score - a.rank_score)
-              .map((lead) => (
-                <button
-                  key={lead.id}
-                  onClick={() => setSelectedId(lead.id)}
-                  className={`w-full text-left px-4 py-3 border-b border-border last:border-0 transition-colors ${
-                    selectedId === lead.id ? 'bg-bg-primary border-l-2 border-l-accent-primary' : 'hover:bg-bg-tertiary'
-                  } ${isFollowed(lead) ? 'bg-sage-light/40' : ''}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-mono uppercase tracking-wide text-accent-primary">
-                      {sourceTag(lead)}
-                    </span>
-                    <span className="text-xs text-text-tertiary shrink-0 flex items-center gap-1">
-                      {isFollowed(lead) && <Pin className="h-3 w-3 text-accent-secondary" />}
-                      {lead.rank_score.toFixed(2)}
-                    </span>
-                  </div>
-                  <p className="text-sm font-medium text-text-primary line-clamp-1 mt-0.5">{lead.company_name}</p>
-                  <p className="text-xs text-text-tertiary line-clamp-1">{lead.tagline}</p>
-                  <div className="flex gap-1.5 mt-1">{statusChips(lead)}</div>
-                </button>
-              ))}
+          <div className="lg:col-span-2">
+            <UnifiedFeed
+              cards={visibleCards}
+              selectedId={selectedId}
+              loading={false}
+              refreshing={listLoading}
+              onSelect={setSelectedId}
+              isFollowed={isFollowed}
+            />
           </div>
 
           {/* Detail */}
           <div className="lg:col-span-3 border border-border rounded-lg bg-bg-secondary p-5">
-            {!selected ? (
+            {!selectedCard ? (
               <div className="flex items-center justify-center h-full text-text-tertiary text-sm">Select a lead to review.</div>
-            ) : (
+            ) : selectedCard.kind === 'directory' && selectedLead ? (
               <LeadDetail
-                lead={selected}
-                company={companyById[selected.id]}
-                draft={drafts[selected.id] ?? selected.outreach?.draft_text ?? ''}
-                onDraftChange={(v) => setDrafts((d) => ({ ...d, [selected.id]: v }))}
-                busy={busyId === selected.id}
-                followed={isFollowed(selected)}
-                onDraft={() => handleDraft(selected.id)}
-                onApprove={() => handleApprove(selected.id)}
-                onEmail={() => handleEmail(selected.id)}
-                onDismiss={() => handleDismiss(selected.id)}
-                onResolve={(force?: boolean) => handleResolve(selected.id, force ?? false)}
-                onFollow={() => handleFollow(selected)}
+                lead={selectedLead}
+                company={companyById[selectedLead.id]}
+                draft={drafts[selectedLead.id] ?? selectedLead.outreach?.draft_text ?? ''}
+                onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedLead.id]: v }))}
+                busy={busyId === selectedLead.id}
+                followed={isFollowed(selectedCard)}
+                onDraft={() => handleDraft(selectedLead.id)}
+                onApprove={() => handleApprove(selectedLead.id)}
+                onEmail={() => handleEmail(selectedLead.id)}
+                onDismiss={() => handleDismiss(selectedLead.id)}
+                onResolve={(force?: boolean) => handleResolve(selectedLead.id, force ?? false)}
+                onFollow={() => handleFollowLead(selectedLead)}
+              />
+            ) : (
+              <SignalDetail
+                card={selectedCard}
+                draft={drafts[selectedCard.id] ?? ''}
+                onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedCard.id]: v }))}
+                busy={busyId === selectedCard.id}
+                notice={signalNotices[selectedCard.id] ?? null}
+                onDraft={() => handleSignalDraft(selectedCard)}
+                onSend={() => handleSignalSend(selectedCard)}
               />
             )}
           </div>
         </div>
+      )}
+      </>
       )}
 
       <AdvancedDrawer
@@ -421,452 +588,4 @@ export default function LeadsPage() {
       />
     </div>
   );
-}
-
-// --- Helpers ---
-function json() {
-  return { 'Content-Type': 'application/json' };
-}
-function sourceTag(lead: SignalLeadWithContacts): string {
-  const src = lead.source === 'product_hunt' ? 'PH' : 'YC';
-  return lead.batch ? `${src} · ${lead.batch}` : src;
-}
-function statusChips(lead: SignalLeadWithContacts) {
-  const chips: Array<{ text: string; cls: string }> = [];
-  if (lead.lead_status === 'new') chips.push({ text: 'New', cls: 'bg-coral-light text-accent-primary' });
-  if (lead.lead_status === 'resurfaced') chips.push({ text: '↑ Resurfaced', cls: 'bg-sage-light text-accent-secondary' });
-  if (lead.contact_status === 'no_contact') chips.push({ text: 'No contact', cls: 'bg-bg-tertiary text-text-tertiary' });
-  if ((lead.name_history ?? []).length > 0) chips.push({ text: 'Renamed', cls: 'bg-bg-tertiary text-text-tertiary' });
-  return chips.map((c) => (
-    <span key={c.text} className={`text-[10px] px-1.5 py-0.5 rounded ${c.cls}`}>
-      {c.text}
-    </span>
-  ));
-}
-
-function HeaderBtn({ onClick, disabled, icon, children }: { onClick: () => void; disabled?: boolean; icon: React.ReactNode; children: React.ReactNode }) {
-  return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md border border-border bg-bg-secondary hover:bg-bg-primary text-text-secondary disabled:opacity-50"
-    >
-      {icon}
-      {children}
-    </button>
-  );
-}
-
-/** A label:value row in the company info box. */
-function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-1 border-b border-border/50 last:border-0 text-xs">
-      <span className="text-text-tertiary">{label}</span>
-      <span className="text-text-primary text-right font-medium">{children}</span>
-    </div>
-  );
-}
-
-/** A square icon button linking to an external URL (website / YC / LinkedIn / X). */
-function IconLink({ href, title, children }: { href: string; title: string; children: React.ReactNode }) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      title={title}
-      className="inline-flex items-center justify-center h-9 w-9 rounded-md border border-border bg-bg-secondary hover:bg-bg-primary text-text-secondary"
-    >
-      {children}
-    </a>
-  );
-}
-
-function EmptyState({ onScrape, scraping }: { onScrape: () => void; scraping: boolean }) {
-  return (
-    <div className="flex flex-col items-center justify-center text-center min-h-[360px] gap-3">
-      <div className="p-3 rounded-lg bg-coral-light">
-        <TrendingUp className="h-6 w-6 text-accent-primary" />
-      </div>
-      <h2 className="font-serif text-[20px] text-text-primary">No leads yet today</h2>
-      <p className="text-sm text-text-secondary max-w-sm">
-        Scrape the directories now, or your next batch lands at your configured digest hour. Tune sources & ICP in Advanced.
-      </p>
-      <div className="flex gap-2 mt-1">
-        <Button variant="primary" size="sm" onClick={onScrape} loading={scraping}>
-          Scrape now
-        </Button>
-        <Link href="/leads/settings">
-          <Button variant="secondary" size="sm">Open settings</Button>
-        </Link>
-      </div>
-    </div>
-  );
-}
-
-function LeadDetail({
-  lead,
-  company,
-  draft,
-  onDraftChange,
-  busy,
-  followed,
-  onDraft,
-  onApprove,
-  onEmail,
-  onDismiss,
-  onResolve,
-  onFollow,
-}: {
-  lead: SignalLeadWithContacts;
-  company: YcCompanyDetail | 'loading' | undefined;
-  draft: string;
-  onDraftChange: (v: string) => void;
-  busy: boolean;
-  followed: boolean;
-  onDraft: () => void;
-  onApprove: () => void;
-  onEmail: () => void;
-  onDismiss: () => void;
-  onResolve: (force?: boolean) => void;
-  onFollow: () => void;
-}) {
-  const contact = lead.primary_contact;
-  const noContact = lead.contact_status === 'no_contact';
-  const leadEmail = lead.contacts?.find((c) => c.email)?.email ?? null;
-  const overLimit = draft.length > CONNECT_LIMIT;
-  const fact = lead.source_fact as { batch?: string; tagline?: string };
-
-  const detail = company && company !== 'loading' ? company : null;
-  const loadingCompany = company === 'loading';
-  const tagline = detail?.oneLiner || lead.tagline || null;
-  const website = detail?.website || lead.website || null;
-  const ycUrl = detail?.ycUrl || (lead.external_id && lead.source === 'yc_directory'
-    ? `https://www.ycombinator.com/companies/${lead.external_id}`
-    : null);
-  const industries = (detail?.industries?.length ? detail.industries : lead.tags) ?? [];
-  const photos = detail?.photos ?? [];
-  const batch = detail?.batch || lead.batch;
-  const infoRows: Array<{ label: string; value: React.ReactNode }> = [];
-  if (detail?.yearFounded) infoRows.push({ label: 'Founded', value: detail.yearFounded });
-  if (batch) infoRows.push({ label: 'Batch', value: batch });
-  if (detail?.teamSize) infoRows.push({ label: 'Team size', value: detail.teamSize });
-  if (detail?.status)
-    infoRows.push({
-      label: 'Status',
-      value: (
-        <span className="inline-flex items-center gap-1.5">
-          <span className={`h-2 w-2 rounded-full ${detail.status.toLowerCase() === 'active' ? 'bg-green-500' : 'bg-text-tertiary'}`} />
-          {detail.status}
-        </span>
-      ),
-    });
-  if (detail?.location) infoRows.push({ label: 'Location', value: detail.location });
-  if (detail?.primaryPartner)
-    infoRows.push({
-      label: 'Primary partner',
-      value: detail.primaryPartner.url ? (
-        <a href={detail.primaryPartner.url} target="_blank" rel="noreferrer" className="text-accent-primary hover:underline">
-          {detail.primaryPartner.name}
-        </a>
-      ) : (
-        detail.primaryPartner.name
-      ),
-    });
-
-  return (
-    <div className="space-y-4 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
-      {/* Header: logo + name + tagline + follow */}
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-3 min-w-0">
-          {detail?.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={detail.logoUrl} alt="" className="h-11 w-11 rounded-md border border-border object-contain bg-white shrink-0" />
-          ) : (
-            <div className="h-11 w-11 rounded-md border border-border bg-bg-tertiary flex items-center justify-center shrink-0">
-              <Building2 className="h-5 w-5 text-text-tertiary" />
-            </div>
-          )}
-          <div className="min-w-0">
-            <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">{sourceTag(lead)}</p>
-            <h2 className="text-xl font-display text-text-primary truncate">{lead.company_name}</h2>
-            {tagline && <p className="text-sm text-text-secondary line-clamp-2">{tagline}</p>}
-            {(lead.name_history ?? []).length > 0 && (
-              <p className="text-xs text-text-tertiary">Renamed · was {lead.name_history[lead.name_history.length - 1]}</p>
-            )}
-          </div>
-        </div>
-        <button onClick={onFollow} className={`inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border border-border shrink-0 ${followed ? 'text-accent-secondary bg-sage-light' : 'text-text-secondary hover:bg-bg-tertiary'}`}>
-          <Pin className="h-3.5 w-3.5" /> {followed ? 'Following' : 'Follow'}
-        </button>
-      </div>
-
-      {/* Body: About on the left, info box + tags on the right */}
-      {loadingCompany && !detail ? (
-        <div className="h-28 rounded-lg bg-bg-tertiary animate-pulse" />
-      ) : (
-        <div className="flex flex-col sm:flex-row gap-4">
-          {/* About (left) */}
-          <div className="flex-1 min-w-0">
-            {detail?.description ? (
-              <>
-                <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary mb-1">About</p>
-                <p className="text-sm text-text-secondary leading-relaxed">{detail.description}</p>
-              </>
-            ) : (
-              <p className="text-sm text-text-tertiary italic">No public description yet.</p>
-            )}
-          </div>
-          {/* Info box + tags (right) */}
-          <div className="w-full sm:w-60 shrink-0 space-y-2">
-            {infoRows.length > 0 && (
-              <div className="border border-border rounded-lg px-3 bg-bg-primary">
-                {infoRows.map((r) => (
-                  <InfoRow key={r.label} label={r.label}>{r.value}</InfoRow>
-                ))}
-              </div>
-            )}
-            {industries.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {industries.slice(0, 6).map((t) => (
-                  <span key={t} className="text-[11px] px-2 py-0.5 rounded-full bg-bg-tertiary text-text-secondary">{t}</span>
-                ))}
-              </div>
-            )}
-            {/* Social / quick links, right below the tags */}
-            <div className="flex flex-wrap gap-2 pt-0.5">
-              {website && <IconLink href={website} title="Website"><Globe className="h-4 w-4" /></IconLink>}
-              {ycUrl && <IconLink href={ycUrl} title="YC page"><ExternalLink className="h-4 w-4" /></IconLink>}
-              {(detail?.linkedinUrl || contact?.linkedin_url) && (
-                <IconLink href={(detail?.linkedinUrl || contact?.linkedin_url)!} title="LinkedIn"><Linkedin className="h-4 w-4" /></IconLink>
-              )}
-              {detail?.twitterUrl && <IconLink href={detail.twitterUrl} title="X / Twitter"><Twitter className="h-4 w-4" /></IconLink>}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Photos (Maps-style strip) */}
-      {photos.length > 0 && (
-        <div className="flex gap-2 overflow-x-auto pb-1">
-          {photos.slice(0, 6).map((src, i) => (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img key={i} src={src} alt="" className="h-24 w-40 rounded-md border border-border object-cover shrink-0 bg-bg-tertiary" />
-          ))}
-        </div>
-      )}
-
-      {/* Contact block */}
-      {noContact ? (
-        <div className="bg-bg-tertiary rounded-md p-3 text-sm text-text-secondary flex items-center justify-between gap-3">
-          <span>No reachable contact found. This lead can&apos;t be messaged yet.</span>
-          <Button variant="ghost" size="sm" onClick={() => onResolve(false)} loading={busy}>Try to resolve</Button>
-        </div>
-      ) : contact ? (
-        <div className="flex items-center justify-between gap-3">
-          <p className="text-sm text-text-secondary">
-            {contact.name}
-            {contact.role ? ` · ${contact.role}` : ''}
-            {contact.linkedin_url && (
-              <a href={contact.linkedin_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent-primary hover:underline ml-2">
-                LinkedIn <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-          </p>
-          {/* Rescan: force a fresh contact re-pull (e.g. wrong/stale founder). */}
-          <Button variant="ghost" size="sm" onClick={() => onResolve(true)} loading={busy} title="Re-pull the founder contact from source">
-            <RefreshCw className="h-3.5 w-3.5" /> Rescan
-          </Button>
-        </div>
-      ) : null}
-
-      {/* Source-fact strip */}
-      <blockquote className="text-sm text-text-secondary border-l-2 border-border pl-3 py-1">
-        Claim used: {fact.batch ? `joined YC ${fact.batch}` : lead.source}
-        {fact.tagline ? ` · "${fact.tagline}"` : ''}
-      </blockquote>
-
-      {/* Draft */}
-      {draft ? (
-        <div className="space-y-1">
-          <textarea
-            value={draft}
-            onChange={(e) => onDraftChange(e.target.value)}
-            rows={5}
-            className="w-full rounded-md border border-border bg-bg-primary p-3 text-sm text-text-primary focus:outline-none focus:border-border-hover"
-          />
-          <div className={`text-xs text-right ${overLimit ? 'text-red-600' : 'text-text-tertiary'}`}>
-            {draft.length}/{CONNECT_LIMIT}
-          </div>
-        </div>
-      ) : (
-        <Button variant="primary" size="sm" onClick={onDraft} loading={busy}>
-          <Sparkles className="h-4 w-4" /> Draft message
-        </Button>
-      )}
-
-      {/* Actions */}
-      {draft && (
-        <div className="flex items-center gap-2 pt-1">
-          <Button variant="primary" size="sm" onClick={onApprove} disabled={noContact || overLimit || busy}>
-            <Send className="h-4 w-4" /> Approve
-          </Button>
-          {leadEmail && (
-            <Button variant="secondary" size="sm" onClick={onEmail} disabled={busy} title={`Cold email ${leadEmail} (opt-in)`}>
-              <Mail className="h-4 w-4" /> Email
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={onDraft} loading={busy}>
-            <RefreshCw className="h-4 w-4" /> Regenerate
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onDismiss}>
-            <X className="h-4 w-4" /> Dismiss
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AdvancedDrawer({
-  open,
-  onClose,
-  settings,
-  followed,
-  onSettingsSaved,
-  onFollowedChange,
-  toast,
-}: {
-  open: boolean;
-  onClose: () => void;
-  settings: DirectorySettingsRow | null;
-  followed: FollowedCompanyRow[];
-  onSettingsSaved: (s: DirectorySettingsRow) => void;
-  onFollowedChange: (f: FollowedCompanyRow[]) => void;
-  toast: (m: string, t?: 'success' | 'error') => void;
-}) {
-  const [verticals, setVerticals] = useState('');
-  const [keywords, setKeywords] = useState('');
-  const [company, setCompany] = useState('');
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    if (settings) {
-      setVerticals((settings.icp_verticals ?? []).join(', '));
-      setKeywords((settings.icp_keywords ?? []).join(', '));
-    }
-  }, [settings]);
-
-  const apply = async () => {
-    setSaving(true);
-    try {
-      const res = await fetch('/api/leads/settings', {
-        method: 'PUT',
-        headers: json(),
-        body: JSON.stringify({
-          icp_verticals: split(verticals),
-          icp_keywords: split(keywords),
-        }),
-      });
-      const data = await res.json();
-      onSettingsSaved(data.settings);
-      toast('Filters applied.');
-    } catch {
-      toast('Could not save.', 'error');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const follow = async () => {
-    if (!company.trim()) return;
-    const res = await fetch('/api/leads/followed', { method: 'POST', headers: json(), body: JSON.stringify({ companyName: company.trim() }) });
-    const data = await res.json();
-    if (data.duplicate) return toast('Already following.', 'error');
-    onFollowedChange(data.followedCompanies ?? followed);
-    setCompany('');
-    toast(`Following ${company.trim()}.`);
-  };
-
-  const unfollow = async (id: string) => {
-    const res = await fetch(`/api/leads/followed/${id}`, { method: 'DELETE' });
-    const data = await res.json();
-    onFollowedChange(data.followedCompanies ?? followed);
-    toast('Unfollowed.');
-  };
-
-  return (
-    <Drawer open={open} onClose={onClose}>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-display text-text-primary">Advanced</h2>
-        <button onClick={onClose} className="p-1 text-text-tertiary hover:text-text-primary"><X className="h-5 w-5" /></button>
-      </div>
-
-      <section className="space-y-3 mb-6">
-        <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">Filters</p>
-        <label className="block text-sm text-text-secondary">
-          ICP verticals
-          <input value={verticals} onChange={(e) => setVerticals(e.target.value)} placeholder="Fintech, AI, SaaS" className="mt-1 w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm" />
-        </label>
-        <label className="block text-sm text-text-secondary">
-          ICP keywords
-          <input value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="compliance, analytics" className="mt-1 w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm" />
-        </label>
-        <p className="text-xs text-text-tertiary">Leads matching these rank higher. Leave blank to see everything.</p>
-        <Button variant="primary" size="sm" onClick={apply} loading={saving}>Apply</Button>
-      </section>
-
-      <section className="space-y-2 mb-6">
-        <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">Sources</p>
-        {([
-          { key: 'yc_directory', label: 'YC directory' },
-          { key: 'product_hunt', label: 'Product Hunt' },
-        ] as const).map((s) => {
-          const on = (settings?.enabled_sources ?? []).includes(s.key);
-          return (
-            <label key={s.key} className="flex items-center gap-2 text-sm text-text-secondary">
-              <input
-                type="checkbox"
-                checked={on}
-                onChange={async (e) => {
-                  const next = e.target.checked
-                    ? [...(settings?.enabled_sources ?? []), s.key]
-                    : (settings?.enabled_sources ?? []).filter((x) => x !== s.key);
-                  const res = await fetch('/api/leads/settings', { method: 'PUT', headers: json(), body: JSON.stringify({ enabled_sources: next }) });
-                  const data = await res.json();
-                  onSettingsSaved(data.settings);
-                }}
-              />
-              {s.label}
-            </label>
-          );
-        })}
-      </section>
-
-      <section className="space-y-3">
-        <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">Follow companies</p>
-        <div className="flex gap-2">
-          <input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Company name or domain" className="flex-1 rounded-md border border-border bg-bg-primary px-3 py-2 text-sm" />
-          <Button variant="primary" size="sm" onClick={follow}>Follow</Button>
-        </div>
-        {followed.length === 0 ? (
-          <p className="text-xs text-text-tertiary">Follow specific companies to always track them for funding/hiring signals.</p>
-        ) : (
-          <ul className="space-y-1">
-            {followed.map((f) => (
-              <li key={f.id} className="flex items-center justify-between text-sm text-text-secondary border border-border rounded-md px-3 py-1.5">
-                <span>{f.company_name}{f.domain ? ` · ${f.domain}` : ''}</span>
-                <button onClick={() => unfollow(f.id)} className="text-text-tertiary hover:text-red-600"><X className="h-4 w-4" /></button>
-              </li>
-            ))}
-          </ul>
-        )}
-        <p className="text-xs text-text-tertiary">Followed companies resurface automatically when something changes.</p>
-      </section>
-    </Drawer>
-  );
-}
-
-function split(v: string): string[] {
-  return v.split(',').map((s) => s.trim()).filter(Boolean);
 }

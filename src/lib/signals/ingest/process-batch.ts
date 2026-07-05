@@ -1,5 +1,5 @@
 import type { createClient } from '@insforge/sdk';
-import { classifyPost } from '@/lib/signals/classifier';
+import { classifyPostHybrid, classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import {
   filterPostsSinceCursor,
   newestPostId,
@@ -8,7 +8,13 @@ import { createSignalEvent, getEvent, upsertRawPost } from '@/lib/signals/store'
 import { runSignalActions } from '@/lib/signals/actions';
 import { resolveRuleAction } from '@/lib/signals/rules/match';
 import { listRules } from '@/lib/signals/rules/store';
-import type { IngestedPost, SignalRuleRow, SignalSourceRow } from '@/lib/signals/types';
+import { logInfo } from '@/lib/logger';
+import type {
+  IngestedPost,
+  SignalRuleRow,
+  SignalSourceRow,
+  SignalSourceType,
+} from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -16,6 +22,31 @@ export interface ProcessBatchResult {
   postsIngested: number;
   signalsCreated: number;
   errors: string[];
+}
+
+/** Per-batch ceiling on actual LLM confirm calls (keyword-miss posts from a
+ *  high-value source that get escalated). Bounds cost when a single chatty
+ *  tracked account floods a batch. Keyword hits never consume this cap since
+ *  they never reach the LLM stage. */
+const MAX_LLM_CONFIRMS_PER_BATCH = 10;
+
+// Source types the user explicitly tracks (follows). Only these are worth an
+// LLM confirm on a keyword miss; keyword_search results and unknown sources
+// stay keyword-only to keep cost bounded.
+const HIGH_VALUE_SOURCE_TYPES: ReadonlySet<SignalSourceType> = new Set<SignalSourceType>([
+  'account',
+  'company_page',
+  'person_profile',
+]);
+
+/**
+ * Determines whether a source is "high value" for the hybrid classifier,
+ * i.e. worth paying for an LLM confirm on a keyword miss. True for sources
+ * the user explicitly tracks (account, company_page, person_profile); false
+ * for keyword_search or an absent/unknown source type.
+ */
+function isHighValueSource(sourceType: SignalSourceType | undefined | null): boolean {
+  return !!sourceType && HIGH_VALUE_SOURCE_TYPES.has(sourceType);
 }
 
 export async function processIngestedPosts(
@@ -35,8 +66,30 @@ export async function processIngestedPosts(
   const maxItems = opts.maxItems ?? 5;
   const fresh = filterPostsSinceCursor(posts, cursor.last_seen_post_id, maxItems);
 
+  const sourceIsHighValue = isHighValueSource(source.source_type);
+  let llmConfirmsUsed = 0;
+  let llmConfirmsSkippedByCap = 0;
+
   for (const post of fresh) {
-    const classified = classifyPost(post);
+    // Only a keyword-miss post from a tracked source is LLM-eligible at all, so
+    // gating on the cap here only ever throttles that specific (bounded) case.
+    // Keyword hits never reach the LLM regardless of this flag, so they never
+    // consume or get blocked by the cap.
+    const capAvailable = llmConfirmsUsed < MAX_LLM_CONFIRMS_PER_BATCH;
+    const highValueSource = sourceIsHighValue && capAvailable;
+
+    const { signal: classified, escalated } = await classifyPostHybridWithMeta(post, { highValueSource });
+    if (escalated) {
+      // A real LLM call happened: count it against the cap.
+      llmConfirmsUsed += 1;
+    } else if (sourceIsHighValue && !capAvailable && classified === null) {
+      // The cap blocked escalation AND this was a genuine keyword miss (a
+      // keyword hit would have returned a non-null signal regardless of the
+      // forced highValueSource: false). This is the case the skip log exists
+      // to surface: a novel-phrasing post that the LLM would have judged, but
+      // the batch's LLM budget was already spent.
+      llmConfirmsSkippedByCap += 1;
+    }
     if (!classified) continue;
 
     if (opts.dryRun) {
@@ -74,6 +127,14 @@ export async function processIngestedPosts(
     }
   }
 
+  if (llmConfirmsSkippedByCap > 0) {
+    logInfo('LLM confirm cap reached for batch; remaining keyword-miss posts skipped', {
+      sourceId: source.id,
+      cap: MAX_LLM_CONFIRMS_PER_BATCH,
+      skipped: llmConfirmsSkippedByCap,
+    });
+  }
+
   const latestId = newestPostId(posts) ?? cursor.last_seen_post_id;
   if (latestId && !opts.dryRun) {
     await client.database
@@ -95,14 +156,17 @@ export async function ingestSinglePost(
   post: IngestedPost,
   sourceId: string | null = null,
 ): Promise<{ created: boolean; eventId?: string }> {
-  const classified = classifyPost(post);
+  // Webhook/manual ingest has no SignalSourceRow (only an optional bare
+  // sourceId), so there is no source_type to check here. Treat as not
+  // high-value: a keyword miss is dropped rather than escalated to the LLM.
+  const classified = await classifyPostHybrid(post, { highValueSource: false });
   if (!classified) return { created: false };
 
   const rawPostId = await upsertRawPost(client, workspaceId, sourceId, post);
   const res = await createSignalEvent(client, workspaceId, rawPostId, classified);
 
   // Webhook/manual ingest: run the action pipeline too. No source_type here, so
-  // auto-send stays off (draft-only) — the person-profile gate in runSignalActions
+  // auto-send stays off (draft-only); the person-profile gate in runSignalActions
   // requires a known source type.
   if (res.created && res.eventId) {
     const event = await getEvent(client, workspaceId, res.eventId);

@@ -2,6 +2,7 @@ import { ApifyClient } from 'apify-client';
 import type { SignalLeadWithContacts } from '@/lib/signals/types';
 import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
 import { fetchYcFounders } from '@/lib/signals/ingest/yc-algolia';
+import { searchLinkedInPerson } from '@/lib/signals/outreach/unipile-linkedin';
 
 /**
  * Founder-contact enrichment for leads the directory didn't hand a social URL.
@@ -37,15 +38,15 @@ export interface EnrichedContact {
   name?: string;
   role?: string;
   linkedinUrl?: string;
-  via: 'yc_detail' | 'tinyfish' | 'apify';
+  via: 'yc_detail' | 'tinyfish' | 'apify' | 'unipile';
 }
 
 /**
  * Runs the enrichment ladder; returns the first founder contact found, or null.
  * `fastOnly` (used by the batch scrape) runs ONLY the fast YC-detail step and
- * skips the slow TinyFish agent + Apify, so auto-resolving every scraped lead
- * inline stays within the request timeout. On-demand "Try to resolve" runs the
- * full ladder.
+ * skips the slow TinyFish agent + Apify + Unipile search, so auto-resolving
+ * every scraped lead inline stays within the request timeout. On-demand "Try
+ * to resolve" runs the full ladder.
  */
 export async function enrichFounderContact(
   lead: Pick<SignalLeadWithContacts, 'source' | 'external_id' | 'company_name' | 'website' | 'contacts'>,
@@ -57,7 +58,15 @@ export async function enrichFounderContact(
   if (opts.fastOnly) return null;
   const viaTinyfish = await enrichViaTinyFish(lead);
   if (viaTinyfish) return viaTinyfish;
-  return enrichViaApify(lead);
+  const viaApify = await enrichViaApify(lead);
+  if (viaApify) return viaApify;
+
+  // Rung 4: a lead may already have a founder name (scraped from the directory
+  // or a prior partial enrichment) without a LinkedIn URL. Unipile name-search
+  // is the last, deterministic attempt to turn that name into a reachable URL
+  // before the lead is marked no_contact.
+  const founderName = lead.contacts?.find((c) => c.name)?.name ?? undefined;
+  return enrichViaUnipileSearch({ companyName: lead.company_name, founderName });
 }
 
 /** YC detail page: founder + LinkedIn from the company's /companies/<slug> page. */
@@ -152,3 +161,50 @@ async function enrichViaApify(
     return null;
   }
 }
+
+/** Input for the Unipile name-search rung: a company plus the founder name we already have. */
+export interface UnipileSearchInput {
+  companyName: string;
+  founderName?: string | null;
+}
+
+/** Contact-shaped result returned by the Unipile name-search rung. */
+export interface FoundContact {
+  name?: string;
+  role?: string;
+  linkedinUrl?: string;
+  via: 'unipile';
+}
+
+/** Injectable search function so `enrichViaUnipileSearch` is unit-testable without hitting Unipile. */
+type SearchFn = (q: { name: string; company: string }) => Promise<{
+  name?: string;
+  role?: string;
+  linkedinUrl?: string;
+} | null>;
+
+/**
+ * Contact-ladder rung 4: deterministic Unipile people-search by founder name +
+ * company. Only worth running when we already have a founder name (from YC
+ * data, TinyFish, or Apify partial results) but still no LinkedIn URL.
+ * `deps.search` is injectable for tests; defaults to the real Unipile lookup.
+ */
+export async function enrichViaUnipileSearch(
+  input: UnipileSearchInput,
+  deps: { search?: SearchFn } = {},
+): Promise<FoundContact | null> {
+  if (!input.founderName?.trim()) return null;
+  const search = deps.search ?? defaultUnipileSearch;
+  const hit = await search({ name: input.founderName, company: input.companyName });
+  if (!hit?.linkedinUrl) return null;
+  return { name: hit.name, role: hit.role, linkedinUrl: hit.linkedinUrl, via: 'unipile' };
+}
+
+/** Binds the real Unipile people-search; no-op (null) when Unipile is unconfigured or errors. */
+const defaultUnipileSearch: SearchFn = async ({ name, company }) => {
+  try {
+    return await searchLinkedInPerson({ name, company });
+  } catch {
+    return null; // Unipile down/unconfigured → ladder falls through to no_contact
+  }
+};

@@ -17,7 +17,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const user = await getAuthenticatedUser();
   if (!user) {
-    return NextResponse.redirect(`${base}/login?next=${encodeURIComponent('/signals')}`);
+    return NextResponse.redirect(`${base}/login?next=${encodeURIComponent('/leads')}`);
   }
 
   if (user.id !== state.userId) {
