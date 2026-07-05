@@ -92,13 +92,17 @@ export async function syncWorkspaceDirectory(
   result.renamed = upsert.renamed;
 
   // --- Resolve + score ---
-  // Batch mode: enrichment (slow per-lead agent runs) is off unless explicitly
-  // opted in, so the scrape stays within the request timeout.
-  const enrichInline = signalsEnrichInlineEnabled();
+  // Auto-resolve every scraped lead inline via the FAST YC-detail lookup (one
+  // HTTP fetch each) so contacts are populated without a manual click. The slow
+  // TinyFish agent fallback stays off unless SIGNALS_ENRICH_INLINE is set —
+  // fastOnly keeps the scrape within the request timeout.
+  const fastOnly = !signalsEnrichInlineEnabled();
   const leads = await listLeads(client, workspaceId, { limit: MAX_LEADS_PER_RUN });
   for (const lead of leads) {
-    if (lead.contact_status === 'unresolved') {
-      const res = await resolveLeadContacts(client, workspaceId, lead, { enrich: enrichInline });
+    // Retry anything not yet resolved (unresolved AND prior no_contact) — a lead
+    // marked no_contact before the fast YC-detail lookup existed can now resolve.
+    if (lead.contact_status !== 'resolved') {
+      const res = await resolveLeadContacts(client, workspaceId, lead, { enrich: true, fastOnly });
       if (res.status === 'resolved') result.resolved += 1;
       if (res.status === 'no_contact') result.noContact += 1;
       lead.contact_status = res.status;

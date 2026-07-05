@@ -5,6 +5,7 @@ import {
   DirectoryScrapeError,
 } from '@/lib/signals/ingest/tinyfish-fetch';
 import { SEED_DIRECTORY_LEADS } from '@/lib/signals/ingest/seed-leads';
+import { fetchYcFounders } from '@/lib/signals/ingest/yc-algolia';
 import { decideContactStatus } from '@/lib/signals/leads/identity';
 
 /** Builds a fetch Response-like stub for the TinyFish Agent /run endpoint. */
@@ -196,5 +197,38 @@ describe('Phase: Directory ingest (YC Algolia path)', () => {
   it('throws DirectoryScrapeError when AlgoliaOpts is missing (YC layout changed)', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue(textResponse('<html>no opts here</html>'));
     await expect(fetchDirectoryLeads('yc_directory')).rejects.toBeInstanceOf(DirectoryScrapeError);
+  });
+});
+
+describe('Phase: YC detail-page founder enrichment', () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  function detailPage(founders: unknown): Response {
+    // YC embeds company props as entity-encoded JSON in the data-page attribute.
+    const json = JSON.stringify({ props: { company: { founders } } });
+    const encoded = json.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    return { ok: true, status: 200, text: async () => `<div data-page="${encoded}"></div>` } as Response;
+  }
+
+  it('parses founders (name/role/linkedin/x) from the data-page JSON', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(
+      detailPage([
+        { full_name: 'Brian Chesky', title: 'Founder/CEO', linkedin_url: 'https://www.linkedin.com/in/brianchesky/', twitter_url: 'https://x.com/bchesky' },
+        { full_name: 'Nathan B', title: 'Founder/CTO', linkedin_url: 'https://www.linkedin.com/in/blecharczyk/' },
+      ]),
+    );
+    const founders = await fetchYcFounders('airbnb');
+    expect(founders).toHaveLength(2);
+    expect(founders[0]).toEqual({
+      name: 'Brian Chesky',
+      role: 'Founder/CEO',
+      linkedinUrl: 'https://www.linkedin.com/in/brianchesky/',
+      xHandle: 'bchesky',
+    });
+  });
+
+  it('returns [] gracefully when the page has no data-page blob', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 200, text: async () => '<html>nope</html>' } as Response);
+    expect(await fetchYcFounders('whatever')).toEqual([]);
   });
 });

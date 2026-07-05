@@ -1,13 +1,14 @@
 import { ApifyClient } from 'apify-client';
 import type { SignalLeadWithContacts } from '@/lib/signals/types';
 import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
+import { fetchYcFounders } from '@/lib/signals/ingest/yc-algolia';
 
 /**
  * Founder-contact enrichment for leads the directory didn't hand a social URL.
- * Order (per product decision): TinyFish first (reuses the directory-scrape key,
- * cheaper), Apify fallback (stronger LinkedIn data, paid). Both are gated on
- * their creds and best-effort — any failure returns null so the lead simply
- * stays no_contact.
+ * Order (per product decision): for YC leads the company's YC detail page first
+ * (reliable, free — it lists founders with LinkedIn), then TinyFish agent on the
+ * company site, then Apify (paid). All are best-effort — any failure returns
+ * null so the lead simply stays no_contact.
  */
 
 // TinyFish Agent surface — same unified key as directory scraping. The retired
@@ -36,16 +37,39 @@ export interface EnrichedContact {
   name?: string;
   role?: string;
   linkedinUrl?: string;
-  via: 'tinyfish' | 'apify';
+  via: 'yc_detail' | 'tinyfish' | 'apify';
 }
 
-/** Runs the enrichment ladder; returns the first founder contact found, or null. */
+/**
+ * Runs the enrichment ladder; returns the first founder contact found, or null.
+ * `fastOnly` (used by the batch scrape) runs ONLY the fast YC-detail step and
+ * skips the slow TinyFish agent + Apify, so auto-resolving every scraped lead
+ * inline stays within the request timeout. On-demand "Try to resolve" runs the
+ * full ladder.
+ */
 export async function enrichFounderContact(
-  lead: Pick<SignalLeadWithContacts, 'company_name' | 'website' | 'contacts'>,
+  lead: Pick<SignalLeadWithContacts, 'source' | 'external_id' | 'company_name' | 'website' | 'contacts'>,
+  opts: { fastOnly?: boolean } = {},
 ): Promise<EnrichedContact | null> {
+  // YC leads: the YC company detail page reliably lists founders + LinkedIn (fast).
+  const viaYc = await enrichViaYcDetail(lead);
+  if (viaYc) return viaYc;
+  if (opts.fastOnly) return null;
   const viaTinyfish = await enrichViaTinyFish(lead);
   if (viaTinyfish) return viaTinyfish;
   return enrichViaApify(lead);
+}
+
+/** YC detail page: founder + LinkedIn from the company's /companies/<slug> page. */
+async function enrichViaYcDetail(
+  lead: Pick<SignalLeadWithContacts, 'source' | 'external_id'>,
+): Promise<EnrichedContact | null> {
+  if (lead.source !== 'yc_directory' || !lead.external_id) return null;
+  const founders = await fetchYcFounders(lead.external_id);
+  // Prefer a founder with a LinkedIn URL (needed to actually send a connect).
+  const found = founders.find((f) => f.linkedinUrl) ?? founders[0];
+  if (!found?.linkedinUrl) return null;
+  return { name: found.name, role: found.role, linkedinUrl: found.linkedinUrl, via: 'yc_detail' };
 }
 
 /** TinyFish: read the company site (about/team) for a founder + LinkedIn URL. */

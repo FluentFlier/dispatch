@@ -65,6 +65,9 @@ describe('Phase 3: enrichment ladder gating', () => {
 
   it('returns null (no enrichment) when neither provider is configured', async () => {
     const result = await enrichFounderContact({
+      // Non-YC source so the YC-detail path is skipped (keeps this test offline).
+      source: 'product_hunt',
+      external_id: null,
       company_name: 'Flux Labs',
       website: 'https://fluxlabs.ai',
       contacts: [],
