@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import {
   RefreshCw,
   Sparkles,
@@ -49,6 +50,35 @@ function IconLink({ href, title, children }: { href: string; title: string; chil
     >
       {children}
     </a>
+  );
+}
+
+/**
+ * Company "About" text clamped to a short preview with a Read more / Show less
+ * toggle, so a long description never floods the card and pushes the info box
+ * and draft below the fold. Expands in place; no toggle shown for short text.
+ */
+function AboutText({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const PREVIEW_LIMIT = 200;
+  const isLong = text.length > PREVIEW_LIMIT;
+  const shown = !isLong || expanded ? text : `${text.slice(0, PREVIEW_LIMIT).trimEnd()}...`;
+
+  return (
+    <>
+      <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary mb-1">About</p>
+      <p className="text-sm text-text-secondary leading-relaxed">{shown}</p>
+      {isLong && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          className="mt-1 text-xs font-medium text-accent-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary rounded"
+        >
+          {expanded ? 'Show less' : 'Read more'}
+        </button>
+      )}
+    </>
   );
 }
 
@@ -171,10 +201,7 @@ export function LeadDetail({
           {/* About (left) */}
           <div className="flex-1 min-w-0">
             {detail?.description ? (
-              <>
-                <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary mb-1">About</p>
-                <p className="text-sm text-text-secondary leading-relaxed">{detail.description}</p>
-              </>
+              <AboutText text={detail.description} />
             ) : (
               <p className="text-sm text-text-tertiary italic">No public description yet.</p>
             )}
