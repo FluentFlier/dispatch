@@ -6,7 +6,6 @@ vi.mock('@/lib/llm', () => ({
 import { chatCompletion } from '@/lib/llm';
 import { confirmSignalWithLLM } from '@/lib/signals/detect/llm-confirm';
 import { classifyPostHybrid } from '@/lib/signals/detect/hybrid';
-import * as classifier from '@/lib/signals/classifier';
 import type { IngestedPost } from '@/lib/signals/types';
 
 const post = (content: string): IngestedPost => ({
@@ -63,21 +62,54 @@ describe('Phase: Unified Leads', () => {
       expect(chatCompletion).not.toHaveBeenCalled();
     });
 
-    it('escalates a borderline post to the LLM', async () => {
+  });
+
+  describe('Task 2.5: Source-based LLM-confirm trigger', () => {
+    beforeEach(() => vi.clearAllMocks());
+
+    it('accepts an obvious keyword hit from a high-value source WITHOUT calling the LLM', async () => {
+      const r = await classifyPostHybrid(
+        post('Excited to join YC S24!'),
+        { highValueSource: true },
+      );
+      expect(r?.signalType).toBe('accelerator_join');
+      expect(chatCompletion).not.toHaveBeenCalled();
+    });
+
+    it('escalates a keyword miss from a high-value source to the LLM', async () => {
       vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({
         is_signal: true, signal_type: 'funding_round', company_name: 'Acme', confidence: 0.8,
       }));
-      // The current keyword packs only ever produce a score of 0 (no match) or
-      // >= 0.63 (any single match), so no real post text lands in the [0.3, 0.55)
-      // borderline band today. Stub scorePost to simulate a future/tuned pack
-      // that does, so the orchestrator's borderline branch is exercised directly.
-      const scoreSpy = vi.spyOn(classifier, 'scorePost').mockReturnValue({
-        bestType: 'other', bestScore: 0.4, matched: [], normalizedText: 'stubbed borderline text',
-      });
-      const r = await classifyPostHybrid(post('proud to share we are now expanding into new markets with great partners'));
+      const r = await classifyPostHybrid(
+        post('thrilled the a16z team is backing us'),
+        { highValueSource: true },
+      );
       expect(chatCompletion).toHaveBeenCalledTimes(1);
       expect(r?.companyName).toBe('Acme');
-      scoreSpy.mockRestore();
+    });
+
+    it('drops a keyword miss from a non-tracked source WITHOUT calling the LLM', async () => {
+      const r = await classifyPostHybrid(
+        post('thrilled the a16z team is backing us'),
+        { highValueSource: false },
+      );
+      expect(r).toBeNull();
+      expect(chatCompletion).not.toHaveBeenCalled();
+    });
+
+    it('drops a keyword miss when no opts are passed at all', async () => {
+      const r = await classifyPostHybrid(post('thrilled the a16z team is backing us'));
+      expect(r).toBeNull();
+      expect(chatCompletion).not.toHaveBeenCalled();
+    });
+
+    it('drops a keyword miss from a high-value source when the LLM says it is not a signal', async () => {
+      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({ is_signal: false }));
+      const r = await classifyPostHybrid(
+        post('thrilled the a16z team is backing us'),
+        { highValueSource: true },
+      );
+      expect(r).toBeNull();
     });
   });
 });

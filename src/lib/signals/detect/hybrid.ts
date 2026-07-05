@@ -1,23 +1,26 @@
-import { classifyPost, scorePost } from '@/lib/signals/classifier';
+import { classifyPost } from '@/lib/signals/classifier';
 import { confirmSignalWithLLM } from '@/lib/signals/detect/llm-confirm';
 import type { ClassifiedSignal, IngestedPost } from '@/lib/signals/types';
 
-// Borderline band: below the accept threshold but not clearly junk. Only these
-// posts pay for an LLM call, keeping cost bounded while catching novel phrasing.
-const BORDERLINE_LOW = 0.3;
-const BORDERLINE_HIGH = 0.55; // SIGNAL_CONFIDENCE_THRESHOLD
+export interface HybridOptions {
+  /** True when the post comes from a source the user explicitly tracks
+   *  (account, company_page, person_profile). Only these pay for an LLM
+   *  confirm on a keyword miss, keeping cost bounded. */
+  highValueSource?: boolean;
+}
 
 /**
- * Two-stage GTM detection. Obvious keyword hits pass immediately (no LLM);
- * obvious junk is dropped immediately; only borderline posts escalate to the
- * LLM confirm stage. Returns a ClassifiedSignal or null.
+ * Two-stage GTM detection. An obvious keyword hit passes immediately (no LLM).
+ * On a keyword miss, a post from a high-value tracked source escalates to the
+ * LLM confirm stage so novel phrasing on followed accounts is not lost; a miss
+ * from any other source is dropped. Returns a ClassifiedSignal or null.
  */
-export async function classifyPostHybrid(post: IngestedPost): Promise<ClassifiedSignal | null> {
+export async function classifyPostHybrid(
+  post: IngestedPost,
+  opts: HybridOptions = {},
+): Promise<ClassifiedSignal | null> {
   const keyword = classifyPost(post);
-  if (keyword) return keyword; // obvious hit
-
-  const { bestScore } = scorePost(post);
-  if (bestScore < BORDERLINE_LOW || bestScore >= BORDERLINE_HIGH) return null; // junk (or already handled)
-
-  return confirmSignalWithLLM(post); // borderline - let the LLM decide
+  if (keyword) return keyword;              // obvious keyword hit
+  if (!opts.highValueSource) return null;   // untracked miss -> drop
+  return confirmSignalWithLLM(post);        // tracked miss -> LLM decides
 }
