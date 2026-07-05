@@ -14,6 +14,10 @@ import {
   TrendingUp,
   Download,
   Mail,
+  Building2,
+  Linkedin,
+  Globe,
+  Twitter,
 } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Button } from '@/components/ui/Button';
@@ -25,6 +29,7 @@ import type {
   LeadStatus,
   SignalLeadWithContacts,
 } from '@/lib/signals/types';
+import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 
 const FILTERS: Array<{ key: LeadStatus | 'all'; label: string }> = [
   { key: 'new', label: 'New' },
@@ -50,6 +55,10 @@ export default function LeadsPage() {
   const [scraping, setScraping] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Rich company info for the card, cached by lead id ('loading' while fetching).
+  const [companyById, setCompanyById] = useState<Record<string, YcCompanyDetail | 'loading'>>({});
+  // Bulk-draft progress (null when idle).
+  const [draftAll, setDraftAll] = useState<{ done: number; total: number } | null>(null);
   const bootstrapped = useRef(false);
 
   // --- Data loading ---
@@ -99,7 +108,57 @@ export default function LeadsPage() {
   const mergeLead = (updated: SignalLeadWithContacts) =>
     setLeads((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
 
+  // Fetch rich company info the first time a lead is opened (cached by id).
+  useEffect(() => {
+    if (!selectedId || companyById[selectedId]) return;
+    const id = selectedId;
+    setCompanyById((m) => ({ ...m, [id]: 'loading' }));
+    fetch(`/api/leads/${id}/company`)
+      .then((r) => r.json())
+      .then((d) => setCompanyById((m) => ({ ...m, [id]: (d.company as YcCompanyDetail) ?? null })))
+      .catch(() =>
+        setCompanyById((m) => {
+          const next = { ...m };
+          delete next[id];
+          return next;
+        }),
+      );
+  }, [selectedId, companyById]);
+
   // --- Actions ---
+  // Bulk-draft: draft every resolved lead without a draft, 3 at a time (each is
+  // a ~10s LLM call), with live progress. Reuses the per-lead /draft endpoint.
+  const handleDraftAll = async () => {
+    const targets = leads.filter(
+      (l) => l.contact_status === 'resolved' && !(l.outreach?.draft_text || drafts[l.id]),
+    );
+    if (targets.length === 0) {
+      toast('All resolved leads already have drafts.');
+      return;
+    }
+    setDraftAll({ done: 0, total: targets.length });
+    let done = 0;
+    const queue = [...targets];
+    const worker = async () => {
+      for (let lead = queue.shift(); lead; lead = queue.shift()) {
+        try {
+          const res = await fetch(`/api/leads/${lead.id}/draft`, { method: 'POST', headers: json(), body: '{}' });
+          const data = await res.json();
+          if (res.ok) {
+            mergeLead(data.lead);
+            setDrafts((d) => ({ ...d, [lead.id]: data.draftText }));
+          }
+        } catch {
+          // Skip a failed lead; keep drafting the rest.
+        }
+        done += 1;
+        setDraftAll({ done, total: targets.length });
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(3, targets.length) }, worker));
+    setDraftAll(null);
+    toast(`Drafted ${done} message${done === 1 ? '' : 's'}.`);
+  };
   const handleScrape = async () => {
     setScraping(true);
     try {
@@ -261,6 +320,9 @@ export default function LeadsPage() {
             <HeaderBtn onClick={handleScrape} disabled={scraping} icon={<Download className={`h-3.5 w-3.5 ${scraping ? 'animate-pulse' : ''}`} />}>
               {scraping ? 'Scraping…' : 'Scrape now'}
             </HeaderBtn>
+            <HeaderBtn onClick={handleDraftAll} disabled={draftAll !== null} icon={<Sparkles className={`h-3.5 w-3.5 ${draftAll ? 'animate-pulse' : ''}`} />}>
+              {draftAll ? `Drafting ${draftAll.done}/${draftAll.total}…` : 'Draft all'}
+            </HeaderBtn>
             <HeaderBtn onClick={refetchList} disabled={listLoading} icon={<RefreshCw className={`h-3.5 w-3.5 ${listLoading ? 'animate-spin' : ''}`} />}>
               Refresh
             </HeaderBtn>
@@ -331,6 +393,7 @@ export default function LeadsPage() {
             ) : (
               <LeadDetail
                 lead={selected}
+                company={companyById[selected.id]}
                 draft={drafts[selected.id] ?? selected.outreach?.draft_text ?? ''}
                 onDraftChange={(v) => setDrafts((d) => ({ ...d, [selected.id]: v }))}
                 busy={busyId === selected.id}
@@ -394,6 +457,31 @@ function HeaderBtn({ onClick, disabled, icon, children }: { onClick: () => void;
   );
 }
 
+/** A label:value row in the company info box. */
+function InfoRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1 border-b border-border/50 last:border-0 text-xs">
+      <span className="text-text-tertiary">{label}</span>
+      <span className="text-text-primary text-right font-medium">{children}</span>
+    </div>
+  );
+}
+
+/** A square icon button linking to an external URL (website / YC / LinkedIn / X). */
+function IconLink({ href, title, children }: { href: string; title: string; children: React.ReactNode }) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      title={title}
+      className="inline-flex items-center justify-center h-9 w-9 rounded-md border border-border bg-bg-secondary hover:bg-bg-primary text-text-secondary"
+    >
+      {children}
+    </a>
+  );
+}
+
 function EmptyState({ onScrape, scraping }: { onScrape: () => void; scraping: boolean }) {
   return (
     <div className="flex flex-col items-center justify-center text-center min-h-[360px] gap-3">
@@ -418,6 +506,7 @@ function EmptyState({ onScrape, scraping }: { onScrape: () => void; scraping: bo
 
 function LeadDetail({
   lead,
+  company,
   draft,
   onDraftChange,
   busy,
@@ -430,6 +519,7 @@ function LeadDetail({
   onFollow,
 }: {
   lead: SignalLeadWithContacts;
+  company: YcCompanyDetail | 'loading' | undefined;
   draft: string;
   onDraftChange: (v: string) => void;
   busy: boolean;
@@ -447,25 +537,124 @@ function LeadDetail({
   const overLimit = draft.length > CONNECT_LIMIT;
   const fact = lead.source_fact as { batch?: string; tagline?: string };
 
+  const detail = company && company !== 'loading' ? company : null;
+  const loadingCompany = company === 'loading';
+  const tagline = detail?.oneLiner || lead.tagline || null;
+  const website = detail?.website || lead.website || null;
+  const ycUrl = detail?.ycUrl || (lead.external_id && lead.source === 'yc_directory'
+    ? `https://www.ycombinator.com/companies/${lead.external_id}`
+    : null);
+  const industries = (detail?.industries?.length ? detail.industries : lead.tags) ?? [];
+  const photos = detail?.photos ?? [];
+  const batch = detail?.batch || lead.batch;
+  const infoRows: Array<{ label: string; value: React.ReactNode }> = [];
+  if (detail?.yearFounded) infoRows.push({ label: 'Founded', value: detail.yearFounded });
+  if (batch) infoRows.push({ label: 'Batch', value: batch });
+  if (detail?.teamSize) infoRows.push({ label: 'Team size', value: detail.teamSize });
+  if (detail?.status)
+    infoRows.push({
+      label: 'Status',
+      value: (
+        <span className="inline-flex items-center gap-1.5">
+          <span className={`h-2 w-2 rounded-full ${detail.status.toLowerCase() === 'active' ? 'bg-green-500' : 'bg-text-tertiary'}`} />
+          {detail.status}
+        </span>
+      ),
+    });
+  if (detail?.location) infoRows.push({ label: 'Location', value: detail.location });
+  if (detail?.primaryPartner)
+    infoRows.push({
+      label: 'Primary partner',
+      value: detail.primaryPartner.url ? (
+        <a href={detail.primaryPartner.url} target="_blank" rel="noreferrer" className="text-accent-primary hover:underline">
+          {detail.primaryPartner.name}
+        </a>
+      ) : (
+        detail.primaryPartner.name
+      ),
+    });
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
+      {/* Header: logo + name + tagline + follow */}
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">{sourceTag(lead)}</p>
-          <h2 className="text-xl font-display text-text-primary">{lead.company_name}</h2>
-          {(lead.name_history ?? []).length > 0 && (
-            <p className="text-xs text-text-tertiary">Renamed · was {lead.name_history[lead.name_history.length - 1]}</p>
+        <div className="flex items-start gap-3 min-w-0">
+          {detail?.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={detail.logoUrl} alt="" className="h-11 w-11 rounded-md border border-border object-contain bg-white shrink-0" />
+          ) : (
+            <div className="h-11 w-11 rounded-md border border-border bg-bg-tertiary flex items-center justify-center shrink-0">
+              <Building2 className="h-5 w-5 text-text-tertiary" />
+            </div>
           )}
-          {lead.website && (
-            <a href={lead.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-accent-primary hover:underline mt-0.5">
-              {lead.domain ?? lead.website} <ExternalLink className="h-3 w-3" />
-            </a>
-          )}
+          <div className="min-w-0">
+            <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">{sourceTag(lead)}</p>
+            <h2 className="text-xl font-display text-text-primary truncate">{lead.company_name}</h2>
+            {tagline && <p className="text-sm text-text-secondary line-clamp-2">{tagline}</p>}
+            {(lead.name_history ?? []).length > 0 && (
+              <p className="text-xs text-text-tertiary">Renamed · was {lead.name_history[lead.name_history.length - 1]}</p>
+            )}
+          </div>
         </div>
-        <button onClick={onFollow} className={`inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border border-border ${followed ? 'text-accent-secondary bg-sage-light' : 'text-text-secondary hover:bg-bg-tertiary'}`}>
+        <button onClick={onFollow} className={`inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border border-border shrink-0 ${followed ? 'text-accent-secondary bg-sage-light' : 'text-text-secondary hover:bg-bg-tertiary'}`}>
           <Pin className="h-3.5 w-3.5" /> {followed ? 'Following' : 'Follow'}
         </button>
       </div>
+
+      {/* Body: About on the left, info box + tags on the right */}
+      {loadingCompany && !detail ? (
+        <div className="h-28 rounded-lg bg-bg-tertiary animate-pulse" />
+      ) : (
+        <div className="flex flex-col sm:flex-row gap-4">
+          {/* About (left) */}
+          <div className="flex-1 min-w-0">
+            {detail?.description ? (
+              <>
+                <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary mb-1">About</p>
+                <p className="text-sm text-text-secondary leading-relaxed">{detail.description}</p>
+              </>
+            ) : (
+              <p className="text-sm text-text-tertiary italic">No public description yet.</p>
+            )}
+          </div>
+          {/* Info box + tags (right) */}
+          <div className="w-full sm:w-60 shrink-0 space-y-2">
+            {infoRows.length > 0 && (
+              <div className="border border-border rounded-lg px-3 bg-bg-primary">
+                {infoRows.map((r) => (
+                  <InfoRow key={r.label} label={r.label}>{r.value}</InfoRow>
+                ))}
+              </div>
+            )}
+            {industries.length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {industries.slice(0, 6).map((t) => (
+                  <span key={t} className="text-[11px] px-2 py-0.5 rounded-full bg-bg-tertiary text-text-secondary">{t}</span>
+                ))}
+              </div>
+            )}
+            {/* Social / quick links, right below the tags */}
+            <div className="flex flex-wrap gap-2 pt-0.5">
+              {website && <IconLink href={website} title="Website"><Globe className="h-4 w-4" /></IconLink>}
+              {ycUrl && <IconLink href={ycUrl} title="YC page"><ExternalLink className="h-4 w-4" /></IconLink>}
+              {(detail?.linkedinUrl || contact?.linkedin_url) && (
+                <IconLink href={(detail?.linkedinUrl || contact?.linkedin_url)!} title="LinkedIn"><Linkedin className="h-4 w-4" /></IconLink>
+              )}
+              {detail?.twitterUrl && <IconLink href={detail.twitterUrl} title="X / Twitter"><Twitter className="h-4 w-4" /></IconLink>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Photos (Maps-style strip) */}
+      {photos.length > 0 && (
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {photos.slice(0, 6).map((src, i) => (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img key={i} src={src} alt="" className="h-24 w-40 rounded-md border border-border object-cover shrink-0 bg-bg-tertiary" />
+          ))}
+        </div>
+      )}
 
       {/* Contact block */}
       {noContact ? (

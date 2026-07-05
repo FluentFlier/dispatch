@@ -47,13 +47,33 @@ export interface YcFounder {
 const YC_COMPANY_BASE = 'https://www.ycombinator.com/companies/';
 const DATA_PAGE_RE = /data-page="([^"]*)"/;
 
-/** Decodes the HTML entities YC uses inside the data-page attribute JSON. */
+/** Decodes the HTML entities YC uses to encode the data-page attribute JSON. */
 function decodeEntities(s: string): string {
   return s
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&gt;/g, '>')
     .replace(/&lt;/g, '<')
+    .replace(/&amp;/g, '&');
+}
+
+/**
+ * Decodes HTML entities inside a TEXT VALUE (one_liner, long_description, names).
+ * YC's content is itself HTML-encoded (e.g. "We&#x27;re"), so after JSON.parse
+ * the visible text still holds entities — this second pass renders them plainly.
+ * Handles named + numeric (decimal and hex) entities; &amp; is decoded last so
+ * sequences like "&amp;#x27;" resolve fully.
+ */
+function decodeText(v: unknown): string | undefined {
+  if (v === null || v === undefined) return undefined;
+  const s = String(v);
+  return s
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(parseInt(d, 10)))
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
     .replace(/&amp;/g, '&');
 }
 
@@ -64,40 +84,115 @@ function handleFromTwitter(url: unknown): string | undefined {
   return m ? m[1].replace(/^@/, '') : undefined;
 }
 
+/** Rich company facts for the lead card, parsed from the YC detail page. */
+export interface YcCompanyDetail {
+  name?: string;
+  slug: string;
+  oneLiner?: string;
+  description?: string;
+  website?: string;
+  ycUrl: string;
+  logoUrl?: string;
+  batch?: string;
+  teamSize?: number;
+  location?: string;
+  yearFounded?: number;
+  status?: string;
+  primaryPartner?: { name: string; url?: string };
+  linkedinUrl?: string;
+  twitterUrl?: string;
+  industries: string[];
+  photos: string[];
+  founders: YcFounder[];
+}
+
+/** Maps YC founder records to our contact shape. */
+function mapFounders(raw: unknown): YcFounder[] {
+  const arr = Array.isArray(raw) ? (raw as Array<Record<string, unknown>>) : [];
+  return arr.map((f) => ({
+    name: decodeText(f.full_name),
+    role: decodeText(f.title),
+    linkedinUrl: f.linkedin_url ? String(f.linkedin_url) : undefined,
+    xHandle: handleFromTwitter(f.twitter_url),
+  }));
+}
+
 /**
- * Fetches founder contacts (name, role, LinkedIn, X) for a YC company from its
- * detail page. YC embeds the full company record — including founders with
- * linkedin_url — as entity-encoded JSON in the page's `data-page` attribute, so
- * this is one HTTP fetch + parse: reliable and free, unlike an AI-agent read of
- * the rendered SPA. Returns [] on any failure so enrichment degrades gracefully.
+ * Fetches + parses a YC company detail page once. YC embeds the full company
+ * record (facts + founders with linkedin_url) as entity-encoded JSON in the
+ * page's `data-page` attribute, so this is one HTTP fetch + parse — reliable and
+ * free, unlike an AI-agent read of the rendered SPA. Returns null on any failure.
  */
-export async function fetchYcFounders(slug: string): Promise<YcFounder[]> {
+async function fetchYcCompanyRaw(slug: string): Promise<Record<string, unknown> | null> {
   const clean = slug.trim();
-  if (!clean) return [];
+  if (!clean) return null;
   try {
     const res = await fetch(`${YC_COMPANY_BASE}${encodeURIComponent(clean)}`, {
       headers: { 'User-Agent': 'Mozilla/5.0' },
     });
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     const html = await res.text();
     const match = html.match(DATA_PAGE_RE);
-    if (!match) return [];
+    if (!match) return null;
     const data = JSON.parse(decodeEntities(match[1])) as {
-      props?: { company?: { founders?: Array<Record<string, unknown>> } };
+      props?: { company?: Record<string, unknown> };
     };
-    const founders = data.props?.company?.founders ?? [];
-    return founders.map((f) => ({
-      name: f.full_name ? String(f.full_name) : undefined,
-      role: f.title ? String(f.title) : undefined,
-      linkedinUrl: f.linkedin_url ? String(f.linkedin_url) : undefined,
-      xHandle: handleFromTwitter(f.twitter_url),
-    }));
+    return data.props?.company ?? null;
   } catch (err) {
     if (signalsDebugEnabled()) {
       console.warn(`[yc-detail] ${clean} failed: ${err instanceof Error ? err.message : String(err)}`);
     }
-    return [];
+    return null;
   }
+}
+
+/** Founder contacts (name, role, LinkedIn, X) for a YC company. [] on failure. */
+export async function fetchYcFounders(slug: string): Promise<YcFounder[]> {
+  const company = await fetchYcCompanyRaw(slug);
+  return company ? mapFounders(company.founders) : [];
+}
+
+/** Full company facts + founders for the lead card. null on failure. */
+export async function fetchYcCompanyDetail(slug: string): Promise<YcCompanyDetail | null> {
+  const clean = slug.trim();
+  if (!clean) return null;
+  const c = await fetchYcCompanyRaw(clean);
+  if (!c) return null;
+  // NOTE: the DETAIL page uses different field names than the Algolia index —
+  // small_logo_url (not *_thumb_url), tags (not industries), location/city/country
+  // (not all_locations), ycdc_status (not status/stage).
+  const industries = Array.isArray(c.tags) ? (c.tags as unknown[]).map(String) : [];
+  const location =
+    (c.location ? String(c.location) : '') ||
+    [c.city, c.country].filter(Boolean).map(String).join(', ') ||
+    undefined;
+  const photos = Array.isArray(c.company_photos)
+    ? (c.company_photos as Array<{ url?: unknown }>).map((p) => (p?.url ? String(p.url) : '')).filter(Boolean)
+    : [];
+  const partner = c.primary_group_partner as { full_name?: unknown; url?: unknown } | undefined;
+  const primaryPartner = partner?.full_name
+    ? { name: decodeText(partner.full_name) ?? String(partner.full_name), url: partner.url ? String(partner.url) : undefined }
+    : undefined;
+  return {
+    name: decodeText(c.name),
+    slug: clean,
+    oneLiner: decodeText(c.one_liner),
+    description: decodeText(c.long_description),
+    website: c.website ? String(c.website) : undefined,
+    ycUrl: `${YC_COMPANY_BASE}${encodeURIComponent(clean)}`,
+    logoUrl: c.small_logo_url ? String(c.small_logo_url) : c.logo_url ? String(c.logo_url) : undefined,
+    batch: c.batch_name ? String(c.batch_name) : c.batch ? String(c.batch) : undefined,
+    teamSize: typeof c.team_size === 'number' ? c.team_size : undefined,
+    location: decodeText(location),
+    yearFounded: typeof c.year_founded === 'number' ? c.year_founded : undefined,
+    status: c.ycdc_status ? String(c.ycdc_status) : undefined,
+    primaryPartner,
+    linkedinUrl: c.linkedin_url ? String(c.linkedin_url) : undefined,
+    twitterUrl: c.twitter_url ? String(c.twitter_url) : undefined,
+    industries,
+    photos,
+    founders: mapFounders(c.founders),
+  };
 }
 
 /** Reads the live app id + secured search key YC injects into its page. */

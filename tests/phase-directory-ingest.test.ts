@@ -5,7 +5,7 @@ import {
   DirectoryScrapeError,
 } from '@/lib/signals/ingest/tinyfish-fetch';
 import { SEED_DIRECTORY_LEADS } from '@/lib/signals/ingest/seed-leads';
-import { fetchYcFounders } from '@/lib/signals/ingest/yc-algolia';
+import { fetchYcFounders, fetchYcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { decideContactStatus } from '@/lib/signals/leads/identity';
 
 /** Builds a fetch Response-like stub for the TinyFish Agent /run endpoint. */
@@ -230,5 +230,58 @@ describe('Phase: YC detail-page founder enrichment', () => {
   it('returns [] gracefully when the page has no data-page blob', async () => {
     vi.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 200, text: async () => '<html>nope</html>' } as Response);
     expect(await fetchYcFounders('whatever')).toEqual([]);
+  });
+
+  it('fetchYcCompanyDetail maps company facts + founders for the card', async () => {
+    // Real YC DETAIL-page field names (differ from the Algolia index).
+    const company = {
+      name: 'Acme',
+      one_liner: 'We do X',
+      long_description: 'We&#x27;re a team building &amp; testing.',
+      website: 'https://acme.com',
+      small_logo_url: 'https://logo/acme.png',
+      batch_name: 'Winter 2025',
+      team_size: 7,
+      location: 'San Francisco',
+      city: 'San Francisco',
+      country: 'US',
+      year_founded: 2025,
+      ycdc_status: 'Active',
+      tags: ['AI', 'Fintech'],
+      company_photos: [{ id: 1, url: 'https://photo/1.png' }, { id: 2, url: 'https://photo/2.png' }],
+      primary_group_partner: { full_name: 'Ankit Gupta', url: 'https://www.ycombinator.com/people/ankit-gupta' },
+      linkedin_url: 'https://www.linkedin.com/company/acme',
+      twitter_url: 'https://twitter.com/acme',
+      founders: [{ full_name: 'Jane Doe', title: 'CEO', linkedin_url: 'https://li/jane', twitter_url: 'https://x.com/jane' }],
+    };
+    const encoded = JSON.stringify({ props: { company } }).replace(/"/g, '&quot;');
+    vi.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 200, text: async () => `<div data-page="${encoded}"></div>` } as Response);
+
+    const detail = await fetchYcCompanyDetail('acme');
+    expect(detail).toMatchObject({
+      name: 'Acme',
+      slug: 'acme',
+      oneLiner: 'We do X',
+      description: "We're a team building & testing.",
+      website: 'https://acme.com',
+      logoUrl: 'https://logo/acme.png',
+      batch: 'Winter 2025',
+      teamSize: 7,
+      location: 'San Francisco',
+      yearFounded: 2025,
+      status: 'Active',
+      industries: ['AI', 'Fintech'],
+      photos: ['https://photo/1.png', 'https://photo/2.png'],
+      primaryPartner: { name: 'Ankit Gupta', url: 'https://www.ycombinator.com/people/ankit-gupta' },
+      linkedinUrl: 'https://www.linkedin.com/company/acme',
+      twitterUrl: 'https://twitter.com/acme',
+      ycUrl: 'https://www.ycombinator.com/companies/acme',
+    });
+    expect(detail?.founders[0]).toMatchObject({ name: 'Jane Doe', linkedinUrl: 'https://li/jane', xHandle: 'jane' });
+  });
+
+  it('fetchYcCompanyDetail returns null when the page has no data-page blob', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue({ ok: true, status: 200, text: async () => '<html>nope</html>' } as Response);
+    expect(await fetchYcCompanyDetail('x')).toBeNull();
   });
 });
