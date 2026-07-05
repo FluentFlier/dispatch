@@ -9,6 +9,8 @@ import { classifyPostHybrid, classifyPostHybridWithMeta } from '@/lib/signals/de
 import { scoreIcpFit } from '@/lib/signals/leads/icp-score';
 import { enrichViaUnipileSearch } from '@/lib/signals/leads/enrich-contact';
 import { normalizeEvent, normalizeLead } from '@/lib/signals/feed/normalize';
+import { mergeFeed } from '@/lib/signals/feed/store';
+import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import type { IngestedPost } from '@/lib/signals/types';
 
 const post = (content: string): IngestedPost => ({
@@ -270,6 +272,41 @@ describe('Phase: Unified Leads', () => {
       expect(card.contact?.name).toBe('Sam');
       expect(card.batch).toBe('S24');
       expect(card.score).toBeCloseTo(0.9);
+    });
+  });
+
+  describe('Task 6: Feed merge/sort/filter', () => {
+    const card = (over: Partial<UnifiedLeadCard>): UnifiedLeadCard => ({
+      id: 'x', kind: 'directory', source: 'yc_directory', companyName: 'C', tagline: null,
+      signalType: null, signalSummary: null, sourceUrl: null, batch: null, accelerator: null,
+      contact: null, contactStatus: null, score: 0.5, status: 'new', detectedAt: '2026-07-01T00:00:00Z',
+      ...over,
+    });
+
+    it('sorts by score desc then detectedAt desc', () => {
+      const out = mergeFeed(
+        [card({ id: 'a', score: 0.4 })],
+        [card({ id: 'b', kind: 'signal', source: 'x', score: 0.9 })],
+        {},
+      );
+      expect(out.map((c) => c.id)).toEqual(['b', 'a']);
+    });
+
+    it('filters by status', () => {
+      const out = mergeFeed(
+        [card({ id: 'a', status: 'new' }), card({ id: 'b', status: 'sent' })],
+        [], { status: 'sent' },
+      );
+      expect(out.map((c) => c.id)).toEqual(['b']);
+    });
+
+    it('filters by kind', () => {
+      const out = mergeFeed(
+        [card({ id: 'a' })],
+        [card({ id: 'b', kind: 'signal', source: 'x' })],
+        { kind: 'signal' },
+      );
+      expect(out.map((c) => c.id)).toEqual(['b']);
     });
   });
 });
