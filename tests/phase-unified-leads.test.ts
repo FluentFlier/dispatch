@@ -8,6 +8,7 @@ import { confirmSignalWithLLM } from '@/lib/signals/detect/llm-confirm';
 import { classifyPostHybrid, classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import { scoreIcpFit } from '@/lib/signals/leads/icp-score';
 import { enrichViaUnipileSearch } from '@/lib/signals/leads/enrich-contact';
+import { normalizeEvent, normalizeLead } from '@/lib/signals/feed/normalize';
 import type { IngestedPost } from '@/lib/signals/types';
 
 const post = (content: string): IngestedPost => ({
@@ -235,6 +236,40 @@ describe('Phase: Unified Leads', () => {
         { search: vi.fn().mockResolvedValue(null) },
       );
       expect(found).toBeNull();
+    });
+  });
+
+  describe('Task 5: Feed normalizer', () => {
+    it('maps a signal event to a unified card', () => {
+      const card = normalizeEvent({
+        id: 'e1', workspace_id: 'w', raw_post_id: 'p1', signal_type: 'funding_round',
+        company_name: 'Acme', person_name: 'Jane', accelerator_name: null, batch: null,
+        signal_summary: 'raised', confidence: 0.8, dedupe_key: 'k', status: 'pending',
+        created_at: '2026-07-05T00:00:00Z', updated_at: '2026-07-05T00:00:00Z',
+        raw_post: { post_url: 'https://x.com/1', platform: 'x' } as never,
+      } as never);
+      expect(card.kind).toBe('signal');
+      expect(card.source).toBe('x');
+      expect(card.companyName).toBe('Acme');
+      expect(card.sourceUrl).toBe('https://x.com/1');
+      expect(card.score).toBeCloseTo(0.8);
+    });
+
+    it('maps a directory lead to a unified card with contact', () => {
+      const card = normalizeLead({
+        id: 'l1', workspace_id: 'w', source: 'yc_directory', external_id: 'acme',
+        company_name: 'Acme', tagline: 'fintech', website: 'https://acme.com', domain: 'acme.com',
+        batch: 'S24', tags: [], intent_flags: {}, source_fact: {}, name_history: [],
+        fit_score: 0.9, rank_score: 0.9, contact_status: 'resolved', lead_status: 'new',
+        first_seen_at: 'x', last_seen_at: 'x', digest_date: '2026-07-05',
+        contacts: [{ name: 'Sam', role: 'CEO', linkedin_url: 'https://linkedin.com/in/sam', is_primary: true }],
+        primary_contact: { name: 'Sam', role: 'CEO', linkedin_url: 'https://linkedin.com/in/sam' },
+      } as never);
+      expect(card.kind).toBe('directory');
+      expect(card.source).toBe('yc_directory');
+      expect(card.contact?.name).toBe('Sam');
+      expect(card.batch).toBe('S24');
+      expect(card.score).toBeCloseTo(0.9);
     });
   });
 });
