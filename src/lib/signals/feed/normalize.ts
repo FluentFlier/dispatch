@@ -9,7 +9,7 @@
  */
 
 import type {
-  SignalEventWithPost, SignalLeadWithContacts, SignalType,
+  SignalEventStatus, SignalEventWithPost, SignalLeadWithContacts, SignalType,
 } from '@/lib/signals/types';
 
 /** Contact info surfaced on a unified card, regardless of which source it came from. */
@@ -41,6 +41,24 @@ export interface UnifiedLeadCard {
 }
 
 /**
+ * Maps a signal event's `SignalEventStatus` into the `LeadStatus` vocabulary
+ * the feed UI actually filters on. Signal events and directory leads are two
+ * distinct sources feeding one filter (see `FeedFilters` / `mergeFeed`), so
+ * without this explicit map a `pending` signal event would never match the
+ * UI's default `status: 'new'` tab and would silently vanish from the feed.
+ * `failed` is treated as `new` too: a failed signal still needs attention and
+ * must stay visible, not disappear. `drafted`/`sent`/`dismissed` are shared
+ * vocabulary already and pass through unchanged.
+ */
+const SIGNAL_STATUS_TO_LEAD_STATUS: Record<SignalEventStatus, string> = {
+  pending: 'new',
+  failed: 'new',
+  drafted: 'drafted',
+  sent: 'sent',
+  dismissed: 'dismissed',
+};
+
+/**
  * Maps a real-time signal event (a detected X/LinkedIn post) into a unified
  * feed card. Falls back to 'x' when the source platform is unknown so the
  * card always has a valid `source`, since raw_post can be missing if the
@@ -62,7 +80,7 @@ export function normalizeEvent(e: SignalEventWithPost): UnifiedLeadCard {
     contact: e.person_name ? { name: e.person_name } : null,
     contactStatus: null,
     score: e.confidence ?? 0,
-    status: e.status,
+    status: SIGNAL_STATUS_TO_LEAD_STATUS[e.status],
     detectedAt: e.created_at,
   };
 }

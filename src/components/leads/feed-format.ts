@@ -49,14 +49,16 @@ export function signalTypeLabel(type: SignalType): string {
 
 /**
  * Whether a card has a reachable contact. A card is reachable only when it is
- * not explicitly marked `no_contact` and it carries at least one contact
- * channel, so the feed never presents an unreachable lead as messageable.
+ * not explicitly marked `no_contact` and it carries an actual messaging
+ * channel (linkedin_url, x_handle, or email). A bare `name` (e.g. a signal
+ * card's `{ name: person_name }` contact, which has no channel at all) is NOT
+ * enough, so the feed never presents a name-only contact as "Contact ready".
  */
 export function isReachable(card: UnifiedLeadCard): boolean {
   if (card.contactStatus === 'no_contact') return false;
   const c = card.contact;
   if (!c) return false;
-  return Boolean(c.linkedin_url || c.x_handle || c.email || c.name);
+  return Boolean(c.linkedin_url || c.x_handle || c.email);
 }
 
 /** Short label for the contact-status pill: resolved vs no-contact. */

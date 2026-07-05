@@ -11,6 +11,7 @@ import { enrichViaUnipileSearch } from '@/lib/signals/leads/enrich-contact';
 import { normalizeEvent, normalizeLead } from '@/lib/signals/feed/normalize';
 import { mergeFeed, buildUnifiedFeed } from '@/lib/signals/feed/store';
 import { listEventsWithPosts } from '@/lib/signals/store';
+import { isReachable, contactPillLabel } from '@/components/leads/feed-format';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import type { IngestedPost, SignalEventRow, SignalLeadRow } from '@/lib/signals/types';
 
@@ -274,6 +275,53 @@ describe('Phase: Unified Leads', () => {
       expect(card.batch).toBe('S24');
       expect(card.score).toBeCloseTo(0.9);
     });
+
+    it('maps a pending signal event to lead status "new" so it survives the default feed filter (regression: signal cards were hidden from the default view)', () => {
+      const card = normalizeEvent({
+        id: 'e2', workspace_id: 'w', raw_post_id: 'p2', signal_type: 'accelerator_join',
+        company_name: 'Acme', person_name: 'Jane', accelerator_name: null, batch: null,
+        signal_summary: 'joined', confidence: 0.7, dedupe_key: 'k2', status: 'pending',
+        created_at: '2026-07-05T00:00:00Z', updated_at: '2026-07-05T00:00:00Z',
+        raw_post: { post_url: 'https://x.com/2', platform: 'x' } as never,
+      } as never);
+      expect(card.status).toBe('new');
+
+      const directoryCard: UnifiedLeadCard = {
+        id: 'lead-new', kind: 'directory', source: 'yc_directory', companyName: 'Beta',
+        tagline: null, signalType: null, signalSummary: null, sourceUrl: null, batch: null,
+        accelerator: null, contact: null, contactStatus: null, score: 0.5, status: 'new',
+        detectedAt: '2026-07-01T00:00:00Z',
+      };
+
+      const merged = mergeFeed([directoryCard], [card], { status: 'new' });
+      const ids = merged.map((c) => c.id);
+      expect(ids).toContain(card.id);
+      expect(ids).toContain(directoryCard.id);
+    });
+
+    it('maps a failed signal event to lead status "new" so it stays visible (a failed signal still needs attention)', () => {
+      const card = normalizeEvent({
+        id: 'e3', workspace_id: 'w', raw_post_id: 'p3', signal_type: 'launch',
+        company_name: 'Acme', person_name: 'Jane', accelerator_name: null, batch: null,
+        signal_summary: 'launched', confidence: 0.6, dedupe_key: 'k3', status: 'failed',
+        created_at: '2026-07-05T00:00:00Z', updated_at: '2026-07-05T00:00:00Z',
+        raw_post: { post_url: 'https://x.com/3', platform: 'x' } as never,
+      } as never);
+      expect(card.status).toBe('new');
+    });
+
+    it('passes drafted/sent/dismissed signal statuses through unchanged (shared vocabulary with LeadStatus)', () => {
+      const base = {
+        id: 'e4', workspace_id: 'w', raw_post_id: 'p4', signal_type: 'launch' as const,
+        company_name: 'Acme', person_name: 'Jane', accelerator_name: null, batch: null,
+        signal_summary: 'launched', confidence: 0.6, dedupe_key: 'k4',
+        created_at: '2026-07-05T00:00:00Z', updated_at: '2026-07-05T00:00:00Z',
+        raw_post: { post_url: 'https://x.com/4', platform: 'x' } as never,
+      };
+      expect(normalizeEvent({ ...base, status: 'drafted' } as never).status).toBe('drafted');
+      expect(normalizeEvent({ ...base, status: 'sent' } as never).status).toBe('sent');
+      expect(normalizeEvent({ ...base, status: 'dismissed' } as never).status).toBe('dismissed');
+    });
   });
 
   describe('Task 6: Feed merge/sort/filter', () => {
@@ -308,6 +356,38 @@ describe('Phase: Unified Leads', () => {
         { kind: 'signal' },
       );
       expect(out.map((c) => c.id)).toEqual(['b']);
+    });
+  });
+
+  describe('Task 7: isReachable contact-channel guard', () => {
+    const baseCard: UnifiedLeadCard = {
+      id: 'c1', kind: 'signal', source: 'x', companyName: 'Acme', tagline: null,
+      signalType: null, signalSummary: null, sourceUrl: null, batch: null, accelerator: null,
+      contact: null, contactStatus: null, score: 0.5, status: 'new', detectedAt: '2026-07-01T00:00:00Z',
+    };
+
+    it('is NOT reachable when the contact has only a name (no messaging channel) — regression: name-only contacts were shown as "Contact ready"', () => {
+      const card: UnifiedLeadCard = { ...baseCard, contact: { name: 'Jane Doe' } };
+      expect(isReachable(card)).toBe(false);
+      expect(contactPillLabel(card)).toBe('No contact');
+    });
+
+    it('is reachable when the contact has a linkedin_url', () => {
+      const card: UnifiedLeadCard = {
+        ...baseCard,
+        contact: { name: 'Jane Doe', linkedin_url: 'https://linkedin.com/in/jane' },
+      };
+      expect(isReachable(card)).toBe(true);
+      expect(contactPillLabel(card)).toBe('Contact ready');
+    });
+
+    it('is not reachable when explicitly marked no_contact, even with a channel present', () => {
+      const card: UnifiedLeadCard = {
+        ...baseCard,
+        contactStatus: 'no_contact',
+        contact: { name: 'Jane Doe', email: 'jane@acme.com' },
+      };
+      expect(isReachable(card)).toBe(false);
     });
   });
 

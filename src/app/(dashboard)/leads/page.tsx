@@ -147,7 +147,7 @@ export default function LeadsPage() {
     setLeadsById((prev) => ({ ...prev, [updated.id]: updated }));
     setCards((prev) =>
       prev.map((c) =>
-        c.id === updated.id ? { ...c, status: updated.lead_status, contactStatus: updated.contact_status, score: updated.rank_score } : c,
+        c.id === updated.id ? { ...c, status: updated.lead_status, contactStatus: updated.contact_status, score: updated.rank_score ?? c.score } : c,
       ),
     );
   }, []);
