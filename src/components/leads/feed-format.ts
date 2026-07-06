@@ -61,6 +61,22 @@ export function isReachable(card: UnifiedLeadCard): boolean {
   return Boolean(c.linkedin_url || c.x_handle || c.email);
 }
 
+/** Score below which the chip is hidden rather than shown as a near-zero number. */
+const SCORE_CHIP_MIN = 0.15;
+
+/**
+ * Formats a card's ICP score for display, or hides it entirely when it is
+ * near zero. ICP scoring correctly returns ~0 for off-ICP companies, but a
+ * feed full of "0.00" chips reads as broken rather than "working as
+ * intended", so below `SCORE_CHIP_MIN` we hide the chip instead of showing
+ * a number that looks like a bug. This is display-only: sort order still
+ * uses the real underlying score.
+ */
+export function scoreChip(score: number): string | null {
+  if (score < SCORE_CHIP_MIN) return null;
+  return score.toFixed(2);
+}
+
 /** Short label for the contact-status pill: resolved vs no-contact. */
 export function contactPillLabel(card: UnifiedLeadCard): 'Contact ready' | 'No contact' {
   return isReachable(card) ? 'Contact ready' : 'No contact';

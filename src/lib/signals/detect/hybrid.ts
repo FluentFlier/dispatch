@@ -1,4 +1,4 @@
-import { classifyPost } from '@/lib/signals/classifier';
+import { classifyPost, rejectStopwordCompanyName } from '@/lib/signals/classifier';
 import { confirmSignalWithLLM } from '@/lib/signals/detect/llm-confirm';
 import type { ClassifiedSignal, IngestedPost } from '@/lib/signals/types';
 
@@ -39,7 +39,31 @@ export async function classifyPostHybridWithMeta(
   opts: HybridOptions = {},
 ): Promise<HybridResult> {
   const keyword = classifyPost(post);
-  if (keyword) return { signal: keyword, escalated: false };               // obvious keyword hit
+  if (keyword) {
+    // Regex often cannot name the company on "we joined YC W26" style posts.
+    // Recover it via the LLM ONLY when the keyword stage produced no company,
+    // so cost stays bounded to the exact gap.
+    if (!keyword.companyName) {
+      const enriched = await confirmSignalWithLLM(post);
+      if (enriched?.companyName) {
+        return {
+          signal: {
+            ...keyword,
+            // The LLM can return a bare stopword ("the") just as easily as the
+            // regex path can, so route it through the same guard before it
+            // ever reaches a signal.
+            companyName: rejectStopwordCompanyName(enriched.companyName) ?? undefined,
+            personName: keyword.personName ?? enriched.personName,
+            acceleratorName: keyword.acceleratorName ?? enriched.acceleratorName,
+            batch: keyword.batch ?? enriched.batch,
+          },
+          escalated: true,
+        };
+      }
+      return { signal: keyword, escalated: true }; // LLM ran, found nothing new
+    }
+    return { signal: keyword, escalated: false };
+  }
   if (!opts.highValueSource) return { signal: null, escalated: false };    // untracked miss -> drop
   const signal = await confirmSignalWithLLM(post);                        // tracked miss -> LLM decides
   return { signal, escalated: true };

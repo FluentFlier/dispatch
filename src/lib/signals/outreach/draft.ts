@@ -2,6 +2,7 @@ import type { createClient } from '@insforge/sdk';
 import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { saveOutreachDraft, getEvent } from '@/lib/signals/store';
+import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
 import type { SignalEventWithPost, OutreachChannel } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -83,12 +84,16 @@ export async function draftOutreachForEvent(
     humanizeAlways: false,
   });
 
-  await saveOutreachDraft(client, workspaceId, event.id, result.text, channel);
+  // The connect-note prompt only asks for <= 300 chars; enforce it server-side
+  // so an overrun LLM response never produces an unsendable saved draft.
+  const draftText = channel === 'linkedin_connect' ? enforceConnectLimit(result.text) : result.text;
+
+  await saveOutreachDraft(client, workspaceId, event.id, draftText, channel);
 
   const updated = await getEvent(client, workspaceId, event.id);
 
   return {
-    draftText: result.text,
+    draftText,
     voiceMatchScore: result.voice_match_score,
     event: updated,
   };
