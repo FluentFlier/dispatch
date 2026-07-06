@@ -219,6 +219,8 @@ export interface SignalLeadWithContacts extends SignalLeadRow {
 export interface DirectorySettingsRow {
   workspace_id: string;
   enabled_sources: LeadSource[];
+  /** Natural-language ICP description (BigSet-style intake). */
+  icp_description: string | null;
   icp_verticals: string[];
   icp_keywords: string[];
   recency_window: string;

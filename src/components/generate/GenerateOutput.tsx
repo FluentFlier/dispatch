@@ -6,8 +6,8 @@ import { SkeletonLines } from '@/components/ui/Skeleton';
 import { Modal } from '@/components/ui/Modal';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
-import { PLATFORMS } from '@/lib/constants';
-import type { Platform } from '@/lib/constants';
+import { PLATFORMS, normalizeDashboardPlatform } from '@/lib/constants';
+import type { DashboardPlatform } from '@/lib/constants';
 import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 import { usePillars } from '@/hooks/usePillars';
 import PillarMultiSelect from '@/components/ui/PillarMultiSelect';
@@ -94,10 +94,14 @@ export interface GenerateVoiceMetrics {
 interface GenerateOutputProps {
   text: string;
   loading: boolean;
-  sourcePlatform?: Platform;
+  sourcePlatform?: DashboardPlatform;
   voiceMetrics?: GenerateVoiceMetrics;
   children?: React.ReactNode;
   onTextUpdate?: (newText: string) => void;
+  /** Simple = creator flow: edit, viral score, post/save/copy only */
+  variant?: 'full' | 'simple';
+  /** Default pillar slug for one-click save in simple mode */
+  savePillar?: string;
 }
 
 function scoreColor(value: number, invert = false): string {
@@ -215,6 +219,8 @@ export function GenerateOutput({
   voiceMetrics,
   children,
   onTextUpdate,
+  variant = 'full',
+  savePillar,
 }: GenerateOutputProps) {
   const { toast } = useToast();
   const [showSave, setShowSave] = useState(false);
@@ -225,6 +231,8 @@ export function GenerateOutput({
   const [predicting, setPredicting] = useState(false);
   const [published, setPublished] = useState<{ platform: string; url?: string } | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
+  const [quickSaving, setQuickSaving] = useState(false);
+  const [autoPredicted, setAutoPredicted] = useState(false);
 
   // Local copy of the draft so in-place edits (Humanize) are reflected on every
   // tab, even those that don't pass onTextUpdate. Re-syncs whenever a new
@@ -232,7 +240,9 @@ export function GenerateOutput({
   const [displayText, setDisplayText] = useState(text);
   useEffect(() => {
     setDisplayText(text);
-    setPublished(null); // clear the published banner when a new draft arrives
+    setPublished(null);
+    setAutoPredicted(false);
+    setPrediction(null);
   }, [text]);
 
   async function handleHumanize() {
@@ -280,6 +290,7 @@ export function GenerateOutput({
   }
 
   async function handlePredict() {
+    const bodyText = displayText.trim() ? displayText : text;
     setPredicting(true);
     setPrediction(null);
     try {
@@ -287,7 +298,7 @@ export function GenerateOutput({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: displayText,
+          text: bodyText,
           platform: sourcePlatform ?? 'linkedin',
           voice_match_score: voiceMetrics?.voice_match_score ?? null,
           ai_score: voiceMetrics?.ai_score ?? null,
@@ -309,6 +320,44 @@ export function GenerateOutput({
     }
   }
 
+  async function quickSave() {
+    const firstLine = displayText.split('\n').find((l) => l.trim())?.trim() ?? 'Untitled draft';
+    const title = firstLine.replace(/^[#*\->\s]+/, '').slice(0, 120);
+    setQuickSaving(true);
+    try {
+      const res = await fetchWithAuth('/api/posts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: title || 'Untitled draft',
+          pillars: savePillar ? [savePillar] : ['general'],
+          script: displayText,
+          status: 'scripted',
+          platform: sourcePlatform ?? 'linkedin',
+          voice_match_score: voiceMetrics?.voice_match_score ?? null,
+          ai_score: voiceMetrics?.ai_score ?? null,
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? 'Failed to save');
+      }
+      toast('Saved to Posts');
+    } catch (e: unknown) {
+      toast(e instanceof Error ? e.message : 'Failed to save', 'error');
+    } finally {
+      setQuickSaving(false);
+    }
+  }
+
+  // Simple mode: auto-score once a new draft lands.
+  useEffect(() => {
+    if (variant !== 'simple' || !text.trim() || loading || autoPredicted) return;
+    setAutoPredicted(true);
+    void handlePredict();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [variant, text, loading, autoPredicted]);
+
   if (loading) {
     return (
       <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-3">
@@ -320,17 +369,26 @@ export function GenerateOutput({
   if (!text) return null;
 
   const showVoiceMetrics =
+    variant === 'full' &&
     voiceMetrics &&
     (voiceMetrics.voice_match_score !== undefined ||
       voiceMetrics.iterations !== undefined ||
       voiceMetrics.evaluation !== undefined);
+
+  const viralLabel = prediction
+    ? prediction.tier === 'strong'
+      ? 'Strong hook'
+      : prediction.tier === 'average'
+        ? 'Decent draft'
+        : 'Sharpen the hook'
+    : null;
 
   return (
     <div className="space-y-4">
       {published && (
         <div className="flex items-center justify-between gap-3 rounded-lg border border-teal/30 bg-teal/5 px-4 py-3">
           <span className="text-sm font-medium text-teal">
-            ✓ Published to {PLATFORM_LABELS[published.platform] ?? published.platform}
+            Posted to {PLATFORM_LABELS[published.platform] ?? published.platform}
           </span>
           {published.url && (
             <a
@@ -345,74 +403,84 @@ export function GenerateOutput({
         </div>
       )}
       {showVoiceMetrics && <VoiceMetricsPanel metrics={voiceMetrics} />}
-      {prediction && <PredictPanel result={prediction} />}
-      <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-4">
-        {/* Editable in place — the draft is a working document, not read-only. */}
+      {variant === 'full' && prediction && <PredictPanel result={prediction} />}
+      <div className="rounded-2xl border border-hair bg-paper p-4 space-y-3">
+        {variant === 'simple' && (
+          <div className="flex items-center justify-between gap-2 text-[12px]">
+            {predicting ? (
+              <span className="text-ink3">Checking hook strength…</span>
+            ) : prediction ? (
+              <span className={`font-medium ${TIER_COLOR[prediction.tier]}`}>
+                {viralLabel} · {prediction.score}/100
+              </span>
+            ) : (
+              <span className="text-ink3">Formatted for {PLATFORM_LABELS[sourcePlatform ?? 'linkedin']}</span>
+            )}
+            {prediction?.suggestion && prediction.tier !== 'strong' && (
+              <span className="text-ink3 truncate max-w-[55%]" title={prediction.suggestion}>
+                {prediction.suggestion}
+              </span>
+            )}
+          </div>
+        )}
         <textarea
           value={displayText}
           onChange={(e) => { setDisplayText(e.target.value); onTextUpdate?.(e.target.value); }}
           rows={Math.min(18, Math.max(6, displayText.split('\n').length + 1))}
           aria-label="Generated draft (editable)"
-          className="w-full resize-y bg-transparent font-body text-[13px] text-text-primary leading-[1.55] focus:outline-none"
+          className="w-full resize-y bg-transparent font-body text-[15px] text-ink leading-relaxed focus:outline-none"
         />
-        <div className="flex flex-wrap items-center gap-2">
-          <CopyButton text={displayText} />
-          <Button
-            variant="primary"
-            size="sm"
-            onClick={() => setComposerOpen(true)}
-          >
-            Preview &amp; post to {PLATFORM_LABELS[sourcePlatform ?? 'linkedin'] ?? 'platform'}
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => setShowSave(true)}
-          >
-            Save to Library
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handleHumanize}
-            loading={humanizing}
-          >
-            Humanize
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={handlePredict}
-            loading={predicting}
-          >
-            {predicting ? 'Predicting...' : 'Predict'}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleScore}
-            loading={scoring}
-          >
-            {aiScore !== null ? (
-              <span className={`font-mono ${aiScore > 60 ? 'text-flame' : aiScore > 30 ? 'text-ink2' : 'text-teal'}`}>
-                AI Score: {aiScore}/100
-              </span>
-            ) : 'Check AI Score'}
-          </Button>
-          {children}
-        </div>
+        {variant === 'simple' ? (
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <Button variant="primary" size="sm" onClick={() => setComposerOpen(true)}>
+              Post
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => void quickSave()} loading={quickSaving}>
+              Save
+            </Button>
+            <CopyButton text={displayText} />
+            <Button variant="ghost" size="sm" onClick={handleHumanize} loading={humanizing}>
+              Polish
+            </Button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center gap-2">
+            <CopyButton text={displayText} />
+            <Button variant="primary" size="sm" onClick={() => setComposerOpen(true)}>
+              Preview &amp; post to {PLATFORM_LABELS[sourcePlatform ?? 'linkedin'] ?? 'platform'}
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setShowSave(true)}>
+              Save to Library
+            </Button>
+            <Button variant="secondary" size="sm" onClick={handleHumanize} loading={humanizing}>
+              Humanize
+            </Button>
+            <Button variant="secondary" size="sm" onClick={handlePredict} loading={predicting}>
+              {predicting ? 'Predicting...' : 'Predict'}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleScore} loading={scoring}>
+              {aiScore !== null ? (
+                <span className={`font-mono ${aiScore > 60 ? 'text-flame' : aiScore > 30 ? 'text-ink2' : 'text-teal'}`}>
+                  AI Score: {aiScore}/100
+                </span>
+              ) : 'Check AI Score'}
+            </Button>
+            {children}
+          </div>
+        )}
       </div>
 
-      {/* Platform optimization section */}
-      <OptimizePanel content={displayText} sourcePlatform={sourcePlatform} />
+      {variant === 'full' && <OptimizePanel content={displayText} sourcePlatform={sourcePlatform} />}
 
-      <SaveToLibraryModal
-        open={showSave}
-        onClose={() => setShowSave(false)}
-        script={displayText}
-        voiceMetrics={voiceMetrics}
-        sourcePlatform={sourcePlatform}
-      />
+      {variant === 'full' && (
+        <SaveToLibraryModal
+          open={showSave}
+          onClose={() => setShowSave(false)}
+          script={displayText}
+          voiceMetrics={voiceMetrics}
+          sourcePlatform={sourcePlatform}
+        />
+      )}
 
       <LinkedInComposer
         open={composerOpen}
@@ -437,7 +505,7 @@ function SaveToLibraryModal({
   onClose: () => void;
   script: string;
   voiceMetrics?: GenerateVoiceMetrics;
-  sourcePlatform?: Platform;
+  sourcePlatform?: DashboardPlatform;
 }) {
   const { toast } = useToast();
   const { pillars: pillarList, loading: pillarsLoading } = usePillars();
@@ -448,7 +516,9 @@ function SaveToLibraryModal({
     const isLabel = /^here.?s the (rewritten|revised|updated|final)/i.test(cleaned);
     return isLabel ? '' : cleaned;
   });
-  const [platform, setPlatform] = useState<Platform>(sourcePlatform ?? 'instagram');
+  const [platform, setPlatform] = useState<DashboardPlatform>(
+    normalizeDashboardPlatform(sourcePlatform ?? 'linkedin'),
+  );
   const [pillars, setPillars] = useState<string[]>([]);
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
@@ -526,7 +596,7 @@ function SaveToLibraryModal({
       </div>
       <select
         value={platform}
-        onChange={(e) => setPlatform(e.target.value as Platform)}
+        onChange={(e) => setPlatform(e.target.value as DashboardPlatform)}
         className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors duration-100"
       >
         {PLATFORMS.map((p) => (

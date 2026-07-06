@@ -167,24 +167,70 @@ export class ProdMiningService {
   }
 
   /**
-   * Cron / scheduled entrypoint. Multi-tenant ready (extend to load per-org watchlists from DB/settings).
+   * Cron / scheduled entrypoint for a single workspace (or default watchlist when id empty).
    */
   async scheduledMineForOrg(orgId: string, verticals: string[] = ['indie_maker', 'ai']) {
     const client = getServiceClient();
     const { getWorkspaceWatchlistTargets } = await import('./workspace-watchlist');
-    const { handles } = await getWorkspaceWatchlistTargets(client, orgId);
+    const workspaceId = orgId.trim() || null;
+    const { handles, source } = await getWorkspaceWatchlistTargets(client, workspaceId);
     const targets = handles.slice(0, 25);
 
-    const results: any[] = [];
+    const results: Array<Record<string, unknown>> = [];
     for (const v of verticals) {
-      const r = await this.mine({ platform: 'x', targets: targets.slice(0, 15), maxResults: 30, vertical: v }, orgId);
-      results.push({ vertical: v, ...r });
+      const r = await this.mine({ platform: 'x', targets: targets.slice(0, 15), maxResults: 30, vertical: v }, orgId || 'default');
+      results.push({ vertical: v, watchlistSource: source, ...r });
     }
 
     // One more training pass after the batch
     runTrainingStep();
 
-    return { orgId, results, totalNew: results.reduce((s, r: any) => s + (r.count || 0), 0) };
+    return {
+      orgId: orgId || 'default',
+      watchlistSource: source,
+      results,
+      totalNew: results.reduce((s, r) => s + (typeof r.count === 'number' ? r.count : 0), 0),
+    };
+  }
+
+  /**
+   * Daily mining across workspaces with custom watchlists. Falls back to one
+   * default pass when no workspace-specific lists exist.
+   */
+  async scheduledMineAllWorkspaces(opts?: { maxWorkspaces?: number; verticals?: string[] }) {
+    const client = getServiceClient();
+    const maxWs = opts?.maxWorkspaces ?? 10;
+    const verticals = opts?.verticals ?? ['indie_maker', 'ai'];
+
+    let workspaceIds: string[] = [];
+    try {
+      const { data } = await client.database
+        .from('workspace_watchlists')
+        .select('workspace_id')
+        .eq('enabled', true);
+      workspaceIds = Array.from(
+        new Set((data ?? []).map((row: { workspace_id: string }) => row.workspace_id)),
+      );
+    } catch (err) {
+      console.warn('[ProdMining] workspace_watchlists query failed:', err);
+    }
+
+    if (workspaceIds.length === 0) {
+      const single = await this.scheduledMineForOrg('', verticals);
+      return { workspaces: 0, mode: 'default' as const, results: [single], totalNew: single.totalNew };
+    }
+
+    const results = [];
+    for (const wsId of workspaceIds.slice(0, maxWs)) {
+      results.push(await this.scheduledMineForOrg(wsId, verticals));
+    }
+
+    return {
+      workspaces: results.length,
+      mode: 'per-workspace' as const,
+      results,
+      totalNew: results.reduce((s, r) => s + r.totalNew, 0),
+    };
   }
 }
 

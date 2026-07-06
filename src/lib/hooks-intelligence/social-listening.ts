@@ -21,7 +21,7 @@ export async function runSocialListening(refreshAccounts = 20) {
   if (useProd) {
     try {
       const { prodMining } = await import('./prod-mining');
-      const mining = await prodMining.scheduledMineForOrg('system');
+      const mining = await prodMining.scheduledMineAllWorkspaces({ maxWorkspaces: 10 });
       return {
         status: 'mined',
         accounts_checked: accounts.length,

@@ -21,7 +21,7 @@ export default function Distribution() {
       className="relative scroll-mt-24 overflow-hidden border-t border-hair/60 bg-white/40"
     >
       <LandingGlowOrb tone={theme.glow} position="right" />
-      <div className="relative mx-auto max-w-[1100px] px-5 py-16 sm:px-8 sm:py-20">
+      <div className="relative mx-auto max-w-[1100px] px-5 py-12 sm:px-8 sm:py-14">
         <LandingSectionHeader
           tag={theme.tag}
           title="One idea. Two channels."
@@ -33,7 +33,7 @@ export default function Distribution() {
           <LandingPlatformChips />
         </div>
 
-        <div className="mt-8 flex flex-col gap-3 sm:gap-4">
+        <div className="mt-6 flex flex-col gap-3 sm:gap-4">
           <div className="relative flex flex-col justify-end overflow-hidden rounded-2xl bg-ink p-5 text-paper shadow-[0_24px_60px_-24px_rgba(23,23,23,0.5)] sm:min-h-[140px]">
             <Image
               src="/landing/glow.png"

@@ -70,6 +70,7 @@ create table if not exists signal_directory_settings (
   enabled_sources jsonb not null default '["yc_directory"]',
   icp_verticals jsonb not null default '[]',
   icp_keywords jsonb not null default '[]',
+  icp_description text,
   recency_window text not null default 'current_batch',
   digest_run_hour_local int not null default 6,
   digest_timezone text,                   -- overrides workspace timezone when set

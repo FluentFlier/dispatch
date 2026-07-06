@@ -14,10 +14,11 @@ import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { useToast } from '@/components/ui/Toast';
-import type { Platform } from '@/lib/constants';
+import type { DashboardPlatform } from '@/lib/constants';
+import { DASHBOARD_PLATFORMS, isDashboardPlatform } from '@/lib/constants';
 
 interface Variant {
-  platform: Platform;
+  platform: DashboardPlatform;
   content: string;
   characterCount: number;
   isThread: boolean;
@@ -32,19 +33,17 @@ interface SocialAccount {
 
 interface GenerateVariantsSectionProps {
   content: string;
-  sourcePlatform: Platform;
+  sourcePlatform: DashboardPlatform;
   postId?: string;
   onReplaceCaption: (newCaption: string) => void;
 }
 
 const PLATFORM_CONFIG: Record<
-  string,
+  DashboardPlatform,
   { label: string; charLimit: number; icon: string; color: string }
 > = {
-  twitter: { label: 'X (Twitter)', charLimit: 280, icon: '\ud835\udd4f', color: '#E7E5E4' },
+  twitter: { label: 'X', charLimit: 280, icon: '\ud835\udd4f', color: '#E7E5E4' },
   linkedin: { label: 'LinkedIn', charLimit: 3000, icon: 'in', color: '#0A66C2' },
-  instagram: { label: 'Instagram', charLimit: 2200, icon: 'IG', color: '#E4405F' },
-  threads: { label: 'Threads', charLimit: 500, icon: '@', color: '#E7E5E4' },
 };
 
 export default function GenerateVariantsSection({
@@ -81,7 +80,9 @@ export default function GenerateVariantsSection({
     fetchAccounts();
   }, [fetchAccounts]);
 
-  const connectedPlatforms = accounts.map((a) => a.platform as Platform);
+  const connectedPlatforms = accounts
+    .map((a) => a.platform)
+    .filter(isDashboardPlatform);
 
   async function handleGenerateVariants() {
     if (!content.trim()) {
@@ -89,10 +90,10 @@ export default function GenerateVariantsSection({
       return;
     }
 
-    const targetPlatforms: Platform[] =
+    const targetPlatforms: DashboardPlatform[] =
       connectedPlatforms.length > 0
         ? connectedPlatforms
-        : ['twitter', 'linkedin', 'instagram', 'threads'];
+        : [...DASHBOARD_PLATFORMS];
 
     setOptimizing(true);
     setVariants([]);

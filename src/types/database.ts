@@ -1,6 +1,11 @@
 export {
   PILLARS as ALL_PILLARS,
-  PLATFORMS as ALL_PLATFORMS,
+  ALL_PLATFORMS,
+  PLATFORMS,
+  DASHBOARD_PLATFORMS,
+  PLATFORM_LABELS,
+  normalizeDashboardPlatform,
+  isDashboardPlatform,
   PILLAR_LABELS,
   PILLAR_COLORS,
   PILLAR_BADGE_BG,
@@ -14,6 +19,7 @@ export {
 export type {
   Pillar,
   Platform,
+  DashboardPlatform,
   Status,
   Priority,
 } from '@/lib/constants';

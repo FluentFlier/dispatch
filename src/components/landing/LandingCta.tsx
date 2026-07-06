@@ -26,7 +26,7 @@ export default function LandingCta({ funnel }: { funnel: FunnelState }) {
       />
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-paper via-paper/85 to-paper" />
 
-      <div className="relative mx-auto max-w-[1100px] px-5 py-20 text-center sm:px-8 sm:py-28">
+      <div className="relative mx-auto max-w-[1100px] px-5 py-14 text-center sm:px-8 sm:py-20">
         <motion.p
           initial={reduce ? false : { opacity: 0, y: 12 }}
           whileInView={{ opacity: 1, y: 0 }}

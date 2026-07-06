@@ -19,6 +19,11 @@ export function getComposioAuthConfigId(toolkit: ComposioToolkit): string | null
   return process.env[envKey]?.trim() || null;
 }
 
+/** True when Composio API key and the toolkit auth config are both set. */
+export function isComposioToolkitReady(toolkit: ComposioToolkit): boolean {
+  return isComposioConfigured() && Boolean(getComposioAuthConfigId(toolkit));
+}
+
 export function composioCallbackUrl(): string {
   const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
   return `${base.replace(/\/$/, '')}/api/integrations/composio/callback`;

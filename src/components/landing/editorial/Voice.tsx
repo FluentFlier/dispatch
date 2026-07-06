@@ -1,4 +1,3 @@
-import Image from 'next/image';
 import { Card } from '@/components/ui/Card';
 import LandingSectionHeader from '../LandingSectionHeader';
 import LandingGlowOrb from '../LandingGlowOrb';
@@ -14,19 +13,10 @@ const TRAITS: [string, string][] = [
 
 export default function Voice() {
   return (
-    <section id="voice" className="relative scroll-mt-24 overflow-hidden border-y border-hair/60">
-      <Image
-        src="/landing/voice-texture.png"
-        alt=""
-        fill
-        className="pointer-events-none object-cover object-center opacity-40"
-        sizes="100vw"
-        aria-hidden
-      />
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-white/95 via-white/75 to-white/90" />
+    <section id="voice" className="relative scroll-mt-24 overflow-hidden border-y border-hair/60 bg-white/50">
       <LandingGlowOrb tone={theme.glow} position="left" />
 
-      <div className="relative mx-auto grid max-w-[1100px] grid-cols-1 items-center gap-10 px-5 py-16 sm:px-8 sm:py-20 lg:grid-cols-2 lg:gap-14">
+      <div className="relative mx-auto grid max-w-[1100px] grid-cols-1 items-center gap-8 px-5 py-12 sm:px-8 sm:py-14 lg:grid-cols-2 lg:gap-10">
         <div>
           <LandingSectionHeader
             tag={theme.tag}
@@ -35,7 +25,7 @@ export default function Voice() {
             accent={theme.accent}
             className="max-w-md"
           />
-          <div className="mt-8 flex max-w-sm flex-col gap-3">
+          <div className="mt-6 flex max-w-sm flex-col gap-3">
             {TRAITS.map(([trait, pct]) => (
               <div key={trait}>
                 <div className="mb-1 flex justify-between text-[13px] text-ink2">

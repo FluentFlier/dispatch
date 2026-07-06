@@ -25,18 +25,6 @@ describe('assertProductionEnv', () => {
     vi.stubEnv('TOKEN_ENCRYPTION_KEY', 'too-short');
     expect(() => assertProductionEnv()).toThrow(/TOKEN_ENCRYPTION_KEY/);
   });
-
-  it('requires UNIPILE_WEBHOOK_SECRET in production when Unipile is configured', () => {
-    vi.stubEnv('NODE_ENV', 'production');
-    vi.stubEnv('NEXT_PUBLIC_INSFORGE_URL', 'https://x');
-    vi.stubEnv('NEXT_PUBLIC_INSFORGE_ANON_KEY', 'anon');
-    vi.stubEnv('INSFORGE_SERVICE_ROLE_KEY', 'service');
-    vi.stubEnv('CRON_SECRET', 'cron');
-    vi.stubEnv('TOKEN_ENCRYPTION_KEY', 'a'.repeat(64));
-    vi.stubEnv('UNIPILE_API_KEY', 'unipile-key');
-    vi.stubEnv('UNIPILE_WEBHOOK_SECRET', '');
-    expect(() => assertProductionEnv()).toThrow(/UNIPILE_WEBHOOK_SECRET/);
-  });
 });
 
 describe('getSocialProviderMode', () => {

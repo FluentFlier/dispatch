@@ -18,6 +18,7 @@ export { normalizeDomain };
 
 const DEFAULT_SETTINGS: Omit<DirectorySettingsRow, 'workspace_id' | 'created_at' | 'updated_at'> = {
   enabled_sources: ['yc_directory'],
+  icp_description: null,
   icp_verticals: [],
   icp_keywords: [],
   recency_window: 'current_batch',

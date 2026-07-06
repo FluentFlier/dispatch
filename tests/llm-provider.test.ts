@@ -11,7 +11,7 @@ vi.mock('@/lib/huggingface', () => ({
   generateContentHF: vi.fn(async () => 'HF_FALLBACK_OUTPUT'),
 }));
 
-const ENV_KEYS = ['LLM_BASE_URL', 'LLM_API_KEY', 'LLM_MODEL'] as const;
+const ENV_KEYS = ['LLM_BASE_URL', 'LLM_API_KEY', 'LLM_MODEL', 'HUGGINGFACE_API_KEY'] as const;
 
 function clearLlmEnv() {
   for (const k of ENV_KEYS) delete process.env[k];
@@ -40,15 +40,37 @@ describe('LLM provider abstraction', () => {
       expect(isLlmConfigured()).toBe(false);
     });
 
-    it('is true when all three env vars are set', async () => {
+    it('is true when all three LLM env vars are set', async () => {
       setLlmEnv();
+      const { isLlmConfigured } = await import('@/lib/llm');
+      expect(isLlmConfigured()).toBe(true);
+    });
+
+    it('is true when only HUGGINGFACE_API_KEY is set', async () => {
+      process.env.HUGGINGFACE_API_KEY = 'hf-key';
       const { isLlmConfigured } = await import('@/lib/llm');
       expect(isLlmConfigured()).toBe(true);
     });
   });
 
   describe('chatCompletion', () => {
-    it('falls back to HuggingFace when no provider is configured', async () => {
+    it('uses the Hugging Face router when only HUGGINGFACE_API_KEY is set', async () => {
+      process.env.HUGGINGFACE_API_KEY = 'hf-key';
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'HF_ROUTER_OUTPUT' } }] }),
+      })) as unknown as typeof fetch;
+      vi.stubGlobal('fetch', fetchMock);
+
+      const { chatCompletion } = await import('@/lib/llm');
+      const out = await chatCompletion('sys', 'user');
+
+      expect(out).toBe('HF_ROUTER_OUTPUT');
+      const [url] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toBe('https://router.huggingface.co/v1/chat/completions');
+    });
+
+    it('falls back to legacy HuggingFace SDK when no provider is configured', async () => {
       const { chatCompletion } = await import('@/lib/llm');
       const { generateContentHF } = await import('@/lib/huggingface');
       const out = await chatCompletion('sys', 'user');

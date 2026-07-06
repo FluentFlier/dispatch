@@ -17,8 +17,8 @@ export default function Problem() {
   return (
     <section id="problem" className="relative scroll-mt-24 overflow-hidden border-t border-hair/60 bg-white/50">
       <LandingGlowOrb tone={theme.glow} position="right" />
-      <div className="relative mx-auto max-w-[1100px] px-5 py-16 sm:px-8 sm:py-20">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
+      <div className="relative mx-auto max-w-[1100px] px-5 py-12 sm:px-8 sm:py-14">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
           <LandingSectionHeader
             tag={theme.tag}
             title="Scattered tools leak signal."

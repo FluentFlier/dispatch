@@ -58,7 +58,10 @@ export function isTinyFishConfigured(): boolean {
  * it clears the floor. Throws DirectoryScrapeError only if every attempt fails or
  * extracts nothing, so the caller surfaces the failure per-source (never silently 0).
  */
-export async function fetchDirectoryLeads(source: LeadSource): Promise<IngestedLead[]> {
+export async function fetchDirectoryLeads(
+  source: LeadSource,
+  opts?: { icpQuery?: string },
+): Promise<IngestedLead[]> {
   const config = DIRECTORY_QUERIES[source];
   if (!config) throw new DirectoryScrapeError(source, `No query config for source ${source}`);
 
@@ -74,7 +77,7 @@ export async function fetchDirectoryLeads(source: LeadSource): Promise<IngestedL
   // endpoint, so they use the TinyFish Agent path below.
   if (source === 'yc_directory') {
     try {
-      const leads = await fetchYcCompaniesViaAlgolia(config.maxCompanies);
+      const leads = await fetchYcCompaniesViaAlgolia(config.maxCompanies, opts?.icpQuery ?? '');
       if (leads.length > 0) return leads;
       throw new Error('Algolia returned 0 companies');
     } catch (err) {

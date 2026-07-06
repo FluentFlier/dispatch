@@ -43,7 +43,7 @@ interface Persona {
   exportable_prompt: string;
 }
 
-const PLATFORMS = ["Twitter/X", "LinkedIn", "Instagram", "Threads", "Other"];
+const PLATFORMS = ["Twitter/X", "LinkedIn"];
 
 export default function VoiceLabPage() {
   const { preferredPostLength, savePreferredPostLength } = useCreatorPreferences();

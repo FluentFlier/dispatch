@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { isComposioToolkitConnected } from '@/lib/composio/connect';
-import { isComposioConfigured } from '@/lib/composio/config';
+import { isComposioConfigured, isComposioToolkitReady } from '@/lib/composio/config';
 import { toComposioUserId } from '@/lib/composio/client';
 import { listIntegrations, patchIntegrationConfig } from '@/lib/signals/integrations/store';
 import { errorResponse } from '@/lib/api-errors';
@@ -32,6 +32,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const rows = await listIntegrations(client, workspaceId);
 
     const toolkits = ['slack', 'gmail', 'googlecalendar'] as const;
+    const toolkitReady = Object.fromEntries(
+      toolkits.map((toolkit) => [toolkit, isComposioToolkitReady(toolkit)]),
+    ) as Record<(typeof toolkits)[number], boolean>;
+
     const integrations = await Promise.all(
       toolkits.map(async (toolkit) => {
         const row = rows.find((r) => r.toolkit === toolkit);
@@ -50,7 +54,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }),
     );
 
-    return NextResponse.json({ composio_configured: composioConfigured, integrations });
+    return NextResponse.json({ composio_configured: composioConfigured, toolkit_ready: toolkitReady, integrations });
   } catch (err) {
     return errorResponse('Could not load integration status.', 500, err);
   }

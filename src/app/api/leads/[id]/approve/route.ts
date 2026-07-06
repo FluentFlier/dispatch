@@ -23,7 +23,7 @@ export async function POST(
   if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
 
   const body = (await request.json().catch(() => ({}))) as {
-    channel?: 'linkedin_connect' | 'gmail';
+    channel?: 'linkedin_connect' | 'x_dm' | 'gmail';
     emailOptIn?: boolean;
   };
 

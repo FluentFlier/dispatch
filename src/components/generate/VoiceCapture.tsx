@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Toggle } from '@/components/ui/Toggle';
 import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
 import { PLATFORMS } from '@/lib/constants';
-import type { Platform } from '@/lib/constants';
+import type { DashboardPlatform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { useCreatorPreferences } from '@/hooks/useCreatorPreferences';
 
@@ -34,7 +34,7 @@ async function transcribe(blob: Blob): Promise<string> {
  */
 async function callGenerate(
   prompt: string,
-  platform: Platform,
+  platform: DashboardPlatform,
   useVoice: boolean,
 ): Promise<{ text: string; voiceMetrics: GenerateVoiceMetrics }> {
   const res = await fetchWithAuth('/api/generate', {
@@ -70,7 +70,7 @@ type RecState = 'idle' | 'recording' | 'transcribing' | 'ready';
 export function VoiceCapture() {
   const [recState, setRecState] = useState<RecState>('idle');
   const [transcript, setTranscript] = useState('');
-  const [platform, setPlatform] = useState<Platform>('linkedin');
+  const [platform, setPlatform] = useState<DashboardPlatform>('linkedin');
   const [output, setOutput] = useState('');
   const [voiceMetrics, setVoiceMetrics] = useState<GenerateVoiceMetrics | undefined>();
   const [generating, setGenerating] = useState(false);

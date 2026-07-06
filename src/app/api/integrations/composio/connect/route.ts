@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { startComposioConnect } from '@/lib/composio/connect';
-import { isComposioConfigured } from '@/lib/composio/config';
+import { isComposioConfigured, isComposioToolkitReady } from '@/lib/composio/config';
+
+function settingsRedirect(base: string, calendarError: string): NextResponse {
+  return NextResponse.redirect(
+    `${base}/settings?tab=connections&calendar_error=${encodeURIComponent(calendarError)}`,
+  );
+}
 
 /**
  * Starts the Composio hosted OAuth flow for the Google Calendar toolkit and
@@ -14,26 +20,44 @@ import { isComposioConfigured } from '@/lib/composio/config';
  * /api/integrations/composio/callback verifies the connection and upserts the
  * signal_integrations row.
  */
-export async function GET(_request: NextRequest): Promise<NextResponse> {
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const base = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+
   if (!isComposioConfigured()) {
-    return NextResponse.json({ error: 'Composio is not configured' }, { status: 503 });
+    return settingsRedirect(base, 'composio_not_configured');
+  }
+
+  if (!isComposioToolkitReady('googlecalendar')) {
+    return settingsRedirect(base, 'auth_config_missing');
   }
 
   const user = await getAuthenticatedUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user) {
+    return NextResponse.redirect(`${base}/login?next=${encodeURIComponent('/settings?tab=connections')}`);
+  }
 
   const workspaceId = await getActiveWorkspaceId(user.id);
-  if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
+  if (!workspaceId) {
+    return settingsRedirect(base, 'connect_failed');
+  }
+
+  const returnTo = '/settings?tab=connections';
 
   // Composio can reject at link time (invalid/expired COMPOSIO_API_KEY, missing
   // auth config, transient outage). This is a browser GET navigation, so surface
   // a clean redirect back to Settings with an error flag instead of a raw 500 stack.
   try {
-    const { redirectUrl } = await startComposioConnect(workspaceId, user.id, 'googlecalendar');
+    const { redirectUrl } = await startComposioConnect(
+      workspaceId,
+      user.id,
+      'googlecalendar',
+      returnTo,
+    );
     return NextResponse.redirect(redirectUrl);
   } catch (err) {
     console.error('[composio:connect] Google Calendar connect failed', err);
-    const base = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
-    return NextResponse.redirect(`${base}/settings?tab=connections&calendar_error=connect_failed`);
+    const message = err instanceof Error ? err.message : '';
+    const code = message.includes('Missing auth config') ? 'auth_config_missing' : 'connect_failed';
+    return settingsRedirect(base, code);
   }
 }

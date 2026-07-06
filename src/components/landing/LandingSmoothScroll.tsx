@@ -1,5 +1,6 @@
 'use client';
 
+import { ReactLenis } from 'lenis/react';
 import { useEffect, type ReactNode } from 'react';
 import { useReducedMotion } from 'motion/react';
 
@@ -12,39 +13,28 @@ export default function LandingSmoothScroll({ children }: Props) {
 
   useEffect(() => {
     if (reduce) return;
+    document.documentElement.classList.add('lenis', 'lenis-smooth');
+    return () => {
+      document.documentElement.classList.remove('lenis', 'lenis-smooth');
+    };
+  }, [reduce]);
 
-    let lenis: { raf: (time: number) => void; destroy: () => void } | null = null;
-    let frame = 0;
-    let cancelled = false;
+  if (reduce) {
+    return <>{children}</>;
+  }
 
-    void (async () => {
-      const { default: Lenis } = await import('lenis');
-      if (cancelled) return;
-
-      lenis = new Lenis({
+  return (
+    <ReactLenis
+      root
+      options={{
         duration: 1.15,
         easing: (t: number) => 1 - (1 - t) ** 4,
         smoothWheel: true,
         wheelMultiplier: 0.85,
         touchMultiplier: 1.1,
-      });
-
-      document.documentElement.classList.add('lenis', 'lenis-smooth');
-
-      const raf = (time: number) => {
-        lenis?.raf(time);
-        frame = requestAnimationFrame(raf);
-      };
-      frame = requestAnimationFrame(raf);
-    })();
-
-    return () => {
-      cancelled = true;
-      cancelAnimationFrame(frame);
-      lenis?.destroy();
-      document.documentElement.classList.remove('lenis', 'lenis-smooth');
-    };
-  }, [reduce]);
-
-  return <>{children}</>;
+      }}
+    >
+      {children}
+    </ReactLenis>
+  );
 }

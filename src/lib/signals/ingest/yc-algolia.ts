@@ -229,9 +229,10 @@ function mapHit(hit: YcHit): IngestedLead | null {
  * any failure (page fetch, missing opts, non-200) so the caller wraps it in a
  * DirectoryScrapeError and isolates the source.
  */
-export async function fetchYcCompaniesViaAlgolia(limit: number): Promise<IngestedLead[]> {
+export async function fetchYcCompaniesViaAlgolia(limit: number, query = ''): Promise<IngestedLead[]> {
   const startedAt = Date.now();
   const { app, key } = await readAlgoliaOpts();
+  const q = encodeURIComponent(query.trim());
 
   const res = await fetch(`https://${app.toLowerCase()}-dsn.algolia.net/1/indexes/*/queries`, {
     method: 'POST',
@@ -244,7 +245,7 @@ export async function fetchYcCompaniesViaAlgolia(limit: number): Promise<Ingeste
       requests: [
         {
           indexName: YC_ALGOLIA_INDEX,
-          params: `query=&hitsPerPage=${Math.min(Math.max(limit, 1), MAX_HITS)}&page=0`,
+          params: `query=${q}&hitsPerPage=${Math.min(Math.max(limit, 1), MAX_HITS)}&page=0`,
         },
       ],
     }),
@@ -256,7 +257,9 @@ export async function fetchYcCompaniesViaAlgolia(limit: number): Promise<Ingeste
   const leads = hits.map(mapHit).filter((l): l is IngestedLead => l !== null);
 
   if (signalsDebugEnabled()) {
-    console.log(`[yc-algolia] ${hits.length} hits -> ${leads.length} leads in ${Date.now() - startedAt}ms`);
+    console.log(
+      `[yc-algolia] query="${query || '*'}" ${hits.length} hits -> ${leads.length} leads in ${Date.now() - startedAt}ms`,
+    );
   }
   return leads;
 }

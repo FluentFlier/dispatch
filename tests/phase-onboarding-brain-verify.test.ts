@@ -24,26 +24,23 @@ function mockClient(opts: {
     database: {
       from: (table: string) => {
         if (table === 'creator_brain_pages') {
+          let slugFilter: string | undefined;
           const chain = {
             select: () => chain,
-            eq: () => chain,
+            eq: (field: string, value: string) => {
+              if (field === 'slug') slugFilter = value;
+              return chain;
+            },
             order: () => chain,
             maybeSingle: async () => {
-              const slug = (chain as { _slug?: string })._slug;
-              if (slug === 'voice') {
+              if (slugFilter === 'voice') {
                 return { data: { body: voiceBody }, error: null };
               }
-              if (slug === 'profile') {
+              if (slugFilter === 'profile') {
                 return { data: { body: profileBody }, error: null };
               }
               return { data: null, error: null };
             },
-          };
-          (chain as { _slug?: string })._slug = undefined;
-          const origEq = chain.eq;
-          chain.eq = function eq(field: string, value: string) {
-            if (field === 'slug') (chain as { _slug?: string })._slug = value;
-            return origEq.call(this, field, value);
           };
           return chain;
         }

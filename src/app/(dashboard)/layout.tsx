@@ -14,6 +14,7 @@ import { getOrCreateSubscription } from '@/lib/entitlements';
 import { getPostAuthPath } from '@/lib/auth-routing';
 import { mustSubscribe } from '@/lib/trial';
 import TrialBanner from '@/components/billing/TrialBanner';
+import DashboardShell from '@/components/layout/DashboardShell';
 
 export default async function DashboardLayout({
   children,
@@ -69,7 +70,7 @@ export default async function DashboardLayout({
   if (isGetStarted || isOnboarding) {
     return (
       <ToastProvider>
-        <div className="min-h-screen bg-bg-primary text-text-primary">
+        <div className="editorial min-h-screen bg-paper text-ink">
           <main className="min-h-screen">{children}</main>
         </div>
       </ToastProvider>
@@ -83,9 +84,10 @@ export default async function DashboardLayout({
   return (
     <ToastProvider>
       <SessionKeepAlive />
-      <div className="flex h-screen min-h-screen bg-bg-primary text-text-primary">
+      <DashboardShell>
         <Sidebar />
-        <main className="flex-1 md:ml-[264px] overflow-y-auto overflow-x-hidden px-4 md:px-8 py-6 pb-24 md:pb-8 min-w-0 w-full">
+        <main className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-6 pb-24 md:ml-[264px] md:px-8 md:pb-8">
+          <div className="mx-auto w-full max-w-[1100px]">
           {impersonation ? (
             <ImpersonationBanner
               targetDisplayName={impersonation.targetDisplayName}
@@ -94,9 +96,10 @@ export default async function DashboardLayout({
           ) : null}
           <TrialBanner />
           <ErrorBoundary>{children}</ErrorBoundary>
+          </div>
         </main>
         <BottomBar />
-      </div>
+      </DashboardShell>
     </ToastProvider>
   );
 }

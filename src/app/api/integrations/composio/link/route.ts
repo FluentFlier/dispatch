@@ -3,12 +3,12 @@ import { z } from 'zod';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { startComposioConnect } from '@/lib/composio/connect';
-import { isComposioConfigured } from '@/lib/composio/config';
+import { isComposioConfigured, isComposioToolkitReady } from '@/lib/composio/config';
 import { errorResponse } from '@/lib/api-errors';
 
 const QuerySchema = z.object({
   toolkit: z.enum(['slack', 'gmail', 'googlecalendar']),
-  return: z.enum(['onboarding']).optional(),
+  return: z.enum(['onboarding', 'settings']).optional(),
 });
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -27,11 +27,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Invalid toolkit' }, { status: 400 });
   }
 
+  if (!isComposioToolkitReady(parsed.data.toolkit)) {
+    return NextResponse.json(
+      { error: `${parsed.data.toolkit} auth is not configured on this deployment.` },
+      { status: 503 },
+    );
+  }
+
   try {
     const returnTo =
       parsed.data.return === 'onboarding'
         ? '/onboarding?gmail_connected=true'
-        : undefined;
+        : '/settings?tab=connections';
 
     const { redirectUrl, composioUserId } = await startComposioConnect(
       workspaceId,

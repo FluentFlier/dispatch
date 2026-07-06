@@ -1,22 +1,21 @@
-import dynamic from 'next/dynamic';
+'use client';
+
 import LandingAmbient from './LandingAmbient';
 import LandingGrain from './LandingGrain';
 import LandingReveal from './LandingReveal';
 import LandingPhotoBand from './LandingPhotoBand';
+import LandingSmoothScroll from './LandingSmoothScroll';
 import Nav from './editorial/Nav';
 import Hero from './editorial/Hero';
 import Problem from './editorial/Problem';
 import Loop from './editorial/Loop';
 import Distribution from './editorial/Distribution';
-import Voice from './editorial/Voice';
 import Different from './editorial/Different';
 import Week from './editorial/Week';
 import Icp from './editorial/Icp';
 import LandingCta from './LandingCta';
 import Footer from './editorial/Footer';
 import type { FunnelState } from '@/lib/funnel-cta';
-
-const LandingSmoothScroll = dynamic(() => import('./LandingSmoothScroll'), { ssr: false });
 
 interface Props {
   funnel: FunnelState;
@@ -46,10 +45,6 @@ export default function LandingPageContent({ funnel }: Props) {
           </LandingReveal>
           <LandingReveal delay={0.05}>
             <Distribution />
-          </LandingReveal>
-          <LandingPhotoBand src="/landing/voice-texture.png" />
-          <LandingReveal>
-            <Voice />
           </LandingReveal>
           <LandingReveal delay={0.05}>
             <Different />

@@ -16,9 +16,14 @@ import { checkGlobalLlmBudget } from '@/lib/llm-budget';
  *   LLM_API_KEY   the provider key
  *   LLM_MODEL     e.g. llama-3.3-70b-versatile
  *
- * If those are not set, calls fall back to the legacy HuggingFace path so the
- * app keeps working during migration.
+ * If LLM_* is unset, HUGGINGFACE_API_KEY auto-configures the HF router as the
+ * primary provider (experimentation default). Swap to OpenAI by setting LLM_*;
+ * HF remains an automatic failover when configured.
  */
+
+/** Hugging Face OpenAI-compatible router — default experimentation provider. */
+export const HF_ROUTER_BASE_URL = 'https://router.huggingface.co/v1';
+export const HF_DEFAULT_CHAT_MODEL = 'meta-llama/Llama-3.1-8B-Instruct';
 
 const DEFAULT_MAX_TOKENS = 1024;
 const DEFAULT_TEMPERATURE = 0.7;
@@ -88,13 +93,16 @@ export class LlmError extends Error {
 }
 
 /**
- * Returns true when a generic OpenAI-compatible provider is configured via env.
- * When false, callers fall back to the legacy HuggingFace client.
+ * Returns true when a chat provider is available: explicit LLM_* env, or
+ * HUGGINGFACE_API_KEY alone (auto-routes through the HF router).
  */
 export function isLlmConfigured(): boolean {
-  return Boolean(
-    process.env.LLM_BASE_URL && process.env.LLM_API_KEY && process.env.LLM_MODEL,
-  );
+  const hfKey = process.env.HUGGINGFACE_API_KEY?.trim();
+  const url = process.env.LLM_BASE_URL?.trim();
+  const model = process.env.LLM_MODEL?.trim();
+  const key = process.env.LLM_API_KEY?.trim() || hfKey;
+  if (url && model && key) return true;
+  return Boolean(hfKey);
 }
 
 interface Provider {
@@ -104,15 +112,32 @@ interface Provider {
   label: string;
 }
 
-/** Primary provider from LLM_* env (e.g. Groq). `modelOverride` wins over LLM_MODEL. */
+/** Primary provider: explicit LLM_* env, else Hugging Face when HF key is set. */
 function getPrimaryProvider(modelOverride?: string): Provider | null {
-  if (!isLlmConfigured()) return null;
-  return {
-    baseUrl: (process.env.LLM_BASE_URL as string).replace(/\/+$/, ''),
-    apiKey: process.env.LLM_API_KEY as string,
-    model: modelOverride ?? (process.env.LLM_MODEL as string),
-    label: 'primary',
-  };
+  const hfKey = process.env.HUGGINGFACE_API_KEY?.trim();
+  const explicitUrl = process.env.LLM_BASE_URL?.trim();
+  const explicitModel = process.env.LLM_MODEL?.trim();
+  const explicitKey = process.env.LLM_API_KEY?.trim() || hfKey;
+
+  if (explicitUrl && explicitModel && explicitKey) {
+    return {
+      baseUrl: explicitUrl.replace(/\/+$/, ''),
+      apiKey: explicitKey,
+      model: modelOverride ?? explicitModel,
+      label: 'primary',
+    };
+  }
+
+  if (hfKey) {
+    return {
+      baseUrl: HF_ROUTER_BASE_URL,
+      apiKey: hfKey,
+      model: modelOverride ?? explicitModel ?? HF_DEFAULT_CHAT_MODEL,
+      label: 'huggingface',
+    };
+  }
+
+  return null;
 }
 
 /**
@@ -121,7 +146,7 @@ function getPrimaryProvider(modelOverride?: string): Provider | null {
  * OpenAI-compatible router when HUGGINGFACE_API_KEY is present. Returns null
  * when no fallback is available.
  */
-function getFallbackProvider(): Provider | null {
+function getFallbackProvider(primary: Provider | null): Provider | null {
   if (process.env.LLM_FALLBACK_BASE_URL && process.env.LLM_FALLBACK_API_KEY && process.env.LLM_FALLBACK_MODEL) {
     return {
       baseUrl: process.env.LLM_FALLBACK_BASE_URL.replace(/\/+$/, ''),
@@ -130,11 +155,13 @@ function getFallbackProvider(): Provider | null {
       label: 'fallback',
     };
   }
+  // HF is already primary — don't use it as its own fallback.
+  if (primary?.label === 'huggingface') return null;
   if (process.env.HUGGINGFACE_API_KEY) {
     return {
-      baseUrl: 'https://router.huggingface.co/v1',
+      baseUrl: HF_ROUTER_BASE_URL,
       apiKey: process.env.HUGGINGFACE_API_KEY,
-      model: process.env.LLM_FALLBACK_MODEL ?? 'meta-llama/Llama-3.1-8B-Instruct',
+      model: process.env.LLM_FALLBACK_MODEL ?? HF_DEFAULT_CHAT_MODEL,
       label: 'fallback-hf',
     };
   }
@@ -240,11 +267,11 @@ export async function chatCompletion(
 
   const primary = getPrimaryProvider(options.model);
   if (!primary) {
-    // No generic provider configured -> legacy HuggingFace path.
+    // No provider configured -> legacy HuggingFace SDK path (last resort).
     return generateContentHF(systemPrompt, userPrompt);
   }
 
-  const fallback = getFallbackProvider();
+  const fallback = getFallbackProvider(primary);
   try {
     // If a fallback exists, don't waste time retrying a rate-limited primary —
     // fail fast and switch. Without a fallback, keep the in-place retry loop.

@@ -13,6 +13,7 @@ import {
 import Link from 'next/link';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
+import { isDashboardPlatform } from '@/lib/constants';
 
 interface SocialAccount {
   id: string;
@@ -46,8 +47,6 @@ const PLATFORM_CONFIG: Record<
 > = {
   twitter: { label: 'X', color: '#E7E5E4', charLimit: 280, icon: '\ud835\udd4f' },
   linkedin: { label: 'LinkedIn', color: '#0A66C2', charLimit: 3000, icon: 'in' },
-  instagram: { label: 'Instagram', color: '#E4405F', charLimit: 2200, icon: 'IG' },
-  threads: { label: 'Threads', color: '#E7E5E4', charLimit: 500, icon: '@' },
 };
 
 export default function BulkPublishPanel({
@@ -68,7 +67,9 @@ export default function BulkPublishPanel({
       const res = await fetch('/api/social-accounts');
       if (res.ok) {
         const data = await res.json();
-        const accs: SocialAccount[] = data.accounts ?? [];
+        const accs: SocialAccount[] = (data.accounts ?? []).filter(
+          (a: SocialAccount) => isDashboardPlatform(a.platform),
+        );
         setAccounts(accs);
         // Initialize platform states
         const states: Record<string, PlatformState> = {};

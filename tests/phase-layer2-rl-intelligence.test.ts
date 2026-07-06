@@ -308,5 +308,26 @@ describe('Layer 2: RL Intelligence', () => {
       );
       expect(src).not.toContain('runTrainingStep');
     });
+
+    it('does NOT trigger prod mining (daily intelligence/run only)', () => {
+      const src = fs.readFileSync(
+        path.resolve(__dirname, '../src/app/api/cron/engagement-sync/route.ts'),
+        'utf8',
+      );
+      expect(src).not.toContain('prodMining');
+      expect(src).not.toContain('scheduledMineForOrg');
+    });
+  });
+
+  describe('medium cron fan-out', () => {
+    it('POSTs to intelligence/run with mine body', () => {
+      const src = fs.readFileSync(
+        path.resolve(__dirname, '../src/app/api/cron/medium/route.ts'),
+        'utf8',
+      );
+      expect(src).toContain("'/api/intelligence/run'");
+      expect(src).toContain("method: 'POST'");
+      expect(src).toContain('mine: true');
+    });
   });
 });

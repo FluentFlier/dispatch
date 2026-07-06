@@ -1,14 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { CalendarDays, Loader2, RefreshCw, Unplug } from "lucide-react";
 import { RELOAD_PRESETS, resolveWindow, type WindowRequest } from "@/lib/event-capture/window";
-
-interface IntegrationStatus {
-  toolkit: 'slack' | 'gmail' | 'googlecalendar';
-  connected: boolean;
-  enabled: boolean;
-}
+import { useComposioIntegration } from "@/hooks/useComposioIntegration";
 
 interface ResyncResponse {
   created?: number;
@@ -19,45 +14,45 @@ interface ResyncResponse {
   error?: string;
 }
 
+interface CalendarConnectionCardProps {
+  /** Bump to reload connection status after OAuth redirect. */
+  refreshKey?: number;
+}
+
 /**
  * Shared Google Calendar connect + manual reload card. Fetches its own status so
  * it can be dropped into Settings, Dashboard, and Signals unchanged. Disconnected
- * → connect link; connected → window picker + reload with explicit result/errors
+ * → connect button; connected → window picker + reload with explicit result/errors
  * surfaced so the user can self-diagnose configuration problems.
  */
-export default function CalendarConnectionCard() {
-  const [loading, setLoading] = useState(true);
-  const [connected, setConnected] = useState(false);
+export default function CalendarConnectionCard({ refreshKey = 0 }: CalendarConnectionCardProps) {
+  const {
+    loading,
+    connected,
+    composioConfigured,
+    toolkitReady,
+    connecting,
+    error,
+    setError,
+    connect,
+    reload,
+  } = useComposioIntegration('googlecalendar', refreshKey);
+
   const [preset, setPreset] = useState<WindowRequest['preset']>('last_month');
   const [customFrom, setCustomFrom] = useState('');
   const [customTo, setCustomTo] = useState('');
   const [reloading, setReloading] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
   const [result, setResult] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadStatus = useCallback(async () => {
-    try {
-      const res = await fetch('/api/signals/integrations');
-      const data = await res.json();
-      const cal = (data.integrations as IntegrationStatus[] | undefined)?.find((i) => i.toolkit === 'googlecalendar');
-      setConnected(Boolean(cal?.connected));
-    } catch {
-      setError('Could not load calendar status.');
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => { void loadStatus(); }, [loadStatus]);
+  const [localError, setLocalError] = useState<string | null>(null);
 
   async function handleReload() {
     setReloading(true);
     setResult(null);
-    setError(null);
+    setLocalError(null);
     try {
       if (preset === 'custom' && (!customFrom || !customTo)) {
-        setError('Pick both a start and end date for a custom range.');
+        setLocalError('Pick both a start and end date for a custom range.');
         return;
       }
       const req: WindowRequest =
@@ -70,12 +65,12 @@ export default function CalendarConnectionCard() {
       });
       const data: ResyncResponse = await res.json();
       if (!res.ok) {
-        setError(data.error ?? 'Reload failed.');
+        setLocalError(data.error ?? 'Reload failed.');
       } else {
         setResult(data.message ?? 'Reload complete.');
       }
     } catch {
-      setError('Network error during reload.');
+      setLocalError('Network error during reload.');
     } finally {
       setReloading(false);
     }
@@ -84,17 +79,17 @@ export default function CalendarConnectionCard() {
   async function handleDisconnect() {
     setDisconnecting(true);
     setResult(null);
-    setError(null);
+    setLocalError(null);
     try {
       const res = await fetch('/api/integrations/composio/calendar/disconnect', { method: 'POST' });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        setError(data.error ?? 'Disconnect failed.');
+        setLocalError(data.error ?? 'Disconnect failed.');
       } else {
-        setConnected(false);
+        await reload();
       }
     } catch {
-      setError('Network error during disconnect.');
+      setLocalError('Network error during disconnect.');
     } finally {
       setDisconnecting(false);
     }
@@ -107,6 +102,8 @@ export default function CalendarConnectionCard() {
       </div>
     );
   }
+
+  const showConfigWarning = !composioConfigured || !toolkitReady;
 
   return (
     <div className="rounded-lg border border-border p-4">
@@ -131,13 +128,33 @@ export default function CalendarConnectionCard() {
         )}
       </div>
 
+      {showConfigWarning && (
+        <div className="mb-3 rounded-lg border border-coral/30 bg-coral/5 p-3 text-[11px] text-coral">
+          {!composioConfigured ? (
+            <>
+              Composio is not configured. Add <code className="text-[10px]">COMPOSIO_API_KEY</code> to hosting secrets.
+            </>
+          ) : (
+            <>
+              Google Calendar auth is not configured. Set{' '}
+              <code className="text-[10px]">COMPOSIO_GOOGLECALENDAR_AUTH_CONFIG_ID</code>.
+            </>
+          )}
+        </div>
+      )}
+
       {!connected ? (
-        <a
-          href="/api/integrations/composio/connect"
-          className="inline-block px-4 py-2 text-[12px] text-white bg-accent-primary rounded-md hover:bg-accent-primary/90 transition-colors"
+        <button
+          type="button"
+          disabled={connecting || showConfigWarning}
+          onClick={() => {
+            setError(null);
+            void connect('settings');
+          }}
+          className="inline-block px-4 py-2 text-[12px] text-white bg-accent-primary rounded-md hover:bg-accent-primary/90 transition-colors disabled:opacity-60"
         >
-          Connect Google Calendar
-        </a>
+          {connecting ? 'Redirecting…' : 'Connect Google Calendar'}
+        </button>
       ) : (
         <div className="space-y-3">
           <p className="text-[11px] text-text-secondary">
@@ -172,8 +189,10 @@ export default function CalendarConnectionCard() {
             </button>
           </div>
           {result && <p className="text-[11px] text-[#10B981]">{result}</p>}
-          {error && <p className="text-[11px] text-red-400">{error}</p>}
         </div>
+      )}
+      {(error || localError) && (
+        <p className="mt-2 text-[11px] text-red-400">{error ?? localError}</p>
       )}
     </div>
   );

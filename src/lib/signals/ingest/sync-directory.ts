@@ -1,6 +1,8 @@
 import type { createClient } from '@insforge/sdk';
 import type { IngestedLead, LeadSource } from '@/lib/signals/types';
 import { fetchDirectoryLeads, DirectoryScrapeError } from '@/lib/signals/ingest/tinyfish-fetch';
+import { fetchIcpDiscoveryLeads } from '@/lib/signals/ingest/icp-discovery';
+import { icpToSearchQuery } from '@/lib/signals/icp/parse-description';
 import { DIRECTORY_QUERIES } from '@/lib/signals/ingest/directory-queries';
 import {
   getDirectorySettings,
@@ -69,6 +71,11 @@ export async function syncWorkspaceDirectory(
   }
 
   // --- Scrape enabled sources (isolated) ---
+  const icpQuery = icpToSearchQuery(
+    settings.icp_verticals ?? [],
+    settings.icp_keywords ?? [],
+    settings.icp_description,
+  );
   const collected: IngestedLead[] = [];
   for (const source of settings.enabled_sources) {
     if (!DIRECTORY_QUERIES[source]) {
@@ -76,7 +83,7 @@ export async function syncWorkspaceDirectory(
       continue;
     }
     try {
-      const leads = await fetchDirectoryLeads(source);
+      const leads = await fetchDirectoryLeads(source, { icpQuery });
       collected.push(...leads);
       result.perSource.push({ source, count: leads.length });
       if (debug) console.log(`[directory-sync] ${source} → ${leads.length} leads`);
@@ -87,6 +94,28 @@ export async function syncWorkspaceDirectory(
       // Always logged (not just under debug): a scrape failure is operationally
       // important even when the endpoint still returns 200 to the caller.
       console.error(`[directory-sync] ${source} failed:`, msg);
+    }
+  }
+
+  // ICP-driven discovery (BigSet-style): extra pass when ICP is configured.
+  if (icpQuery || settings.icp_description?.trim()) {
+    try {
+      const icpLeads = await fetchIcpDiscoveryLeads(settings);
+      const before = collected.length;
+      const seen = new Set(collected.map((l) => l.externalId));
+      for (const lead of icpLeads) {
+        if (!seen.has(lead.externalId)) {
+          collected.push(lead);
+          seen.add(lead.externalId);
+        }
+      }
+      const added = collected.length - before;
+      result.perSource.push({ source: 'manual', count: added });
+      if (debug) console.log(`[directory-sync] icp-discovery → ${added} new leads`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      result.warnings.push(`icp_discovery failed: ${msg}`);
+      console.error('[directory-sync] icp_discovery failed:', msg);
     }
   }
 

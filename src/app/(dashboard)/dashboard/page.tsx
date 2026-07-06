@@ -27,6 +27,7 @@ import { CreatorBrainCard } from '@/components/dashboard/CreatorBrainCard';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { MorningBriefCard } from '@/components/dashboard/MorningBriefCard';
 import { getUserEntitlements } from '@/lib/entitlements';
+import { SectionHeader } from '@/components/layout/SectionHeader';
 import CalendarConnectionCard from '@/components/calendar/CalendarConnectionCard';
 import {
   composeMorningBrief,
@@ -91,15 +92,15 @@ export default async function DashboardPage() {
     // No server-side auth -- show welcome state
     return (
       <div className="max-w-lg mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-        <p className="section-label mb-3">CONTENT OS</p>
-        <h2 className="font-serif text-[28px] font-normal tracking-[-0.025em] leading-tight text-ink mb-2">Welcome to Content OS</h2>
+        <span className="inline-flex items-center gap-2 rounded-full border border-hair bg-white/80 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink2 shadow-sm backdrop-blur-sm mb-4">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue" aria-hidden />
+          Content OS
+        </span>
+        <h2 className="text-[clamp(28px,3.5vw,36px)] font-semibold tracking-[-0.03em] leading-tight text-ink mb-2">Welcome to Content OS</h2>
         <p className="text-[15px] text-ink2 mb-6 leading-relaxed">
           Write in your voice, schedule posts, and reply to comments, all in one place.
         </p>
-        <a
-          href="/generate"
-          className="inline-flex items-center justify-center min-h-[48px] px-6 rounded-md text-[15px] font-semibold text-text-inverse bg-accent-primary hover:bg-accent-dark transition-colors shadow-soft"
-        >
+        <a href="/generate" className="btn-primary">
           Write your first post
         </a>
       </div>
@@ -180,7 +181,7 @@ export default async function DashboardPage() {
   const hasProfile = Boolean(creatorProfile?.display_name && creatorProfile?.content_pillars);
   const hasVoice = Boolean(creatorProfile?.voice_description);
   const hasConnections = connectedPlatforms.length > 0;
-  const allPlatforms = ['twitter', 'linkedin', 'instagram', 'threads'];
+  const allPlatforms = ['twitter', 'linkedin'] as const;
   const setupComplete = hasProfile && hasVoice && hasConnections;
 
   // Build summary for AI prompt
@@ -232,24 +233,27 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <section className="rounded-lg border border-border bg-bg-secondary shadow-card overflow-hidden">
+    <div className="page-shell-wide">
+      <section className="card-surface overflow-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.65fr]">
           <div className="p-6 md:p-8">
-            <p className="section-label mb-3">DASHBOARD</p>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-badge bg-sage-light px-2.5 py-1 text-xs font-medium text-accent-secondary">
+            <span className="inline-flex items-center gap-2 rounded-full border border-hair bg-white/80 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink2 shadow-sm backdrop-blur-sm">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue shadow-[0_0_8px_#2563EB]" aria-hidden />
+              Dashboard
+            </span>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-teal/20 bg-teal/10 px-3 py-1 text-xs font-medium text-teal">
                 <Radio className="h-3.5 w-3.5" />
                 Workspace live
               </span>
               {!hasConnections && (
-                <span className="inline-flex items-center gap-1.5 rounded-badge bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-800">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-flame/20 bg-flame/10 px-3 py-1 text-xs font-medium text-flame">
                   <Circle className="h-2 w-2 fill-current" />
                   Publishing not connected
                 </span>
               )}
             </div>
-            <h1 className="mt-5 max-w-2xl font-serif text-[40px] font-normal leading-[1.05] tracking-[-0.02em] text-ink">
+            <h1 className="mt-5 max-w-2xl text-[clamp(32px,4vw,44px)] font-semibold leading-[1.05] tracking-[-0.04em] text-ink">
               {creatorProfile?.display_name
                 ? `${creatorProfile.display_name.split(' ')[0]}, your content system is ready for the next move.`
                 : 'Your content system is ready for the next move.'}
@@ -269,7 +273,7 @@ export default async function DashboardPage() {
             </div>
           </div>
 
-          <div className="border-t border-border bg-bg-elevated p-6 lg:border-l lg:border-t-0">
+          <div className="border-t border-hair bg-paper2/50 p-6 lg:border-l lg:border-t-0">
             <p className="section-label">This week</p>
             <div className="mt-4 grid grid-cols-2 gap-3">
               <MetricTile value={postsThisWeek} label="Published" />
@@ -277,13 +281,13 @@ export default async function DashboardPage() {
               <MetricTile value={totalPosted} label="All time" />
               <MetricTile value={streak} label="Day streak" accent />
             </div>
-            <div className="mt-5 rounded-lg border border-border bg-white p-4">
+            <div className="mt-5 rounded-2xl border border-hair bg-white/80 p-4 backdrop-blur-sm">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm font-semibold text-text-primary">Creator Brain</p>
-                  <p className="mt-1 text-xs leading-5 text-text-secondary">Memory, voice, and shipped posts powering your drafts.</p>
+                  <p className="text-sm font-semibold text-ink">Creator Brain</p>
+                  <p className="mt-1 text-xs leading-5 text-ink2">Memory, voice, and shipped posts powering your drafts.</p>
                 </div>
-                <Sparkles className="h-5 w-5 text-accent-primary" />
+                <Sparkles className="h-5 w-5 text-blue" />
               </div>
             </div>
           </div>
@@ -298,27 +302,28 @@ export default async function DashboardPage() {
         <div className="space-y-6">
           <NeedsAttention items={attentionItems} />
 
-          <section className="rounded-lg border border-border bg-bg-secondary p-5 shadow-card">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="section-label">Publishing pipeline</p>
-                <h2 className="mt-2 font-serif text-[22px] font-normal tracking-[-0.02em] text-ink">Coming up</h2>
-              </div>
-              <Link href="/calendar" className="btn-ghost min-h-[40px] px-3">
-                Plan week <ArrowRight size={14} />
-              </Link>
-            </div>
+          <section className="card-surface p-5">
+            <SectionHeader
+              tag="Publishing pipeline"
+              title="Coming up"
+              accent="#2563EB"
+              action={
+                <Link href="/calendar" className="btn-ghost min-h-[40px] px-3">
+                  Plan week <ArrowRight size={14} />
+                </Link>
+              }
+            />
 
             {upNext.length === 0 ? (
               <div className="empty-state mt-4">
-                <p className="font-medium text-text-primary">No posts are scheduled yet.</p>
+                <p className="font-medium text-ink">No posts are scheduled yet.</p>
                 <p className="mt-1">Write one post, choose a platform, then put it on the calendar. That is the fastest path to seeing Content OS work.</p>
-                <Link href="/generate" className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-accent-primary">
+                <Link href="/generate" className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-blue">
                   Draft a post <ArrowRight className="h-4 w-4" />
                 </Link>
               </div>
             ) : (
-              <ul className="mt-4 divide-y divide-border">
+              <ul className="mt-4 divide-y divide-hair">
                 {upNext.map((post) => (
                   <li key={post.id}>
                     <Link
@@ -331,7 +336,7 @@ export default async function DashboardPage() {
                           style={{ backgroundColor: getPillarColor(post.pillar) }}
                         />
                         <div className="min-w-0">
-                          <p className="truncate text-sm font-medium text-text-primary group-hover:text-accent-primary">{post.title}</p>
+                          <p className="truncate text-sm font-medium text-ink group-hover:text-blue">{post.title}</p>
                           <p className="mt-0.5 font-mono text-xs text-ink3 capitalize">{post.platform}</p>
                         </div>
                       </div>
@@ -350,22 +355,23 @@ export default async function DashboardPage() {
             )}
           </section>
 
-          <section className="rounded-lg border border-border bg-bg-secondary p-5 shadow-card">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="section-label">Backlog</p>
-                <h2 className="mt-2 font-serif text-[22px] font-normal tracking-[-0.02em] text-ink">Ideas to turn into posts</h2>
-              </div>
-              <Link href="/ideas" className="btn-ghost min-h-[40px] px-3">
-                See all <ArrowRight size={14} />
-              </Link>
-            </div>
+          <section className="card-surface p-5">
+            <SectionHeader
+              tag="Backlog"
+              title="Ideas to turn into posts"
+              accent="#0D9488"
+              action={
+                <Link href="/ideas" className="btn-ghost min-h-[40px] px-3">
+                  See all <ArrowRight size={14} />
+                </Link>
+              }
+            />
             {backlog.length === 0 ? (
               <div className="empty-state mt-4">
                 Capture one sharp idea before you leave. Empty idea backlogs make the next writing session start from zero.
               </div>
             ) : (
-              <ul className="mt-4 divide-y divide-border">
+              <ul className="mt-4 divide-y divide-hair">
                 {backlog.map((idea) => (
                   <li key={idea.id} className="flex items-center justify-between gap-3 py-3">
                     <div className="flex items-center gap-3 min-w-0">
@@ -373,7 +379,7 @@ export default async function DashboardPage() {
                         className="inline-block w-2 h-2 rounded-full shrink-0"
                         style={{ backgroundColor: getPillarColor(idea.pillar) }}
                       />
-                      <span className="text-sm text-text-primary truncate">{idea.idea}</span>
+                      <span className="text-sm text-ink truncate">{idea.idea}</span>
                     </div>
                     <span
                       className="inline-flex items-center px-2 py-0.5 rounded-badge text-xs font-medium capitalize shrink-0"
@@ -393,12 +399,12 @@ export default async function DashboardPage() {
 
         <aside className="space-y-6">
           {!setupComplete && (
-            <section className="rounded-lg border border-border bg-bg-secondary p-5 shadow-card">
+            <section className="card-surface p-5">
               <div className="flex items-center gap-2">
-                <AlertCircle size={16} className="text-accent-primary shrink-0" />
-                <h2 className="text-sm font-semibold text-text-primary">Finish setup</h2>
+                <AlertCircle size={16} className="text-blue shrink-0" />
+                <h2 className="text-sm font-semibold text-ink">Finish setup</h2>
               </div>
-              <p className="mt-2 text-sm leading-6 text-text-secondary">
+              <p className="mt-2 text-sm leading-6 text-ink2">
                 Publishing only feels real after voice, profile, and channels are connected.
               </p>
               <div className="mt-4 space-y-2">
@@ -413,10 +419,10 @@ export default async function DashboardPage() {
 
           <TodaysPrompt postsSummary={postsSummary} />
 
-          <section className="rounded-lg border border-border bg-bg-secondary p-5 shadow-card">
+          <section className="card-surface p-5">
             <div className="flex items-center justify-between">
               <p className="section-label">Channels</p>
-              <Link href="/settings?tab=connections" className="text-xs font-medium text-accent-primary">Manage</Link>
+              <Link href="/settings?tab=connections" className="text-xs font-medium text-blue">Manage</Link>
             </div>
             <div className="mt-4 grid grid-cols-2 gap-2">
               {allPlatforms.map((p) => {
@@ -424,13 +430,13 @@ export default async function DashboardPage() {
                 return (
                   <span
                     key={p}
-                    className={`inline-flex items-center justify-between rounded-md border px-3 py-2 text-xs font-medium capitalize ${
+                    className={`inline-flex items-center justify-between rounded-full border px-3 py-2 text-xs font-medium capitalize ${
                       connected
-                        ? 'border-sage/20 bg-sage-light text-accent-secondary'
-                        : 'border-border bg-bg-tertiary text-text-tertiary'
+                        ? 'border-teal/20 bg-teal/10 text-teal'
+                        : 'border-hair bg-paper2 text-ink3'
                     }`}
                   >
-                    {p === 'twitter' ? 'X' : p}
+                    {p === 'twitter' ? 'X' : 'LinkedIn'}
                     <Link2 size={13} />
                   </span>
                 );
@@ -438,15 +444,15 @@ export default async function DashboardPage() {
             </div>
           </section>
 
-          <section className="rounded-lg border border-border bg-bg-secondary p-5 shadow-card">
+          <section className="card-surface p-5">
             <p className="section-label mb-3">Calendar</p>
             <CalendarConnectionCard />
           </section>
 
-          <section className="rounded-lg border border-border bg-bg-secondary p-5 shadow-card">
+          <section className="card-surface p-5">
             <p className="section-label">Recent activity</p>
             {recentActivity.length === 0 ? (
-              <p className="mt-3 text-sm text-text-secondary">Draft, schedule, or publish something and it will appear here.</p>
+              <p className="mt-3 text-sm text-ink2">Draft, schedule, or publish something and it will appear here.</p>
             ) : (
               <ul className="mt-3 space-y-3">
                 {recentActivity.map((post) => (
@@ -456,7 +462,7 @@ export default async function DashboardPage() {
                       style={{ backgroundColor: getPillarColor(post.pillar) }}
                     />
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-text-primary">{post.title}</p>
+                      <p className="truncate text-sm font-medium text-ink">{post.title}</p>
                       <p className="mt-0.5 font-mono text-xs text-ink3">{STATUS_LABELS[post.status]} · {formatRelative(post.updated_at)}</p>
                     </div>
                   </li>
@@ -484,7 +490,7 @@ function MetricTile({
   accent?: boolean;
 }) {
   return (
-    <div className="rounded-lg border border-border bg-white p-3">
+    <div className="rounded-2xl border border-hair bg-white/80 p-3 backdrop-blur-sm">
       <p className={`font-mono text-2xl font-semibold tabular-nums ${accent ? 'text-flame' : 'text-ink'}`}>{value}</p>
       <p className="mt-1 text-xs text-ink2">{label}</p>
     </div>
@@ -495,19 +501,19 @@ function SetupStep({ done, label, href }: { done: boolean; label: string; href: 
   return (
     <Link
       href={href}
-      className={`flex items-center gap-2 px-3 py-3 rounded-md text-sm transition-colors min-h-[44px] ${
+      className={`flex items-center gap-2 px-3 py-3 rounded-full text-sm transition-colors min-h-[44px] ${
         done
-          ? 'bg-sage-light text-accent-secondary'
-          : 'bg-bg-tertiary text-text-secondary hover:bg-border'
+          ? 'bg-teal/10 text-teal'
+          : 'bg-paper2 text-ink2 hover:bg-hair/30'
       }`}
     >
       {done ? (
-        <CheckCircle2 size={16} className="text-accent-secondary shrink-0" />
+        <CheckCircle2 size={16} className="text-teal shrink-0" />
       ) : (
-        <span className="w-4 h-4 rounded-full border-2 border-border shrink-0" />
+        <span className="w-4 h-4 rounded-full border-2 border-hair shrink-0" />
       )}
       <span className={done ? 'line-through opacity-70' : ''}>{label}</span>
-      {!done && <ArrowRight size={14} className="ml-auto text-text-tertiary" />}
+      {!done && <ArrowRight size={14} className="ml-auto text-ink3" />}
     </Link>
   );
 }

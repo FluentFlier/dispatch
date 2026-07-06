@@ -4,8 +4,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { X, Wand2, Copy, MonitorPlay, Trash2, Clock, BarChart3 } from 'lucide-react';
 import type { Post, Series } from '@/lib/types';
 import { postPillars, pillarWeights } from '@/lib/pillars';
-import type { Status, Platform } from '@/lib/constants';
-import { PLATFORMS, STATUSES, STATUS_LABELS } from '@/lib/constants';
+import type { Status, DashboardPlatform } from '@/lib/constants';
+import { PLATFORMS, PLATFORM_LABELS, STATUSES, STATUS_LABELS, normalizeDashboardPlatform } from '@/lib/constants';
 import PillarMultiSelect from '@/components/ui/PillarMultiSelect';
 import StatusPipeline from '@/components/library/StatusPipeline';
 import PerformanceModal from '@/components/library/PerformanceModal';
@@ -327,8 +327,8 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                     className={inputClass}
                   >
                     {PLATFORMS.map((p) => (
-                      <option key={p} value={p} className="capitalize">
-                        {p.charAt(0).toUpperCase() + p.slice(1)}
+                      <option key={p} value={p}>
+                        {PLATFORM_LABELS[p]}
                       </option>
                     ))}
                   </select>
@@ -512,7 +512,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
               <GenerateVariantsSection
                 content={form.script || form.caption || form.hook || form.title}
-                sourcePlatform={form.platform as Platform}
+                sourcePlatform={normalizeDashboardPlatform(form.platform)}
                 postId={post.id}
                 onReplaceCaption={(newCaption: string) => {
                   setForm((f) => ({ ...f, caption: newCaption }));

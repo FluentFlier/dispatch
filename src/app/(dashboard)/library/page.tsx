@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FileText, Grid3X3, List, Plus, Search, Trash2, ChevronDown } from 'lucide-react';
 import type { Post, Series } from '@/lib/types';
 import type { Platform, Status } from '@/lib/constants';
-import { PLATFORMS, STATUSES, STATUS_LABELS } from '@/lib/constants';
+import { PLATFORMS, PLATFORM_LABELS, DASHBOARD_PLATFORMS, isDashboardPlatform, STATUSES, STATUS_LABELS } from '@/lib/constants';
 import { getInsforgeClient } from '@/lib/insforge/client';
 import { usePillars } from '@/hooks/usePillars';
 import { postPillars } from '@/lib/pillars';
@@ -296,7 +296,7 @@ export default function LibraryPage() {
           label="Platform"
           value={platformFilter}
           onChange={(v) => setPlatformFilter(v as Platform | 'all')}
-          options={[{ value: 'all', label: 'All' }, ...PLATFORMS.map((p) => ({ value: p, label: p.charAt(0).toUpperCase() + p.slice(1) }))]}
+          options={[{ value: 'all', label: 'All' }, ...PLATFORMS.map((p) => ({ value: p, label: PLATFORM_LABELS[p] }))]}
         />
         <FilterDropdown
           label="Status"

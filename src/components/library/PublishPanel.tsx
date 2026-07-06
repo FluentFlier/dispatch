@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { ExternalLink, AlertCircle, Check, Loader2, Settings } from 'lucide-react';
 import Link from 'next/link';
+import { isDashboardPlatform } from '@/lib/constants';
 
 interface SocialAccount {
   id: string;
@@ -29,8 +30,6 @@ interface PublishPanelProps {
 const PLATFORM_CONFIG: Record<string, { label: string; color: string; charLimit: number; icon: string }> = {
   twitter: { label: 'X', color: '#E7E5E4', charLimit: 280, icon: '𝕏' },
   linkedin: { label: 'LinkedIn', color: '#0A66C2', charLimit: 3000, icon: 'in' },
-  instagram: { label: 'Instagram', color: '#E4405F', charLimit: 2200, icon: 'IG' },
-  threads: { label: 'Threads', color: '#E7E5E4', charLimit: 500, icon: '@' },
 };
 
 export default function PublishPanel({ postId, content, caption, onPublishSuccess }: PublishPanelProps) {
@@ -103,6 +102,8 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
 
   const publishText = caption || content;
 
+  const visibleAccounts = accounts.filter((a) => isDashboardPlatform(a.platform));
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 py-2">
@@ -112,7 +113,7 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
     );
   }
 
-  if (accounts.length === 0) {
+  if (visibleAccounts.length === 0) {
     return (
       <div className="py-2">
         <p className="text-[11px] text-text-secondary mb-2">No accounts connected.</p>
@@ -128,7 +129,7 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
 
   return (
     <div className="space-y-2">
-      {accounts.map((account) => {
+      {visibleAccounts.map((account) => {
         const config = PLATFORM_CONFIG[account.platform];
         if (!config) return null;
 

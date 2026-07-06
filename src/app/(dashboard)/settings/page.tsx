@@ -15,12 +15,14 @@ import PlatformDefaults from "@/components/settings/PlatformDefaults";
 import BioGenerator from "@/components/settings/BioGenerator";
 import PlatformConnections from "@/components/settings/PlatformConnections";
 import CalendarConnectionCard from "@/components/calendar/CalendarConnectionCard";
+import GmailConnectionCard from "@/components/settings/GmailConnectionCard";
 import ProfileEditor from "@/components/settings/ProfileEditor";
 import AutoOptimizeToggle from "@/components/settings/AutoOptimizeToggle";
 import VoiceDefaultToggle from "@/components/settings/VoiceDefaultToggle";
 import HookWatchlistEditor from "@/components/settings/HookWatchlistEditor";
 import AgentAccessCard from "@/components/settings/AgentAccessCard";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { integrationNoticeFromSearchParams } from "@/lib/composio/integration-messages";
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -170,6 +172,12 @@ export default function SettingsPage() {
   // Social connect is Unipile-only in production.
   const useUnipile = true;
   const [unipileConfigured, setUnipileConfigured] = useState<boolean | null>(null);
+  const [composioConfigured, setComposioConfigured] = useState<boolean | null>(null);
+  const [integrationsRefreshKey, setIntegrationsRefreshKey] = useState(0);
+  const [integrationNotice, setIntegrationNotice] = useState<{
+    type: 'success' | 'error';
+    message: string;
+  } | null>(null);
 
   /* ---- Helpers ---- */
 
@@ -291,12 +299,26 @@ export default function SettingsPage() {
   }, []);
 
   useEffect(() => {
+    const notice = integrationNoticeFromSearchParams(searchParams);
+    if (notice) {
+      setActiveTab('connections');
+      setIntegrationNotice(notice);
+    }
+
+    const shouldRefreshIntegrations =
+      searchParams.get('outreach_connected') ||
+      searchParams.get('calendar_error') ||
+      searchParams.get('outreach_error');
+
+    if (shouldRefreshIntegrations) {
+      setIntegrationsRefreshKey((k) => k + 1);
+    }
+
     // Unipile success redirect lands on /settings?tab=connections&connected=true.
     // Call /api/social-accounts/sync first — this is the fallback for local dev
     // where the Unipile webhook can't reach localhost. In production the webhook
     // already stored the account, so the sync is a fast no-op (accounts already exist).
     if (searchParams.get('connected') === 'true') {
-      setActiveTab('connections');
       fetch('/api/social-accounts/sync', { method: 'POST' })
         .catch(() => undefined)
         .finally(() => refreshAccounts());
@@ -314,8 +336,20 @@ export default function SettingsPage() {
       .then((data) => {
         if (!data?.checks) return;
         setUnipileConfigured(data.checks.social === 'ok');
+        setComposioConfigured(data.checks.composio === 'ok');
       })
-      .catch(() => setUnipileConfigured(null));
+      .catch(() => {
+        setUnipileConfigured(null);
+        setComposioConfigured(null);
+      });
+    fetch('/api/signals/integrations')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data && typeof data.composio_configured === 'boolean') {
+          setComposioConfigured(data.composio_configured);
+        }
+      })
+      .catch(() => undefined);
   }, []);
 
   async function openBillingPortal() {
@@ -516,6 +550,18 @@ export default function SettingsPage() {
       {/* Tab content */}
       {activeTab === 'connections' && (
         <>
+          {integrationNotice && (
+            <div
+              className={`rounded-lg border p-4 text-sm ${
+                integrationNotice.type === 'success'
+                  ? 'border-[#10B981]/30 bg-[rgba(16,185,129,0.08)] text-[#10B981]'
+                  : 'border-coral/30 bg-coral/5 text-coral'
+              }`}
+            >
+              {integrationNotice.message}
+            </div>
+          )}
+
           <Section title="Platform Connections">
             {unipileConfigured === false && (
               <div className="mb-4 rounded-lg border border-coral/30 bg-coral/5 p-4 text-sm text-coral">
@@ -534,8 +580,18 @@ export default function SettingsPage() {
             />
           </Section>
 
-          <Section title="Calendar">
-            <CalendarConnectionCard />
+          <Section title="Email & Calendar">
+            {composioConfigured === false && (
+              <div className="mb-4 rounded-lg border border-coral/30 bg-coral/5 p-4 text-sm text-coral">
+                Composio is not configured on this deployment. Add{' '}
+                <code className="text-xs">COMPOSIO_API_KEY</code>, auth config IDs, and{' '}
+                <code className="text-xs">NEXT_PUBLIC_APP_URL</code> to hosting secrets, then redeploy.
+              </div>
+            )}
+            <div className="space-y-4">
+              <GmailConnectionCard refreshKey={integrationsRefreshKey} />
+              <CalendarConnectionCard refreshKey={integrationsRefreshKey} />
+            </div>
           </Section>
 
           <Section title="Platform Defaults">

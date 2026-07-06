@@ -36,8 +36,8 @@ export default function Loop() {
   return (
     <section id="loop" className="relative scroll-mt-24 overflow-hidden">
       <LandingGlowOrb tone={theme.glow} position="left" />
-      <div className="relative mx-auto max-w-[1100px] px-5 py-16 sm:px-8 sm:py-20">
-        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_auto] lg:items-start">
+      <div className="relative mx-auto max-w-[1100px] px-5 py-12 sm:px-8 sm:py-14">
+        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[1fr_auto] lg:items-start">
           <LandingSectionHeader
             tag={theme.tag}
             title="Signal → ship → learn."

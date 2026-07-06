@@ -55,8 +55,31 @@ export const STATUS_BADGE: Record<Status, string> = {
   posted: 'bg-sage-light text-accent-secondary',
 };
 
-export const PLATFORMS = ['instagram', 'linkedin', 'twitter', 'threads'] as const;
-export type Platform = typeof PLATFORMS[number];
+export const ALL_PLATFORMS = ['instagram', 'linkedin', 'twitter', 'threads'] as const;
+export type Platform = typeof ALL_PLATFORMS[number];
+
+/** Platforms shown in dashboard UI — X and LinkedIn only. */
+export const DASHBOARD_PLATFORMS = ['twitter', 'linkedin'] as const;
+export type DashboardPlatform = typeof DASHBOARD_PLATFORMS[number];
+
+/** Alias used by dashboard components for platform pickers. */
+export const PLATFORMS = DASHBOARD_PLATFORMS;
+
+export const PLATFORM_LABELS: Record<Platform, string> = {
+  twitter: 'X',
+  linkedin: 'LinkedIn',
+  instagram: 'Instagram',
+  threads: 'Threads',
+};
+
+export function isDashboardPlatform(value: string): value is DashboardPlatform {
+  return value === 'twitter' || value === 'linkedin';
+}
+
+export function normalizeDashboardPlatform(value: string | null | undefined): DashboardPlatform {
+  const normalized = value ?? '';
+  return isDashboardPlatform(normalized) ? normalized : 'linkedin';
+}
 
 export const PRIORITIES = ['low', 'medium', 'high'] as const;
 export type Priority = typeof PRIORITIES[number];

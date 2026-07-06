@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
 import { useToast } from '@/components/ui/Toast';
 import { CopyButton } from '@/components/ui/CopyButton';
-import type { Platform } from '@/lib/constants';
+import { DASHBOARD_PLATFORMS, isDashboardPlatform } from '@/lib/constants';
+import type { DashboardPlatform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 interface SocialAccount {
@@ -18,7 +19,7 @@ interface SocialAccount {
 }
 
 interface Variant {
-  platform: Platform;
+  platform: DashboardPlatform;
   content: string;
   characterCount: number;
   isThread: boolean;
@@ -27,17 +28,15 @@ interface Variant {
 
 interface OptimizePanelProps {
   content: string;
-  sourcePlatform?: Platform;
+  sourcePlatform?: DashboardPlatform;
 }
 
-const PLATFORM_CONFIG: Record<string, { label: string; charLimit: number; icon: string; color: string }> = {
+const PLATFORM_CONFIG: Record<DashboardPlatform, { label: string; charLimit: number; icon: string; color: string }> = {
   twitter: { label: 'X (Twitter)', charLimit: 280, icon: '\ud835\udd4f', color: '#E7E5E4' },
   linkedin: { label: 'LinkedIn', charLimit: 3000, icon: 'in', color: '#0A66C2' },
-  instagram: { label: 'Instagram', charLimit: 2200, icon: 'IG', color: '#E4405F' },
-  threads: { label: 'Threads', charLimit: 500, icon: '@', color: '#E7E5E4' },
 };
 
-export function OptimizePanel({ content, sourcePlatform = 'instagram' }: OptimizePanelProps) {
+export function OptimizePanel({ content, sourcePlatform = 'linkedin' }: OptimizePanelProps) {
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [accountsLoading, setAccountsLoading] = useState(true);
@@ -68,15 +67,14 @@ export function OptimizePanel({ content, sourcePlatform = 'instagram' }: Optimiz
   // Repurpose targets are OTHER platforms only — never the source. Re-optimizing
   // the same platform is what the main generator already does, so offering it
   // here produced a confusing second "same platform" draft.
-  const ALL_PLATFORMS: Platform[] = ['twitter', 'linkedin', 'instagram', 'threads'];
   const otherConnected = accounts
-    .map((a) => a.platform as Platform)
-    .filter((p) => p !== sourcePlatform);
+    .map((a) => a.platform as DashboardPlatform)
+    .filter((p) => isDashboardPlatform(p) && p !== sourcePlatform);
   const otherPlatforms = otherConnected.length > 0
     ? otherConnected
-    : ALL_PLATFORMS.filter((p) => p !== sourcePlatform);
+    : DASHBOARD_PLATFORMS.filter((p) => p !== sourcePlatform);
 
-  async function handleOptimize(targetPlatforms: Platform[]) {
+  async function handleOptimize(targetPlatforms: DashboardPlatform[]) {
     if (targetPlatforms.length === 0) return;
     setOptimizing(true);
     setVariants([]);
@@ -117,7 +115,7 @@ export function OptimizePanel({ content, sourcePlatform = 'instagram' }: Optimiz
     handleOptimize(otherPlatforms);
   }
 
-  function handleOptimizeSingle(platform: Platform) {
+  function handleOptimizeSingle(platform: DashboardPlatform) {
     handleOptimize([platform]);
   }
 

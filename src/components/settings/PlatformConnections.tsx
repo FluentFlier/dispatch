@@ -206,7 +206,7 @@ export default function PlatformConnections({
         <div className="mb-6 p-4 rounded-lg border border-accent-primary/25 bg-coral-light">
           <p className="text-[13px] text-text-primary font-medium mb-1">Connect all platforms at once</p>
           <p className="text-[11px] text-text-secondary mb-3">
-            Powered by Unipile. Link X, LinkedIn, Instagram, and Threads in one secure flow.
+            Powered by Unipile. Link LinkedIn and X in one secure flow.
           </p>
           <div className="flex flex-wrap gap-2">
             <button

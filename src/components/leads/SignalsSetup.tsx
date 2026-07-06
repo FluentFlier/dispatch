@@ -70,6 +70,8 @@ export function SignalsSetup() {
   const [newSourceHandle, setNewSourceHandle] = useState('');
   const [newSourcePlatform, setNewSourcePlatform] = useState<'x' | 'linkedin'>('x');
   const [enablingSend, setEnablingSend] = useState(false);
+  const [connectingToolkit, setConnectingToolkit] = useState<'slack' | 'gmail' | null>(null);
+  const [composioConfigured, setComposioConfigured] = useState(true);
   const loaded = useRef(false);
 
   // --- Data loading (same endpoints as the retired /signals page) ---
@@ -93,6 +95,7 @@ export function SignalsSetup() {
       if (integrationsRes.ok) {
         const data = await integrationsRes.json();
         setIntegrations((data.integrations ?? []) as IntegrationStatus[]);
+        setComposioConfigured(Boolean(data.composio_configured));
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load setup.');
@@ -145,6 +148,27 @@ export function SignalsSetup() {
       setError(e instanceof Error ? e.message : 'Could not turn on sending');
     } finally {
       setEnablingSend(false);
+    }
+  };
+
+  /** Starts Composio OAuth for Gmail or Slack (same flow as onboarding). */
+  const connectComposio = async (toolkit: 'slack' | 'gmail') => {
+    if (!composioConfigured) {
+      setError('Composio is not configured on this deployment.');
+      return;
+    }
+    setConnectingToolkit(toolkit);
+    setError(null);
+    try {
+      const res = await fetch(`/api/integrations/composio/link?toolkit=${toolkit}`);
+      const data = await res.json();
+      if (!res.ok || !data.redirect_url) {
+        throw new Error(data.error ?? `Could not start ${toolkit} connect.`);
+      }
+      window.location.href = data.redirect_url as string;
+    } catch (e) {
+      setError(e instanceof Error ? e.message : `Could not connect ${toolkit}.`);
+      setConnectingToolkit(null);
     }
   };
 
@@ -348,8 +372,18 @@ export function SignalsSetup() {
         <CalendarConnectionCard />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
           <IntegrationPill label="LinkedIn" connected={Boolean(linkedIn?.connected)} />
-          <IntegrationPill label="Slack" connected={Boolean(slackIntegration?.connected)} />
-          <IntegrationPill label="Gmail" connected={Boolean(gmailIntegration?.connected)} />
+          <IntegrationPill
+            label="Slack"
+            connected={Boolean(slackIntegration?.connected)}
+            onConnect={slackIntegration?.connected ? undefined : () => connectComposio('slack')}
+            connecting={connectingToolkit === 'slack'}
+          />
+          <IntegrationPill
+            label="Gmail"
+            connected={Boolean(gmailIntegration?.connected)}
+            onConnect={gmailIntegration?.connected ? undefined : () => connectComposio('gmail')}
+            connecting={connectingToolkit === 'gmail'}
+          />
         </div>
         {slackIntegration?.connected && (
           <p className="text-xs text-text-secondary">
@@ -366,13 +400,34 @@ export function SignalsSetup() {
 }
 
 /** Small connected/not-connected status chip for an integration. */
-function IntegrationPill({ label, connected }: { label: string; connected: boolean }) {
+function IntegrationPill({
+  label,
+  connected,
+  onConnect,
+  connecting,
+}: {
+  label: string;
+  connected: boolean;
+  onConnect?: () => void;
+  connecting?: boolean;
+}) {
   return (
     <div className="flex items-center justify-between rounded-md border border-border bg-bg-primary px-3 py-2">
       <span className="text-text-primary font-medium">{label}</span>
-      <span className={connected ? 'text-accent-secondary' : 'text-text-tertiary'}>
-        {connected ? 'Connected' : 'Not connected'}
-      </span>
+      {connected ? (
+        <span className="text-accent-secondary">Connected</span>
+      ) : onConnect ? (
+        <button
+          type="button"
+          onClick={onConnect}
+          disabled={connecting}
+          className="text-accent-primary font-medium hover:underline disabled:opacity-60"
+        >
+          {connecting ? 'Connecting…' : 'Connect'}
+        </button>
+      ) : (
+        <span className="text-text-tertiary">Not connected</span>
+      )}
     </div>
   );
 }

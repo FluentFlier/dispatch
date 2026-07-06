@@ -110,7 +110,7 @@ Each part works standalone but rewards watching all. Part 1 must be the stronges
           title: `${concept.trim()} - ${title}`,
           pillar: 'explainer',
           status: 'idea',
-          platform: 'instagram',
+          platform: 'linkedin',
           script: partText,
           series_id: series.id,
           series_position: partNum,

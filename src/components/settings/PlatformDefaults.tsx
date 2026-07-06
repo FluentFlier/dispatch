@@ -1,18 +1,11 @@
 "use client";
 
-import type { Platform } from "@/lib/constants";
-import { PLATFORMS } from "@/lib/constants";
-
-const PLATFORM_LABELS: Record<Platform, string> = {
-  instagram: "Instagram",
-  linkedin: "LinkedIn",
-  twitter: "X / Twitter",
-  threads: "Threads",
-};
+import type { DashboardPlatform } from "@/lib/constants";
+import { DASHBOARD_PLATFORMS, PLATFORM_LABELS } from "@/lib/constants";
 
 interface PlatformDefaultsProps {
-  defaultPlatform: Platform;
-  onDefaultPlatformChange: (platform: Platform) => void;
+  defaultPlatform: DashboardPlatform;
+  onDefaultPlatformChange: (platform: DashboardPlatform) => void;
   crossPostReminders: boolean;
   onCrossPostRemindersChange: (value: boolean) => void;
   onSave: () => void;
@@ -39,11 +32,11 @@ export default function PlatformDefaults({
           <select
             value={defaultPlatform}
             onChange={(e) =>
-              onDefaultPlatformChange(e.target.value as Platform)
+              onDefaultPlatformChange(e.target.value as DashboardPlatform)
             }
             className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-sm text-text-primary focus:outline-none focus:border-border-hover transition-colors"
           >
-            {PLATFORMS.map((p) => (
+            {DASHBOARD_PLATFORMS.map((p) => (
               <option key={p} value={p}>
                 {PLATFORM_LABELS[p]}
               </option>

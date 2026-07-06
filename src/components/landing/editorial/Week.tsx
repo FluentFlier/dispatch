@@ -37,7 +37,7 @@ export default function Week() {
       <div className="pointer-events-none absolute -left-20 top-1/4 h-64 w-64 rounded-full bg-blue/20 blur-[100px] animate-land-drift-a" />
       <div className="pointer-events-none absolute -right-16 bottom-1/4 h-56 w-56 rounded-full bg-teal/15 blur-[90px] animate-land-drift-b" />
 
-      <div className="relative mx-auto max-w-[1100px] px-5 py-16 sm:px-8 sm:py-20">
+      <div className="relative mx-auto max-w-[1100px] px-5 py-12 sm:px-8 sm:py-14">
         <LandingSectionHeader
           tag={theme.tag}
           title="One week in the loop."

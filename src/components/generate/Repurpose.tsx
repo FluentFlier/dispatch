@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
 import { GenerateOutput } from './GenerateOutput';
-import { ALL_PLATFORMS, type Platform } from '@/types/database';
+import { DASHBOARD_PLATFORMS, PLATFORM_LABELS, type DashboardPlatform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 async function callGenerate(prompt: string): Promise<string> {
@@ -20,21 +20,17 @@ async function callGenerate(prompt: string): Promise<string> {
   return text;
 }
 
-const PLATFORM_GUIDELINES: Record<Platform, string> = {
-  instagram:
-    'instagram: tight, punchy, visual. Short beats. Under 90 seconds.',
+const PLATFORM_GUIDELINES: Record<DashboardPlatform, string> = {
   linkedin:
     'linkedin: longer, more reflective. Add professional context. First line hooks. Expand the lesson.',
   twitter:
     'twitter: thread format. Each tweet numbered. Under 280 chars each. Hook tweet earns the click.',
-  threads:
-    'threads: conversational, like texting a smart friend. Short posts. Real reactions. No polish.',
 };
 
 export function Repurpose() {
   const [script, setScript] = useState('');
-  const [fromPlatform, setFromPlatform] = useState<Platform>('instagram');
-  const [toPlatform, setToPlatform] = useState<Platform>('linkedin');
+  const [fromPlatform, setFromPlatform] = useState<DashboardPlatform>('linkedin');
+  const [toPlatform, setToPlatform] = useState<DashboardPlatform>('twitter');
   const [output, setOutput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -83,12 +79,12 @@ Match the voice, keep every specific detail, adapt only the format and length. N
           <label className="block section-label mb-1">From</label>
           <select
             value={fromPlatform}
-            onChange={(e) => setFromPlatform(e.target.value as Platform)}
+            onChange={(e) => setFromPlatform(e.target.value as DashboardPlatform)}
             className="bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors duration-100"
           >
-            {ALL_PLATFORMS.map((p) => (
+            {DASHBOARD_PLATFORMS.map((p) => (
               <option key={p} value={p}>
-                {p.charAt(0).toUpperCase() + p.slice(1)}
+                {PLATFORM_LABELS[p]}
               </option>
             ))}
           </select>
@@ -97,12 +93,12 @@ Match the voice, keep every specific detail, adapt only the format and length. N
           <label className="block section-label mb-1">To</label>
           <select
             value={toPlatform}
-            onChange={(e) => setToPlatform(e.target.value as Platform)}
+            onChange={(e) => setToPlatform(e.target.value as DashboardPlatform)}
             className="bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors duration-100"
           >
-            {ALL_PLATFORMS.map((p) => (
+            {DASHBOARD_PLATFORMS.map((p) => (
               <option key={p} value={p}>
-                {p.charAt(0).toUpperCase() + p.slice(1)}
+                {PLATFORM_LABELS[p]}
               </option>
             ))}
           </select>

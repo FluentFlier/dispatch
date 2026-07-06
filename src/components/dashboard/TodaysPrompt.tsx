@@ -83,7 +83,7 @@ export default function TodaysPrompt({ postsSummary }: TodaysPromptProps) {
   }, [fetchSuggestion]);
 
   return (
-    <section className="rounded-lg border border-border bg-bg-secondary p-4 shadow-card">
+    <section className="card-surface p-4">
       <div className="flex items-center justify-between mb-3">
         <p className="section-label">
           Idea for today
@@ -92,7 +92,7 @@ export default function TodaysPrompt({ postsSummary }: TodaysPromptProps) {
           type="button"
           onClick={fetchSuggestion}
           disabled={loading}
-          className="text-text-tertiary hover:text-accent-primary transition-colors disabled:opacity-50 min-h-[44px] min-w-[44px] flex items-center justify-center"
+          className="text-ink3 hover:text-blue transition-colors disabled:opacity-50 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-full hover:bg-paper2"
           aria-label="Get another idea"
         >
           <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
@@ -100,12 +100,12 @@ export default function TodaysPrompt({ postsSummary }: TodaysPromptProps) {
       </div>
       {loading ? (
         <div className="space-y-2">
-          <div className="h-3 w-full bg-bg-tertiary rounded animate-pulse" />
-          <div className="h-3 w-3/4 bg-bg-tertiary rounded animate-pulse" />
-          <div className="h-3 w-5/6 bg-bg-tertiary rounded animate-pulse" />
+          <div className="h-3 w-full bg-paper2 rounded-full animate-pulse" />
+          <div className="h-3 w-3/4 bg-paper2 rounded-full animate-pulse" />
+          <div className="h-3 w-5/6 bg-paper2 rounded-full animate-pulse" />
         </div>
       ) : (
-        <p className="text-sm text-text-primary leading-relaxed">
+        <p className="text-sm text-ink leading-relaxed">
           {suggestion}
         </p>
       )}

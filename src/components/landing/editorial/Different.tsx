@@ -26,7 +26,7 @@ export default function Different() {
   return (
     <section id="different" className="relative scroll-mt-24 overflow-hidden border-t border-hair/60 bg-white/50">
       <LandingGlowOrb tone={theme.glow} position="right" />
-      <div className="relative mx-auto max-w-[1100px] px-5 py-16 sm:px-8 sm:py-20">
+      <div className="relative mx-auto max-w-[1100px] px-5 py-12 sm:px-8 sm:py-14">
         <LandingSectionHeader
           tag={theme.tag}
           title="Not another caption generator."

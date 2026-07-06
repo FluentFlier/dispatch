@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   RefreshCw,
   Sparkles,
@@ -13,6 +13,7 @@ import {
   Linkedin,
   Globe,
   Twitter,
+  MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import type { SignalLeadWithContacts } from '@/lib/signals/types';
@@ -21,9 +22,11 @@ import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 /** LinkedIn connect-note character ceiling; drafts over this can't be approved. */
 export const CONNECT_LIMIT = 300;
 
-/** Short "YC · W24" / "PH" style source tag for a directory lead. */
+/** Short source tag for a directory lead. */
 export function sourceTag(lead: SignalLeadWithContacts): string {
-  const src = lead.source === 'product_hunt' ? 'PH' : 'YC';
+  if (lead.source === 'product_hunt') return lead.batch ? `PH · ${lead.batch}` : 'PH';
+  if (lead.source === 'manual') return 'ICP';
+  const src = 'YC';
   return lead.batch ? `${src} · ${lead.batch}` : src;
 }
 
@@ -90,11 +93,17 @@ interface LeadDetailProps {
   busy: boolean;
   followed: boolean;
   onDraft: () => void;
-  onApprove: () => void;
+  onApprove: (channel?: 'linkedin_connect' | 'x_dm') => void;
   onEmail: () => void;
   onDismiss: () => void;
   onResolve: (force?: boolean) => void;
   onFollow: () => void;
+}
+
+interface LeadNote {
+  id: string;
+  body: string;
+  created_at: string;
 }
 
 /**
@@ -119,9 +128,47 @@ export function LeadDetail({
   onResolve,
   onFollow,
 }: LeadDetailProps) {
+  const [notes, setNotes] = useState<LeadNote[]>([]);
+  const [noteText, setNoteText] = useState('');
+  const [notesLoading, setNotesLoading] = useState(false);
+
+  const loadNotes = useCallback(async () => {
+    setNotesLoading(true);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/notes`);
+      const data = await res.json();
+      if (res.ok) setNotes(data.notes ?? []);
+    } catch {
+      // Notes are optional — a missing table should not break the panel.
+    } finally {
+      setNotesLoading(false);
+    }
+  }, [lead.id]);
+
+  useEffect(() => {
+    void loadNotes();
+  }, [loadNotes]);
+
+  const addNote = async () => {
+    const body = noteText.trim();
+    if (!body) return;
+    const res = await fetch(`/api/leads/${lead.id}/notes`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body }),
+    });
+    const data = await res.json();
+    if (res.ok && data.note) {
+      setNotes((prev) => [...prev, data.note]);
+      setNoteText('');
+    }
+  };
+
   const contact = lead.primary_contact;
   const noContact = lead.contact_status === 'no_contact';
   const leadEmail = lead.contacts?.find((c) => c.email)?.email ?? null;
+  const xHandle = contact?.x_handle?.trim() || lead.contacts?.find((c) => c.x_handle)?.x_handle?.trim() || null;
+  const hasLinkedIn = Boolean(contact?.linkedin_url?.trim());
   const overLimit = draft.length > CONNECT_LIMIT;
   const fact = lead.source_fact as { batch?: string; tagline?: string };
 
@@ -269,6 +316,47 @@ export function LeadDetail({
         </div>
       ) : null}
 
+      {/* Develop: notes + watch */}
+      <section className="space-y-2 border border-border rounded-lg p-3 bg-bg-secondary/40">
+        <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary flex items-center gap-1.5">
+          <MessageSquare className="h-3.5 w-3.5" /> Develop this lead
+        </p>
+        <p className="text-xs text-text-tertiary">
+          Log next steps — comment ideas, follow-up timing, objections heard.
+        </p>
+        {notesLoading ? (
+          <p className="text-xs text-text-tertiary">Loading notes…</p>
+        ) : notes.length > 0 ? (
+          <ul className="space-y-1.5 max-h-32 overflow-y-auto">
+            {notes.map((n) => (
+              <li key={n.id} className="text-sm text-text-secondary border-l-2 border-accent-primary/40 pl-2">
+                {n.body}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-text-tertiary italic">No notes yet.</p>
+        )}
+        <div className="flex gap-2">
+          <input
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="e.g. Comment on their launch post Thursday"
+            className="flex-1 rounded-md border border-border bg-bg-primary px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+            onKeyDown={(e) => { if (e.key === 'Enter') void addNote(); }}
+          />
+          <Button variant="secondary" size="sm" onClick={() => void addNote()} disabled={!noteText.trim()}>
+            Add
+          </Button>
+        </div>
+        <div className="flex flex-wrap gap-2 pt-1">
+          <Button variant="ghost" size="sm" onClick={onFollow} title={followed ? 'Watching this company' : 'Watch for funding/hiring signals'}>
+            <Pin className={`h-3.5 w-3.5 ${followed ? 'text-accent-secondary' : ''}`} />
+            {followed ? 'Watching' : 'Watch'}
+          </Button>
+        </div>
+      </section>
+
       {/* Source-fact strip */}
       <blockquote className="text-sm text-text-secondary border-l-2 border-border pl-3 py-1">
         Claim used: {fact.batch ? `joined YC ${fact.batch}` : lead.source}
@@ -298,10 +386,22 @@ export function LeadDetail({
 
       {/* Actions */}
       {draft && (
-        <div className="flex items-center gap-2 pt-1">
-          <Button variant="primary" size="sm" onClick={onApprove} disabled={noContact || overLimit || busy}>
-            <Send className="h-4 w-4" /> Approve
-          </Button>
+        <div className="flex flex-wrap items-center gap-2 pt-1">
+          {hasLinkedIn && (
+            <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_connect')} disabled={noContact || overLimit || busy}>
+              <Send className="h-4 w-4" /> LinkedIn
+            </Button>
+          )}
+          {xHandle && (
+            <Button variant="primary" size="sm" onClick={() => onApprove('x_dm')} disabled={noContact || busy}>
+              <Twitter className="h-4 w-4" /> X DM
+            </Button>
+          )}
+          {!hasLinkedIn && !xHandle && (
+            <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_connect')} disabled={noContact || overLimit || busy}>
+              <Send className="h-4 w-4" /> Approve
+            </Button>
+          )}
           {leadEmail && (
             <Button variant="secondary" size="sm" onClick={onEmail} disabled={busy} title={`Cold email ${leadEmail} (opt-in)`}>
               <Mail className="h-4 w-4" /> Email

@@ -10,7 +10,15 @@ import { errorResponse } from '@/lib/api-errors';
  *
  * Body (optional): { "mine": true, "accounts": 20 }
  */
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  return runIntelligence(request);
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  return runIntelligence(request);
+}
+
+async function runIntelligence(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Menu, X } from 'lucide-react';
+import { useLenis } from 'lenis/react';
 import { getFunnelCta, type FunnelState } from '@/lib/funnel-cta';
 import { CTA_SIGN_IN, PRODUCT_NAME } from './brand';
 
@@ -11,14 +12,25 @@ const FOCUS =
 
 const ANCHORS = [
   ['#loop', 'Loop'],
-  ['#voice', 'Voice'],
   ['#different', 'Why us'],
   ['#week', 'Week'],
 ] as const;
 
 export default function Nav({ funnel }: { funnel: FunnelState }) {
   const [open, setOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
   const { href: primaryHref, label: primaryLabel } = getFunnelCta(funnel);
+
+  useLenis((lenis) => {
+    setScrolled(lenis.scroll > 24);
+  });
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 24);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -30,7 +42,13 @@ export default function Nav({ funnel }: { funnel: FunnelState }) {
   }, [open]);
 
   return (
-    <nav className="sticky top-0 z-50 bg-paper/75 backdrop-blur-xl">
+    <nav
+      className={`sticky top-0 z-50 border-b transition-[background-color,box-shadow,border-color] duration-300 ${
+        scrolled
+          ? 'border-hair/80 bg-paper/90 shadow-[0_8px_32px_-20px_rgba(23,23,23,0.18)] backdrop-blur-xl'
+          : 'border-transparent bg-paper/75 backdrop-blur-xl'
+      }`}
+    >
       <div className="mx-auto flex max-w-[1100px] items-center justify-between px-5 py-4 sm:px-8">
         <Link href="/" className={`text-[17px] font-semibold text-ink ${FOCUS}`}>
           {PRODUCT_NAME.toLowerCase()}.

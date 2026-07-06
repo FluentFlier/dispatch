@@ -6,7 +6,6 @@ import { syncWarmContacts } from '@/lib/social-graph/warm-contacts';
 import { socialGraphAvailable } from '@/lib/social-graph/unipile-reactions';
 import { isEnabled } from '@/lib/feature-flags';
 import { logError, logInfo } from '@/lib/logger';
-import { prodMining } from '@/lib/hooks-intelligence/prod-mining';
 import { usage } from '@/lib/hooks-intelligence/usage-tracker';
 
 /**
@@ -15,9 +14,9 @@ import { usage } from '@/lib/hooks-intelligence/usage-tracker';
  *
  * Also triggers closed-loop intelligence:
  *  - Categorize engagers (ICP / leads etc for actionable analytics)
- *  - Scheduled prod mining (Apify in prod, gstack fallback in dev)
  *
- * Note: RL hook scoring (Layer 2) is handled separately by /api/cron/intelligence-sync.
+ * Hook mining runs once daily via /api/intelligence/run (3 AM UTC fan-out).
+ * RL hook scoring (Layer 2) is handled separately by /api/cron/intelligence-sync.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization');
@@ -111,17 +110,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           synced: 0,
           errors: [err instanceof Error ? err.message : 'sync failed'],
         });
-      }
-    }
-
-    // === HYBRID PROD MINING (GStack dev / Apify prod) ===
-    // Runs once per cron invocation when flag set. Cost controlled.
-    if (process.env.USE_PROD_MINING === 'true' || process.env.NODE_ENV === 'production') {
-      try {
-        await prodMining.scheduledMineForOrg('system'); // multi-tenant: loop over orgs with watchlists in future
-        logInfo('[Cron] Prod mining triggered');
-      } catch (mineErr) {
-        logError('prod-mining in cron failed', { message: String(mineErr) });
       }
     }
 

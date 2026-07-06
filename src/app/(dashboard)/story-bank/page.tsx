@@ -84,7 +84,7 @@ export default function StoryBankPage() {
           hook: story.mined_hook,
           caption: story.mined_caption_line,
           status: "scripted",
-          platform: "instagram",
+          platform: "linkedin",
         }),
       });
 

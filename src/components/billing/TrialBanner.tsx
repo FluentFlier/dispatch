@@ -31,10 +31,10 @@ export default function TrialBanner() {
 
   return (
     <div
-      className={`mb-6 flex flex-wrap items-center justify-between gap-3 rounded-lg border px-4 py-3 text-sm ${
+      className={`mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${
         urgent
-          ? 'border-coral/40 bg-coral-light text-text-primary'
-          : 'border-border bg-bg-secondary text-text-secondary'
+          ? 'border-flame/30 bg-flame/10 text-ink'
+          : 'border-hair bg-white/80 text-ink2 backdrop-blur-sm'
       }`}
     >
       <span>

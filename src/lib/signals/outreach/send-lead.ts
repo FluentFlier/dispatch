@@ -7,6 +7,7 @@ import {
   resolveLinkedInProfile,
   sendLinkedInConnectionInvite,
 } from '@/lib/signals/outreach/unipile-linkedin';
+import { getXUnipileAccountId, resolveXProfile, sendXDirectMessage } from '@/lib/signals/outreach/unipile-x';
 import { sendGmailEmail } from '@/lib/composio/actions/gmail';
 import { getIntegration } from '@/lib/signals/integrations/store';
 import type { OutreachChannel, SignalLeadWithContacts } from '@/lib/signals/types';
@@ -15,8 +16,8 @@ type InsforgeClient = ReturnType<typeof createClient>;
 
 const CONNECT_NOTE_LIMIT = 300;
 
-/** v1 lead channels: LinkedIn connection request (default) or cold email. */
-export type LeadChannel = Extract<OutreachChannel, 'linkedin_connect' | 'gmail'>;
+/** v1 lead channels: LinkedIn connection (default), X DM, or cold email. */
+export type LeadChannel = Extract<OutreachChannel, 'linkedin_connect' | 'x_dm' | 'gmail'>;
 
 export interface SendLeadInput {
   workspaceId: string;
@@ -66,7 +67,9 @@ export async function sendLeadOutreach(
 
   return channel === 'gmail'
     ? sendLeadEmail(client, input, lead)
-    : sendLeadLinkedIn(client, input, lead);
+    : channel === 'x_dm'
+      ? sendLeadX(client, input, lead)
+      : sendLeadLinkedIn(client, input, lead);
 }
 
 // --- LinkedIn connection request ---
@@ -138,6 +141,77 @@ async function sendLeadLinkedIn(
   });
   await updateLead(client, workspaceId, leadId, { lead_status: 'sent' });
   await logLeadEvent(client, workspaceId, leadId, 'rescored', { action: 'sent', channel: 'linkedin_connect' });
+
+  const updated = await getLead(client, workspaceId, leadId);
+  return { success: true, externalId: sendResult.externalId, providerId: profile.providerId, lead: updated };
+}
+
+// --- X direct message ---
+
+async function sendLeadX(
+  client: InsforgeClient,
+  input: SendLeadInput,
+  lead: SignalLeadWithContacts,
+): Promise<SendLeadResult> {
+  const { workspaceId, userId, leadId } = input;
+  const contact = lead.primary_contact ?? lead.contacts?.[0] ?? null;
+  const xHandle = contact?.x_handle?.trim();
+  if (!xHandle) return { success: false, error: 'No X handle resolved for this lead.' };
+
+  const messageText = (input.messageText ?? lead.outreach?.draft_text ?? '').trim();
+  if (!messageText) return { success: false, error: 'Draft the message before sending.' };
+
+  const accountId = await getXUnipileAccountId(client, userId, workspaceId);
+  if (!accountId) return { success: false, error: 'Connect X via Settings before sending outreach.' };
+
+  await logSignalAudit(client, {
+    workspace_id: workspaceId,
+    action: 'outreach_send_attempt',
+    channel: 'x_dm',
+    lead_id: leadId,
+    social_account_id: accountId,
+    metadata: { x_identifier: xHandle },
+  });
+
+  let profile;
+  try {
+    profile = await resolveXProfile(accountId, xHandle);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await markLeadOutreachFailed(client, workspaceId, leadId, 'x_dm', msg);
+    return { success: false, error: msg };
+  }
+
+  const sendResult = await sendXDirectMessage(accountId, profile.providerId, messageText);
+  if (!sendResult.success) {
+    await logSignalAudit(client, {
+      workspace_id: workspaceId,
+      action: 'outreach_blocked',
+      channel: 'x_dm',
+      lead_id: leadId,
+      social_account_id: accountId,
+      blocked_reason: sendResult.error,
+    });
+    await markLeadOutreachFailed(client, workspaceId, leadId, 'x_dm', sendResult.error ?? 'Send failed');
+    return { success: false, error: sendResult.error, providerId: profile.providerId };
+  }
+
+  await logSignalAudit(client, {
+    workspace_id: workspaceId,
+    action: 'outreach_send_success',
+    channel: 'x_dm',
+    lead_id: leadId,
+    social_account_id: accountId,
+    metadata: { external_id: sendResult.externalId, provider_id: profile.providerId },
+  });
+
+  await markLeadOutreachSent(client, workspaceId, leadId, 'x_dm', messageText, {
+    providerId: profile.providerId,
+    identifier: xHandle,
+    externalId: sendResult.externalId,
+  });
+  await updateLead(client, workspaceId, leadId, { lead_status: 'sent' });
+  await logLeadEvent(client, workspaceId, leadId, 'rescored', { action: 'sent', channel: 'x_dm' });
 
   const updated = await getLead(client, workspaceId, leadId);
   return { success: true, externalId: sendResult.externalId, providerId: profile.providerId, lead: updated };

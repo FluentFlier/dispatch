@@ -15,11 +15,11 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<Variant, string> = {
   primary:
-    'bg-accent-primary text-text-inverse border border-transparent shadow-soft hover:bg-accent-dark',
+    'bg-ink text-paper border border-transparent shadow-[0_12px_40px_-12px_rgba(23,23,23,0.45)] hover:bg-ink/90 hover:-translate-y-px',
   secondary:
-    'bg-bg-secondary border border-border text-text-primary hover:bg-bg-tertiary',
+    'bg-white/90 border border-hair2 text-ink backdrop-blur-sm hover:border-blue/25 hover:bg-white',
   ghost:
-    'bg-transparent border border-transparent text-text-secondary hover:bg-bg-tertiary hover:text-text-primary',
+    'bg-transparent border border-transparent text-ink2 hover:bg-paper2 hover:text-ink',
 };
 
 const sizeStyles: Record<Size, string> = {
@@ -45,7 +45,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         disabled={disabled || loading}
-        className={`inline-flex items-center justify-center gap-2 rounded-md font-body font-medium transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
+        className={`inline-flex items-center justify-center gap-2 rounded-full font-body font-medium transition-all duration-150 disabled:opacity-50 disabled:pointer-events-none ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
         {...rest}
       >
         {loading && <Skeleton className="h-4 w-4 rounded" />}

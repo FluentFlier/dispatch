@@ -291,14 +291,18 @@ export default function LeadsPage() {
     }
   };
 
-  const handleApprove = async (id: string) => {
+  const handleApprove = async (id: string, channel: 'linkedin_connect' | 'x_dm' = 'linkedin_connect') => {
     setBusyId(id);
     try {
-      const res = await fetch(`/api/leads/${id}/approve`, { method: 'POST' });
+      const res = await fetch(`/api/leads/${id}/approve`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ channel }),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'blocked');
       mergeLead(data.lead);
-      toast('Approved.');
+      toast(channel === 'x_dm' ? 'X DM sent.' : 'LinkedIn invite sent.');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not approve.', 'error');
     } finally {
@@ -562,7 +566,7 @@ export default function LeadsPage() {
                 busy={busyId === selectedLead.id}
                 followed={isFollowed(selectedCard)}
                 onDraft={() => handleDraft(selectedLead.id)}
-                onApprove={() => handleApprove(selectedLead.id)}
+                onApprove={(channel) => handleApprove(selectedLead.id, channel)}
                 onEmail={() => handleEmail(selectedLead.id)}
                 onDismiss={() => handleDismiss(selectedLead.id)}
                 onResolve={(force?: boolean) => handleResolve(selectedLead.id, force ?? false)}
@@ -592,6 +596,7 @@ export default function LeadsPage() {
         followed={followed}
         onSettingsSaved={(s) => setSettings(s)}
         onFollowedChange={setFollowed}
+        onDiscoveryComplete={() => void loadBootstrap()}
         toast={toast}
       />
     </div>

@@ -32,9 +32,17 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const minute = now.getUTCMinutes();
   const hour = now.getUTCHours();
 
-  const call = async (name: string, path: string): Promise<[string, unknown]> => {
+  const call = async (
+    name: string,
+    path: string,
+    init?: { method?: string; body?: unknown },
+  ): Promise<[string, unknown]> => {
     try {
-      const res = await fetch(`${baseUrl}${path}`, { headers });
+      const res = await fetch(`${baseUrl}${path}`, {
+        method: init?.method ?? 'GET',
+        headers: init?.body ? { ...headers, 'Content-Type': 'application/json' } : headers,
+        body: init?.body ? JSON.stringify(init.body) : undefined,
+      });
       return [name, await res.json()];
     } catch (err) {
       return [name, { error: String(err) }];
@@ -70,9 +78,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     jobs.push(call('intelligenceSync', '/api/cron/intelligence-sync'));
   }
 
-  // Daily 3 AM UTC: social listening + Apify mining
+  // Daily 3 AM UTC: social listening + Apify mining (POST-only route)
   if (hour === 3 && minute === 0) {
-    jobs.push(call('intelligenceRun', '/api/intelligence/run'));
+    jobs.push(
+      call('intelligenceRun', '/api/intelligence/run', {
+        method: 'POST',
+        body: { mine: true, accounts: 20 },
+      }),
+    );
   }
 
   const outcomes = await Promise.all(jobs);

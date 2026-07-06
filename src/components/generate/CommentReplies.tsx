@@ -7,11 +7,11 @@ import { SkeletonLines } from '@/components/ui/Skeleton';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { parseReplies } from '@/lib/reply-parse';
 
-const PLATFORM_CONSTRAINTS: Record<string, string> = {
-  instagram: 'Instagram comment. Short, conversational. No em dashes.',
-  twitter: 'X/Twitter reply. Under 280 characters unless clearly a thread reply.',
+import { DASHBOARD_PLATFORMS, PLATFORM_LABELS, type DashboardPlatform } from '@/lib/constants';
+
+const PLATFORM_CONSTRAINTS: Record<DashboardPlatform, string> = {
+  twitter: 'X reply. Under 280 characters unless clearly a thread reply.',
   linkedin: 'LinkedIn comment. Professional but still in the creator\'s voice.',
-  threads: 'Threads reply. Casual and brief.',
 };
 
 async function callGenerate(
@@ -33,7 +33,7 @@ async function callGenerate(
 
 export function CommentReplies() {
   const [comments, setComments] = useState('');
-  const [platform, setPlatform] = useState('instagram');
+  const [platform, setPlatform] = useState<DashboardPlatform>('linkedin');
   const [replies, setReplies] = useState<{ comment: string; reply: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -49,7 +49,7 @@ export function CommentReplies() {
     setReplies([]);
 
     const commentLines = comments.trim().split('\n').filter((l) => l.trim());
-    const platformConstraint = PLATFORM_CONSTRAINTS[platform] || PLATFORM_CONSTRAINTS.instagram;
+    const platformConstraint = PLATFORM_CONSTRAINTS[platform];
 
     const prompt = `Write one reply per comment below, in the creator's voice (use their voice from your system context), not a generic brand account.
 
@@ -75,18 +75,18 @@ Return ONLY a JSON array of strings — exactly one reply per comment, in the sa
     <div className="space-y-5">
       {/* Platform selector */}
       <div className="flex gap-2">
-        {Object.keys(PLATFORM_CONSTRAINTS).map((p) => (
+        {DASHBOARD_PLATFORMS.map((p) => (
           <button
             key={p}
             type="button"
             onClick={() => setPlatform(p)}
-            className={`px-3 py-1.5 rounded-[5px] text-[12px] font-medium capitalize transition-colors ${
+            className={`px-3 py-1.5 rounded-[5px] text-[12px] font-medium transition-colors ${
               platform === p
                 ? 'bg-bg-tertiary text-text-primary'
                 : 'text-text-secondary hover:text-text-tertiary'
             }`}
           >
-            {p === 'twitter' ? 'X' : p}
+            {PLATFORM_LABELS[p]}
           </button>
         ))}
       </div>

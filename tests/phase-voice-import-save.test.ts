@@ -107,7 +107,7 @@ describe('Phase: Voice Import Save', () => {
       expect(updateCalls).toHaveLength(0);
       const inserted = insertCalls[0][0] as Record<string, unknown>;
       // Regression: display_name must be present and non-null on insert.
-      expect(inserted.display_name).toBe('test');
+      expect(inserted.display_name).toBe('Creator');
       expect(inserted.display_name).not.toBeNull();
       expect(inserted.voice_description).toBe(validBody.voice_description);
       expect(inserted.workspace_id).toBe('ws_9');

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSocialProviderMode } from '@/lib/env';
+import { checkComposioConfig } from '@/lib/composio/health';
 
 export const dynamic = 'force-dynamic';
 
@@ -7,6 +8,7 @@ export const dynamic = 'force-dynamic';
  * GET /api/health: deployment + dependency probe for beta monitoring.
  */
 export async function GET(): Promise<NextResponse> {
+  const composioHealth = checkComposioConfig();
   const checks: Record<string, 'ok' | 'missing' | 'degraded'> = {
     insforge: process.env.NEXT_PUBLIC_INSFORGE_URL && process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY ? 'ok' : 'missing',
     encryption:
@@ -28,6 +30,7 @@ export async function GET(): Promise<NextResponse> {
           : 'degraded' // optional — Unipile does not enforce webhook signing
         : 'ok',
     stripe: process.env.STRIPE_SECRET_KEY ? 'ok' : 'degraded',
+    composio: composioHealth.status === 'ok' ? 'ok' : composioHealth.status,
   };
 
   const requiredChecks = ['insforge', 'encryption'] as const;
@@ -44,6 +47,7 @@ export async function GET(): Promise<NextResponse> {
       checks,
       provider: getSocialProviderMode(),
       intelligence_health_url: '/api/intelligence/health',
+      composio_health_url: '/api/integrations/composio/health',
     },
     { status: requiredMissing ? 503 : 200 },
   );

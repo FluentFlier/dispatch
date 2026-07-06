@@ -69,39 +69,39 @@ export function CreatorBrainCard() {
 
   if (loading) {
     return (
-      <div className="rounded-lg border border-border bg-bg-secondary p-4 animate-pulse h-24" />
+      <div className="card-surface p-4 animate-pulse h-24" />
     );
   }
 
   if (status?.migration_required) {
     return (
-      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
+      <div className="rounded-2xl border border-amber-200/80 bg-amber-50/80 p-4 backdrop-blur-sm">
         <div className="flex items-center gap-2 text-amber-800">
           <Brain className="h-4 w-4" />
           <span className="text-sm font-medium">Creator Brain</span>
         </div>
-        <p className="mt-2 text-xs text-text-tertiary">
-          Apply <code className="text-text-secondary">db/creator-brain.sql</code> on InsForge to enable memory pages.
+        <p className="mt-2 text-xs text-ink3">
+          Apply <code className="text-ink2">db/creator-brain.sql</code> on InsForge to enable memory pages.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="rounded-lg border border-border bg-bg-secondary p-4 shadow-card">
+    <div className="card-surface p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <Brain className="h-4 w-4 text-accent-primary" />
-            <span className="text-sm font-medium text-text-primary">Creator Brain</span>
+            <Brain className="h-4 w-4 text-blue" />
+            <span className="text-sm font-medium text-ink">Creator Brain</span>
           </div>
-          <p className="mt-1 text-xs text-text-tertiary">
+          <p className="mt-1 text-xs text-ink3">
             {status?.provisioned
               ? `${status.page_count} memory pages · drafts use your voice + what already shipped`
               : 'Your long-term memory for AI drafts: voice, profile, and top posts'}
           </p>
           {message && (
-            <p className="mt-2 text-xs text-accent-primary">{message}</p>
+            <p className="mt-2 text-xs text-blue">{message}</p>
           )}
         </div>
         <div className="flex shrink-0 gap-2">

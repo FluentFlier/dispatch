@@ -1,4 +1,5 @@
 import { loadHookDataset, getBestHooksForContext } from '@/lib/hooks-intelligence';
+import { isLlmConfigured } from '@/lib/llm';
 import { isComposioConfigured } from '@/lib/composio/config';
 import { getSocialProviderMode } from '@/lib/env';
 import { buildLoopHealthMetrics, type LoopHealthMetrics } from '@/lib/intelligence/loop-health';
@@ -31,7 +32,7 @@ function envOk(key: string): HealthStatus {
  * Probes voice stack: LLM, humanizer, pipeline modules, optional Supermemory/Gmail.
  */
 export function checkVoiceStack(): SubsystemHealth {
-  const llmOk = Boolean(process.env.LLM_BASE_URL?.trim() && process.env.LLM_API_KEY?.trim());
+  const llmOk = isLlmConfigured();
   const hfOk = Boolean(process.env.HUGGINGFACE_API_KEY?.trim());
   const composioGmail = isComposioConfigured() && Boolean(process.env.COMPOSIO_GMAIL_AUTH_CONFIG_ID?.trim());
   const unipileOk = Boolean(process.env.UNIPILE_API_KEY?.trim() && process.env.UNIPILE_DSN?.trim());
@@ -39,7 +40,7 @@ export function checkVoiceStack(): SubsystemHealth {
   if (!llmOk) {
     return {
       status: 'missing',
-      message: 'LLM_BASE_URL + LLM_API_KEY required for generation and humanizer passes.',
+      message: 'Set HUGGINGFACE_API_KEY (HF router) or LLM_BASE_URL + LLM_API_KEY for generation.',
       details: { huggingface_scoring: hfOk ? 'ok' : 'missing', unipile_voice_import: unipileOk ? 'ok' : 'missing' },
     };
   }

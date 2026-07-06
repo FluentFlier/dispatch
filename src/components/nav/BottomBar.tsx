@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { type ComponentType } from 'react';
+import { useState, useEffect, useCallback, type ComponentType } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -58,14 +57,14 @@ export default function BottomBar() {
     <>
       {moreOpen && (
         <div
-          className="fixed inset-0 z-40 bg-text-primary/20 md:hidden"
+          className="fixed inset-0 z-40 bg-ink/15 md:hidden"
           onClick={closeMore}
         />
       )}
 
       {moreOpen && (
         <div className="fixed bottom-16 left-0 right-0 z-40 md:hidden pb-[env(safe-area-inset-bottom)]">
-          <div className="mx-3 mb-2 rounded-lg bg-bg-secondary border border-border p-3 space-y-1 shadow-card animate-slide-in">
+          <div className="mx-3 mb-2 animate-slide-in space-y-1 rounded-xl border border-hair bg-white/95 p-3 shadow-[0_20px_50px_-30px_rgba(23,23,23,0.25)] backdrop-blur-xl">
             {moreNav.map((item) => {
               const isActive =
                 pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -73,10 +72,10 @@ export default function BottomBar() {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center px-4 py-3 rounded-md min-h-[44px] text-[15px] font-medium ${
+                  className={`flex min-h-[44px] items-center rounded-lg px-4 py-3 text-[15px] font-medium ${
                     isActive
-                      ? 'bg-coral-light text-accent-primary'
-                      : 'text-text-secondary'
+                      ? 'bg-blue/10 text-blue'
+                      : 'text-ink2'
                   }`}
                   onClick={closeMore}
                 >
@@ -88,8 +87,8 @@ export default function BottomBar() {
         </div>
       )}
 
-      <nav className="fixed bottom-0 left-0 right-0 md:hidden bg-bg-secondary/95 backdrop-blur border-t border-border z-40 pb-[env(safe-area-inset-bottom)]">
-        <div className="flex items-stretch justify-around h-16">
+      <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-hair bg-paper/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl md:hidden">
+        <div className="flex h-16 items-stretch justify-around">
           {primaryNav.map((item) => {
             const isActive =
               pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -98,8 +97,8 @@ export default function BottomBar() {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex flex-col items-center justify-center flex-1 min-h-[44px] gap-1 text-[11px] font-medium ${
-                  isActive ? 'text-accent-primary' : 'text-text-tertiary'
+                className={`flex min-h-[44px] flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium ${
+                  isActive ? 'text-blue' : 'text-ink3'
                 }`}
                 onClick={() => moreOpen && closeMore()}
               >
@@ -111,8 +110,8 @@ export default function BottomBar() {
           <button
             type="button"
             onClick={() => setMoreOpen((p) => !p)}
-            className={`flex flex-col items-center justify-center flex-1 min-h-[44px] gap-1 text-[11px] font-medium ${
-              moreOpen || isMoreActive ? 'text-accent-primary' : 'text-text-tertiary'
+            className={`flex min-h-[44px] flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium ${
+              moreOpen || isMoreActive ? 'text-blue' : 'text-ink3'
             }`}
           >
             <Menu className="h-4 w-4" />

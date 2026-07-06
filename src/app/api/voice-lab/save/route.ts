@@ -3,7 +3,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { syncBrainVoiceLab } from '@/lib/brain/sync';
 import { storePersona } from '@/lib/supermemory';
 import { fetchOAuthDisplayName, resolveDisplayName } from '@/lib/user-display-name';
-import { cookies } from 'next/headers';
+import { AUTH_COOKIE } from '@/lib/auth-cookies';
 import { z } from 'zod';
 
 const SaveSchema = z.object({
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .eq('user_id', user.id)
       .maybeSingle();
 
-    const token = cookies().get('content-os-token')?.value ?? '';
+    const token = request.cookies.get(AUTH_COOKIE.access)?.value ?? '';
     const oauthName = user.name ?? (await fetchOAuthDisplayName(token));
     const displayName = resolveDisplayName({ oauthName });
 

@@ -21,16 +21,16 @@ const config: Config = {
         teal: '#0F766E',
         flame: '#E8543A',
         bg: {
-          primary: '#F6F7F4',
+          primary: '#FBFAF7',
           secondary: '#FFFFFF',
-          tertiary: '#EEF1ED',
+          tertiary: '#F4F2EC',
           elevated: '#FBFCFA',
         },
         text: {
           primary: '#171717',
-          secondary: '#525252',
-          tertiary: '#737373',
-          inverse: '#FFFFFF',
+          secondary: '#56544F',
+          tertiary: '#908D87',
+          inverse: '#FBFAF7',
         },
         border: {
           DEFAULT: 'rgba(23, 23, 23, 0.1)',

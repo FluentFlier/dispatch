@@ -1,23 +1,17 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback, type KeyboardEvent, useMemo } from 'react';
-import { AtSign, X } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { Toggle } from '@/components/ui/Toggle';
+import { ArrowUp, Loader2 } from 'lucide-react';
 import { MicDictate } from './MicDictate';
 import { assembleGeneratePrompt } from '@/lib/generate-prompt';
 import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
-import { usePillars, type PillarInfo } from '@/hooks/usePillars';
-import { PLATFORMS } from '@/lib/constants';
-import type { Platform } from '@/lib/constants';
+import { usePillars } from '@/hooks/usePillars';
+import { PLATFORMS, PLATFORM_LABELS, normalizeDashboardPlatform, type DashboardPlatform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
-import { isPillarCovered } from '@/lib/pillar-dedup';
-import { useCreatorPreferences, POST_LENGTH_CONFIG, type PostLength } from '@/hooks/useCreatorPreferences';
+import { useCreatorPreferences, POST_LENGTH_CONFIG } from '@/hooks/useCreatorPreferences';
 import {
   extractTagMentions,
-  MAX_MENTIONS,
   mergeMentions,
-  parseMentionList,
 } from '@/lib/mentions';
 
 const PILLAR_PROMPTS: Record<string, string> = {
@@ -72,9 +66,30 @@ CTA: Ask if they knew this kind of research existed.
 No em dashes.`,
 };
 
+type ChatMessage =
+  | { id: string; role: 'user'; content: string }
+  | { id: string; role: 'assistant'; content: string; voiceMetrics?: GenerateVoiceMetrics };
+
+function isPlatform(value: unknown): value is DashboardPlatform {
+  return value === 'twitter' || value === 'linkedin';
+}
+
+async function fetchDefaultPlatform(): Promise<DashboardPlatform> {
+  try {
+    const res = await fetch('/api/settings?key=platform_defaults', { credentials: 'same-origin', cache: 'no-store' });
+    if (!res.ok) return 'linkedin';
+    const data = await res.json();
+    const raw = data?.setting?.value;
+    const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    return isPlatform(parsed?.defaultPlatform) ? parsed.defaultPlatform : 'linkedin';
+  } catch {
+    return 'linkedin';
+  }
+}
+
 async function callGenerate(
   prompt: string,
-  platform: Platform,
+  platform: DashboardPlatform,
   useVoice: boolean,
   mentions: string[],
 ): Promise<{ text: string; voiceMetrics: GenerateVoiceMetrics }> {
@@ -110,16 +125,42 @@ async function callGenerate(
   };
 }
 
+function newId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function buildFirstDraftBase(
+  pillar: string,
+  pillarLabel: string,
+  platform: DashboardPlatform,
+  promptTemplate?: string,
+): string {
+  if (promptTemplate) return promptTemplate;
+  if (PILLAR_PROMPTS[pillar]) return PILLAR_PROMPTS[pillar];
+  if (platform === 'linkedin') {
+    return `Write a LinkedIn post. Creator's voice only. 200-350 words. No em dashes.
+Hook: One strong first line.
+Setup: 2-3 sentences of context or stakes.
+Story or data: 2-4 sentences of specific detail.
+Insight: 2-3 sentences of real takeaway.
+CTA: One direct question.`;
+  }
+  return `Write a ${platform} post script. Creator's voice only. Under 60 seconds when spoken. No em dashes.
+HOOK: One bold first line.
+BODY: 3-4 beats, each one sentence.
+CTA: One direct question.`;
+}
+
 interface ScriptGeneratorProps {
   initialResult?: string;
   initialTopic?: string;
   initialPillar?: string;
-  initialPlatform?: Platform;
-  /** Pre-filled @mentions (handles without @). Supports `tag@handle` in topic/thoughts too. */
+  initialPlatform?: DashboardPlatform;
   initialMentions?: string[];
-  /** When true, auto-runs generation once on mount (welcome flow after onboarding). */
   autoGenerate?: boolean;
 }
+
+const CHAT_KEY = 'generate:script:chat';
 
 export function ScriptGenerator({
   initialResult = '',
@@ -137,34 +178,39 @@ export function ScriptGenerator({
   const { pillars: pillarList, loading: pillarsLoading, getLabel } = usePillars();
   const { preferredPostLength, voiceEnabled, loading: prefLoading } = useCreatorPreferences();
 
-  const [pillar, setPillar] = useState<string>(initialPillar);
-  const [topic, setTopic] = useState(initialTopic);
-  const [thoughts, setThoughts] = useState('');
-  const [mentions, setMentions] = useState<string[]>(() => stableInitialMentions);
-
-  // Sync tags when URL params change (e.g. /generate?tag=rudheer).
-  useEffect(() => {
-    if (stableInitialMentions.length > 0) {
-      setMentions((prev) => mergeMentions(prev, stableInitialMentions));
+  const [pillar, setPillar] = useState(initialPillar);
+  const [input, setInput] = useState('');
+  const [platform, setPlatform] = useState<DashboardPlatform>(initialPlatform ?? 'linkedin');
+  const [postLength, setPostLength] = useState(preferredPostLength);
+  const [useVoice, setUseVoice] = useState(voiceEnabled);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    if (initialResult) {
+      return [{ id: newId(), role: 'assistant', content: initialResult }];
     }
-  }, [stableInitialMentions]);
-  const [mentionInput, setMentionInput] = useState('');
-  const [platform, setPlatform] = useState<Platform>(initialPlatform ?? 'instagram');
-  const [postLength, setPostLength] = useState<PostLength>('standard');
-  const [useVoice, setUseVoice] = useState(true);
+    try {
+      const raw = sessionStorage.getItem(CHAT_KEY);
+      if (raw) return JSON.parse(raw) as ChatMessage[];
+    } catch { /* ignore */ }
+    return [];
+  });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const autoGenTriggered = useRef(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Pillars pulled in from the suggestion catalog for THIS session (not saved to
-  // profile) — lets you write from more pillars than your saved 3 without
-  // committing them permanently.
-  const [extraPillars, setExtraPillars] = useState<PillarInfo[]>([]);
-  const [browseOpen, setBrowseOpen] = useState(false);
-  const [suggestions, setSuggestions] = useState<{ slug: string; name: string; description: string; tag: string }[]>([]);
-  const [suggestLoaded, setSuggestLoaded] = useState(false);
-  const [suggestQuery, setSuggestQuery] = useState('');
+  const lastDraft = [...messages].reverse().find((m) => m.role === 'assistant')?.content ?? '';
+  const lastAssistantIdx = messages.findLastIndex((m) => m.role === 'assistant');
 
-  const allPillars = [...pillarList, ...extraPillars];
+  useEffect(() => {
+    if (initialPlatform) return;
+    let cancelled = false;
+    void fetchDefaultPlatform().then((p) => {
+      if (!cancelled) setPlatform(p);
+    });
+    return () => { cancelled = true; };
+  }, [initialPlatform]);
 
-  // Sync to profile defaults once loaded, if user hasn't manually changed them
   useEffect(() => {
     if (!prefLoading) {
       setPostLength(preferredPostLength);
@@ -172,397 +218,186 @@ export function ScriptGenerator({
     }
   }, [prefLoading, preferredPostLength, voiceEnabled]);
 
-  // Sync pillar state when custom pillars finish loading asynchronously
   useEffect(() => {
     if (pillarsLoading || pillarList.length === 0) return;
-    // If pillar is still empty (no initial value), default to first loaded pillar
-    if (!pillar) {
-      setPillar(pillarList[0].value);
-      return;
-    }
-    // Reset only if the picked pillar is neither a saved pillar nor a browsed one.
-    const known = pillarList.some((p) => p.value === pillar) || extraPillars.some((p) => p.value === pillar);
-    if (!known) {
-      setPillar(pillarList[0].value);
-    }
-  }, [pillarsLoading, pillarList, extraPillars, pillar]);
-
-  // Load the pillar suggestion catalog on first open of the browser.
-  useEffect(() => {
-    if (!browseOpen || suggestLoaded) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetchWithAuth('/api/pillars/suggestions');
-        if (!res.ok || cancelled) return;
-        const data = await res.json();
-        if (cancelled) return;
-        // Trending first, then curated; de-dupe by slug.
-        const merged = [...(data.trending ?? []), ...(data.curated ?? [])]
-          .filter((s, i, arr) => arr.findIndex((x) => x.slug === s.slug) === i);
-        setSuggestions(merged);
-      } catch {
-        /* suggestions are optional */
-      } finally {
-        if (!cancelled) setSuggestLoaded(true);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [browseOpen, suggestLoaded]);
-
-  const EXTRA_COLORS = ['#E07A5F', '#F59E0B', '#10B981', '#8B5CF6', '#3D8B7A', '#5A5047'];
-
-  /** Add a catalog pillar to this session's pickable set and select it. */
-  function pickSuggestion(s: { slug: string; name: string; description: string }) {
-    if (!allPillars.some((p) => p.value === s.slug)) {
-      setExtraPillars((prev) => [
-        ...prev,
-        { value: s.slug, label: s.name, color: EXTRA_COLORS[prev.length % EXTRA_COLORS.length], badgeBg: '', description: s.description },
-      ]);
-    }
-    setPillar(s.slug);
-  }
-  const DRAFT_KEY = 'generate:script:draft';
-  const [output, setOutput] = useState(() => {
-    // Priority: prop (from URL params or Ideas page) > sessionStorage draft > empty
-    if (initialResult) return initialResult;
-    try { return sessionStorage.getItem(DRAFT_KEY) ?? ''; } catch { return ''; }
-  });
-  const [voiceMetrics, setVoiceMetrics] = useState<GenerateVoiceMetrics | undefined>();
+    if (!pillar) setPillar(pillarList[0].value);
+    else if (!pillarList.some((p) => p.value === pillar)) setPillar(pillarList[0].value);
+  }, [pillarsLoading, pillarList, pillar]);
 
   useEffect(() => {
-    try { sessionStorage.setItem(DRAFT_KEY, output); } catch {}
-  }, [output]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const autoGenTriggered = useRef(false);
+    try { sessionStorage.setItem(CHAT_KEY, JSON.stringify(messages)); } catch {}
+  }, [messages]);
 
-  /** Add one or more handles from the tag input (comma/space separated). */
-  function addMentionHandles(raw: string) {
-    const next = mergeMentions(mentions, parseMentionList(raw));
-    setMentions(next);
-    setMentionInput('');
-  }
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, loading]);
 
-  function removeMention(handle: string) {
-    const key = handle.toLowerCase();
-    setMentions((prev) => prev.filter((m) => m.toLowerCase() !== key));
-  }
+  const sendMessage = useCallback(async (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed || loading || pillarsLoading || prefLoading || !pillar) return;
 
-  function handleMentionKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter' || e.key === ',') {
-      e.preventDefault();
-      if (mentionInput.trim()) addMentionHandles(mentionInput);
-    } else if (e.key === 'Backspace' && !mentionInput && mentions.length > 0) {
-      setMentions((prev) => prev.slice(0, -1));
-    }
-  }
-
-  const generate = useCallback(async () => {
-    if (loading) return; // guard against double-submit (avoids duplicate /api/generate + 401 race)
+    const userMsg: ChatMessage = { id: newId(), role: 'user', content: trimmed };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput('');
     setLoading(true);
     setError('');
-    setOutput('');
-    setVoiceMetrics(undefined);
+
     try {
-      const info = allPillars.find((p) => p.value === pillar);
+      const info = pillarList.find((p) => p.value === pillar);
       const pillarLabel = info?.label ?? getLabel(pillar);
-      let base: string;
-      if (info?.promptTemplate) {
-        base = info.promptTemplate;
-      } else if (PILLAR_PROMPTS[pillar]) {
-        base = PILLAR_PROMPTS[pillar];
+      const priorDraft = [...messages].reverse().find((m) => m.role === 'assistant')?.content;
+
+      let assembled: string;
+      if (priorDraft) {
+        assembled = assembleGeneratePrompt({
+          base: `Revise this ${platform} post based on the creator's latest message. Return ONLY the updated post — no commentary, no labels.`,
+          thoughts: `CURRENT DRAFT:\n${priorDraft}\n\nCREATOR SAID:\n${trimmed}`,
+          lengthHint: POST_LENGTH_CONFIG[postLength].hint,
+        });
       } else {
-        const isLongForm = platform === 'linkedin';
-        base = isLongForm
-          ? `Write a LinkedIn post for a "${pillarLabel}" angle. Creator's voice only. 200-350 words. No em dashes.
-Hook: One strong first line.
-Setup: 2-3 sentences of context or stakes.
-Story or data: 2-4 sentences of specific detail.
-Insight: 2-3 sentences of real takeaway.
-CTA: One direct question.`
-          : `Write a script for a "${pillarLabel}" post. The creator's voice only. Under 60 seconds when spoken. No em dashes.
-HOOK: One bold first line.
-BODY: 3-4 beats, each one sentence.
-CTA: One direct question.`;
+        const base = buildFirstDraftBase(pillar, pillarLabel, platform, info?.promptTemplate);
+        assembled = assembleGeneratePrompt({
+          base,
+          thoughts: trimmed,
+          lengthHint: POST_LENGTH_CONFIG[postLength].hint,
+        });
       }
-      // Always includes the topic AND the braindump "thoughts" (length-capped
-      // to the API limit) so nothing the user typed is silently dropped.
-      const prompt = assembleGeneratePrompt({
-        base,
-        topic,
-        thoughts,
-        lengthHint: POST_LENGTH_CONFIG[postLength].hint,
-      });
-      const resolvedMentions = mergeMentions(
-        mentions,
-        extractTagMentions(topic),
-        extractTagMentions(thoughts),
-      );
-      const result = await callGenerate(prompt, platform, useVoice, resolvedMentions);
-      setOutput(result.text);
-      setVoiceMetrics(result.voiceMetrics);
+
+      const mentions = mergeMentions(stableInitialMentions, extractTagMentions(trimmed));
+      const result = await callGenerate(assembled, platform, useVoice, mentions);
+      const assistantMsg: ChatMessage = {
+        id: newId(),
+        role: 'assistant',
+        content: result.text,
+        voiceMetrics: result.voiceMetrics,
+      };
+      setMessages((prev) => [...prev, assistantMsg]);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Generation failed');
+      setError(e instanceof Error ? e.message : 'Something went wrong');
+      setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
+      setInput(trimmed);
     } finally {
       setLoading(false);
     }
-  }, [loading, allPillars, pillar, getLabel, platform, topic, thoughts, postLength, useVoice, mentions]);
+  }, [
+    loading, pillarsLoading, prefLoading, pillar, pillarList, getLabel,
+    platform, postLength, useVoice, stableInitialMentions, messages,
+  ]);
 
-  // Welcome flow: auto-draft the first post once pillars + prefs are loaded.
   useEffect(() => {
-    if (!autoGenerate || autoGenTriggered.current || pillarsLoading || prefLoading) return;
-    if (!topic.trim()) return;
+    if (!autoGenerate || autoGenTriggered.current || pillarsLoading || prefLoading || !pillar) return;
+    if (!initialTopic.trim()) return;
     autoGenTriggered.current = true;
-    void generate();
-  }, [autoGenerate, pillarsLoading, prefLoading, topic, generate]);
+    void sendMessage(initialTopic);
+  }, [autoGenerate, pillarsLoading, prefLoading, initialTopic, pillar, sendMessage]);
+
+  function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void sendMessage(input);
+    }
+  }
+
+  function updateDraft(text: string) {
+    if (lastAssistantIdx < 0) return;
+    setMessages((prev) =>
+      prev.map((m, i) => (i === lastAssistantIdx && m.role === 'assistant' ? { ...m, content: text } : m)),
+    );
+  }
+
+  const platformLabel = PLATFORM_LABELS[platform];
+  const isEmpty = messages.length === 0 && !loading;
 
   return (
-    <div className="space-y-5">
-      <div>
-        <label className="block section-label mb-2">Content Pillar</label>
-        <div className="flex flex-wrap gap-2">
-          {/* Wait for the real pillars before rendering — avoids a flash of the
-              default (hot-take/hackathon) pillars before the user's load in. */}
-          {pillarsLoading ? (
-            <div className="flex gap-2">
-              <span className="h-8 w-24 animate-pulse rounded-[20px] bg-bg-tertiary" />
-              <span className="h-8 w-28 animate-pulse rounded-[20px] bg-bg-tertiary" />
-              <span className="h-8 w-20 animate-pulse rounded-[20px] bg-bg-tertiary" />
-            </div>
-          ) : (
-            <>
-              {allPillars.map((p) => (
-                <button
-                  key={p.value}
-                  onClick={() => setPillar(p.value)}
-                  className="px-4 py-1.5 rounded-[20px] font-body text-[13px] font-medium transition-all duration-100"
-                  style={{
-                    backgroundColor: '#F3EDE4',
-                    color: pillar === p.value ? p.color : '#78716C',
-                    border: pillar === p.value
-                      ? `1.5px solid ${p.color}`
-                      : '1px solid rgba(28, 25, 23, 0.1)',
-                  }}
-                >
-                  {p.label}
-                </button>
-              ))}
-              <button
-                onClick={() => setBrowseOpen((o) => !o)}
-                className="px-4 py-1.5 rounded-[20px] font-body text-[13px] font-medium text-text-secondary transition-all duration-100"
-                style={{ border: '1px dashed rgba(28, 25, 23, 0.28)' }}
-              >
-                {browseOpen ? 'Close' : '+ More pillars'}
-              </button>
-            </>
-          )}
-        </div>
-
-        {browseOpen && (
-          <div className="mt-3 rounded-lg border border-border p-4">
-            <input
-              type="text"
-              value={suggestQuery}
-              onChange={(e) => setSuggestQuery(e.target.value)}
-              placeholder="Search pillars..."
-              className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover"
-            />
-            {!suggestLoaded ? (
-              <p className="mt-3 text-[12px] text-text-secondary">Loading suggestions...</p>
-            ) : (
-              <div className="mt-3 flex flex-wrap gap-2">
-                {suggestions
-                  // Hide suggestions the user effectively already has (incl. aliases
-                  // like AI vs Artificial Intelligence) so the list doesn't bloat.
-                  .filter((s) => !isPillarCovered(allPillars.map((p) => p.label), s.name))
-                  .filter((s) => {
-                    const q = suggestQuery.trim().toLowerCase();
-                    if (!q) return true;
-                    return s.name.toLowerCase().includes(q) || s.description.toLowerCase().includes(q);
-                  })
-                  .map((s) => {
-                    const added = allPillars.some((p) => p.value === s.slug);
-                    return (
-                      <button
-                        key={s.slug}
-                        onClick={() => pickSuggestion(s)}
-                        title={s.description}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12px] border transition-colors ${
-                          added
-                            ? 'border-border text-text-secondary opacity-60'
-                            : 'border-border text-text-primary hover:border-accent-primary hover:text-accent-primary'
-                        }`}
-                      >
-                        <span>{s.name}</span>
-                        {s.tag === 'trending' && (
-                          <span className="text-[9px] uppercase tracking-wide text-accent-primary">Trending</span>
-                        )}
-                        <span className="text-text-secondary">{added ? '✓' : '+'}</span>
-                      </button>
-                    );
-                  })}
-                {suggestions.length === 0 && (
-                  <p className="text-[12px] text-text-secondary">No suggestions available.</p>
-                )}
-              </div>
-            )}
-            <p className="mt-3 text-[11px] text-text-tertiary">
-              Picked here just for this draft. Add pillars permanently in Settings &rarr; Profile.
+    <div className="flex min-h-[calc(100vh-10rem)] flex-col">
+      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pb-4">
+        {isEmpty && (
+          <div className="py-12 text-center">
+            <h1 className="font-serif text-[1.75rem] font-normal tracking-[-0.03em] text-ink sm:text-[2rem]">
+              What are we creating today?
+            </h1>
+            <p className="mt-2 text-sm text-ink3">
+              Tell me the idea — I&apos;ll draft it in your voice for {platformLabel}.
             </p>
           </div>
         )}
-      </div>
 
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <label className="section-label">Topic (optional)</label>
-          <MicDictate onText={(t) => setTopic((cur) => (cur ? `${cur} ${t}` : t))} title="Dictate topic" />
-        </div>
-        <textarea
-          value={topic}
-          onChange={(e) => setTopic(e.target.value)}
-          rows={2}
-          placeholder="Enter a specific topic or leave blank for a general script..."
-          className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover resize-none transition-colors duration-100"
-        />
-      </div>
-
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <label className="section-label">Your thoughts (optional)</label>
-          <MicDictate onText={(t) => setThoughts((cur) => (cur ? `${cur} ${t}` : t))} title="Dictate your thoughts" />
-        </div>
-        <textarea
-          value={thoughts}
-          onChange={(e) => setThoughts(e.target.value)}
-          rows={4}
-          placeholder="Dump the details, facts, angle, or story you want in this post. Speak or type. This is always sent to the AI."
-          className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover resize-y transition-colors duration-100"
-        />
-      </div>
-
-      <div>
-        <label className="block section-label mb-2">
-          Tag people
-          <span className="ml-2 text-text-tertiary font-normal normal-case tracking-normal">
-            (LinkedIn @mentions woven into the draft)
-          </span>
-        </label>
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-border bg-bg-tertiary px-3 py-2">
-          <AtSign className="h-4 w-4 shrink-0 text-text-tertiary" aria-hidden />
-          {mentions.map((handle) => (
-            <span
-              key={handle}
-              className="inline-flex items-center gap-1 rounded-full border border-border bg-paper px-2.5 py-0.5 font-body text-[12px] text-text-primary"
-            >
-              @{handle}
-              <button
-                type="button"
-                onClick={() => removeMention(handle)}
-                className="rounded-full p-0.5 text-text-secondary hover:text-text-primary"
-                aria-label={`Remove @${handle}`}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ))}
-          {mentions.length < MAX_MENTIONS && (
-            <input
-              type="text"
-              value={mentionInput}
-              onChange={(e) => setMentionInput(e.target.value)}
-              onKeyDown={handleMentionKeyDown}
-              onBlur={() => {
-                if (mentionInput.trim()) addMentionHandles(mentionInput);
-              }}
-              placeholder={mentions.length === 0 ? 'rudheer — or type tag@rudheer in thoughts' : 'Add another…'}
-              className="min-w-[120px] flex-1 bg-transparent py-1 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none"
-            />
-          )}
-        </div>
-        {mentions.length >= MAX_MENTIONS && (
-          <p className="mt-1 text-[11px] text-text-tertiary">Max {MAX_MENTIONS} tags per post.</p>
+        {messages.map((msg, idx) =>
+          msg.role === 'user' ? (
+            <div key={msg.id} className="flex justify-end">
+              <div className="max-w-[85%] rounded-2xl bg-ink px-4 py-2.5 text-[15px] leading-relaxed text-white">
+                {msg.content}
+              </div>
+            </div>
+          ) : (
+            <div key={msg.id} className="flex justify-start">
+              {idx === lastAssistantIdx ? (
+                <div className="w-full max-w-full">
+                  <GenerateOutput
+                    text={msg.content}
+                    loading={false}
+                    sourcePlatform={platform}
+                    voiceMetrics={msg.voiceMetrics}
+                    onTextUpdate={updateDraft}
+                    variant="simple"
+                    savePillar={pillar}
+                  />
+                </div>
+              ) : (
+                <div className="max-w-[90%] rounded-2xl border border-hair bg-paper2 px-4 py-3 text-[14px] leading-relaxed text-ink2 whitespace-pre-wrap">
+                  {msg.content}
+                </div>
+              )}
+            </div>
+          ),
         )}
+
+        {loading && (
+          <div className="flex justify-start">
+            <div className="flex items-center gap-2 rounded-2xl border border-hair bg-paper px-4 py-3 text-sm text-ink3">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Drafting…
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <p className="text-center text-[13px] text-accent-primary">{error}</p>
+        )}
+
+        <div ref={bottomRef} />
       </div>
 
-      <div>
-        <label className="block section-label mb-2">
-          Target Platform
-        </label>
-        <div className="flex flex-wrap gap-2">
-          {PLATFORMS.map((p) => (
-            <button
-              key={p}
-              onClick={() => setPlatform(p)}
-              className="px-4 py-1.5 rounded-[20px] font-body text-[13px] font-medium transition-all duration-100"
-              style={{
-                backgroundColor: '#F3EDE4',
-                color: platform === p ? '#1C1917' : '#78716C',
-                border: platform === p
-                  ? '1.5px solid rgba(28, 25, 23, 0.28)'
-                  : '1px solid rgba(28, 25, 23, 0.1)',
-              }}
-            >
-              {p.charAt(0).toUpperCase() + p.slice(1)}
-            </button>
-          ))}
+      <div className="sticky bottom-0 rounded-2xl border border-hair bg-paper shadow-soft">
+        <textarea
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          rows={2}
+          autoFocus
+          placeholder={lastDraft ? 'Ask for changes — shorter, punchier hook, add a CTA…' : 'What do you want to post about?'}
+          className="w-full resize-none rounded-t-2xl bg-transparent px-4 py-3 font-body text-[15px] leading-relaxed text-ink placeholder:text-ink3 focus:outline-none"
+        />
+        <div className="flex items-center justify-between border-t border-hair px-3 py-2">
+          <MicDictate
+            onText={(t) => setInput((cur) => (cur ? `${cur} ${t}` : t))}
+            title="Dictate"
+          />
+          <button
+            type="button"
+            onClick={() => void sendMessage(input)}
+            disabled={loading || !input.trim() || pillarsLoading}
+            aria-label="Send"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+          >
+            {loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowUp className="h-4 w-4" />
+            )}
+          </button>
         </div>
       </div>
-
-      <div>
-        <label className="block section-label mb-2">
-          Post Length
-          <span className="ml-2 text-text-tertiary font-normal normal-case tracking-normal">
-            (from your profile default — override per post)
-          </span>
-        </label>
-        <div className="flex gap-2">
-          {(Object.keys(POST_LENGTH_CONFIG) as PostLength[]).map((len) => (
-            <button
-              key={len}
-              onClick={() => setPostLength(len)}
-              className="px-4 py-1.5 rounded-[20px] font-body text-[13px] font-medium transition-all duration-100"
-              style={{
-                backgroundColor: '#F3EDE4',
-                color: postLength === len ? '#1C1917' : '#78716C',
-                border: postLength === len
-                  ? '1.5px solid rgba(28, 25, 23, 0.28)'
-                  : '1px solid rgba(28, 25, 23, 0.1)',
-              }}
-            >
-              {POST_LENGTH_CONFIG[len].label}
-              <span className="ml-1 text-[11px] opacity-60">~{POST_LENGTH_CONFIG[len].words}w</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between rounded-md border border-border bg-bg-tertiary px-4 py-3">
-        <div>
-          <p className="text-[13px] font-medium text-text-primary">Use my voice</p>
-          <p className="text-[11px] text-text-secondary">
-            {useVoice
-              ? 'Drafts sound like you, learned from your profile + posts.'
-              : 'Off: generate a clean, neutral draft with no personal voice applied.'}
-          </p>
-        </div>
-        <Toggle checked={useVoice} onChange={setUseVoice} label="Use my voice" />
-      </div>
-
-      <Button onClick={generate} loading={loading}>
-        Generate
-      </Button>
-
-      {error && <p className="font-body text-[13px] text-accent-primary">{error}</p>}
-
-      <GenerateOutput
-        text={output}
-        loading={loading}
-        sourcePlatform={platform}
-        voiceMetrics={voiceMetrics}
-        onTextUpdate={(newText) => setOutput(newText)}
-      />
     </div>
   );
 }

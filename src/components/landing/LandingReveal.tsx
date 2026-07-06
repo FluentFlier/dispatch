@@ -1,7 +1,7 @@
 'use client';
 
-import { type ReactNode } from 'react';
-import { motion, useReducedMotion } from 'motion/react';
+import { type ReactNode, useRef } from 'react';
+import { motion, useInView, useReducedMotion } from 'motion/react';
 
 interface Props {
   children: ReactNode;
@@ -19,6 +19,8 @@ export default function LandingReveal({
   y = 32,
 }: Props) {
   const reduce = useReducedMotion();
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, amount: 0.12, margin: '-40px 0px -40px 0px' });
 
   if (reduce) {
     return <div className={className}>{children}</div>;
@@ -26,10 +28,10 @@ export default function LandingReveal({
 
   return (
     <motion.div
+      ref={ref}
       className={className}
       initial={{ opacity: 0, y }}
-      whileInView={{ opacity: 1, y: 0 }}
-      viewport={{ once: true, amount: 0.15, margin: '-60px' }}
+      animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y }}
       transition={{ duration: 0.7, delay, ease: EASE }}
     >
       {children}

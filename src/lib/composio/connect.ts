@@ -25,9 +25,12 @@ export async function startComposioConnect(
 
   const authConfigId = getComposioAuthConfigId(toolkit);
   if (!authConfigId) {
-    throw new Error(
-      `Missing auth config for ${toolkit}. Set COMPOSIO_${toolkit.toUpperCase()}_AUTH_CONFIG_ID.`,
-    );
+    const envKeys: Record<ComposioToolkit, string> = {
+      slack: 'COMPOSIO_SLACK_AUTH_CONFIG_ID',
+      gmail: 'COMPOSIO_GMAIL_AUTH_CONFIG_ID',
+      googlecalendar: 'COMPOSIO_GOOGLECALENDAR_AUTH_CONFIG_ID',
+    };
+    throw new Error(`Missing auth config for ${toolkit}. Set ${envKeys[toolkit]}.`);
   }
 
   const composioUserId = toComposioUserId(workspaceId, userId);
