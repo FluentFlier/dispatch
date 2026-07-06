@@ -8,6 +8,7 @@ import { classifyPost } from '@/lib/signals/classifier';
 import { classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import { normalizeEvent } from '@/lib/signals/feed/normalize';
 import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
+import { DEFAULT_SAFETY_SETTINGS } from '@/lib/signals/safety/limits';
 import type { IngestedPost, SignalEventWithPost } from '@/lib/signals/types';
 
 const post = (content: string): IngestedPost => ({
@@ -168,6 +169,15 @@ describe('Phase: Leads bugfixes', () => {
 
     it('returns empty string unchanged', () => {
       expect(enforceConnectLimit('')).toBe('');
+    });
+  });
+
+  describe('Task 5: dry-run ON by default for new workspaces', () => {
+    it('seeds newly created workspaces with dry_run true until sending is explicitly enabled', () => {
+      // getSafetySettings() spreads DEFAULT_SAFETY_SETTINGS onto brand-new
+      // workspace rows. Locking this to true ensures a freshly onboarded
+      // workspace never auto-sends live outreach before a human opts in.
+      expect(DEFAULT_SAFETY_SETTINGS.dry_run).toBe(true);
     });
   });
 });
