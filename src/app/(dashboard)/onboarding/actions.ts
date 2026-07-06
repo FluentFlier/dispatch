@@ -3,7 +3,7 @@
 import { getServerClient, getAuthenticatedUser } from '@/lib/insforge/server';
 import type { ContentPillarConfig } from '@/types/database';
 import type { CreatorBaseline } from '@/lib/onboarding/baseline';
-import { resolveDisplayName } from '@/lib/user-display-name';
+import { displayNameFromAuthUser, resolveDisplayName } from '@/lib/user-display-name';
 
 /**
  * Marks onboarding complete after connect-first baseline flow.
@@ -55,7 +55,7 @@ export async function completeOnboardingMinimal(displayName: string) {
   const user = await getAuthenticatedUser();
   if (!user) throw new Error('Not logged in');
 
-  const oauthName = user.name;
+  const oauthName = displayNameFromAuthUser(user);
   const name = resolveDisplayName({
     oauthName,
     fallback: displayName.trim() || 'Creator',
