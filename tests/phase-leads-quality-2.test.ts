@@ -298,10 +298,15 @@ describe('Phase: Leads quality 2 - scoreIcpFit clamps out-of-range LLM output', 
     expect(s).toBe(1);
   });
 
-  // A "-0.3 -> 0" test (per the brief) was attempted here and came out RED:
-  // scoreIcpFit's parse regex (`/[0-9]*\.?[0-9]+/`) cannot match a leading
-  // minus sign, so '-0.3' parses as 0.3 (not -0.3) and clamps to 0.3, not 0.
-  // Worse, '-1' parses as 1 and clamps to 1 - the wrong end of the range.
-  // This is a real bug in src/lib/signals/leads/icp-score.ts, reported
-  // separately rather than fixed here or masked by weakening the assertion.
+  it('clamps a below-range value (-0.3) up to 0', async () => {
+    vi.mocked(chatCompletion).mockResolvedValue('-0.3');
+    const s = await scoreIcpFit({ companyName: 'X', verticals: ['fintech'], keywords: [] });
+    expect(s).toBe(0);
+  });
+
+  it('clamps a negative integer (-1) to 0, not the wrong end of the range', async () => {
+    vi.mocked(chatCompletion).mockResolvedValue('-1');
+    const s = await scoreIcpFit({ companyName: 'X', verticals: ['fintech'], keywords: [] });
+    expect(s).toBe(0);
+  });
 });
