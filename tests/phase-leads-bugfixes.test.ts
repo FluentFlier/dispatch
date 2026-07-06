@@ -7,6 +7,7 @@ import { chatCompletion } from '@/lib/llm';
 import { classifyPost } from '@/lib/signals/classifier';
 import { classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import { normalizeEvent } from '@/lib/signals/feed/normalize';
+import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
 import type { IngestedPost, SignalEventWithPost } from '@/lib/signals/types';
 
 const post = (content: string): IngestedPost => ({
@@ -133,6 +134,40 @@ describe('Phase: Leads bugfixes', () => {
     it('still extracts a normal proper-noun company name', () => {
       const r = classifyPost(post('Excited to announce: building Acme, joined YC S24'));
       expect(r?.companyName).toBe('Acme');
+    });
+  });
+
+  describe('Task 4: enforce 300-char LinkedIn connect limit server-side', () => {
+    it('trims text over 300 chars to <= 300, not mid-word, no trailing space', () => {
+      const long = 'A'.repeat(50) + ' this is a filler word run '.repeat(12) + 'end';
+      expect(long.length).toBeGreaterThan(300);
+      const result = enforceConnectLimit(long);
+      expect(result.length).toBeLessThanOrEqual(300);
+      expect(result.endsWith(' ')).toBe(false);
+      // Not cut mid-word: the trimmed result must be a prefix that ends
+      // exactly where a word/sentence boundary in the original text was.
+      expect(long.startsWith(result)).toBe(true);
+      const nextChar = long[result.length];
+      expect(nextChar === undefined || nextChar === ' ').toBe(true);
+    });
+
+    it('trims at the last sentence boundary when one exists before the limit', () => {
+      const sentence = 'Loved what you are building at Acme.';
+      const filler = ' Just wanted to say hi and swap notes sometime soon if you are open to it more words here';
+      const text = sentence + filler.repeat(4);
+      expect(text.length).toBeGreaterThan(300);
+      const result = enforceConnectLimit(text);
+      expect(result.length).toBeLessThanOrEqual(300);
+      expect(result.endsWith('.')).toBe(true);
+    });
+
+    it('leaves text unchanged when it is already <= 300 chars', () => {
+      const short = 'Hi Jordan, loved the Acme launch. Would love to swap notes sometime.';
+      expect(enforceConnectLimit(short)).toBe(short);
+    });
+
+    it('returns empty string unchanged', () => {
+      expect(enforceConnectLimit('')).toBe('');
     });
   });
 });

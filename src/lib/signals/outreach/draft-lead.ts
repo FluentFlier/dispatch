@@ -2,6 +2,7 @@ import type { createClient } from '@insforge/sdk';
 import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { updateLead } from '@/lib/signals/leads/store';
+import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
 import type { OutreachChannel, SignalLeadContactRow, SignalLeadWithContacts } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -105,10 +106,15 @@ export async function draftOutreachForLead(
     humanizeAlways: true,
   });
 
-  await saveLeadDraft(client, workspaceId, lead.id, result.text, channel);
+  // The 300-char instruction above is a soft prompt; the model can and does
+  // overrun it. Enforce the hard limit server-side so every saved connect
+  // note is guaranteed sendable regardless of what the LLM returned.
+  const draftText = channel === 'linkedin_connect' ? enforceConnectLimit(result.text) : result.text;
+
+  await saveLeadDraft(client, workspaceId, lead.id, draftText, channel);
   await updateLead(client, workspaceId, lead.id, { lead_status: 'drafted' });
 
-  return { draftText: result.text, voiceMatchScore: result.voice_match_score };
+  return { draftText, voiceMatchScore: result.voice_match_score };
 }
 
 /** Upserts the single outreach draft row for a lead (unique on lead_id). */
