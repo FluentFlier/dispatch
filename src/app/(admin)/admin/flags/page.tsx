@@ -1,6 +1,8 @@
 import { assertAdmin } from '@/lib/admin';
 import { getAdminFeatureFlags } from '@/lib/admin-data';
 import { FlagToggle } from '@/components/admin/FlagToggle';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { adminPage } from '@/components/admin/admin-ui';
 
 /**
  * Feature flag kill switches — flip without redeploy.
@@ -10,16 +12,14 @@ export default async function AdminFlagsPage() {
   const flags = await getAdminFeatureFlags();
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Feature Flags</h1>
-        <p className="text-sm text-[#6b7280] mt-1">
-          Runtime kill switches checked by cron jobs and feature modules
-        </p>
-      </div>
+    <div className={`${adminPage} max-w-2xl`}>
+      <AdminPageHeader
+        title="Feature Flags"
+        description="Runtime kill switches checked by cron jobs and feature modules"
+      />
 
       {flags.length === 0 ? (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-200">
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           No feature flags in database. Run <code className="font-mono">db/signals.sql</code> to seed{' '}
           <code className="font-mono">signals_engine</code>.
         </div>

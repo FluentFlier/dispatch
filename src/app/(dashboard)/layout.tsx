@@ -4,7 +4,9 @@ import Sidebar from '@/components/nav/Sidebar';
 import BottomBar from '@/components/nav/BottomBar';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
-import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getAuthenticatedUser, getServerClient, getSessionUser } from '@/lib/insforge/server';
+import { getImpersonationContext } from '@/lib/admin/impersonation';
+import { ImpersonationBanner } from '@/components/admin/ImpersonationBanner';
 import TokenRefreshGate from '@/components/auth/TokenRefreshGate';
 import SessionKeepAlive from '@/components/auth/SessionKeepAlive';
 import { getOrCreateSubscription } from '@/lib/entitlements';
@@ -20,6 +22,8 @@ export default async function DashboardLayout({
   const headersList = headers();
   const pathname = headersList.get('x-pathname') || '';
   const user = await getAuthenticatedUser();
+  const sessionUser = await getSessionUser();
+  const impersonation = await getImpersonationContext(sessionUser);
 
   if (!user) {
     const cookieStore = cookies();
@@ -81,6 +85,12 @@ export default async function DashboardLayout({
       <div className="flex h-screen min-h-screen bg-bg-primary text-text-primary">
         <Sidebar />
         <main className="flex-1 md:ml-[264px] overflow-y-auto overflow-x-hidden px-4 md:px-8 py-6 pb-24 md:pb-8 min-w-0 w-full">
+          {impersonation ? (
+            <ImpersonationBanner
+              targetDisplayName={impersonation.targetDisplayName}
+              targetUserId={impersonation.targetUserId}
+            />
+          ) : null}
           <TrialBanner />
           <ErrorBoundary>{children}</ErrorBoundary>
         </main>

@@ -6,23 +6,22 @@ export default function Beta({ funnel }: { funnel: FunnelState }) {
   const { href: primaryHref, label: primaryLabel } = getFunnelCta(funnel);
 
   return (
-    <section id="beta" className="scroll-mt-24 border-t border-hair bg-paper2">
-      <div className="mx-auto max-w-[520px] px-5 py-14 text-center sm:px-10 sm:py-20">
-        <span className="font-mono text-[11.5px] tracking-[0.12em] text-flame">07 / START</span>
-        <h2 className="ed-serif my-4 text-[clamp(32px,5vw,48px)] font-normal leading-[0.98] tracking-[-0.03em] text-ink">
+    <section id="beta" className="scroll-mt-24">
+      <div className="mx-auto max-w-[640px] px-5 py-16 text-center sm:px-10 sm:py-24">
+        <h2 className="m-0 text-[clamp(32px,5vw,48px)] font-semibold leading-[1.02] tracking-[-0.03em] text-ink">
           Try it free for 7 days.
         </h2>
-        <p className="m-0 font-mono text-[12px] text-ink2">{TRIAL_COPY}</p>
+        <p className="m-0 mt-3 text-[14px] text-ink2">{TRIAL_COPY}</p>
 
-        <div className="mt-8 flex flex-col gap-3">
+        <div className="mt-8 flex flex-col items-center gap-3">
           <Link
             href={primaryHref}
-            className="inline-flex w-full items-center justify-center rounded-md bg-blue py-3.5 text-[15px] font-medium text-white hover:bg-blue-dark"
+            className="inline-flex w-full max-w-sm items-center justify-center rounded-full bg-ink py-3.5 text-[15px] font-medium text-paper shadow-[0_8px_24px_-8px_rgba(23,23,23,0.45)] transition-transform hover:-translate-y-0.5 sm:w-auto sm:px-10"
           >
             {primaryLabel}
           </Link>
-          <Link href="/pricing" className="text-[13px] text-ink2 hover:text-ink">
-            Pricing →
+          <Link href="/pricing" className="text-[14px] text-ink2 hover:text-ink">
+            View pricing
           </Link>
         </div>
       </div>

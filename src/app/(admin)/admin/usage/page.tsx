@@ -1,5 +1,7 @@
 import { assertAdmin } from '@/lib/admin';
 import { getAdminUsage } from '@/lib/admin-data';
+import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
+import { adminCard, adminPage, adminTableHead, adminTableRow, adminTableWrap } from '@/components/admin/admin-ui';
 
 function shortId(id: string): string {
   return `${id.slice(0, 8)}…`;
@@ -25,50 +27,48 @@ export default async function AdminUsagePage() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold text-white">Usage</h1>
-        <p className="text-sm text-[#6b7280] mt-1">
-          Current month totals · period {rows[0]?.periodKey ?? new Date().toISOString().slice(0, 7)}
-        </p>
-      </div>
+    <div className={adminPage}>
+      <AdminPageHeader
+        title="Usage"
+        description={`Current month totals · period ${rows[0]?.periodKey ?? new Date().toISOString().slice(0, 7)}`}
+      />
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {Object.entries(byMetric).map(([metric, total]) => (
-          <div key={metric} className="rounded-lg border border-[#2a2d35] bg-[#1a1d24] p-3">
-            <p className="text-[11px] uppercase text-[#6b7280]">
+          <div key={metric} className={`${adminCard} py-3`}>
+            <p className="text-[11px] uppercase text-text-tertiary">
               {METRIC_LABELS[metric] ?? metric}
             </p>
-            <p className="text-xl font-semibold text-white tabular-nums">{total}</p>
+            <p className="text-xl font-semibold text-text-primary tabular-nums">{total}</p>
           </div>
         ))}
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-[#2a2d35]">
+      <div className={adminTableWrap}>
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-[#2a2d35] bg-[#13151b] text-left text-[#6b7280] text-xs uppercase tracking-wide">
+            <tr className={adminTableHead}>
               <th className="px-4 py-3 font-medium">User</th>
               <th className="px-4 py-3 font-medium">Metric</th>
               <th className="px-4 py-3 font-medium">Count</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#2a2d35]">
+          <tbody className="divide-y divide-border">
             {rows.map((r, i) => (
-              <tr key={`${r.userId}-${r.metric}-${i}`} className="bg-[#1a1d24]">
-                <td className="px-4 py-3 font-mono text-[11px] text-[#6b7280]" title={r.userId}>
+              <tr key={`${r.userId}-${r.metric}-${i}`} className={adminTableRow}>
+                <td className="px-4 py-3 font-mono text-[11px] text-text-tertiary" title={r.userId}>
                   {shortId(r.userId)}
                 </td>
-                <td className="px-4 py-3 text-white">
+                <td className="px-4 py-3 text-text-primary">
                   {METRIC_LABELS[r.metric] ?? r.metric}
                 </td>
-                <td className="px-4 py-3 text-white tabular-nums font-medium">{r.count}</td>
+                <td className="px-4 py-3 text-text-primary tabular-nums font-medium">{r.count}</td>
               </tr>
             ))}
           </tbody>
         </table>
         {rows.length === 0 ? (
-          <p className="p-8 text-center text-[#6b7280]">No usage recorded this period</p>
+          <p className="p-8 text-center text-text-secondary">No usage recorded this period</p>
         ) : null}
       </div>
     </div>

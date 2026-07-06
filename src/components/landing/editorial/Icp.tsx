@@ -1,58 +1,57 @@
-/**
- * "Who it's for" — a four-up grid of ICP personas separated by vertical hairlines,
- * each with a mono index in a rotating accent (coral / blue / teal / ink).
- */
-const PEOPLE: { num: string; color: string; role: string; copy: string }[] = [
-  {
-    num: '01',
-    color: 'text-flame',
-    role: 'Founder building in public',
-    copy: 'Turning the messy work of building into a compounding audience.',
-  },
-  {
-    num: '02',
-    color: 'text-blue',
-    role: 'Solo creator publishing daily',
-    copy: 'High output without burning out or losing their voice.',
-  },
-  {
-    num: '03',
-    color: 'text-teal',
-    role: 'Technical operator growing authority',
-    copy: 'Translating deep work into credibility on a tight time budget.',
-  },
-  {
-    num: '04',
-    color: 'text-ink',
-    role: 'Operator on a founder-led brand',
-    copy: 'Keeping a consistent voice across a busy publishing week.',
-  },
+import type { LucideIcon } from 'lucide-react';
+import { Code2, Megaphone, Rocket, User } from 'lucide-react';
+import LandingSectionHeader from '../LandingSectionHeader';
+import LandingGlowOrb from '../LandingGlowOrb';
+import { SECTION_THEME } from './theme';
+
+const theme = SECTION_THEME.who;
+
+const PEOPLE: { role: string; copy: string; icon: LucideIcon; accent: string }[] = [
+  { role: 'Founder building in public', copy: 'Ship daily without losing your voice.', icon: Rocket, accent: '#2563EB' },
+  { role: 'Solo creator', copy: 'High output. One system.', icon: User, accent: '#0F766E' },
+  { role: 'Technical operator', copy: 'Deep work → public authority.', icon: Code2, accent: '#E8543A' },
+  { role: 'Brand operator', copy: 'Consistent voice across the week.', icon: Megaphone, accent: '#8B7BB8' },
 ];
 
 export default function Icp() {
   return (
-    <section id="icp" className="scroll-mt-24 mx-auto max-w-[1180px] px-5 pb-10 pt-16 sm:px-10 sm:pt-24">
-      <span className="font-mono text-[11.5px] tracking-[0.12em] text-flame">
-        08 / WHO IT&apos;S FOR
-      </span>
-      <h2 className="ed-serif mb-10 mt-[18px] text-[clamp(28px,3.4vw,44px)] font-normal leading-[1.0] tracking-[-0.025em] text-ink">
-        Built for operators, founders, and solo creators.
-      </h2>
-      <div className="grid grid-cols-1 border-t border-ink sm:grid-cols-2 lg:grid-cols-4">
-        {PEOPLE.map((p, i) => (
-          <div
-            key={p.num}
-            className={`border-b border-hair px-[22px] py-[26px] sm:border-b-0 ${
-              i < PEOPLE.length - 1 ? 'lg:border-r lg:border-hair' : ''
-            }`}
-          >
-            <span className={`font-mono text-[11px] ${p.color}`}>{p.num}</span>
-            <h3 className="ed-serif mb-2 mt-[14px] text-[20px] font-medium leading-[1.15] text-ink">
-              {p.role}
-            </h3>
-            <p className="m-0 text-[13.5px] leading-[1.5] text-ink2">{p.copy}</p>
-          </div>
-        ))}
+    <section id="who" className="relative scroll-mt-24 overflow-hidden border-t border-hair/60 bg-white/40">
+      <LandingGlowOrb tone={theme.glow} position="center" className="opacity-60" />
+      <div className="relative mx-auto max-w-[1100px] px-5 py-16 sm:px-8 sm:py-20">
+        <LandingSectionHeader
+          tag={theme.tag}
+          title="Built for people who ship."
+          accent={theme.accent}
+        />
+        <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {PEOPLE.map((person) => {
+            const Icon = person.icon;
+            return (
+              <div
+                key={person.role}
+                className="group relative overflow-hidden rounded-2xl border border-hair bg-white/70 px-5 py-4 backdrop-blur-sm transition-shadow hover:shadow-[0_16px_40px_-24px_rgba(23,23,23,0.2)]"
+              >
+                <div
+                  className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-20 blur-2xl transition-opacity group-hover:opacity-30"
+                  style={{ backgroundColor: person.accent }}
+                  aria-hidden
+                />
+                <div className="relative flex items-start gap-3">
+                  <span
+                    className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-hair bg-white shadow-sm"
+                    style={{ color: person.accent }}
+                  >
+                    <Icon className="h-5 w-5" strokeWidth={1.75} />
+                  </span>
+                  <div>
+                    <h3 className="m-0 text-[15px] font-semibold text-ink">{person.role}</h3>
+                    <p className="m-0 mt-1 text-[13px] text-ink2">{person.copy}</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

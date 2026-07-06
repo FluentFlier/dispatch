@@ -6,13 +6,13 @@ import { Menu, X } from 'lucide-react';
 import { getFunnelCta, type FunnelState } from '@/lib/funnel-cta';
 import { CTA_SIGN_IN, PRODUCT_NAME } from './brand';
 
-const FOCUS_RING =
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-offset-2';
+const FOCUS =
+  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-offset-2';
 
 const ANCHORS = [
-  ['#problem', 'Problem'],
   ['#loop', 'Loop'],
   ['#voice', 'Voice'],
+  ['#different', 'Why us'],
   ['#week', 'Week'],
 ] as const;
 
@@ -22,114 +22,78 @@ export default function Nav({ funnel }: { funnel: FunnelState }) {
 
   useEffect(() => {
     if (!open) return;
-    function onKeyDown(e: KeyboardEvent) {
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setOpen(false);
-    }
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
   }, [open]);
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-hair bg-paper/88 backdrop-blur-[14px]">
-      <div className="mx-auto flex max-w-[1180px] items-center justify-between gap-4 px-5 py-4 sm:px-10 sm:py-[18px]">
-        <Link
-          href="/"
-          className={`flex items-center gap-[11px] ${FOCUS_RING}`}
-          onClick={() => setOpen(false)}
-        >
-          <span className="grid h-[22px] w-[22px] place-items-center rounded-md bg-ink font-mono text-[12px] font-medium text-paper">
-            /
-          </span>
-          <span className="font-mono text-[12.5px] font-medium tracking-[0.18em] text-ink">
-            {PRODUCT_NAME.toUpperCase()}
-          </span>
+    <nav className="sticky top-0 z-50 bg-paper/75 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-[1100px] items-center justify-between px-5 py-4 sm:px-8">
+        <Link href="/" className={`text-[17px] font-semibold text-ink ${FOCUS}`}>
+          {PRODUCT_NAME.toLowerCase()}.
         </Link>
 
-        <div className="hidden items-center gap-8 md:flex">
+        <div className="hidden items-center gap-6 md:flex">
           {ANCHORS.map(([href, label]) => (
-            <a
-              key={href}
-              href={href}
-              className={`font-mono text-[12px] tracking-[0.04em] text-ink2 transition-colors hover:text-ink ${FOCUS_RING}`}
-            >
+            <a key={href} href={href} className={`text-[14px] text-ink2 hover:text-ink ${FOCUS}`}>
               {label}
             </a>
           ))}
-          <Link
-            href="/pricing"
-            className={`font-mono text-[12px] tracking-[0.04em] text-ink2 transition-colors hover:text-ink ${FOCUS_RING}`}
-          >
+          <Link href="/pricing" className={`text-[14px] text-ink2 hover:text-ink ${FOCUS}`}>
             Pricing
           </Link>
-        </div>
-
-        <div className="flex items-center gap-2 sm:gap-3">
           {!funnel.loggedIn && (
-            <Link
-              href="/login"
-              className={`hidden font-mono text-[12px] tracking-[0.04em] text-ink2 transition-colors hover:text-ink sm:inline ${FOCUS_RING}`}
-            >
+            <Link href="/login" className={`text-[14px] text-ink2 hover:text-ink ${FOCUS}`}>
               {CTA_SIGN_IN}
             </Link>
           )}
           <Link
             href={primaryHref}
-            className={`hidden items-center gap-2 rounded-md bg-ink px-[17px] py-[10px] text-[13.5px] font-medium text-paper transition-colors hover:bg-black sm:inline-flex ${FOCUS_RING}`}
+            className={`rounded-full border border-hair2 bg-white px-4 py-2 text-[13px] font-medium text-ink ${FOCUS}`}
           >
             {primaryLabel}
           </Link>
-          <Link
-            href={primaryHref}
-            className={`inline-flex items-center rounded-md bg-ink px-3 py-2 text-[12px] font-medium text-paper sm:hidden ${FOCUS_RING}`}
-          >
-            {primaryLabel}
-          </Link>
-          <button
-            type="button"
-            aria-expanded={open}
-            aria-controls="mobile-nav"
-            aria-label={open ? 'Close menu' : 'Open menu'}
-            onClick={() => setOpen((v) => !v)}
-            className={`inline-flex h-10 w-10 items-center justify-center rounded-md border border-hair2 bg-white text-ink md:hidden ${FOCUS_RING}`}
-          >
-            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-          </button>
         </div>
+
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-label={open ? 'Close menu' : 'Open menu'}
+          onClick={() => setOpen((v) => !v)}
+          className={`inline-flex h-10 w-10 items-center justify-center rounded-full border border-hair2 bg-white md:hidden ${FOCUS}`}
+        >
+          {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
       </div>
 
       {open && (
-        <div id="mobile-nav" className="border-t border-hair bg-paper px-5 py-4 md:hidden">
-          <div className="flex flex-col gap-1">
+        <div className="border-t border-hair px-5 py-4 md:hidden">
+          <div className="flex flex-col gap-2">
             {ANCHORS.map(([href, label]) => (
               <a
                 key={href}
                 href={href}
                 onClick={() => setOpen(false)}
-                className={`rounded-md px-3 py-3 font-mono text-[13px] tracking-[0.04em] text-ink2 transition-colors hover:bg-paper2 hover:text-ink ${FOCUS_RING}`}
+                className="rounded-lg px-3 py-2.5 text-[14px] text-ink2"
               >
                 {label}
               </a>
             ))}
-            <Link
-              href="/pricing"
-              onClick={() => setOpen(false)}
-              className={`rounded-md px-3 py-3 font-mono text-[13px] tracking-[0.04em] text-ink2 transition-colors hover:bg-paper2 hover:text-ink ${FOCUS_RING}`}
-            >
+            <Link href="/pricing" onClick={() => setOpen(false)} className="rounded-lg px-3 py-2.5 text-[14px] text-ink2">
               Pricing
             </Link>
             {!funnel.loggedIn && (
-              <Link
-                href="/login"
-                onClick={() => setOpen(false)}
-                className={`rounded-md px-3 py-3 font-mono text-[13px] tracking-[0.04em] text-ink2 transition-colors hover:bg-paper2 hover:text-ink ${FOCUS_RING}`}
-              >
+              <Link href="/login" onClick={() => setOpen(false)} className="rounded-lg px-3 py-2.5 text-[14px] text-ink2">
                 {CTA_SIGN_IN}
               </Link>
             )}
             <Link
               href={primaryHref}
               onClick={() => setOpen(false)}
-              className={`mt-2 inline-flex items-center justify-center rounded-md bg-ink px-4 py-3 text-[14px] font-medium text-paper ${FOCUS_RING}`}
+              className="mt-1 rounded-full bg-ink px-4 py-3 text-center text-[14px] font-medium text-paper"
             >
               {primaryLabel}
             </Link>

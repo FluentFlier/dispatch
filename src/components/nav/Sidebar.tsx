@@ -29,6 +29,8 @@ const navIcons: Record<string, ComponentType<{ className?: string }>> = {
   '/leads': Target,
   '/event-capture': CalendarDays,
   '/ideas': Lightbulb,
+  '/series': FileText,
+  '/story-bank': FileText,
   '/voice-lab': SlidersHorizontal,
   '/analytics': BarChart3,
   '/settings': Settings,

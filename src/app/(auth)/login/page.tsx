@@ -61,6 +61,20 @@ async function syncTokenToCookie(): Promise<boolean> {
   return false;
 }
 
+async function clearAuthSession(): Promise<void> {
+  try {
+    const client = getInsforgeClient();
+    await client.auth.signOut();
+  } catch {
+    /* best-effort */
+  }
+  try {
+    await fetch('/api/auth', { method: 'DELETE', credentials: 'same-origin' });
+  } catch {
+    /* best-effort */
+  }
+}
+
 async function redirectAfterAuth(): Promise<void> {
   window.location.replace('/auth/continue');
 }
@@ -94,6 +108,16 @@ export default function LoginPage() {
     // in the constructor, so by the time getInsforgeClient() returns the param is gone.
     const params = new URLSearchParams(window.location.search);
     const hasOAuthCode = params.has("insforge_code");
+    const wantsAccountPicker =
+      params.get("switch") === "1" || params.get("choose_account") === "1";
+
+    if (wantsAccountPicker && !hasOAuthCode) {
+      setStatus("Signing out previous session...");
+      await clearAuthSession();
+      window.history.replaceState(null, "", "/login");
+      setReady(true);
+      return;
+    }
 
     const client = getInsforgeClient();
 
@@ -179,10 +203,16 @@ export default function LoginPage() {
   async function signInWith(provider: "google" | "github") {
     setError("");
     try {
+      // Clear stale sessions so Google shows the account picker instead of auto-using the last login.
+      await clearAuthSession();
+
       const client = getInsforgeClient();
       const { error: err } = await client.auth.signInWithOAuth({
         provider,
         redirectTo: `${window.location.origin}/login`,
+        ...(provider === "google"
+          ? { additionalParams: { prompt: "select_account" } }
+          : {}),
       });
       if (err) setError(err.message);
     } catch (e) {
@@ -237,6 +267,16 @@ export default function LoginPage() {
                 <OAuthButton label="Continue with Google" onClick={() => signInWith("google")} icon="google" />
                 <OAuthButton label="Continue with GitHub" onClick={() => signInWith("github")} icon="github" />
               </div>
+
+              <p className="text-center text-xs text-text-tertiary mt-4">
+                Wrong account?{' '}
+                <a
+                  href="/login?choose_account=1"
+                  className="text-accent-primary hover:text-accent-dark font-medium"
+                >
+                  Choose a different Google account
+                </a>
+              </p>
 
               {error && (
                 <div className="mt-4 px-4 py-3 rounded-md text-sm text-red-800 bg-red-50 border border-red-200">

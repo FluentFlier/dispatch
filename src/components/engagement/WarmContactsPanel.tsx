@@ -360,8 +360,8 @@ export default function WarmContactsPanel() {
             Outreach is{' '}
             {safety?.settings.dry_run ? 'in dry-run mode' : 'disabled'} — drafts work, but sends
             are blocked until you enable outreach in{' '}
-            <Link href="/leads" className="text-accent-primary hover:underline">
-              Leads → Safety
+            <Link href="/leads?view=setup" className="text-accent-primary hover:underline">
+              Leads → Setup
             </Link>
             .
           </p>

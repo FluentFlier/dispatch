@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { assertAdmin, adminErrorResponse } from '@/lib/admin';
 import { adminUpdateSubscription, adminSetOnboarding } from '@/lib/admin-data';
+import { logAdminAction } from '@/lib/admin/audit';
 
 const BodySchema = z
   .object({
@@ -21,7 +22,7 @@ export async function PATCH(
   { params }: { params: { userId: string } },
 ): Promise<NextResponse> {
   try {
-    await assertAdmin();
+    const admin = await assertAdmin();
     const body: unknown = await request.json();
     const parsed = BodySchema.safeParse(body);
     if (!parsed.success) {
@@ -38,6 +39,14 @@ export async function PATCH(
       if (!subOk) {
         return NextResponse.json({ error: 'Subscription update failed' }, { status: 400 });
       }
+      await logAdminAction({
+        actorEmail: admin.email,
+        actorUserId: admin.id,
+        action: 'user.subscription_update',
+        targetType: 'user',
+        targetId: params.userId,
+        details: { plan, status },
+      });
     }
 
     if (onboardingComplete !== undefined) {
@@ -45,6 +54,14 @@ export async function PATCH(
       if (!profileOk) {
         return NextResponse.json({ error: 'Profile update failed' }, { status: 400 });
       }
+      await logAdminAction({
+        actorEmail: admin.email,
+        actorUserId: admin.id,
+        action: 'user.onboarding_update',
+        targetType: 'user',
+        targetId: params.userId,
+        details: { onboardingComplete },
+      });
     }
 
     return NextResponse.json({ ok: true });

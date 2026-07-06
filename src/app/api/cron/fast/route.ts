@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logCronRun, cronStatusFromResults } from '@/lib/admin/cron-log';
 
 /**
  * Fan-out cron: fires every 5 minutes, runs publish + signals-sync +
@@ -7,6 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * independently callable.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const started = Date.now();
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
@@ -27,7 +29,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     fetch(`${baseUrl}/api/cron/engagement-tasks`, { headers }).then((r) => r.json()),
   ]);
 
-  return NextResponse.json({
+  const body = {
     publish:
       publishResult.status === 'fulfilled'
         ? publishResult.value
@@ -40,5 +42,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       engagementTasksResult.status === 'fulfilled'
         ? engagementTasksResult.value
         : { error: String((engagementTasksResult as PromiseRejectedResult).reason) },
+  };
+
+  const { status, errorMessage } = cronStatusFromResults(body);
+  void logCronRun({
+    jobName: 'fast',
+    status,
+    durationMs: Date.now() - started,
+    summary: body,
+    errorMessage,
   });
+
+  return NextResponse.json(body);
 }

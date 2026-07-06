@@ -1,10 +1,17 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useReducedMotion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import LandingSectionHeader from '../LandingSectionHeader';
+import LandingGlowOrb from '../LandingGlowOrb';
+import LandingLoopDiagram from '../LandingLoopDiagram';
 import { LOOP_STEPS } from './data';
+import { SECTION_THEME } from './theme';
 
-/** Five-step loop accordion. Auto-advances until a row is clicked. */
+const theme = SECTION_THEME.loop;
+const EASE = [0.16, 1, 0.3, 1] as const;
+
+/** Five-step product loop. Auto-advances until clicked. */
 export default function Loop() {
   const reduce = useReducedMotion();
   const [active, setActive] = useState(0);
@@ -15,7 +22,7 @@ export default function Loop() {
     const t = setInterval(() => {
       if (pinned.current) return;
       setActive((i) => (i + 1) % LOOP_STEPS.length);
-    }, 3000);
+    }, 3200);
     return () => clearInterval(t);
   }, [reduce]);
 
@@ -24,68 +31,83 @@ export default function Loop() {
     setActive(i);
   }
 
+  const activeStep = LOOP_STEPS[active];
+
   return (
-    <section id="loop" className="scroll-mt-24 mx-auto max-w-[1180px] border-t border-hair px-5 pb-10 pt-14 sm:px-10 sm:pt-20">
-      <span className="font-mono text-[11.5px] tracking-[0.12em] text-flame">03 / THE LOOP</span>
-      <h2 className="ed-serif mt-4 text-[clamp(28px,4vw,52px)] font-normal leading-[0.98] tracking-[-0.03em] text-ink">
-        Signal → ship → learn.
-      </h2>
+    <section id="loop" className="relative scroll-mt-24 overflow-hidden">
+      <LandingGlowOrb tone={theme.glow} position="left" />
+      <div className="relative mx-auto max-w-[1100px] px-5 py-16 sm:px-8 sm:py-20">
+        <div className="grid grid-cols-1 gap-10 lg:grid-cols-[1fr_auto] lg:items-start">
+          <LandingSectionHeader
+            tag={theme.tag}
+            title="Signal → ship → learn."
+            subtitle="Five steps. One compounding loop."
+            accent={theme.accent}
+          />
+          <LandingLoopDiagram className="mx-auto lg:mt-2" />
+        </div>
 
-      <div className="mt-8 border-t border-ink">
-        {LOOP_STEPS.map((step, i) => {
-          const on = i === active;
-          return (
-            <div key={step.num} className="border-b border-hair">
-              <button
-                type="button"
-                aria-expanded={on}
-                aria-controls={`loop-panel-${i}`}
-                onClick={() => pin(i)}
-                className={`w-full cursor-pointer text-left transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue focus-visible:ring-inset ${
-                  on ? 'bg-white' : 'bg-transparent'
-                }`}
-              >
-                <div className="grid grid-cols-[40px_1fr] items-center gap-4 py-5 sm:grid-cols-[56px_0.45fr_1fr_36px] sm:gap-5">
-                  <span
-                    className="font-mono text-[13px] transition-colors duration-300"
-                    style={{ color: on ? step.accent : '#908D87' }}
-                  >
-                    {step.num}
-                  </span>
-                  <span className="ed-serif text-[24px] font-medium tracking-[-0.01em] text-ink sm:text-[26px]">
-                    {step.label}
-                  </span>
-                  <span
-                    className={`text-[15px] text-ink2 ${on ? 'block' : 'hidden sm:block'}`}
-                  >
-                    {step.lede}
-                  </span>
-                  <span
-                    className="hidden text-right font-mono text-[9.5px] tracking-[0.06em] sm:block"
-                    style={{ color: on ? step.accent : '#908D87' }}
-                  >
-                    {on ? '●' : step.mark}
-                  </span>
-                </div>
-              </button>
-
-              {on && (
-                <div id={`loop-panel-${i}`} className="grid grid-cols-1 pb-5 sm:grid-cols-[56px_1fr]">
-                  <span className="hidden sm:block" />
-                  <div
-                    className="inline-flex items-center gap-3 border-l-2 pl-4"
-                    style={{ borderColor: step.accent }}
-                  >
-                    <span className="font-mono text-[9.5px] tracking-[0.06em] text-ink3">
-                      {step.exLabel}
+        <div className="mt-8 overflow-hidden rounded-2xl border border-hair bg-white/80 shadow-[0_20px_50px_-30px_rgba(23,23,23,0.2)] backdrop-blur-sm">
+          <div
+            className="h-1 transition-colors duration-500"
+            style={{ backgroundColor: activeStep.accent }}
+            aria-hidden
+          />
+          {LOOP_STEPS.map((step, i) => {
+            const on = i === active;
+            return (
+              <div key={step.num} className="border-b border-hair last:border-b-0">
+                <button
+                  type="button"
+                  aria-expanded={on}
+                  onClick={() => pin(i)}
+                  className={`w-full text-left transition-colors duration-300 ${on ? 'bg-paper2/60' : 'hover:bg-paper2/30'}`}
+                >
+                  <div className="grid grid-cols-[4px_48px_1fr] items-center gap-4 px-0 py-0 sm:grid-cols-[4px_56px_140px_1fr]">
+                    <span
+                      className="h-full min-h-[56px] transition-colors duration-300"
+                      style={{ backgroundColor: on ? step.accent : 'transparent' }}
+                      aria-hidden
+                    />
+                    <span
+                      className="font-mono text-[12px] transition-colors duration-300 pl-2 sm:pl-0"
+                      style={{ color: on ? step.accent : '#908D87' }}
+                    >
+                      {step.num}
                     </span>
-                    <span className="ed-serif text-[15px] text-ink">{step.ex}</span>
+                    <span className="text-[17px] font-semibold text-ink">{step.label}</span>
+                    <span
+                      className={`pr-4 text-[14px] text-ink2 transition-opacity duration-300 ${on ? 'block opacity-100' : 'hidden sm:block sm:opacity-50'}`}
+                    >
+                      {step.lede}
+                    </span>
                   </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
+                </button>
+                <AnimatePresence initial={false}>
+                  {on && (
+                    <motion.div
+                      initial={reduce ? false : { height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={reduce ? undefined : { height: 0, opacity: 0 }}
+                      transition={{ duration: 0.35, ease: EASE }}
+                      className="overflow-hidden"
+                    >
+                      <div
+                        className="border-t border-hair bg-white px-4 py-3 sm:pl-[76px]"
+                        style={{ borderLeftWidth: 4, borderLeftColor: step.accent }}
+                      >
+                        <span className="font-mono text-[10px] uppercase tracking-wide text-ink3">
+                          {step.exLabel}
+                        </span>
+                        <p className="m-0 mt-1 text-[14px] text-ink">{step.ex}</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
       </div>
     </section>
   );

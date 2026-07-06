@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { logCronRun, cronStatusFromResults } from '@/lib/admin/cron-log';
 
 /**
  * Fan-out cron: fires every 15 minutes.
@@ -13,6 +14,7 @@ import { NextRequest, NextResponse } from 'next/server';
  * staying within the Hobby plan 2-cron limit without pg_cron.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const started = Date.now();
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
@@ -75,6 +77,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const outcomes = await Promise.all(jobs);
   const result = Object.fromEntries(outcomes);
+
+  const { status, errorMessage } = cronStatusFromResults(result);
+  void logCronRun({
+    jobName: 'medium',
+    status,
+    durationMs: Date.now() - started,
+    summary: result,
+    errorMessage,
+  });
 
   return NextResponse.json(result);
 }

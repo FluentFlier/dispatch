@@ -11,7 +11,19 @@ export interface AdminOverview {
   publishQueue: { queued: number; processing: number; failed: number; dead: number };
   aiUsageToday: number;
   signalsEnabled: boolean;
+  activeTrials: number;
+  trialsExpiringSoon: number;
+  leadsCount: number | null;
   timestamp: string;
+}
+
+export interface AdminUserFilters {
+  q?: string;
+  plan?: string;
+  status?: string;
+  onboarding?: 'complete' | 'incomplete';
+  limit?: number;
+  offset?: number;
 }
 
 export interface AdminUserRow {
@@ -79,13 +91,15 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     queueRes,
     aiRes,
     flagRes,
+    trialRes,
+    leadsRes,
   ] = await Promise.all([
     client.database.from('creator_profile').select('id', { count: 'exact', head: true }),
     client.database
       .from('creator_profile')
       .select('id', { count: 'exact', head: true })
       .eq('onboarding_complete', true),
-    client.database.from('subscriptions').select('plan, status'),
+    client.database.from('subscriptions').select('plan, status, trial_ends_at'),
     client.database
       .from('posts')
       .select('id', { count: 'exact', head: true })
@@ -97,6 +111,8 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       .eq('metric', 'ai_generate')
       .eq('period_key', today.slice(0, 7)),
     client.database.from('feature_flags').select('enabled').eq('name', 'signals_engine').maybeSingle(),
+    client.database.from('subscriptions').select('trial_ends_at').eq('status', 'trialing'),
+    client.database.from('signal_leads').select('id', { count: 'exact', head: true }),
   ]);
 
   const subscriptions: Record<string, number> = {};
@@ -113,6 +129,16 @@ export async function getAdminOverview(): Promise<AdminOverview> {
 
   const aiUsageToday = (aiRes.data ?? []).reduce((sum, r) => sum + (r.count as number), 0);
 
+  const weekAhead = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const trialRows = trialRes.data ?? [];
+  const activeTrials = trialRows.length;
+  const trialsExpiringSoon = trialRows.filter((row) => {
+    const ends = row.trial_ends_at as string | null;
+    return ends != null && ends <= weekAhead;
+  }).length;
+
+  const leadsCount = leadsRes.error ? null : (leadsRes.count ?? 0);
+
   return {
     users: profilesRes.count ?? 0,
     onboarded: onboardedRes.count ?? 0,
@@ -121,21 +147,51 @@ export async function getAdminOverview(): Promise<AdminOverview> {
     publishQueue: queue,
     aiUsageToday,
     signalsEnabled: flagRes.data?.enabled ?? true,
+    activeTrials,
+    trialsExpiringSoon,
+    leadsCount,
     timestamp: new Date().toISOString(),
   };
 }
 
 /**
  * Lists users with profile, subscription, and post counts for admin management.
+ * Supports search by display name and filters on plan, status, and onboarding.
  */
-export async function getAdminUsers(limit = 100): Promise<AdminUserRow[]> {
+export async function getAdminUsers(filters: AdminUserFilters = {}): Promise<AdminUserRow[]> {
   const client = getServiceClient();
+  const limit = filters.limit ?? 100;
+  const offset = filters.offset ?? 0;
 
-  const { data: profiles, error } = await client.database
+  let userIdFilter: string[] | null = null;
+
+  if (filters.plan || filters.status) {
+    let subQuery = client.database.from('subscriptions').select('user_id');
+    if (filters.plan) subQuery = subQuery.eq('plan', filters.plan);
+    if (filters.status) subQuery = subQuery.eq('status', filters.status);
+    const { data: subRows } = await subQuery.limit(500);
+    userIdFilter = (subRows ?? []).map((r) => r.user_id as string);
+    if (userIdFilter.length === 0) return [];
+  }
+
+  let profileQuery = client.database
     .from('creator_profile')
     .select('user_id, display_name, onboarding_complete, created_at')
-    .order('created_at', { ascending: false })
-    .limit(limit);
+    .order('created_at', { ascending: false });
+
+  if (filters.q?.trim()) {
+    profileQuery = profileQuery.ilike('display_name', `%${filters.q.trim()}%`);
+  }
+  if (filters.onboarding === 'complete') {
+    profileQuery = profileQuery.eq('onboarding_complete', true);
+  } else if (filters.onboarding === 'incomplete') {
+    profileQuery = profileQuery.eq('onboarding_complete', false);
+  }
+  if (userIdFilter) {
+    profileQuery = profileQuery.in('user_id', userIdFilter);
+  }
+
+  const { data: profiles, error } = await profileQuery.range(offset, offset + limit - 1);
 
   if (error || !profiles?.length) return [];
 
