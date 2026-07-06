@@ -32,6 +32,7 @@ import { normalizeEvent } from '@/lib/signals/feed/normalize';
 import { classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import { scoreIcpFit } from '@/lib/signals/leads/icp-score';
 import { chatCompletion } from '@/lib/llm';
+import { mapWithConcurrency } from '@/lib/util/concurrency';
 import type { IngestedPost, SignalEventWithPost } from '@/lib/signals/types';
 
 beforeAll(() => {
@@ -308,5 +309,44 @@ describe('Phase: Leads quality 2 - scoreIcpFit clamps out-of-range LLM output', 
     vi.mocked(chatCompletion).mockResolvedValue('-1');
     const s = await scoreIcpFit({ companyName: 'X', verticals: ['fintech'], keywords: [] });
     expect(s).toBe(0);
+  });
+});
+
+describe('Phase: Leads quality 2 - Task 3: mapWithConcurrency', () => {
+  it('preserves result order even when later items resolve before earlier ones', async () => {
+    // Item 0 has the longest delay, item 4 the shortest - if order were
+    // determined by resolution time (not input index) this would fail.
+    const delays = [40, 30, 20, 10, 0];
+    const result = await mapWithConcurrency(delays, 5, (delay, index) => {
+      return new Promise<number>((resolve) => {
+        setTimeout(() => resolve(index), delay);
+      });
+    });
+    expect(result).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it('never runs more than `limit` tasks concurrently', async () => {
+    const items = Array.from({ length: 10 }, (_, i) => i);
+    let running = 0;
+    let maxRunning = 0;
+    const limit = 3;
+
+    await mapWithConcurrency(items, limit, async (item) => {
+      running += 1;
+      maxRunning = Math.max(maxRunning, running);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      running -= 1;
+      return item * 2;
+    });
+
+    expect(maxRunning).toBeLessThanOrEqual(limit);
+    expect(maxRunning).toBeGreaterThan(0);
+  });
+
+  it('returns [] and never calls fn for empty input', async () => {
+    const fn = vi.fn(async (item: number) => item);
+    const result = await mapWithConcurrency<number, number>([], 5, fn);
+    expect(result).toEqual([]);
+    expect(fn).not.toHaveBeenCalled();
   });
 });
