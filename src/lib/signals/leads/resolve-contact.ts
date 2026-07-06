@@ -84,7 +84,7 @@ async function tryEnrichment(
   _primary: SignalLeadContactRow | null,
   fastOnly = false,
 ): Promise<string | null> {
-  const found = await enrichFounderContact(lead, { fastOnly });
+  const found = await enrichFounderContact(lead, { fastOnly, client, workspaceId });
   if (!found?.linkedinUrl) return null;
 
   // Replace any prior enrichment-sourced contact (avoids duplicates on a rescan);

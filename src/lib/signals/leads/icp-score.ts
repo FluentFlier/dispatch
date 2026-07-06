@@ -38,7 +38,8 @@ export async function scoreIcpFit(input: IcpFitInput): Promise<number> {
   } catch {
     return 0.5;
   }
-  const n = Number.parseFloat(raw.trim().match(/[0-9]*\.?[0-9]+/)?.[0] ?? '');
+  // Capture an optional leading minus so a negative score clamps to 0, not 1.
+  const n = Number.parseFloat(raw.trim().match(/-?[0-9]*\.?[0-9]+/)?.[0] ?? '');
   if (Number.isNaN(n)) return 0.5;
   return Math.max(0, Math.min(1, n));
 }
