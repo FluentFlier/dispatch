@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
 import { syncEngagementComments } from '@/lib/engagement/sync';
-import { categorizeRecentEngagers } from '@/lib/engagement/categorize-leads';
+import { refreshLeadCategories } from '@/lib/engagement/categorize-engagers';
 import { isEnabled } from '@/lib/feature-flags';
 import { logError, logInfo } from '@/lib/logger';
 import { prodMining } from '@/lib/hooks-intelligence/prod-mining';
@@ -46,17 +46,22 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
           errors: result.errors,
         });
 
-        // === CLOSED LOOP: categorize engagers into lead_categories ===
+        // === CLOSED LOOP: rebuild the audience/lead snapshot from synced
+        // comments + reactions. Gated by feature flag; failures here must not
+        // fail the sync — categorization is derived data. RL hook scoring is
+        // handled separately by the nightly intelligence-sync cron.
         await usage.track(userId, 'analytics', { source: 'cron-engagement-sync' });
 
         if (await isEnabled(client, 'loop_engagement_categorize')) {
           try {
-            const leadResult = await categorizeRecentEngagers(client, userId);
-            if (leadResult.categorized > 0) {
-              logInfo('[engagement-sync] lead categorization', { userId, ...leadResult });
-            }
+            const categorized = await refreshLeadCategories(client, userId);
+            logInfo('engagement-sync lead categorization', {
+              userId,
+              engagers: categorized.engagers,
+              ...categorized.categorized,
+            });
           } catch (catErr) {
-            logError('engagement-sync categorize failed', {
+            logError('lead categorization failed', {
               userId,
               message: catErr instanceof Error ? catErr.message : String(catErr),
             });

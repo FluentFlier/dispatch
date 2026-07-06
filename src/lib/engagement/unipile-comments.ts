@@ -1,4 +1,5 @@
 import { getServerClient } from '@/lib/insforge/server';
+import { retryWithBackoff, throwIfNotOk } from '@/lib/social/reliability';
 
 /**
  * Unified comment fetched from Unipile's GET /posts/{social_id}/comments endpoint.
@@ -89,7 +90,7 @@ function extractComments(json: unknown, fallbackPlatform: string): UnipileFetche
 /**
  * Resolves the Unipile account_id for a user+platform from the social_accounts table.
  */
-async function getUnipileAccountId(userId: string, platform: string): Promise<string | null> {
+export async function getUnipileAccountId(userId: string, platform: string): Promise<string | null> {
   const client = getServerClient();
   const { data } = await client.database
     .from('social_accounts')
@@ -117,15 +118,16 @@ export async function fetchUnipilePostComments(
   if (!accountId) return [];
 
   const params = new URLSearchParams({ account_id: accountId });
-  const res = await unipoleFetch(
-    `/posts/${encodeURIComponent(socialId)}/comments?${params.toString()}`,
-    { method: 'GET' },
+  // Retry transient failures (429/5xx) with backoff; permanent 4xx fail fast.
+  const res = await retryWithBackoff(async () =>
+    throwIfNotOk(
+      await unipoleFetch(
+        `/posts/${encodeURIComponent(socialId)}/comments?${params.toString()}`,
+        { method: 'GET' },
+      ),
+      'Unipile get comments',
+    ),
   );
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Unipile get comments failed: ${res.status} ${body.slice(0, 200)}`);
-  }
 
   const json = await res.json();
   return extractComments(json, platform);
