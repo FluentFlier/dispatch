@@ -66,11 +66,20 @@ const SIGNAL_STATUS_TO_LEAD_STATUS: Record<SignalEventStatus, string> = {
  */
 export function normalizeEvent(e: SignalEventWithPost): UnifiedLeadCard {
   const platform = e.raw_post?.platform ?? 'x';
+  // Detection doesn't always resolve a company (un-named accelerator/funding
+  // posts), and stale rows can carry junk fragments in company_name. Rather
+  // than render a blank or garbage headline, fall back through the next-best
+  // identifiers so the card always shows something a human can act on.
+  const companyName = e.company_name?.trim()
+    || e.person_name?.trim()
+    || e.raw_post?.author_name?.trim()
+    || e.raw_post?.author_handle?.trim().replace(/^@/, '')
+    || 'Unknown company';
   return {
     id: e.id,
     kind: 'signal',
     source: platform === 'linkedin' ? 'linkedin' : 'x',
-    companyName: e.company_name,
+    companyName,
     tagline: null,
     signalType: e.signal_type,
     signalSummary: e.signal_summary,
