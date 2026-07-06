@@ -1,16 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { encryptToken } from '@/lib/crypto';
+import { getSocialProviderMode } from '@/lib/env';
 
-// GET: Handle LinkedIn OAuth 2.0 callback
+// GET: Legacy LinkedIn OAuth callback — social connect is Unipile-only now.
 export async function GET(request: NextRequest): Promise<NextResponse> {
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+
+  // Stale LinkedIn app redirects land here. Send users to the supported flow.
+  if (getSocialProviderMode() === 'unipile' || !process.env.LINKEDIN_CLIENT_ID) {
+    const connectUrl = new URL('/api/social-accounts/connect/unipile', appUrl);
+    connectUrl.searchParams.set('return', 'settings');
+    return NextResponse.redirect(connectUrl.toString());
+  }
+
   const clientId = process.env.LINKEDIN_CLIENT_ID;
   const clientSecret = process.env.LINKEDIN_CLIENT_SECRET;
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
   if (!clientId || !clientSecret) {
-    return redirectWithError('LinkedIn API credentials not configured');
+    return redirectWithError(
+      'Direct LinkedIn OAuth is disabled. Use Connect accounts (Unipile) in Settings.',
+    );
   }
+
+  const { getAuthenticatedUser, getServerClient } = await import('@/lib/insforge/server');
+  const { encryptToken } = await import('@/lib/crypto');
 
   const { searchParams } = request.nextUrl;
   const code = searchParams.get('code');

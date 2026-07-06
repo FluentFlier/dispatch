@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { getInsforge } from "@/lib/insforge/client";
 import type { ContentPillarConfig, PlatformConfig, CreatorProfile, UserSetting } from "@/types/database";
-import type { Platform } from "@/lib/constants";
+import type { DashboardPlatform, Platform } from "@/lib/constants";
+import { normalizeDashboardPlatform } from "@/lib/constants";
 import { Loader2 } from "lucide-react";
 
 import ContextEditor from "@/components/settings/ContextEditor";
@@ -109,7 +110,7 @@ export default function SettingsPage() {
   const [scheduleSaved, setScheduleSaved] = useState(false);
 
   // Section 4: Platform defaults
-  const [defaultPlatform, setDefaultPlatform] = useState<Platform>("linkedin");
+  const [defaultPlatform, setDefaultPlatform] = useState<DashboardPlatform>("linkedin");
   const [crossPostReminders, setCrossPostReminders] = useState(false);
   const [platformDefaultsSaving, setPlatformDefaultsSaving] = useState(false);
   const [platformDefaultsSaved, setPlatformDefaultsSaved] = useState(false);
@@ -166,9 +167,9 @@ export default function SettingsPage() {
     limits: { publishesPerMonth: number };
   } | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
-  // Unipile is the only supported social provider. Default true so the
-  // correct connect flow shows immediately without waiting on /api/health.
-  const [useUnipile, setUseUnipile] = useState(true);
+  // Social connect is Unipile-only in production.
+  const useUnipile = true;
+  const [unipileConfigured, setUnipileConfigured] = useState<boolean | null>(null);
 
   /* ---- Helpers ---- */
 
@@ -239,7 +240,9 @@ export default function SettingsPage() {
           } else if (s.key === "platform_defaults") {
             try {
               const parsed = JSON.parse(s.value);
-              if (parsed.defaultPlatform) setDefaultPlatform(parsed.defaultPlatform);
+              if (parsed.defaultPlatform) {
+                setDefaultPlatform(normalizeDashboardPlatform(parsed.defaultPlatform));
+              }
               if (parsed.crossPostReminders !== undefined)
                 setCrossPostReminders(parsed.crossPostReminders);
             } catch { /* ignore parse errors */ }
@@ -309,10 +312,10 @@ export default function SettingsPage() {
     fetch('/api/health')
       .then((r) => r.json().catch(() => null))
       .then((data) => {
-        if (!data?.provider) return;
-        setUseUnipile(data.provider !== 'direct');
+        if (!data?.checks) return;
+        setUnipileConfigured(data.checks.social === 'ok');
       })
-      .catch(() => undefined);
+      .catch(() => setUnipileConfigured(null));
   }, []);
 
   async function openBillingPortal() {
@@ -442,27 +445,8 @@ export default function SettingsPage() {
     }
   }
 
-  function connectAccount(platform: string) {
-    const w = 600;
-    const h = 700;
-    const left = window.screenX + (window.outerWidth - w) / 2;
-    const top = window.screenY + (window.outerHeight - h) / 2;
-    const popup = window.open(
-      `/api/social-accounts/connect/${platform}`,
-      `connect_${platform}`,
-      `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no`
-    );
-
-    if (popup) {
-      const interval = setInterval(() => {
-        if (popup.closed) {
-          clearInterval(interval);
-          fetch("/api/social-accounts")
-            .then((r) => r.ok ? r.json() : { accounts: [] })
-            .then((data) => setConnectedAccounts(data.accounts ?? []));
-        }
-      }, 500);
-    }
+  function connectAccount(_platform: string) {
+    window.location.href = '/api/social-accounts/connect/unipile?return=settings';
   }
 
   /* ---- Bio generator ---- */
@@ -473,7 +457,7 @@ export default function SettingsPage() {
 
     try {
       const name = profile?.display_name ?? displayName;
-      const prompt = `Write optimized profile bios for ${name} for Instagram, LinkedIn, X (Twitter), and Threads. Character limits: Instagram 150, LinkedIn 220, X 160, Threads 150. Bio must convey the key facts from their profile. Voice: punchy, specific, no fluff.\n\nProfile facts: ${bioFacts}\n\nReturn ONLY a JSON array with objects like: [{"platform":"Instagram","bio":"...","limit":150},{"platform":"LinkedIn","bio":"...","limit":220},{"platform":"X (Twitter)","bio":"...","limit":160},{"platform":"Threads","bio":"...","limit":150}]`;
+      const prompt = `Write optimized profile bios for ${name} for LinkedIn and X (Twitter). Character limits: LinkedIn 220, X 160. Bio must convey the key facts from their profile. Voice: punchy, specific, no fluff.\n\nProfile facts: ${bioFacts}\n\nReturn ONLY a JSON array with objects like: [{"platform":"LinkedIn","bio":"...","limit":220},{"platform":"X (Twitter)","bio":"...","limit":160}]`;
 
       const res = await fetch("/api/generate", {
         method: "POST",
@@ -533,6 +517,13 @@ export default function SettingsPage() {
       {activeTab === 'connections' && (
         <>
           <Section title="Platform Connections">
+            {unipileConfigured === false && (
+              <div className="mb-4 rounded-lg border border-coral/30 bg-coral/5 p-4 text-sm text-coral">
+                Unipile is not configured on this deployment. Add{' '}
+                <code className="text-xs">UNIPILE_API_KEY</code> and{' '}
+                <code className="text-xs">UNIPILE_DSN</code> to hosting secrets, then redeploy.
+              </div>
+            )}
             <PlatformConnections
               connectedAccounts={connectedAccounts}
               onConnect={connectAccount}

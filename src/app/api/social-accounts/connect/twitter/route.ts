@@ -1,51 +1,15 @@
-import { NextResponse } from 'next/server';
-import { TwitterApi } from 'twitter-api-v2';
+import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/insforge/server';
 
-// GET: Redirect to Twitter OAuth 2.0 authorization with PKCE
-export async function GET(): Promise<NextResponse> {
+// GET: Legacy Twitter OAuth entrypoint — redirect to Unipile hosted connect.
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const clientId = process.env.TWITTER_CLIENT_ID;
-  const clientSecret = process.env.TWITTER_CLIENT_SECRET;
-
-  if (!clientId || !clientSecret) {
-    return NextResponse.json(
-      { error: 'Twitter API credentials not configured' },
-      { status: 500 }
-    );
-  }
-
-  const client = new TwitterApi({ clientId, clientSecret });
-  const callbackUrl = `${process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'}/api/social-accounts/callback/twitter`;
-
-  // Use crypto.randomUUID for CSRF-safe state
-  const state = crypto.randomUUID();
-
-  const { url, codeVerifier } = client.generateOAuth2AuthLink(callbackUrl, {
-    scope: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
-    state,
-  });
-
-  // Store code verifier and state in httpOnly cookies for the callback
-  const response = NextResponse.redirect(url);
-  response.cookies.set('twitter_code_verifier', codeVerifier, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 600,
-  });
-  response.cookies.set('twitter_oauth_state', state, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 600,
-  });
-
-  return response;
+  const redirectUrl = new URL('/api/social-accounts/connect/unipile', request.url);
+  const returnTo = request.nextUrl.searchParams.get('return');
+  if (returnTo) redirectUrl.searchParams.set('return', returnTo);
+  return NextResponse.redirect(redirectUrl);
 }

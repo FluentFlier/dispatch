@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { DASHBOARD_PLATFORMS } from "@/lib/constants";
 import {
   Eye,
   EyeOff,
@@ -174,7 +175,7 @@ export default function PlatformConnections({
   async function connectAllViaUnipile() {
     setUnipileLoading(true);
     try {
-      window.location.href = '/api/social-accounts/connect/unipile';
+      window.location.href = '/api/social-accounts/connect/unipile?return=settings';
     } finally {
       setUnipileLoading(false);
     }
@@ -242,7 +243,7 @@ export default function PlatformConnections({
         </p>
       )}
       <div className="space-y-3">
-        {(["twitter", "linkedin", "instagram", "threads"] as const).map(
+        {DASHBOARD_PLATFORMS.map(
           (platform) => {
             const account = connectedAccounts.find(
               (a) => a.platform === platform
@@ -321,7 +322,7 @@ export default function PlatformConnections({
                           type="button"
                           onClick={() =>
                             useUnipile
-                              ? (window.location.href = '/api/social-accounts/connect/unipile')
+                              ? (window.location.href = '/api/social-accounts/connect/unipile?return=settings')
                               : onConnect(platform)
                           }
                           className="px-4 py-2 text-[12px] text-white bg-accent-primary rounded-md hover:bg-accent-primary/90 transition-colors"

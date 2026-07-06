@@ -19,23 +19,26 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const returnTo = request.nextUrl.searchParams.get('return');
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
-  const successRedirect =
-    returnTo === 'onboarding'
+  const settingsReturn = returnTo === 'onboarding' || returnTo === 'settings';
+  const successRedirect = settingsReturn
+    ? returnTo === 'onboarding'
       ? `${appUrl}/onboarding?connected=true`
-      : `${appUrl}/settings?tab=connections&connected=true`;
-  const failureRedirect =
-    returnTo === 'onboarding'
+      : `${appUrl}/settings?tab=connections&connected=true`
+    : `${appUrl}/settings?tab=connections&connected=true`;
+  const failureRedirect = settingsReturn
+    ? returnTo === 'onboarding'
       ? `${appUrl}/onboarding?error=connect_failed`
-      : `${appUrl}/settings?tab=connections&error=unipile_failed`;
+      : `${appUrl}/settings?tab=connections&error=unipile_failed`
+    : `${appUrl}/settings?tab=connections&error=unipile_failed`;
 
   const apiKey = process.env.UNIPILE_API_KEY;
   const dsn = process.env.UNIPILE_DSN;
 
   if (!apiKey || !dsn) {
-    return NextResponse.json(
-      { error: 'Unipile is not configured. Set UNIPILE_API_KEY and UNIPILE_DSN.' },
-      { status: 500 },
+    const message = encodeURIComponent(
+      'Unipile is not configured on this deployment. Set UNIPILE_API_KEY and UNIPILE_DSN.',
     );
+    return NextResponse.redirect(`${appUrl}/settings?tab=connections&error=${message}`);
   }
 
   const apiBase = `https://${dsn.replace(/\/$/, '')}/api/v1`;
