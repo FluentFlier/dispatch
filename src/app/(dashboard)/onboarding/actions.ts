@@ -55,10 +55,10 @@ export async function completeOnboardingMinimal(displayName: string) {
   const user = await getAuthenticatedUser();
   if (!user) throw new Error('Not logged in');
 
-  const oauthName = user.name;
+  const oauthName = (user as { name?: string | null }).name;
   const name = resolveDisplayName({
     oauthName,
-    fallback: displayName.trim() || 'Creator',
+    fallback: displayName.trim() || user.email || 'Creator',
   });
   const client = getServerClient();
 
