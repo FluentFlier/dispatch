@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { useToast } from '@/components/ui/Toast';
 import { FeedFilters, type FeedFilterState } from '@/components/leads/FeedFilters';
@@ -41,6 +42,7 @@ const INITIAL_FILTERS: FeedFilterState = {
  */
 export default function LeadsPage() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
 
   // Feed = the unified list (both kinds). Directory-lead map = detail source.
   const [cards, setCards] = useState<UnifiedLeadCard[]>([]);
@@ -65,6 +67,12 @@ export default function LeadsPage() {
   const [companyById, setCompanyById] = useState<Record<string, YcCompanyDetail | 'loading'>>({});
   const [draftAll, setDraftAll] = useState<{ done: number; total: number } | null>(null);
   const bootstrapped = useRef(false);
+
+  useEffect(() => {
+    if (searchParams.get('view') === 'setup') {
+      setView('setup');
+    }
+  }, [searchParams]);
 
   // --- Data loading ---
   // Directory-lead detail + settings + watchlist come from bootstrap; the feed

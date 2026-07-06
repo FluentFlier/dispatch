@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { type ComponentType } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
@@ -14,20 +15,22 @@ import {
   PenLine,
   Settings,
   SlidersHorizontal,
+  Target,
 } from 'lucide-react';
 import { primaryNav, moreNav } from '@/lib/nav-config';
 
-const navIcons = {
+const navIcons: Record<string, ComponentType<{ className?: string }>> = {
   '/dashboard': Home,
   '/generate': PenLine,
   '/library': FileText,
   '/calendar': CalendarDays,
   '/inbox': MessageSquare,
+  '/leads': Target,
   '/ideas': Lightbulb,
   '/voice-lab': SlidersHorizontal,
   '/analytics': BarChart3,
   '/settings': Settings,
-} as const;
+};
 
 export default function BottomBar() {
   const pathname = usePathname();
