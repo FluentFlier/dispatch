@@ -70,6 +70,7 @@ export function SignalsSetup() {
   const [newSourceHandle, setNewSourceHandle] = useState('');
   const [newSourcePlatform, setNewSourcePlatform] = useState<'x' | 'linkedin'>('x');
   const [enablingSend, setEnablingSend] = useState(false);
+  const [togglingAuto, setTogglingAuto] = useState(false);
   const [connectingToolkit, setConnectingToolkit] = useState<'slack' | 'gmail' | null>(null);
   const [composioConfigured, setComposioConfigured] = useState(true);
   const loaded = useRef(false);
@@ -148,6 +149,38 @@ export function SignalsSetup() {
       setError(e instanceof Error ? e.message : 'Could not turn on sending');
     } finally {
       setEnablingSend(false);
+    }
+  };
+
+  const toggleAutoSend = async () => {
+    if (!safety) return;
+    setTogglingAuto(true);
+    setError(null);
+    try {
+      const next = !safety.settings.auto_send_enabled;
+      const res = await fetch('/api/signals/safety', {
+        method: 'PATCH',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          auto_send_enabled: next,
+          ...(next ? { outreach_enabled: true, dry_run: false } : {}),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? 'Could not update auto-send.');
+      }
+      setSafety(await res.json());
+      setSuccess(
+        next
+          ? 'Auto-connect on. New ICP leads get playbooks + timed LinkedIn invites (daily/weekly caps apply).'
+          : 'Auto-connect off. Approve each connect manually.',
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not update auto-send.');
+    } finally {
+      setTogglingAuto(false);
     }
   };
 
@@ -350,15 +383,35 @@ export function SignalsSetup() {
                 {safety.settings.dry_run ? 'On' : 'Off'}
               </dd>
             </div>
+            <div className="rounded-md border border-border bg-bg-primary px-3 py-2">
+              <dt className="text-text-tertiary">Auto-connect</dt>
+              <dd className="text-text-primary font-medium">
+                {safety.settings.auto_send_enabled ? 'On' : 'Off'}
+              </dd>
+            </div>
           </dl>
         )}
-        <button
-          type="button"
-          onClick={fetchSafety}
-          className="text-xs font-medium text-accent-primary hover:underline"
-        >
-          Refresh usage
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={toggleAutoSend}
+            disabled={togglingAuto || !safety}
+            className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md border border-border bg-bg-primary hover:border-accent-primary/40 disabled:opacity-50 min-h-[40px]"
+          >
+            {togglingAuto
+              ? 'Updating…'
+              : safety?.settings.auto_send_enabled
+                ? 'Turn off auto-connect'
+                : 'Enable auto-connect'}
+          </button>
+          <button
+            type="button"
+            onClick={fetchSafety}
+            className="text-xs font-medium text-accent-primary hover:underline min-h-[40px] px-2"
+          >
+            Refresh usage
+          </button>
+        </div>
       </section>
 
       {/* --- Integrations --- */}

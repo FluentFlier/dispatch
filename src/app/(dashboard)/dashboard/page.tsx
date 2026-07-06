@@ -26,6 +26,7 @@ import NeedsAttention, { type AttentionItem } from '@/components/dashboard/Needs
 import { CreatorBrainCard } from '@/components/dashboard/CreatorBrainCard';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { MorningBriefCard } from '@/components/dashboard/MorningBriefCard';
+import { GtmCommandCenter } from '@/components/dashboard/GtmCommandCenter';
 import { getUserEntitlements } from '@/lib/entitlements';
 import { SectionHeader } from '@/components/layout/SectionHeader';
 import CalendarConnectionCard from '@/components/calendar/CalendarConnectionCard';
@@ -295,6 +296,8 @@ export default async function DashboardPage() {
       </section>
 
       <QuickActions />
+
+      <GtmCommandCenter />
 
       <MorningBriefCard brief={morningBrief} />
 

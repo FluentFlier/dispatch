@@ -16,7 +16,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
-import type { SignalLeadWithContacts } from '@/lib/signals/types';
+import type { SignalLeadWithContacts, LeadPlaybook } from '@/lib/signals/types';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 
 /** LinkedIn connect-note character ceiling; drafts over this can't be approved. */
@@ -98,6 +98,7 @@ interface LeadDetailProps {
   onDismiss: () => void;
   onResolve: (force?: boolean) => void;
   onFollow: () => void;
+  onPlanNurture?: () => void;
 }
 
 interface LeadNote {
@@ -127,6 +128,7 @@ export function LeadDetail({
   onDismiss,
   onResolve,
   onFollow,
+  onPlanNurture,
 }: LeadDetailProps) {
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [noteText, setNoteText] = useState('');
@@ -316,6 +318,27 @@ export function LeadDetail({
         </div>
       ) : null}
 
+      {/* Nurture playbook */}
+      <section className="space-y-2 border border-border rounded-lg p-3 bg-bg-secondary/40">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary flex items-center gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" /> Nurture plan
+          </p>
+          {onPlanNurture && lead.contact_status === 'resolved' && !lead.playbook && (
+            <Button variant="secondary" size="sm" onClick={onPlanNurture} loading={busy}>
+              Plan outreach
+            </Button>
+          )}
+        </div>
+        {lead.playbook ? (
+          <PlaybookView playbook={lead.playbook as LeadPlaybook} stage={lead.nurture_stage} due={lead.next_action_at} />
+        ) : (
+          <p className="text-xs text-text-tertiary">
+            Generate a 4-step plan: research → comment → connect → follow-up DM. Connect note drafts in your voice.
+          </p>
+        )}
+      </section>
+
       {/* Develop: notes + watch */}
       <section className="space-y-2 border border-border rounded-lg p-3 bg-bg-secondary/40">
         <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary flex items-center gap-1.5">
@@ -415,6 +438,42 @@ export function LeadDetail({
           </Button>
         </div>
       )}
+    </div>
+  );
+}
+
+function PlaybookView({
+  playbook,
+  stage,
+  due,
+}: {
+  playbook: LeadPlaybook;
+  stage?: string | null;
+  due?: string | null;
+}) {
+  return (
+    <div className="space-y-2 text-sm">
+      <p className="text-text-secondary">
+        <span className="font-medium text-text-primary">Why: </span>
+        {playbook.whyThem}
+      </p>
+      <p className="text-text-secondary">
+        <span className="font-medium text-text-primary">Angle: </span>
+        {playbook.angle}
+      </p>
+      {stage && (
+        <p className="text-xs text-text-tertiary">
+          Stage: {stage.replace(/_/g, ' ')}
+          {due ? ` · next action ${new Date(due).toLocaleDateString()}` : ''}
+        </p>
+      )}
+      <ol className="list-decimal list-inside space-y-1 text-xs text-text-secondary">
+        {playbook.steps.map((s) => (
+          <li key={`${s.type}-${s.label}`} className={s.status === 'done' ? 'line-through opacity-60' : ''}>
+            {s.label}
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }

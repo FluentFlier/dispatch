@@ -384,6 +384,24 @@ export default function LeadsPage() {
     }
   };
 
+  const handlePlanNurture = async (id: string) => {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/leads/${id}/playbook`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Plan failed');
+      mergeLead(data.lead);
+      if (data.lead?.outreach?.draft_text) {
+        setDrafts((d) => ({ ...d, [id]: data.lead.outreach.draft_text }));
+      }
+      toast('Nurture plan ready — connect queued.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not plan nurture.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const handleFollowLead = async (lead: SignalLeadWithContacts) => {
     try {
       const res = await fetch('/api/leads/followed', {
@@ -571,6 +589,7 @@ export default function LeadsPage() {
                 onDismiss={() => handleDismiss(selectedLead.id)}
                 onResolve={(force?: boolean) => handleResolve(selectedLead.id, force ?? false)}
                 onFollow={() => handleFollowLead(selectedLead)}
+                onPlanNurture={() => handlePlanNurture(selectedLead.id)}
               />
             ) : (
               <SignalDetail
