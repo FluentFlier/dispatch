@@ -7,6 +7,7 @@ import {
   signalTypeLabel,
   contactPillLabel,
   isReachable,
+  scoreChip,
 } from './feed-format';
 
 interface LeadCardProps {
@@ -33,6 +34,8 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown }: Lead
   // Prefer the signal chip when present; fall back to the tagline for directory rows.
   const signal = card.signalType ? signalTypeLabel(card.signalType) : null;
   const summary = card.tagline || card.signalSummary || null;
+  // Hidden (null) for near-zero ICP scores so a wall of "0.00" doesn't read as broken.
+  const scoreLabel = scoreChip(card.score);
 
   return (
     <button
@@ -42,7 +45,7 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown }: Lead
       aria-selected={selected}
       aria-label={`${card.companyName ?? 'Unknown company'}, ${badge.label} ${
         badge.live ? 'live signal' : 'directory'
-      }${signal ? `, ${signal}` : ''}, ${pill}, score ${card.score.toFixed(2)}`}
+      }${signal ? `, ${signal}` : ''}, ${pill}${scoreLabel ? `, score ${scoreLabel}` : ''}`}
       onClick={onSelect}
       onKeyDown={onKeyDown}
       className={`w-full text-left px-4 py-3 border-b border-border last:border-0 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-inset ${
@@ -70,7 +73,7 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown }: Lead
         </span>
         <span className="text-xs text-text-tertiary shrink-0 flex items-center gap-1">
           {followed && <Pin className="h-3 w-3 text-accent-secondary" aria-hidden="true" />}
-          {card.score.toFixed(2)}
+          {scoreLabel}
         </span>
       </div>
 

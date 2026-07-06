@@ -9,6 +9,7 @@ import { classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import { normalizeEvent } from '@/lib/signals/feed/normalize';
 import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
 import { DEFAULT_SAFETY_SETTINGS } from '@/lib/signals/safety/limits';
+import { scoreChip } from '@/components/leads/feed-format';
 import type { IngestedPost, SignalEventWithPost } from '@/lib/signals/types';
 
 const post = (content: string): IngestedPost => ({
@@ -178,6 +179,24 @@ describe('Phase: Leads bugfixes', () => {
       // workspace rows. Locking this to true ensures a freshly onboarded
       // workspace never auto-sends live outreach before a human opts in.
       expect(DEFAULT_SAFETY_SETTINGS.dry_run).toBe(true);
+    });
+  });
+
+  describe('Task 6: hide near-zero ICP score chips in the feed', () => {
+    it('hides the chip (returns null) for a score of 0.00', () => {
+      expect(scoreChip(0.0)).toBeNull();
+    });
+
+    it('hides the chip (returns null) for a score just below the threshold (0.14)', () => {
+      expect(scoreChip(0.14)).toBeNull();
+    });
+
+    it('shows the chip at the threshold (0.15)', () => {
+      expect(scoreChip(0.15)).toBe('0.15');
+    });
+
+    it('shows the chip for a high score (0.99)', () => {
+      expect(scoreChip(0.99)).toBe('0.99');
     });
   });
 });
