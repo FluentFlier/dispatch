@@ -39,7 +39,28 @@ export async function classifyPostHybridWithMeta(
   opts: HybridOptions = {},
 ): Promise<HybridResult> {
   const keyword = classifyPost(post);
-  if (keyword) return { signal: keyword, escalated: false };               // obvious keyword hit
+  if (keyword) {
+    // Regex often cannot name the company on "we joined YC W26" style posts.
+    // Recover it via the LLM ONLY when the keyword stage produced no company,
+    // so cost stays bounded to the exact gap.
+    if (!keyword.companyName) {
+      const enriched = await confirmSignalWithLLM(post);
+      if (enriched?.companyName) {
+        return {
+          signal: {
+            ...keyword,
+            companyName: enriched.companyName,
+            personName: keyword.personName ?? enriched.personName,
+            acceleratorName: keyword.acceleratorName ?? enriched.acceleratorName,
+            batch: keyword.batch ?? enriched.batch,
+          },
+          escalated: true,
+        };
+      }
+      return { signal: keyword, escalated: true }; // LLM ran, found nothing new
+    }
+    return { signal: keyword, escalated: false };
+  }
   if (!opts.highValueSource) return { signal: null, escalated: false };    // untracked miss -> drop
   const signal = await confirmSignalWithLLM(post);                        // tracked miss -> LLM decides
   return { signal, escalated: true };
