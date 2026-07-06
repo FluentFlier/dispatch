@@ -129,9 +129,10 @@ export function ScriptGenerator({
   initialMentions = [],
   autoGenerate = false,
 }: ScriptGeneratorProps) {
+  const mentionSeed = initialMentions.join(',');
   const stableInitialMentions = useMemo(
     () => mergeMentions(initialMentions),
-    [initialMentions.join(',')],
+    [mentionSeed, initialMentions],
   );
   const { pillars: pillarList, loading: pillarsLoading, getLabel } = usePillars();
   const { preferredPostLength, voiceEnabled, loading: prefLoading } = useCreatorPreferences();
