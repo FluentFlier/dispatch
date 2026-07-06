@@ -16,19 +16,26 @@ import { normalizeEvent, normalizeLead, type UnifiedLeadCard } from '@/lib/signa
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
+/** Shared page size for the unified feed, applied to both sources and the merged result. */
+export const FEED_PAGE_LIMIT = 100;
+
 /** Query filters accepted by the unified feed. `status: 'all'` disables the status filter. */
 export interface FeedFilters {
   status?: string;
   source?: string;
   kind?: 'signal' | 'directory';
   signalType?: string;
+  limit?: number;
 }
 
 /**
  * Merges already-normalized directory and signal cards into one list, applies
- * the requested filters, and sorts by score (desc) then recency (desc). Pure
- * and DB-free so callers (and tests) don't need to touch the database to
- * exercise the feed's ordering/filtering behavior.
+ * the requested filters, sorts by score (desc) then recency (desc), and caps
+ * the result to the page limit (default `FEED_PAGE_LIMIT`). Merging two lists
+ * of N cards can yield up to 2N cards, so the cap is applied after sort/filter
+ * to keep the top-scored slice. Pure and DB-free so callers (and tests) don't
+ * need to touch the database to exercise the feed's ordering/filtering
+ * behavior.
  */
 export function mergeFeed(
   directoryCards: UnifiedLeadCard[],
@@ -42,8 +49,10 @@ export function mergeFeed(
   if (filters.status && filters.status !== 'all') {
     cards = cards.filter((c) => c.status === filters.status);
   }
-  return cards.sort((a, b) =>
+  const sorted = cards.sort((a, b) =>
     b.score - a.score || Date.parse(b.detectedAt) - Date.parse(a.detectedAt));
+  const limit = filters.limit ?? FEED_PAGE_LIMIT;
+  return sorted.slice(0, limit);
 }
 
 /**
@@ -58,9 +67,10 @@ export async function buildUnifiedFeed(
   workspaceId: string,
   filters: FeedFilters = {},
 ): Promise<UnifiedLeadCard[]> {
+  const limit = Math.min(Math.max(filters.limit ?? FEED_PAGE_LIMIT, 1), 200);
   const [leads, events] = await Promise.all([
-    listLeads(client, workspaceId),
-    listEventsWithPosts(client, workspaceId),
+    listLeads(client, workspaceId, { limit }),
+    listEventsWithPosts(client, workspaceId, { limit }),
   ]);
-  return mergeFeed(leads.map(normalizeLead), events.map(normalizeEvent), filters);
+  return mergeFeed(leads.map(normalizeLead), events.map(normalizeEvent), { ...filters, limit });
 }

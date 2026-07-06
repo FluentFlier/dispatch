@@ -240,3 +240,114 @@ DO $$ BEGIN
     FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
+
+-- agent API keys (headless agents)
+CREATE TABLE IF NOT EXISTS agent_api_keys (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  name text NOT NULL,
+  key_prefix text NOT NULL,
+  key_hash text NOT NULL UNIQUE,
+  scopes text[] NOT NULL DEFAULT ARRAY['read','write']::text[],
+  last_used_at timestamptz,
+  revoked_at timestamptz,
+  created_at timestamptz DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS agent_api_keys_user ON agent_api_keys (user_id);
+CREATE INDEX IF NOT EXISTS agent_api_keys_hash ON agent_api_keys (key_hash) WHERE revoked_at IS NULL;
+
+ALTER TABLE agent_api_keys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE agent_api_keys FORCE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY agent_api_keys_select ON agent_api_keys
+    FOR SELECT USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY agent_api_keys_insert ON agent_api_keys
+    FOR INSERT WITH CHECK (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY agent_api_keys_update ON agent_api_keys
+    FOR UPDATE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY agent_api_keys_delete ON agent_api_keys
+    FOR DELETE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+DO $$ BEGIN
+  CREATE POLICY agent_api_keys_project_admin ON agent_api_keys
+    FOR ALL TO project_admin USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL;
+END $$;
+
+-- Warm contacts + social graph read cache (UseSocial-style)
+CREATE TABLE IF NOT EXISTS warm_contacts (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  workspace_id uuid,
+  platform text NOT NULL DEFAULT 'linkedin',
+  provider_profile_id text,
+  public_identifier text,
+  display_name text,
+  headline text,
+  profile_url text,
+  reaction_type text,
+  source_post_id uuid,
+  source_post_title text,
+  category text NOT NULL DEFAULT 'Other',
+  status text NOT NULL DEFAULT 'new' CHECK (status IN ('new','drafted','sent','dismissed')),
+  outreach_draft text,
+  outreach_channel text,
+  last_synced_at timestamptz DEFAULT now() NOT NULL,
+  created_at timestamptz DEFAULT now() NOT NULL,
+  updated_at timestamptz DEFAULT now() NOT NULL
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS warm_contacts_dedupe
+  ON warm_contacts (user_id, platform, coalesce(provider_profile_id, public_identifier, id::text));
+
+CREATE INDEX IF NOT EXISTS warm_contacts_user ON warm_contacts (user_id, status);
+
+ALTER TABLE warm_contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE warm_contacts FORCE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY warm_contacts_select ON warm_contacts FOR SELECT USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY warm_contacts_insert ON warm_contacts FOR INSERT WITH CHECK (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY warm_contacts_update ON warm_contacts FOR UPDATE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY warm_contacts_delete ON warm_contacts FOR DELETE USING (user_id = auth.uid());
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN
+  CREATE POLICY warm_contacts_project_admin ON warm_contacts FOR ALL TO project_admin USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+CREATE TABLE IF NOT EXISTS social_graph_read_cache (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  cache_key text NOT NULL UNIQUE,
+  payload jsonb NOT NULL,
+  expires_at timestamptz NOT NULL,
+  created_at timestamptz DEFAULT now() NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS social_graph_read_cache_expires ON social_graph_read_cache (expires_at);
+
+-- Warm contacts cron (engagement-sync closed loop)
+INSERT INTO feature_flags (name, enabled, description) VALUES
+  ('loop_warm_contacts_sync', true, 'Sync warm contacts from post reactions in engagement cron')
+ON CONFLICT (name) DO NOTHING;

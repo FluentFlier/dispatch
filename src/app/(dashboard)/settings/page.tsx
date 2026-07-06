@@ -18,6 +18,7 @@ import ProfileEditor from "@/components/settings/ProfileEditor";
 import AutoOptimizeToggle from "@/components/settings/AutoOptimizeToggle";
 import VoiceDefaultToggle from "@/components/settings/VoiceDefaultToggle";
 import HookWatchlistEditor from "@/components/settings/HookWatchlistEditor";
+import AgentAccessCard from "@/components/settings/AgentAccessCard";
 import { PageHeader } from "@/components/layout/PageHeader";
 
 /* ------------------------------------------------------------------ */
@@ -680,6 +681,9 @@ export default function SettingsPage() {
 
       {activeTab === 'tools' && (
         <>
+          <Section title="Agent access">
+            <AgentAccessCard />
+          </Section>
           <Section title="Hook mining watchlist">
             <HookWatchlistEditor />
           </Section>

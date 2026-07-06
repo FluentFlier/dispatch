@@ -18,7 +18,8 @@
     "hooks:research": "npx tsx scripts/research-hooks.ts",
     "hooks:listen": "npx tsx scripts/research-hooks.ts --all",
     "db:intelligence": "bash scripts/apply-all-intelligence.sh",
-    "deploy:insforge": "bash scripts/deploy-insforge.sh"
+    "db:agent": "bash scripts/apply-agent-integration.sh",
+    "deploy:vercel": "bash scripts/deploy-vercel.sh"
   },
   "dependencies": {
     "@composio/core": "^0.13.1",

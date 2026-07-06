@@ -40,15 +40,26 @@ export async function GET(): Promise<NextResponse> {
     .eq('status', 'published');
   if (workspaceId) jobsQuery = jobsQuery.eq('workspace_id', workspaceId);
 
-  const [postsRes, setsRes, reviewsRes, leadsRes, jobsRes] = await Promise.all([
-    postsQuery,
-    setsQuery,
-    reviewsQuery,
-    client.database.from('lead_categories')
-      .select('category')
-      .eq('user_id', user.id),
-    jobsQuery,
-  ]);
+  const [postsRes, setsRes, reviewsRes, leadsRes, jobsRes, reactionsRes, commentersRes] =
+    await Promise.all([
+      postsQuery,
+      setsQuery,
+      reviewsQuery,
+      client.database.from('lead_categories')
+        .select('category')
+        .eq('user_id', user.id),
+      jobsQuery,
+      // Reaction/commenter aggregates are computed in JS: the SDK has no
+      // GROUP BY, and per-user row counts stay small at these limits.
+      client.database.from('post_reactions')
+        .select('reaction_type')
+        .eq('user_id', user.id)
+        .limit(2000),
+      client.database.from('post_comments')
+        .select('author_name, author_handle, author_headline')
+        .eq('user_id', user.id)
+        .limit(2000),
+    ]);
 
   if (postsRes.error) return NextResponse.json({ error: postsRes.error.message }, { status: 500 });
   if (setsRes.error) return NextResponse.json({ error: setsRes.error.message }, { status: 500 });
@@ -93,6 +104,40 @@ export async function GET(): Promise<NextResponse> {
   }));
   const bestTimes = computeBestTimes(timingPosts);
 
+  // Reaction-type distribution (LIKE/PRAISE/etc.).
+  const reactionBreakdown: Record<string, number> = {};
+  for (const row of (reactionsRes.data ?? []) as Array<{ reaction_type: string }>) {
+    reactionBreakdown[row.reaction_type] = (reactionBreakdown[row.reaction_type] ?? 0) + 1;
+  }
+
+  // Top commenters ranked by comment count, deduped by handle-or-name.
+  const commenterMap = new Map<
+    string,
+    { name: string; handle: string | null; headline: string | null; count: number }
+  >();
+  for (const row of (commentersRes.data ?? []) as Array<{
+    author_name: string | null;
+    author_handle: string | null;
+    author_headline: string | null;
+  }>) {
+    const key = (row.author_handle ?? row.author_name ?? '').trim().toLowerCase();
+    if (!key) continue;
+    const existing = commenterMap.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      commenterMap.set(key, {
+        name: row.author_name ?? row.author_handle ?? 'Unknown',
+        handle: row.author_handle,
+        headline: row.author_headline,
+        count: 1,
+      });
+    }
+  }
+  const topCommenters = Array.from(commenterMap.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8);
+
   return NextResponse.json({
     userId: user.id,
     totalViews,
@@ -105,6 +150,12 @@ export async function GET(): Promise<NextResponse> {
     reviews: reviewsRes.data ?? [],
     leadCounts,
     bestTimes,
+    engagement: {
+      reactionBreakdown,
+      totalReactions: (reactionsRes.data ?? []).length,
+      totalComments: (commentersRes.data ?? []).length,
+      topCommenters,
+    },
   });
 }
 

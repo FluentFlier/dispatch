@@ -115,15 +115,18 @@ export async function listEvents(
  * Lists signal events hydrated with their raw post, newest first, for the
  * unified leads feed (Task 6). Unlike `listEvents`, this has no status/type
  * filters (the feed store filters after normalizing both sources) and caps at
- * 200 rows. Uses explicit columns for the event row plus the same
- * raw_post embed as `listEvents` — no `select('*')` with an unfiltered
- * `.order()` chained on, since that combination has been observed to collapse
- * embedded-resource queries to a single row on this backend.
+ * `opts.limit` rows (default 200, same ceiling as before this took a `limit`).
+ * Uses explicit columns for the event row plus the same raw_post embed as
+ * `listEvents` — no `select('*')` with an unfiltered `.order()` chained on,
+ * since that combination has been observed to collapse embedded-resource
+ * queries to a single row on this backend.
  */
 export async function listEventsWithPosts(
   client: InsforgeClient,
   workspaceId: string,
+  opts: { limit?: number } = {},
 ): Promise<SignalEventWithPost[]> {
+  const limit = Math.min(opts.limit ?? 200, 200);
   const { data, error } = await client.database
     .from('signal_events')
     .select(`
@@ -133,7 +136,7 @@ export async function listEventsWithPosts(
       raw_post:signal_raw_posts(*)
     `)
     .eq('workspace_id', workspaceId)
-    .limit(200);
+    .limit(limit);
 
   if (error) throw error;
 

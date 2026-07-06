@@ -13,10 +13,19 @@ import { computeFitScore, computeRankScore } from '@/lib/signals/leads/score';
 import { scoreIcpFit } from '@/lib/signals/leads/icp-score';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import { signalsDebugEnabled, signalsEnrichInlineEnabled } from '@/lib/signals/ingest/config';
+import { mapWithConcurrency } from '@/lib/util/concurrency';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
 const MAX_LEADS_PER_RUN = 200;
+
+/**
+ * Cap on concurrent scoreIcpFit (LLM) calls during the re-score pass. Matches
+ * the batch size already used for other bounded LLM fan-out in signals-sync -
+ * fast enough to avoid a fully serial per-lead loop, bounded enough to avoid
+ * unleashing MAX_LEADS_PER_RUN simultaneous LLM calls.
+ */
+const ICP_CONCURRENCY = 5;
 
 export interface DirectorySyncResult {
   inserted: number;
@@ -100,6 +109,9 @@ export async function syncWorkspaceDirectory(
   // fastOnly keeps the scrape within the request timeout.
   const fastOnly = !signalsEnrichInlineEnabled();
   const leads = await listLeads(client, workspaceId, { limit: MAX_LEADS_PER_RUN });
+
+  // Phase A (sequential): resolve contacts. External HTTP per lead, kept
+  // serial to avoid hammering the resolution providers.
   for (const lead of leads) {
     // Retry anything not yet resolved (unresolved AND prior no_contact) — a lead
     // marked no_contact before the fast YC-detail lookup existed can now resolve.
@@ -109,28 +121,40 @@ export async function syncWorkspaceDirectory(
       if (res.status === 'no_contact') result.noContact += 1;
       lead.contact_status = res.status;
     }
+  }
+
+  // Phase B (bounded-concurrent): LLM-graded ICP fit per lead. This is the
+  // only step whose scheduling changes - same inputs/outputs as the prior
+  // serial loop, just run with up to ICP_CONCURRENCY in flight at once.
+  //
+  // Per-workspace daily budget gate: each scored lead is one LLM call, and a run
+  // scores up to MAX_LEADS_PER_RUN (200) leads — repeatable via "Scrape now".
+  // Without a cap this alone could drain provider credits. checkAndIncrementUsage
+  // enforces the workspace's daily haiku cap; once hit, remaining leads fall back
+  // to the neutral 0.5 score (deterministic `fit` then dominates the blend), so
+  // ranking still degrades gracefully instead of erroring.
+  const icpConfigured = settings.icp_verticals.length > 0 || settings.icp_keywords.length > 0;
+  const icpFits = await mapWithConcurrency(leads, ICP_CONCURRENCY, async (lead) => {
+    if (!icpConfigured) return 0.5;
+    const budget = await checkAndIncrementUsage(client, workspaceId, 'haiku');
+    if (budget === 'blocked') return 0.5;
+    return scoreIcpFit({
+      companyName: lead.company_name,
+      tagline: lead.tagline,
+      tags: lead.tags,
+      verticals: settings.icp_verticals,
+      keywords: settings.icp_keywords,
+    });
+  });
+
+  // Phase C (sequential): blend, rank, and persist. DB writes stay serial.
+  for (let i = 0; i < leads.length; i += 1) {
+    const lead = leads[i];
     const fit = computeFitScore(lead, settings);
     // LLM-graded ICP fit dominates the blend; the deterministic heuristic
     // `fit` above only breaks ties (and is the sole signal when the LLM call
     // fails closed to neutral 0.5).
-    //
-    // Per-workspace daily budget gate: each scored lead is one LLM call, and a run
-    // scores up to MAX_LEADS_PER_RUN (200) leads — repeatable via "Scrape now".
-    // Without a cap this alone could drain provider credits. Gate on the workspace's
-    // daily haiku cap; once hit (or no ICP configured), fall back to the neutral 0.5
-    // score so the deterministic `fit` dominates and ranking degrades gracefully.
-    const icpConfigured = settings.icp_verticals.length > 0 || settings.icp_keywords.length > 0;
-    let icpFit = 0.5;
-    if (icpConfigured && (await checkAndIncrementUsage(client, workspaceId, 'haiku')) !== 'blocked') {
-      icpFit = await scoreIcpFit({
-        companyName: lead.company_name,
-        tagline: lead.tagline,
-        tags: lead.tags,
-        verticals: settings.icp_verticals,
-        keywords: settings.icp_keywords,
-      });
-    }
-    const blendedFit = Number((0.7 * icpFit + 0.3 * fit).toFixed(3));
+    const blendedFit = Number((0.7 * icpFits[i] + 0.3 * fit).toFixed(3));
     const rank = computeRankScore(lead, blendedFit, today);
     await updateLead(client, workspaceId, lead.id, { fit_score: blendedFit, rank_score: rank });
   }
