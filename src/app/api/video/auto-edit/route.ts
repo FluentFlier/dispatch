@@ -1,7 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { guardAiRequest } from '@/lib/ai-guard';
-import { errorResponse } from '@/lib/api-errors';
+import { getAuthenticatedUser } from '@/lib/insforge/server';
 import { z } from 'zod';
 
 const AutoEditRequestSchema = z.object({
@@ -15,18 +13,6 @@ const AutoEditRequestSchema = z.object({
     quality: z.enum(['720p', '1080p']).optional(),
   }),
 });
-
-function parseCaptionArray(text: string): unknown[] {
-  const jsonMatch = text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) return [];
-
-  try {
-    const parsed = JSON.parse(jsonMatch[0]);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -52,62 +38,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { videoUrl, options } = parsed.data;
   const jobId = crypto.randomUUID();
 
-  // If captions are requested, generate AI captions
+  // Caption generation previously synthesized timing data via an LLM. The video
+  // pipeline is not built yet, so calling the model just burned provider credits
+  // for a stub. The LLM call is removed but the endpoint stays wired: a caption
+  // job is still accepted and returns a completed (empty) result. Real caption
+  // timing lands when the video pipeline is implemented.
   if (options.captions) {
-    const guard = await guardAiRequest(user.id);
-    if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
-
-    try {
-      const client = getServerClient();
-      const { data: aiResponse } = await client.ai.chat.completions.create({
-        model: 'gpt-5.4-mini',
-        messages: [
-          {
-            role: 'system',
-            content: `You generate caption timing data for short-form video content. Generate a sequence of caption phrases that would work for a 30-60 second talking head video. Each phrase should be 2-5 words, timed at 30fps. Return ONLY valid JSON array. No em dashes.`,
-          },
-          {
-            role: 'user',
-            content: `Generate 8-12 caption phrases for a short-form video. Return as JSON array with objects: { "text": "phrase", "startFrame": number, "endFrame": number }. Space them evenly across 900 frames (30 seconds at 30fps). Start from frame 0.`,
-          },
-        ],
-        maxTokens: 1000,
-      });
-
-      const rawText = aiResponse?.choices?.[0]?.message?.content ?? '[]';
-      const captions = parseCaptionArray(rawText);
-
-      return NextResponse.json({
-        status: 'completed',
-        jobId,
-        captions,
-        message: 'Captions generated successfully',
-        videoUrl,
-        options,
-      });
-    } catch (err) {
-      // Non-fatal: log the real cause server-side, return graceful empty captions.
-      console.error('[auto-edit] Caption generation failed:', err);
-      return NextResponse.json({
-        status: 'completed',
-        jobId,
-        captions: [],
-        message: 'Caption generation failed, using empty captions',
-        videoUrl,
-        options,
-      });
-    }
+    return NextResponse.json({
+      status: 'completed',
+      jobId,
+      captions: [],
+      message: 'Caption generation is stubbed until the video pipeline is built.',
+      videoUrl,
+      options,
+    });
   }
 
-  // Non-caption video processing (silence removal, smart cuts, format conversion)
-  // is not yet implemented. Return 501 so the UI can show an honest "coming soon"
-  // state instead of faking a job submission that never resolves.
+  // Non-caption processing (silence removal, smart cuts, format conversion) is not
+  // yet implemented. Return 501 so the UI shows an honest "coming soon" state
+  // instead of faking a job submission that never resolves.
   return NextResponse.json(
     {
       status: 'not_available',
       message:
-        'Video processing features (silence removal, smart cuts, format conversion) are not yet available. Caption generation is the only supported option.',
+        'Video processing features (silence removal, smart cuts, format conversion) are not yet available.',
     },
-    { status: 501 }
+    { status: 501 },
   );
 }
