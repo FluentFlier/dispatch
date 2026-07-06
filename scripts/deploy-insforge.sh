@@ -32,6 +32,9 @@ fi
 echo "--- Applying intelligence migrations ---"
 bash scripts/apply-all-intelligence.sh
 
+echo "--- Applying agent + warm-contacts migrations ---"
+bash scripts/apply-agent-integration.sh
+
 echo "--- Building ---"
 npm run build
 
