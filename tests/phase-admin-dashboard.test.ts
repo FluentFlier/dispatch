@@ -33,7 +33,7 @@ describe('Phase: Admin Dashboard', () => {
       vi.resetModules();
 
       vi.doMock('@/lib/insforge/server', () => ({
-        getAuthenticatedUser: vi.fn().mockResolvedValue({ id: 'u1', email: 'user@test.com' }),
+        getSessionUser: vi.fn().mockResolvedValue({ id: 'u1', email: 'user@test.com' }),
       }));
 
       const { assertAdmin, AdminError } = await import('@/lib/admin');
@@ -46,7 +46,7 @@ describe('Phase: Admin Dashboard', () => {
       vi.resetModules();
 
       vi.doMock('@/lib/insforge/server', () => ({
-        getAuthenticatedUser: vi.fn().mockResolvedValue(null),
+        getSessionUser: vi.fn().mockResolvedValue(null),
       }));
 
       const { assertAdmin } = await import('@/lib/admin');

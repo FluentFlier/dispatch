@@ -125,6 +125,30 @@ const config: Config = {
           '0%, 100%': { opacity: '0.4' },
           '50%': { opacity: '1' },
         },
+        'land-kenburns': {
+          '0%': { transform: 'scale(1.05) translate3d(0, 0, 0)' },
+          '100%': { transform: 'scale(1.12) translate3d(-1%, -1%, 0)' },
+        },
+        'land-drift-a': {
+          '0%, 100%': { transform: 'translate3d(0, 0, 0)' },
+          '50%': { transform: 'translate3d(4%, -3%, 0)' },
+        },
+        'land-drift-b': {
+          '0%, 100%': { transform: 'translate3d(0, 0, 0)' },
+          '50%': { transform: 'translate3d(-5%, 4%, 0)' },
+        },
+        'land-drift-c': {
+          '0%, 100%': { transform: 'translate3d(0, 0, 0)' },
+          '50%': { transform: 'translate3d(3%, 5%, 0)' },
+        },
+        'land-mesh': {
+          '0%': { opacity: '0.25', transform: 'scale(1) translate3d(0, 0, 0)' },
+          '100%': { opacity: '0.45', transform: 'scale(1.04) translate3d(-1%, 1%, 0)' },
+        },
+        'land-float': {
+          '0%, 100%': { transform: 'translate3d(0, 0, 0)' },
+          '50%': { transform: 'translate3d(0, -10px, 0)' },
+        },
       },
       animation: {
         'os-marquee': 'os-marquee 46s linear infinite',
@@ -134,6 +158,12 @@ const config: Config = {
         'os-shimmer': 'os-shimmer 6s linear infinite',
         'ed-blink': 'ed-blink 1s step-end infinite',
         'ed-pulse': 'ed-pulse 2s ease-in-out infinite',
+        'land-kenburns': 'land-kenburns 28s ease-in-out infinite alternate',
+        'land-drift-a': 'land-drift-a 18s ease-in-out infinite',
+        'land-drift-b': 'land-drift-b 22s ease-in-out infinite',
+        'land-drift-c': 'land-drift-c 26s ease-in-out infinite',
+        'land-mesh': 'land-mesh 20s ease-in-out infinite alternate',
+        'land-float': 'land-float 5s ease-in-out infinite',
       },
     },
   },

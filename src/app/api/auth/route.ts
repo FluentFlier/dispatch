@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { validateAccessToken } from '@/lib/auth';
 import { ensureSoloWorkspace } from '@/lib/workspace';
-import { getServerClient } from '@/lib/insforge/server';
+import { getServiceClient } from '@/lib/insforge/server';
 import { logInfo, logWarn } from '@/lib/logger';
+import { fetchOAuthDisplayName, syncProfileDisplayNameFromOAuth } from '@/lib/user-display-name';
 
 const AuthTokenSchema = z.object({
   token: z.string().min(1, 'Token is required'),
@@ -51,6 +52,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         logWarn('auth.workspace_provision_failed', { userId: validation.userId, error: msg });
       }
     });
+
+    // Fix placeholder display names (email local-part) with OAuth profile name.
+    void (async () => {
+      const oauthName = await fetchOAuthDisplayName(parsed.data.token);
+      if (!oauthName || !validation.email) return;
+      try {
+        await syncProfileDisplayNameFromOAuth(
+          getServiceClient(),
+          validation.userId,
+          validation.email,
+          oauthName,
+        );
+      } catch (err) {
+        logWarn('auth.display_name_sync_failed', {
+          userId: validation.userId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    })();
 
     const response = NextResponse.json({ ok: true, userId: validation.userId });
     response.cookies.set('content-os-token', parsed.data.token, COOKIE_OPTS);

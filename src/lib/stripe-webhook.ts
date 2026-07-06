@@ -3,6 +3,7 @@ import { getServiceClient } from '@/lib/insforge/server';
 import type { PlanId } from '@/lib/entitlements';
 import { trackEvent } from '@/lib/analytics';
 import { logInfo } from '@/lib/logger';
+import { logStripeWebhook } from '@/lib/admin/stripe-log';
 
 function verifyStripeSignature(payload: string, signature: string, secret: string): boolean {
   const parts = signature.split(',').reduce<Record<string, string>>((acc, part) => {
@@ -49,19 +50,33 @@ export async function handleStripeWebhook(
   signature: string | null
 ): Promise<{ ok: boolean; error?: string }> {
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
-  if (!secret) return { ok: false, error: 'Webhook secret not configured' };
+  if (!secret) {
+    await logStripeWebhook({
+      eventType: 'unknown',
+      status: 'error',
+      details: { error: 'Webhook secret not configured' },
+    });
+    return { ok: false, error: 'Webhook secret not configured' };
+  }
   if (!signature || !verifyStripeSignature(payload, signature, secret)) {
+    await logStripeWebhook({
+      eventType: 'unknown',
+      status: 'error',
+      details: { error: 'Invalid signature' },
+    });
     return { ok: false, error: 'Invalid signature' };
   }
 
   const event = JSON.parse(payload) as {
+    id?: string;
     type: string;
     data: { object: Record<string, unknown> };
   };
 
   const client = getServiceClient();
 
-  switch (event.type) {
+  try {
+    switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object;
       const userId = (session.metadata as Record<string, string>)?.user_id;
@@ -151,9 +166,30 @@ export async function handleStripeWebhook(
       break;
     }
 
-    default:
-      break;
-  }
+    default: {
+      await logStripeWebhook({
+        eventId: event.id,
+        eventType: event.type,
+        status: 'ignored',
+      });
+      return { ok: true };
+    }
+    }
 
-  return { ok: true };
+    await logStripeWebhook({
+      eventId: event.id,
+      eventType: event.type,
+      status: 'ok',
+    });
+    return { ok: true };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Webhook handler failed';
+    await logStripeWebhook({
+      eventId: event.id,
+      eventType: event.type,
+      status: 'error',
+      details: { error: message },
+    });
+    return { ok: false, error: message };
+  }
 }

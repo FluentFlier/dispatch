@@ -1,6 +1,8 @@
 import { createClient } from '@insforge/sdk';
 import { cookies } from 'next/headers';
 import { isProduction } from '@/lib/env';
+import { displayNameFromAuthUser, fetchOAuthDisplayName } from '@/lib/user-display-name';
+import { applyImpersonation, type EffectiveUser } from '@/lib/admin/impersonation';
 
 /** Service-role client for cron/background jobs (no user cookie). */
 export function getServiceClient(): ReturnType<typeof createClient> {
@@ -61,7 +63,8 @@ function decodeJwtPayload(token: string): {
   email?: string;
   exp?: number;
   iat?: number;
-  user_metadata?: { email?: string; full_name?: string };
+  name?: string;
+  user_metadata?: { email?: string; full_name?: string; name?: string };
 } | null {
   try {
     const parts = token.split('.');
@@ -90,7 +93,11 @@ function decodeJwtPayload(token: string): {
  * expired. Returns null only when the token is missing, malformed, expired with
  * no refresh token, or the refresh itself fails.
  */
-export async function getAuthenticatedUser(): Promise<{ id: string; email: string } | null> {
+/**
+ * Returns the real signed-in user from JWT/session cookies (no impersonation).
+ * Use for admin checks and audit actor identity.
+ */
+export async function getSessionUser(): Promise<{ id: string; email: string; name?: string } | null> {
   try {
     const cookieStore = cookies();
     const token = cookieStore.get('content-os-token')?.value;
@@ -109,7 +116,12 @@ export async function getAuthenticatedUser(): Promise<{ id: string; email: strin
     if (!isExpired) {
       // JWT is valid — return user from claims without hitting InsForge API.
       const email = claims.email ?? claims.user_metadata?.email ?? '';
-      return { id: claims.sub, email };
+      const name =
+        claims.user_metadata?.full_name?.trim() ||
+        claims.user_metadata?.name?.trim() ||
+        claims.name?.trim() ||
+        undefined;
+      return { id: claims.sub, email, ...(name ? { name } : {}) };
     }
 
     // JWT expired — attempt server-side refresh using the refresh token cookie.
@@ -126,10 +138,19 @@ export async function getAuthenticatedUser(): Promise<{ id: string; email: strin
 }
 
 /**
+ * Returns the effective user for app routes — target user when admin impersonation is active.
+ */
+export async function getAuthenticatedUser(): Promise<EffectiveUser | null> {
+  const sessionUser = await getSessionUser();
+  if (!sessionUser) return null;
+  return applyImpersonation(sessionUser);
+}
+
+/**
  * Fallback: validate opaque (non-JWT) tokens via InsForge API.
  * Only called when the token cannot be decoded as a JWT.
  */
-async function validateViaApi(token: string): Promise<{ id: string; email: string } | null> {
+async function validateViaApi(token: string): Promise<{ id: string; email: string; name?: string } | null> {
   const rawUrl = process.env.NEXT_PUBLIC_INSFORGE_URL;
   const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY;
   if (!rawUrl || !anonKey) return null;
@@ -150,7 +171,8 @@ async function validateViaApi(token: string): Promise<{ id: string; email: strin
       return null;
     }
     if (!data?.user?.id) return null;
-    return { id: data.user.id, email: data.user.email ?? '' };
+    const name = displayNameFromAuthUser(data.user) ?? undefined;
+    return { id: data.user.id, email: data.user.email ?? '', ...(name ? { name } : {}) };
   } catch {
     return null;
   }
@@ -160,7 +182,7 @@ async function validateViaApi(token: string): Promise<{ id: string; email: strin
  * Server-side session refresh using an httpOnly refresh token cookie.
  * Stores updated tokens back into cookies on success.
  */
-async function refreshViaToken(refreshToken: string): Promise<{ id: string; email: string } | null> {
+async function refreshViaToken(refreshToken: string): Promise<{ id: string; email: string; name?: string } | null> {
   const rawUrl = process.env.NEXT_PUBLIC_INSFORGE_URL;
   const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY;
   if (!rawUrl || !anonKey) return null;
@@ -198,5 +220,10 @@ async function refreshViaToken(refreshToken: string): Promise<{ id: string; emai
     store.set('content-os-refresh', refreshed.refreshToken, cookieOpts);
   }
 
-  return { id: refreshed.user.id, email: refreshed.user.email ?? '' };
+  const name = await fetchOAuthDisplayName(refreshed.accessToken);
+  return {
+    id: refreshed.user.id,
+    email: refreshed.user.email ?? '',
+    ...(name ? { name } : {}),
+  };
 }

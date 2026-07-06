@@ -35,7 +35,7 @@ export function RetryJobButton({ jobId }: RetryJobButtonProps) {
       type="button"
       disabled={loading}
       onClick={() => void retry()}
-      className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-[#93c5fd] hover:bg-[#2563eb]/20 disabled:opacity-50"
+      className="inline-flex items-center gap-1 rounded px-2 py-1 text-xs font-medium text-accent-primary hover:bg-accent-light disabled:opacity-50"
     >
       <RotateCcw className={`w-3 h-3 ${loading ? 'animate-spin' : ''}`} />
       Retry

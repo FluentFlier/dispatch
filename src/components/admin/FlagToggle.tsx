@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { adminCard } from '@/components/admin/admin-ui';
 
 interface FlagToggleProps {
   name: string;
@@ -42,24 +43,24 @@ export function FlagToggle({ name, enabled, description }: FlagToggleProps) {
   }
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border border-[#2a2d35] bg-[#1a1d24] px-4 py-3">
+    <div className={`flex items-center justify-between gap-4 ${adminCard}`}>
       <div className="min-w-0">
-        <p className="font-mono text-sm text-white">{name}</p>
-        {description ? <p className="text-xs text-[#6b7280] mt-0.5">{description}</p> : null}
-        {error ? <p className="text-xs text-red-400 mt-1">{error}</p> : null}
+        <p className="font-mono text-sm text-text-primary">{name}</p>
+        {description ? <p className="text-xs text-text-secondary mt-0.5">{description}</p> : null}
+        {error ? <p className="text-xs text-red-600 mt-1">{error}</p> : null}
       </div>
       <button
         type="button"
         disabled={loading}
         onClick={() => void toggle()}
         className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors disabled:opacity-50 ${
-          current ? 'bg-emerald-600' : 'bg-[#374151]'
+          current ? 'bg-sage' : 'bg-bg-tertiary'
         }`}
         aria-pressed={current}
         aria-label={`Toggle ${name}`}
       >
         <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
             current ? 'translate-x-6' : 'translate-x-1'
           }`}
         />

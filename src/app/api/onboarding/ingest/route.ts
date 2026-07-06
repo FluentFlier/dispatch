@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId, ensureSoloWorkspace } from '@/lib/workspace';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { errorResponse } from '@/lib/api-errors';
+import { fetchOAuthDisplayName, resolveDisplayName } from '@/lib/user-display-name';
 import {
   fetchPostsFromUnipile,
   resolveProviderUserId,
@@ -56,7 +58,9 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
 
   const postSamples: VoiceSample[] = [];
   const connectedPlatforms: string[] = [];
-  let displayName = user.email?.split('@')[0] ?? 'Creator';
+  const oauthName =
+    user.name ?? (await fetchOAuthDisplayName(cookies().get('content-os-token')?.value ?? ''));
+  let displayName = resolveDisplayName({ oauthName });
 
   if (unipileConfigured) {
     let query = client.database
@@ -90,7 +94,10 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
         if (samples.length > 0) {
           connectedPlatforms.push(platform === 'linkedin' ? 'LinkedIn' : 'X');
           postSamples.push(...samples);
-          if (account.account_name) displayName = account.account_name;
+          if (account.account_name) displayName = resolveDisplayName({
+            oauthName,
+            socialAccountName: account.account_name,
+          });
 
           void persistImportedPosts({
             client,
