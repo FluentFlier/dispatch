@@ -307,8 +307,11 @@ export default function SettingsPage() {
       .then((data) => data && setEntitlements(data))
       .catch(() => undefined);
     fetch('/api/health')
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => setUseUnipile(data?.provider === 'unipile'))
+      .then((r) => r.json().catch(() => null))
+      .then((data) => {
+        if (!data?.provider) return;
+        setUseUnipile(data.provider !== 'direct');
+      })
       .catch(() => undefined);
   }, []);
 

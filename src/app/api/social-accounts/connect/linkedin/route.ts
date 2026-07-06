@@ -1,37 +1,18 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/insforge/server';
 
-// GET: Redirect to LinkedIn OAuth 2.0 authorization
-export async function GET(): Promise<NextResponse> {
+// GET: Legacy official LinkedIn OAuth entrypoint.
+// LinkedIn/X connections now go through Unipile. Keep this route as a
+// compatibility redirect so stale clients never fall into the unsupported
+// direct LinkedIn credential path in production.
+export async function GET(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const clientId = process.env.LINKEDIN_CLIENT_ID;
-
-  if (!clientId) {
-    return NextResponse.json(
-      { error: 'LinkedIn API credentials not configured' },
-      { status: 500 }
-    );
-  }
-
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-  const callbackUrl = `${appUrl}/api/social-accounts/callback/linkedin`;
-  const state = crypto.randomUUID();
-
-  const scopes = ['openid', 'profile', 'w_member_social', 'r_member_social'].join(' ');
-  const authUrl = `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(callbackUrl)}&state=${state}&scope=${encodeURIComponent(scopes)}`;
-
-  const response = NextResponse.redirect(authUrl);
-  response.cookies.set('linkedin_oauth_state', state, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 600,
-  });
-
-  return response;
+  const redirectUrl = new URL('/api/social-accounts/connect/unipile', request.url);
+  const returnTo = request.nextUrl.searchParams.get('return');
+  if (returnTo) redirectUrl.searchParams.set('return', returnTo);
+  return NextResponse.redirect(redirectUrl);
 }
