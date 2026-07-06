@@ -59,7 +59,7 @@ describe('Phase: Unified Leads', () => {
     it('accepts an obvious keyword hit WITHOUT calling the LLM', async () => {
       // Pure accelerator_join keyword hit (score ~1.0, well above threshold) with
       // no funding/launch keywords mixed in, so bestType is unambiguous.
-      const r = await classifyPostHybrid(post('Excited to announce we are joining YC S24 this batch'));
+      const r = await classifyPostHybrid(post('building Acme, excited to announce we are joining YC S24 this batch'));
       expect(r?.signalType).toBe('accelerator_join');
       expect(chatCompletion).not.toHaveBeenCalled();
     });
@@ -77,7 +77,7 @@ describe('Phase: Unified Leads', () => {
 
     it('accepts an obvious keyword hit from a high-value source WITHOUT calling the LLM', async () => {
       const r = await classifyPostHybrid(
-        post('Excited to join YC S24!'),
+        post('building Acme, excited to join YC S24!'),
         { highValueSource: true },
       );
       expect(r?.signalType).toBe('accelerator_join');
@@ -126,7 +126,7 @@ describe('Phase: Unified Leads', () => {
 
     it('reports escalated:false on a keyword hit, even from a high-value source (no LLM call, cap untouched)', async () => {
       const r = await classifyPostHybridWithMeta(
-        post('Excited to join YC S24!'),
+        post('building Acme, excited to join YC S24!'),
         { highValueSource: true },
       );
       expect(r.escalated).toBe(false);
@@ -170,7 +170,7 @@ describe('Phase: Unified Leads', () => {
         const capAvailable = llmConfirmsUsed < cap;
         const highValueSource = capAvailable; // sourceIsHighValue is true throughout
         const { escalated } = await classifyPostHybridWithMeta(
-          post('Excited to join YC S24!'), // keyword hit every time
+          post('building Acme, excited to join YC S24!'), // keyword hit every time
           { highValueSource },
         );
         if (escalated) llmConfirmsUsed += 1;
