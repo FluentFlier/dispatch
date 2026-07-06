@@ -1,6 +1,6 @@
 import type { createClient } from '@insforge/sdk';
 import { buildLeadPlaybook, connectDueAt } from '@/lib/gtm/nurture/playbook';
-import type { LeadPlaybook, NurtureStage } from '@/lib/gtm/nurture/types';
+import type { LeadPlaybook, NurtureStage } from '@/lib/signals/types';
 import { draftOutreachForLead } from '@/lib/signals/outreach/draft-lead';
 import { getLead, logLeadEvent, updateLead } from '@/lib/signals/leads/store';
 import type { SignalLeadWithContacts } from '@/lib/signals/types';
@@ -37,10 +37,10 @@ export async function planLeadNurture(
 
   await updateLead(client, workspaceId, leadId, {
     nurture_stage: nurtureStage,
-    playbook: playbook as unknown as Record<string, unknown>,
+    playbook,
     next_action_at: due.toISOString(),
     lead_status: 'drafted',
-  } as Partial<SignalLeadWithContacts>);
+  });
 
   await logLeadEvent(client, workspaceId, leadId, 'rescored', {
     action: 'nurture_planned',

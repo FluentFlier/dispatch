@@ -116,7 +116,7 @@ export async function autoSendDueConnects(
         nurture_stage: 'connect_sent',
         next_action_at: dmDue.toISOString(),
         lead_status: 'sent',
-      } as Parameters<typeof updateLead>[3]);
+      });
 
       await logLeadEvent(client, workspaceId, leadId, 'rescored', {
         action: 'auto_connect_sent',

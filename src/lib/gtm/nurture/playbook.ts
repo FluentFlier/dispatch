@@ -1,4 +1,4 @@
-import type { LeadPlaybook } from '@/lib/gtm/nurture/types';
+import type { LeadPlaybook, NurtureStage } from '@/lib/signals/types';
 import type { SignalLeadWithContacts } from '@/lib/signals/types';
 
 function intentSummary(flags: SignalLeadWithContacts['intent_flags']): string | null {

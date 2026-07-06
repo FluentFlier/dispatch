@@ -1,8 +1,29 @@
 /** Content OS Signals — shared types */
 
-import type { LeadPlaybook, NurtureStage } from '@/lib/gtm/nurture/types';
+export type NurtureStage =
+  | 'discovered'
+  | 'planned'
+  | 'engaging'
+  | 'connect_ready'
+  | 'connect_sent'
+  | 'nurturing'
+  | 'dm_ready'
+  | 'dm_sent'
+  | 'replied'
+  | 'closed';
 
-export type { NurtureStage, LeadPlaybook };
+export interface LeadPlaybook {
+  whyThem: string;
+  angle: string;
+  steps: Array<{
+    type: 'research' | 'comment' | 'connect' | 'dm';
+    label: string;
+    dueInDays: number;
+    status: 'pending' | 'done' | 'skipped';
+  }>;
+  hookContext?: string;
+  generatedAt: string;
+}
 
 export type SignalPlatform = 'x' | 'linkedin';
 
