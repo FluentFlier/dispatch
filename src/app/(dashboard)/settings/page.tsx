@@ -68,6 +68,14 @@ function Section({
   );
 }
 
+function SubHeader({ children }: { children: React.ReactNode }) {
+  return (
+    <h3 className="text-[11px] font-semibold tracking-[0.08em] uppercase text-text-secondary mb-3">
+      {children}
+    </h3>
+  );
+}
+
 /* ------------------------------------------------------------------ */
 /*  Main settings page                                                 */
 /* ------------------------------------------------------------------ */
@@ -169,8 +177,6 @@ export default function SettingsPage() {
     limits: { publishesPerMonth: number };
   } | null>(null);
   const [billingLoading, setBillingLoading] = useState(false);
-  // Social connect is Unipile-only in production.
-  const useUnipile = true;
   const [unipileConfigured, setUnipileConfigured] = useState<boolean | null>(null);
   const [composioConfigured, setComposioConfigured] = useState<boolean | null>(null);
   const [integrationsRefreshKey, setIntegrationsRefreshKey] = useState(0);
@@ -479,10 +485,6 @@ export default function SettingsPage() {
     }
   }
 
-  function connectAccount(_platform: string) {
-    window.location.href = '/api/social-accounts/connect/unipile?return=settings';
-  }
-
   /* ---- Bio generator ---- */
 
   async function generateBios() {
@@ -526,6 +528,12 @@ export default function SettingsPage() {
 
   const pillarOptions = pillars.map((p) => p.name).filter(Boolean);
 
+  // Unipile hosted connect returns here with ?error=unipile_failed on failure.
+  const connectError =
+    searchParams.get('error') === 'unipile_failed'
+      ? 'Could not connect to Unipile. Try again, or add your API keys manually below.'
+      : null;
+
   return (
     <div className="page-shell space-y-6">
       <PageHeader eyebrow="SETTINGS" title="Settings" subtitle="Profile, connected accounts, and how Content OS writes for you." />
@@ -563,6 +571,8 @@ export default function SettingsPage() {
           )}
 
           <Section title="Platform Connections">
+            {/* Social Media */}
+            <SubHeader>Social Media</SubHeader>
             {unipileConfigured === false && (
               <div className="mb-4 rounded-lg border border-coral/30 bg-coral/5 p-4 text-sm text-coral">
                 Unipile is not configured on this deployment. Add{' '}
@@ -572,15 +582,15 @@ export default function SettingsPage() {
             )}
             <PlatformConnections
               connectedAccounts={connectedAccounts}
-              onConnect={connectAccount}
               onDisconnect={disconnectAccount}
               disconnecting={disconnecting}
               onAccountsRefresh={refreshAccounts}
-              useUnipile={useUnipile}
+              connectError={connectError}
             />
-          </Section>
 
-          <Section title="Email & Calendar">
+            {/* Email */}
+            <div className="border-t border-hair my-6" />
+            <SubHeader>Email</SubHeader>
             {composioConfigured === false && (
               <div className="mb-4 rounded-lg border border-coral/30 bg-coral/5 p-4 text-sm text-coral">
                 Composio is not configured on this deployment. Add{' '}
@@ -588,10 +598,12 @@ export default function SettingsPage() {
                 <code className="text-xs">NEXT_PUBLIC_APP_URL</code> to hosting secrets, then redeploy.
               </div>
             )}
-            <div className="space-y-4">
-              <GmailConnectionCard refreshKey={integrationsRefreshKey} />
-              <CalendarConnectionCard refreshKey={integrationsRefreshKey} />
-            </div>
+            <GmailConnectionCard refreshKey={integrationsRefreshKey} />
+
+            {/* Calendar */}
+            <div className="border-t border-hair my-6" />
+            <SubHeader>Calendar</SubHeader>
+            <CalendarConnectionCard refreshKey={integrationsRefreshKey} />
           </Section>
 
           <Section title="Platform Defaults">
