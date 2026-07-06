@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { getActiveWorkspaceId } from '@/lib/workspace';
+import { ensureActiveWorkspaceId, backfillNullWorkspaceSocialAccounts } from '@/lib/workspace';
 import { errorResponse } from '@/lib/api-errors';
 import { encryptToken } from '@/lib/crypto';
 import { z } from 'zod';
@@ -11,16 +11,17 @@ export async function GET(): Promise<NextResponse> {
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const client = getServerClient();
-  const workspaceId = await getActiveWorkspaceId(user.id);
+  // Ensure a workspace exists (first-login race), then repair any null-workspace
+  // rows onto it BEFORE filtering — otherwise accounts connected during the race
+  // stay hidden behind the workspace-scoped filter.
+  const workspaceId = await ensureActiveWorkspaceId(user.id);
+  await backfillNullWorkspaceSocialAccounts(user.id, workspaceId);
 
-  let query = client.database
+  const { data, error } = await client.database
     .from('social_accounts')
     .select('id, platform, account_name, account_id, connected_at, token_expires_at, connection_method, unipile_account_id')
-    .eq('user_id', user.id);
-  // Scope to the active workspace (rows are backfilled with workspace_id).
-  if (workspaceId) query = query.eq('workspace_id', workspaceId);
-
-  const { data, error } = await query;
+    .eq('user_id', user.id)
+    .eq('workspace_id', workspaceId);
   if (error) return errorResponse('Could not load social accounts.', 500, error);
   return NextResponse.json({ accounts: data ?? [] });
 }
@@ -54,7 +55,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const { platform, account_name, account_id, access_token, refresh_token, token_expires_at } = parsed.data;
 
   const client = getServerClient();
-  const workspaceId = await getActiveWorkspaceId(user.id);
+  const workspaceId = await ensureActiveWorkspaceId(user.id);
   const { data, error } = await client.database
     .from('social_accounts')
     .upsert(

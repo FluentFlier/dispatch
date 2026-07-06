@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
 import { fetchUnipileAccountDetails } from '@/lib/social/unipile';
 import { validateUnipileWebhookAuth } from '@/lib/webhooks/unipile-auth';
+import { ensureSoloWorkspace } from '@/lib/workspace';
 
 // --- Unipile webhook payload types ---
 
@@ -90,18 +91,17 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             providerLower === 'threads' ? 'threads' :
               providerLower;
 
-    // Resolve workspace for this user.
-    const { data: memberRow } = await client.database
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('user_id', userId)
-      .eq('role', 'owner')
-      .limit(1)
-      .single();
+    // Resolve workspace for this user. A brand-new account can connect via the
+    // hosted flow before login-time provisioning finishes, so ensure the solo
+    // workspace here instead of silently dropping the account.connected event.
+    let workspaceId: string | null = null;
+    try {
+      workspaceId = (await ensureSoloWorkspace(userId)).id;
+    } catch (err) {
+      console.warn('[webhooks/unipile] Could not resolve workspace for', userId, err instanceof Error ? err.message : err);
+    }
 
-    if (memberRow) {
-      const workspaceId = (memberRow as { workspace_id: string }).workspace_id;
-
+    if (workspaceId) {
       // Fetch full account details to get connection_params.im.publicIdentifier.
       // Webhook payloads carry only a bare account object — no connection_params —
       // so account.username is just a display name, not the LinkedIn provider user ID.
@@ -146,19 +146,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       return NextResponse.json({ ok: true });
     }
 
-    const { data: memberRow } = await client.database
-      .from('workspace_members')
-      .select('workspace_id')
-      .eq('user_id', userId)
-      .eq('role', 'owner')
-      .limit(1)
-      .single();
-
-    if (!memberRow) {
+    let workspaceId: string;
+    try {
+      workspaceId = (await ensureSoloWorkspace(userId)).id;
+    } catch (err) {
+      console.warn('[webhooks/unipile] Could not resolve workspace for event', userId, err instanceof Error ? err.message : err);
       return NextResponse.json({ ok: true });
     }
 
-    const workspaceId = (memberRow as { workspace_id: string }).workspace_id;
     const eventDate = linkedInEvent.start_time
       ? new Date(linkedInEvent.start_time).toISOString().split('T')[0]
       : null;
