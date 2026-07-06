@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
 import { syncEngagementComments } from '@/lib/engagement/sync';
 import { logError, logInfo } from '@/lib/logger';
-import { bucketEngagers } from '@/lib/hooks-intelligence/categorize';
+import { refreshLeadCategories } from '@/lib/engagement/categorize-engagers';
 import { prodMining } from '@/lib/hooks-intelligence/prod-mining';
 import { usage } from '@/lib/hooks-intelligence/usage-tracker';
 
@@ -49,14 +49,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         // 1. Usage tracking for monetization
         await usage.track(userId, 'analytics', { source: 'cron-engagement-sync' });
 
-        // 2. TODO: Pull recent engagers for this user and categorize (ICP/leads)
-        // For now the categorize is ready; full wiring needs engager fetch in sync result
-        // Placeholder: if sync returned engagers we would do:
-        // const buckets = bucketEngagers(engagersFromSync, orgKeywords);
-        // then pass leads count into PerformanceSignal for RL
+        // 2. Rebuild the audience/lead snapshot from synced comments+reactions.
+        // Failures here must not fail the sync — categorization is derived data.
         //
         // Note: RL training (hook scoring) is handled by the nightly intelligence-sync
         // cron (/api/cron/intelligence-sync). This cron stays fast — engagement only.
+        try {
+          const categorized = await refreshLeadCategories(client, userId);
+          logInfo('engagement-sync lead categorization', {
+            userId,
+            engagers: categorized.engagers,
+            ...categorized.categorized,
+          });
+        } catch (catErr) {
+          logError('lead categorization failed', {
+            userId,
+            message: catErr instanceof Error ? catErr.message : String(catErr),
+          });
+        }
       } catch (err) {
         logError('engagement-sync user failed', {
           userId,

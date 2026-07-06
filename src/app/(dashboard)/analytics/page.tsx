@@ -20,6 +20,7 @@ import {
 import { CopyButton } from "@/components/ui/CopyButton";
 import { useToast } from "@/components/ui/Toast";
 import { bucketEngagers, type Engager } from "@/lib/hooks-intelligence/categorize";
+import AudienceSection, { type AudienceEngagement } from "@/components/analytics/AudienceSection";
 import { getInsforge } from "@/lib/insforge/client";
 import type { Post, HashtagSet, WeeklyReview } from "@/lib/types";
 import { MIN_POSTS_FOR_TIMING, type TimingResult } from "@/lib/analytics/timing";
@@ -77,6 +78,9 @@ export default function AnalyticsPage() {
   // Real categorized leads from DB (now that persistence is wired in the closed loop)
   const [realLeadCounts, setRealLeadCounts] = useState<Record<string, number> | null>(null);
 
+  // Reaction breakdown + top commenters from synced engagement
+  const [audienceEngagement, setAudienceEngagement] = useState<AudienceEngagement | null>(null);
+
   const fetchData = useCallback(async () => {
     try {
       const res = await fetch('/api/analytics', {
@@ -91,6 +95,7 @@ export default function AnalyticsPage() {
       setHashtagSets(data.hashtagSets ?? []);
       setReviews(data.reviews ?? []);
       setRealLeadCounts(data.leadCounts ?? null);
+      setAudienceEngagement(data.engagement ?? null);
       setBestTimes(data.bestTimes ?? null);
     } finally {
       setLoading(false);
@@ -254,7 +259,7 @@ export default function AnalyticsPage() {
           )}
         </div>
 
-        {/* Lead Categorization Insights (the Imagine-style value prop) */}
+        {/* Lead Categorization Insights */}
         <div className="rounded-xl border border-border bg-bg-secondary p-6">
           <div className="flex items-center gap-2 mb-3">
             <Users className="h-5 w-5 text-sage" />
@@ -285,6 +290,9 @@ export default function AnalyticsPage() {
             Counts come straight from your categorized engagers. They fill in automatically after each engagement sync, once your published posts start collecting comments.
           </div>
         </div>
+
+        {/* Reaction breakdown + top commenters */}
+        <AudienceSection engagement={audienceEngagement} />
       </section>
 
       {/* Section 3 */}

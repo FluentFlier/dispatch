@@ -4,6 +4,11 @@ import {
   fetchUnipilePostComments,
   type UnipileFetchedComment,
 } from '@/lib/engagement/unipile-comments';
+import {
+  fetchUnipilePostReactions,
+  type UnipileFetchedReaction,
+} from '@/lib/engagement/unipile-reactions';
+import { randomDelay } from '@/lib/social/reliability';
 import type {
   ManualSyncComment,
   SyncEngagementInput,
@@ -182,6 +187,84 @@ async function ingestProviderComments(
 }
 
 /**
+ * Stable dedupe key for a reaction author. Reactions carry no provider id of
+ * their own, so identity is (post, author, reaction type); handle is preferred
+ * over display name because names collide and get edited.
+ */
+export function buildReactionAuthorKey(r: Pick<UnipileFetchedReaction, 'author_handle' | 'author_name'>): string {
+  return (r.author_handle ?? r.author_name ?? '').trim().toLowerCase();
+}
+
+/**
+ * Inserts reactions for one post, skipping rows already synced.
+ * WHY read-then-insert instead of ON CONFLICT: the InsForge SDK has no upsert
+ * with a composite conflict target; reaction rows are immutable once written
+ * (a changed reaction shows up as a different reaction_type row).
+ */
+async function ingestProviderReactions(
+  client: InsforgeClient,
+  userId: string,
+  fetched: UnipileFetchedReaction[],
+  postId: string,
+  defaultPlatform: string,
+): Promise<{ inserted: number; skipped: number; errors: string[] }> {
+  let inserted = 0;
+  let skipped = 0;
+  const errors: string[] = [];
+  if (fetched.length === 0) return { inserted, skipped, errors };
+
+  const { data: existing } = await client.database
+    .from('post_reactions')
+    .select('author_key, reaction_type')
+    .eq('user_id', userId)
+    .eq('post_id', postId);
+
+  const seen = new Set(
+    ((existing ?? []) as Array<{ author_key: string; reaction_type: string }>).map(
+      (row) => `${row.author_key}:${row.reaction_type}`,
+    ),
+  );
+
+  for (const r of fetched) {
+    const authorKey = buildReactionAuthorKey(r);
+    if (!authorKey) {
+      skipped++;
+      continue;
+    }
+    const dedupeKey = `${authorKey}:${r.reaction_type}`;
+    if (seen.has(dedupeKey)) {
+      skipped++;
+      continue;
+    }
+    seen.add(dedupeKey);
+    const { error } = await client.database.from('post_reactions').insert([
+      {
+        user_id: userId,
+        post_id: postId,
+        platform: defaultPlatform,
+        reaction_type: r.reaction_type,
+        author_key: authorKey,
+        author_name: r.author_name ?? null,
+        author_handle: r.author_handle ?? null,
+        author_headline: r.author_headline ?? null,
+        author_profile_url: r.author_profile_url ?? null,
+        is_company: r.is_company ?? false,
+      },
+    ]);
+    if (error) {
+      // Unique-constraint races with an overlapping sync are expected; only
+      // surface real failures.
+      if (/duplicate|unique/i.test(error.message)) skipped++;
+      else errors.push(error.message);
+    } else {
+      inserted++;
+    }
+  }
+
+  return { inserted, skipped, errors };
+}
+
+/**
  * Sync comments from manual dev payload and/or Unipile for published posts.
  */
 export async function syncEngagementComments(
@@ -193,6 +276,9 @@ export async function syncEngagementComments(
   let updated = 0;
   let skipped = 0;
   let provider_fetched = 0;
+  let reactions_fetched = 0;
+  let reactions_inserted = 0;
+  let reactions_skipped = 0;
   const errors: string[] = [];
 
   if (input.manual?.length) {
@@ -222,7 +308,9 @@ export async function syncEngagementComments(
     if (jobsError) {
       errors.push(jobsError.message);
     } else {
-      for (const job of (jobs ?? []) as PublishJobRow[]) {
+      const jobRows = (jobs ?? []) as PublishJobRow[];
+      for (let i = 0; i < jobRows.length; i++) {
+        const job = jobRows[i];
         if (!job.provider_post_id) continue;
         try {
           const fetched = await fetchUnipilePostComments(
@@ -247,6 +335,36 @@ export async function syncEngagementComments(
             `Post ${job.post_id}: ${e instanceof Error ? e.message : 'Unipile fetch failed'}`,
           );
         }
+
+        // Reactions: the other half of engagement. A reaction failure never
+        // blocks comment sync — the two halves are independent.
+        if (input.includeReactions !== false) {
+          try {
+            const reactions = await fetchUnipilePostReactions(
+              userId,
+              job.provider_post_id,
+              job.platform,
+            );
+            reactions_fetched += reactions.length;
+            const rr = await ingestProviderReactions(
+              client,
+              userId,
+              reactions,
+              job.post_id,
+              job.platform,
+            );
+            reactions_inserted += rr.inserted;
+            reactions_skipped += rr.skipped;
+            errors.push(...rr.errors);
+          } catch (e) {
+            errors.push(
+              `Post ${job.post_id} reactions: ${e instanceof Error ? e.message : 'Unipile fetch failed'}`,
+            );
+          }
+        }
+
+        // Human-mimicking pacing between posts, per Unipile guidance.
+        if (i < jobRows.length - 1) await randomDelay();
       }
     }
   }
@@ -264,6 +382,9 @@ export async function syncEngagementComments(
     updated,
     skipped,
     provider_fetched,
+    reactions_fetched,
+    reactions_inserted,
+    reactions_skipped,
     errors,
   };
 }
