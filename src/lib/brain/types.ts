@@ -2,6 +2,9 @@
 export const BRAIN_SLUG = {
   voice: 'voice',
   profile: 'profile',
+  linkedin: 'linkedin',
+  twitter: 'twitter',
+  background: 'background',
   wins: 'wins',
   /** GTM playbook: ICP, pitch, objections — used by Content OS Signals outreach drafts */
   gtm: 'gtm',

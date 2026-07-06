@@ -10,7 +10,7 @@ import {
   ArrowRight,
   AlertCircle,
 } from 'lucide-react';
-import { completeOnboardingFromBaseline, completeOnboardingMinimal } from './actions';
+import { completeOnboardingFromBaseline, completeOnboardingFromStoredBaseline } from './actions';
 import type { CreatorBaseline } from '@/lib/onboarding/baseline';
 import { PRODUCT_NAME } from '@/lib/brand';
 
@@ -27,7 +27,10 @@ const INGEST_STATUS_LINES = [
   'Reading your sent emails…',
   'Analyzing your hooks…',
   'Learning your voice…',
+  'Pulling LinkedIn profile & web research…',
   'Building your Creator Baseline…',
+  'Syncing voice, specs & posts to your brain…',
+  'Verifying brain pages…',
 ];
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -69,9 +72,13 @@ function OnboardingInner() {
   const [gmailConnected, setGmailConnected] = useState(false);
   const [composioReady, setComposioReady] = useState<boolean | null>(null);
   const [connectingGmail, setConnectingGmail] = useState(false);
-  const [skipping, setSkipping] = useState(false);
+  const [hasBaseline, setHasBaseline] = useState(false);
+  const [autoRedirecting, setAutoRedirecting] = useState(false);
   const connectedHandled = useRef(false);
   const gmailHandled = useRef(false);
+  const autoConnectAttempted = useRef(false);
+  const autoIngestAttempted = useRef(false);
+  const resumeAttempted = useRef(false);
 
   const refreshAccounts = useCallback(async () => {
     setLoadingAccounts(true);
@@ -92,6 +99,25 @@ function OnboardingInner() {
     }
   }, []);
 
+  const finishAndEnterApp = useCallback(
+    async (nextBaseline: CreatorBaseline) => {
+      setFinishing(true);
+      setError('');
+      try {
+        await completeOnboardingFromBaseline(nextBaseline);
+        void fetch('/api/brain/sync', { method: 'POST' }).catch(() => undefined);
+        const topic = encodeURIComponent(nextBaseline.suggestedTopic);
+        router.push(`/dashboard?welcome=1&baseline=1&topic=${topic}`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to finish setup');
+        setBaseline(nextBaseline);
+        setStep('baseline');
+        setFinishing(false);
+      }
+    },
+    [router],
+  );
+
   const runIngest = useCallback(async () => {
     setStep('ingest');
     setError('');
@@ -107,19 +133,35 @@ function OnboardingInner() {
       clearInterval(interval);
 
       if (!res.ok) {
-        setError(data.error ?? 'Analysis failed. Try connecting another account.');
+        const brainMissing = Array.isArray(data.brainCheck?.missing)
+          ? (data.brainCheck.missing as string[]).join(', ')
+          : '';
+        setError(
+          data.error ??
+            (brainMissing
+              ? `Brain sync incomplete (missing: ${brainMissing}). Connect another account or retry.`
+              : 'Analysis failed. Connect LinkedIn or X with public posts, then try again.'),
+        );
         setStep('connect');
         return;
       }
 
-      setBaseline(data.baseline as CreatorBaseline);
-      setStep('baseline');
+      const nextBaseline = data.baseline as CreatorBaseline;
+      const brainOk = Boolean(data.brainCheck?.ok);
+      if (!brainOk) {
+        setError('Voice was learned but brain verification failed. Tap "Build my baseline" to retry.');
+        setStep('connect');
+        return;
+      }
+      setBaseline(nextBaseline);
+      setHasBaseline(true);
+      await finishAndEnterApp(nextBaseline);
     } catch {
       clearInterval(interval);
       setError('Something went wrong. Please try again.');
       setStep('connect');
     }
-  }, []);
+  }, [finishAndEnterApp]);
 
   useEffect(() => {
     void refreshAccounts();
@@ -129,6 +171,7 @@ function OnboardingInner() {
         setUnipileReady(Boolean(d.unipileConfigured));
         setComposioReady(Boolean(d.composioConfigured));
         setGmailConnected(Boolean(d.gmailConnected));
+        setHasBaseline(Boolean(d.hasBaseline));
       })
       .catch(() => {
         setUnipileReady(false);
@@ -170,14 +213,82 @@ function OnboardingInner() {
       if (refreshed.length > 0) {
         await runIngest();
       } else {
-        setError('Connected, but accounts not synced yet. Tap "Build my baseline" to retry.');
+        setError('Connect at least LinkedIn or X to continue. Pick one in the connect flow, then we will scrape your posts.');
+        setAutoRedirecting(false);
+        setConnecting(false);
       }
     })();
   }, [searchParams, router, refreshAccounts, runIngest]);
 
+  // First visit with no social accounts: send straight to Unipile hosted connect.
+  useEffect(() => {
+    if (autoConnectAttempted.current) return;
+    if (loadingAccounts || unipileReady !== true) return;
+    if (step !== 'connect' || accounts.length > 0) return;
+    if (searchParams.get('connected') === 'true' || searchParams.get('error')) return;
+
+    autoConnectAttempted.current = true;
+    setAutoRedirecting(true);
+    setConnecting(true);
+
+    const timer = window.setTimeout(() => {
+      window.location.href = '/api/social-accounts/connect/unipile?return=onboarding';
+    }, 800);
+
+    return () => window.clearTimeout(timer);
+  }, [
+    loadingAccounts,
+    unipileReady,
+    step,
+    accounts.length,
+    gmailConnected,
+    searchParams,
+  ]);
+
+  // Accounts already connected but knowledge not built yet: start ingest immediately.
+  useEffect(() => {
+    if (autoIngestAttempted.current || hasBaseline) return;
+    if (loadingAccounts || unipileReady === null) return;
+    if (step !== 'connect') return;
+    if (searchParams.get('connected') === 'true') return;
+    if (!accounts.length) return;
+
+    autoIngestAttempted.current = true;
+    void runIngest();
+  }, [
+    loadingAccounts,
+    unipileReady,
+    step,
+    accounts.length,
+    gmailConnected,
+    hasBaseline,
+    searchParams,
+    runIngest,
+  ]);
+
+  // Baseline already built in a prior session — finish setup and enter the app.
+  useEffect(() => {
+    if (!hasBaseline || resumeAttempted.current || finishing) return;
+    if (step !== 'connect') return;
+
+    resumeAttempted.current = true;
+    setFinishing(true);
+    void (async () => {
+      try {
+        const result = await completeOnboardingFromStoredBaseline();
+        void fetch('/api/brain/sync', { method: 'POST' }).catch(() => undefined);
+        const topic = encodeURIComponent(result.suggestedTopic ?? 'Something I learned this week');
+        router.push(`/dashboard?welcome=1&baseline=1&topic=${topic}`);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to resume setup');
+        setFinishing(false);
+      }
+    })();
+  }, [hasBaseline, step, finishing, router]);
+
   function handleConnect() {
     if (unipileReady === false) {
-      setError('Social connect is still being configured. Use "Start writing" below or try again shortly.');
+      setError('Social connect is still being configured. Try again shortly.');
       return;
     }
     setConnecting(true);
@@ -186,7 +297,7 @@ function OnboardingInner() {
 
   async function handleConnectGmail() {
     if (composioReady === false) {
-      setError('Gmail connect is still being configured. Connect social accounts or try again shortly.');
+      setError('Gmail connect is still being configured. Connect LinkedIn or X first.');
       return;
     }
     setConnectingGmail(true);
@@ -207,8 +318,8 @@ function OnboardingInner() {
   }
 
   async function handleContinueToIngest() {
-    if (accounts.length === 0 && !gmailConnected) {
-      setError('Connect at least one account or Gmail to continue.');
+    if (accounts.length === 0) {
+      setError('Connect at least LinkedIn or X to continue.');
       return;
     }
     await runIngest();
@@ -230,23 +341,11 @@ function OnboardingInner() {
     }
   }
 
-  async function handleSkipForNow() {
-    setSkipping(true);
-    setError('');
-    try {
-      await completeOnboardingMinimal('');
-      void fetch('/api/brain/sync', { method: 'POST' }).catch(() => undefined);
-      router.push('/generate?welcome=1&tab=script&topic=Something%20I%20learned%20this%20week&platform=linkedin');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to continue');
-      setSkipping(false);
-    }
-  }
-
   const stepIndex = step === 'connect' ? 0 : step === 'ingest' ? 1 : 2;
   const hasLinkedIn = accounts.some((a) => a.platform === 'linkedin');
   const hasX = accounts.some((a) => a.platform === 'twitter');
-  const canBuildBaseline = accounts.length > 0 || gmailConnected;
+  const hasSocialConnected = accounts.length > 0;
+  const canBuildBaseline = hasSocialConnected;
   const ingestSources = [
     ...accounts.map((a) => PLATFORM_LABEL[a.platform]),
     ...(gmailConnected ? ['Gmail'] : []),
@@ -258,11 +357,19 @@ function OnboardingInner() {
         {PRODUCT_NAME} setup
       </div>
       <h1 className="font-serif text-3xl font-normal tracking-[-0.03em] text-ink">
-        {step === 'baseline' ? 'Your Creator Baseline' : 'Connect your accounts'}
+        {step === 'baseline'
+          ? 'Your Creator Baseline'
+          : step === 'ingest'
+            ? 'Building your knowledge base'
+            : autoRedirecting
+              ? 'Connect LinkedIn or X'
+              : 'Connect your accounts'}
       </h1>
       <p className="mt-2 text-sm leading-6 text-ink2">
         {step === 'connect' &&
-          'We learn your voice from real posts and sent emails — same connections power publishing and outreach. No forms until we know you.'}
+          (autoRedirecting
+            ? 'Opening secure connect — link at least LinkedIn or X. We scrape your posts, extract voice & specs, and sync them to your creator brain.'
+            : 'Link at least LinkedIn or X to move forward. Both is better, but one is enough. Gmail is optional for richer 1:1 voice.')}
         {step === 'ingest' && statusLine}
         {step === 'baseline' &&
           'Trained on your real writing. This is what we will sound like when we write for you.'}
@@ -272,7 +379,7 @@ function OnboardingInner() {
 
       {unipileReady === false && step === 'connect' && (
         <div className="mb-6 rounded-lg border border-hair bg-paper2 p-4 text-sm text-ink2">
-          Social connect is finishing setup. You can connect shortly, or start writing now.
+          Social connect is finishing setup. Try again shortly.
         </div>
       )}
 
@@ -285,10 +392,17 @@ function OnboardingInner() {
 
       {step === 'connect' && (
         <div className="space-y-6">
+          {autoRedirecting && (
+            <div className="flex items-center gap-3 rounded-lg border border-hair bg-paper2 p-4 text-sm text-ink2">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin text-accent-primary" />
+              Redirecting to LinkedIn &amp; X connect…
+            </div>
+          )}
+
           <div className="rounded-lg border border-hair bg-paper2 p-5">
-            <p className="section-label">Connect X + LinkedIn</p>
+            <p className="section-label">Connect LinkedIn or X (required)</p>
             <p className="mt-2 text-sm text-ink2">
-              Free Creator Baseline when you connect. Posts show your public voice; Gmail shows how you write 1:1.
+              At least one social account is required. We pull your posts, voice rules, vocabulary specs, and sync everything to your brain.
             </p>
 
             <ul className="mt-4 space-y-3">
@@ -348,7 +462,7 @@ function OnboardingInner() {
               ) : (
                 <Link2 className="h-4 w-4" />
               )}
-              {accounts.length === 0 ? 'Connect accounts' : 'Connect more accounts'}
+              {accounts.length === 0 ? 'Connect LinkedIn or X' : 'Connect another account'}
             </button>
           </div>
 
@@ -364,29 +478,21 @@ function OnboardingInner() {
             </button>
           )}
 
-          {(hasLinkedIn || hasX || gmailConnected) && (
+          {(hasLinkedIn || hasX) && (
             <p className="text-center text-xs text-ink3">
-              {hasLinkedIn && hasX && gmailConnected
-                ? 'Posts + emails — best baseline quality.'
-                : gmailConnected && !hasLinkedIn && !hasX
-                  ? 'Gmail connected — add social for public voice hooks.'
-                  : gmailConnected
-                    ? 'Add Gmail for richer 1:1 voice, or continue with posts only.'
-                    : hasLinkedIn && hasX
-                      ? 'Both accounts connected — connect Gmail for even richer voice.'
-                      : 'Connect both social accounts + Gmail for the richest baseline.'}
+              {hasLinkedIn && hasX
+                ? 'Both connected — best coverage. Add Gmail for richer 1:1 voice.'
+                : hasLinkedIn
+                  ? 'LinkedIn connected — add X anytime, or continue now.'
+                  : 'X connected — add LinkedIn anytime, or continue now.'}
             </p>
           )}
 
-          <button
-            type="button"
-            onClick={() => void handleSkipForNow()}
-            disabled={skipping}
-            className="flex w-full items-center justify-center gap-2 text-sm text-ink3 hover:text-ink2"
-          >
-            {skipping ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-            Start writing without connecting
-          </button>
+          {!hasSocialConnected && (
+            <p className="text-center text-xs text-ink3">
+              You need at least one social account before we can build your voice and brain.
+            </p>
+          )}
         </div>
       )}
 
@@ -395,7 +501,7 @@ function OnboardingInner() {
           <Loader2 className="h-10 w-10 animate-spin text-accent-primary" />
           <p className="mt-6 font-serif text-xl text-ink">{statusLine}</p>
           <p className="mt-2 max-w-sm text-sm text-ink2">
-            Analyzing {ingestSources.join(', ')}…
+            Pulling posts, voice specs, and profile — then verifying your brain pages…
           </p>
         </div>
       )}

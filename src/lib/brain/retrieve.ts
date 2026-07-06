@@ -21,6 +21,47 @@ function pageToSnippet(slug: string, body: string): string {
       const parts = [
         parsed.bio_facts && `Facts: ${parsed.bio_facts}`,
         parsed.bio && `Bio: ${parsed.bio}`,
+        parsed.linkedin_headline && `Headline: ${parsed.linkedin_headline}`,
+      ].filter(Boolean);
+      return parts.join('\n');
+    }
+    if (slug === BRAIN_SLUG.linkedin) {
+      const parts = [
+        parsed.headline && `Headline: ${parsed.headline}`,
+        parsed.summary && `About: ${parsed.summary}`,
+        parsed.location && `Location: ${parsed.location}`,
+        Array.isArray(parsed.experiences) &&
+          parsed.experiences.length > 0 &&
+          `Experience: ${(parsed.experiences as Array<{ title?: string; company?: string }>)
+            .slice(0, 4)
+            .map((exp) => [exp.title, exp.company].filter(Boolean).join(' at '))
+            .join('; ')}`,
+        Array.isArray(parsed.skills) &&
+          (parsed.skills as string[]).length > 0 &&
+          `Skills: ${(parsed.skills as string[]).slice(0, 8).join(', ')}`,
+      ].filter(Boolean);
+      return parts.join('\n');
+    }
+    if (slug === BRAIN_SLUG.twitter) {
+      const parts = [
+        parsed.handle && `Handle: @${String(parsed.handle).replace(/^@/, '')}`,
+        parsed.bio && `Bio: ${parsed.bio}`,
+      ].filter(Boolean);
+      return parts.join('\n');
+    }
+    if (slug === BRAIN_SLUG.background) {
+      const parts = [
+        parsed.bioSummary && `Summary: ${parsed.bioSummary}`,
+        Array.isArray(parsed.expertise) &&
+          (parsed.expertise as string[]).length > 0 &&
+          `Expertise: ${(parsed.expertise as string[]).join(', ')}`,
+        Array.isArray(parsed.topics) &&
+          (parsed.topics as string[]).length > 0 &&
+          `Topics: ${(parsed.topics as string[]).join(', ')}`,
+        Array.isArray(parsed.proofPoints) &&
+          (parsed.proofPoints as string[]).length > 0 &&
+          `Proof: ${(parsed.proofPoints as string[]).join('; ')}`,
+        parsed.personalAngle && `Angle: ${parsed.personalAngle}`,
       ].filter(Boolean);
       return parts.join('\n');
     }
@@ -79,8 +120,23 @@ export async function retrieveBrainContext(
   const snippets: string[] = [];
 
   const coreSlugs = includeGtm
-    ? [BRAIN_SLUG.voice, BRAIN_SLUG.profile, BRAIN_SLUG.wins, BRAIN_SLUG.gtm]
-    : [BRAIN_SLUG.voice, BRAIN_SLUG.profile, BRAIN_SLUG.wins];
+    ? [
+        BRAIN_SLUG.voice,
+        BRAIN_SLUG.profile,
+        BRAIN_SLUG.linkedin,
+        BRAIN_SLUG.twitter,
+        BRAIN_SLUG.background,
+        BRAIN_SLUG.wins,
+        BRAIN_SLUG.gtm,
+      ]
+    : [
+        BRAIN_SLUG.voice,
+        BRAIN_SLUG.profile,
+        BRAIN_SLUG.linkedin,
+        BRAIN_SLUG.twitter,
+        BRAIN_SLUG.background,
+        BRAIN_SLUG.wins,
+      ];
   for (const slug of coreSlugs) {
     // Pass workspaceId so the page fetch is scoped to the correct workspace.
     const page = await getBrainPage(client, userId, slug, workspaceId);

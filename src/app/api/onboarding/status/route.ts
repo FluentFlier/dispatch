@@ -49,6 +49,17 @@ export async function GET(): Promise<NextResponse> {
     }
   }
 
+  const { data: baselineSetting } = await client.database
+    .from('user_settings')
+    .select('value')
+    .eq('user_id', user.id)
+    .eq('key', 'onboarding_baseline')
+    .maybeSingle();
+
+  const hasBaseline = Boolean(
+    typeof baselineSetting?.value === 'string' && baselineSetting.value.trim().length > 2,
+  );
+
   return NextResponse.json({
     unipileConfigured,
     composioConfigured,
@@ -56,6 +67,8 @@ export async function GET(): Promise<NextResponse> {
     connectedCount: accounts?.length ?? 0,
     platforms: (accounts ?? []).map((a) => a.platform),
     gmailConnected,
-    canIngest: (accounts?.length ?? 0) > 0 || gmailConnected,
+    canIngest: (accounts?.length ?? 0) > 0,
+    hasBaseline,
+    requiresSocialConnect: (accounts?.length ?? 0) === 0,
   });
 }

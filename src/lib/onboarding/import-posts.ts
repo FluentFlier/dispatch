@@ -24,7 +24,7 @@ interface UnipilePostsResponse {
 }
 
 const PAGE_SIZE = 25;
-const MAX_POSTS_PER_PLATFORM = 100;
+const MAX_POSTS_PER_PLATFORM = 150;
 
 /**
  * Resolves the provider user ID Unipile expects for /users/{id}/posts.

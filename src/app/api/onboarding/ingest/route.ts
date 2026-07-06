@@ -17,7 +17,10 @@ import { analyzeVoiceSamples } from '@/lib/voice-lab/analyze-samples';
 import { importVoiceSamplesFromEmail } from '@/lib/voice-lab/import-from-email';
 import { selectBalancedVoiceSamples } from '@/lib/voice-lab/select-voice-samples';
 import { persistImportedPosts } from '@/lib/voice-lab/persist-imported-posts';
+import { gatherCreatorIntel, type CreatorIntelBundle } from '@/lib/onboarding/creator-intel';
 import { syncBrainVoiceLab, syncCreatorBrainFull } from '@/lib/brain/sync';
+import { syncCreatorIntelToBrain } from '@/lib/brain/sync-intel';
+import { verifyOnboardingBrain, type OnboardingBrainCheck } from '@/lib/brain/verify';
 import { storePersona } from '@/lib/supermemory';
 import { captureVoiceDriftBaseline } from '@/lib/voice-drift';
 
@@ -33,6 +36,7 @@ export interface OnboardingIngestResponse {
   emailsImported: number;
   platforms: string[];
   saved: boolean;
+  brainCheck: OnboardingBrainCheck;
 }
 
 /**
@@ -52,15 +56,51 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
   const workspaceId = await getActiveWorkspaceId(user.id);
   const persistWorkspaceId = workspaceId ?? (await ensureSoloWorkspace(user.id)).id;
 
+  let socialQuery = client.database
+    .from('social_accounts')
+    .select('platform, unipile_account_id')
+    .eq('user_id', user.id)
+    .not('unipile_account_id', 'is', null)
+    .in('platform', TARGET_PLATFORMS);
+
+  if (workspaceId) socialQuery = socialQuery.eq('workspace_id', workspaceId);
+
+  const { data: connectedSocialAccounts } = await socialQuery;
+
+  if (!connectedSocialAccounts?.length) {
+    return NextResponse.json(
+      {
+        error: 'Connect at least LinkedIn or X before we can build your voice and brain.',
+        postsImported: 0,
+        emailsImported: 0,
+        platforms: [],
+      },
+      { status: 400 },
+    );
+  }
+
   const unipileConfigured = Boolean(
     process.env.UNIPILE_API_KEY?.trim() && process.env.UNIPILE_DSN?.trim(),
   );
 
   const postSamples: VoiceSample[] = [];
   const connectedPlatforms: string[] = [];
+  const persistJobs: Array<Promise<void>> = [];
   const oauthName =
     user.name ?? (await fetchOAuthDisplayName(cookies().get('content-os-token')?.value ?? ''));
   let displayName = resolveDisplayName({ oauthName });
+  let linkedinConnected = false;
+  let creatorIntel: CreatorIntelBundle = {
+    linkedin: null,
+    twitter: null,
+    web: null,
+    bioFacts: '',
+  };
+
+  const emailPromise = importVoiceSamplesFromEmail(client, user.id, persistWorkspaceId).catch((err) => {
+    console.warn('[onboarding/ingest] email import failed:', err);
+    return [] as VoiceSample[];
+  });
 
   if (unipileConfigured) {
     let query = client.database
@@ -73,8 +113,11 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
     if (workspaceId) query = query.eq('workspace_id', workspaceId);
 
     const { data: accounts } = await query;
+    const accountRows = accounts ?? [];
 
-    for (const account of accounts ?? []) {
+    linkedinConnected = accountRows.some((account) => account.platform === 'linkedin');
+
+    for (const account of accountRows) {
       const platform = account.platform as OnboardingPlatform;
       if (!TARGET_PLATFORMS.includes(platform)) continue;
 
@@ -94,54 +137,67 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
         if (samples.length > 0) {
           connectedPlatforms.push(platform === 'linkedin' ? 'LinkedIn' : 'X');
           postSamples.push(...samples);
-          if (account.account_name) displayName = resolveDisplayName({
-            oauthName,
-            socialAccountName: account.account_name,
-          });
+          if (account.account_name) {
+            displayName = resolveDisplayName({
+              oauthName,
+              socialAccountName: account.account_name,
+            });
+          }
 
-          void persistImportedPosts({
-            client,
-            userId: user.id,
-            workspaceId: persistWorkspaceId,
-            platform,
-            items: rawItems.filter(
-              (item) =>
-                item.id &&
-                !item.is_repost &&
-                !item.is_reply &&
-                (item.text ?? item.commentary ?? '').trim().length > 20,
-            ),
-          }).catch((err) => {
-            console.warn('[onboarding/ingest] background post persist failed:', err);
-          });
+          persistJobs.push(
+            persistImportedPosts({
+              client,
+              userId: user.id,
+              workspaceId: persistWorkspaceId,
+              platform,
+              items: rawItems.filter(
+                (item) =>
+                  item.id &&
+                  !item.is_repost &&
+                  !item.is_reply &&
+                  (item.text ?? item.commentary ?? '').trim().length > 20,
+              ),
+            }).catch((err) => {
+              console.warn('[onboarding/ingest] post persist failed:', err);
+            }),
+          );
         }
       } catch (err) {
         console.warn(`[onboarding/ingest] import failed for ${platform}:`, err);
       }
     }
+
+    creatorIntel = await gatherCreatorIntel(
+      accountRows.map((account) => ({
+        platform: account.platform as OnboardingPlatform,
+        unipile_account_id: account.unipile_account_id,
+        account_id: account.account_id,
+        account_name: account.account_name,
+      })),
+      displayName,
+    );
+    if (creatorIntel.linkedin?.fullName) {
+      displayName = resolveDisplayName({
+        oauthName,
+        socialAccountName: creatorIntel.linkedin.fullName,
+      });
+    }
   }
 
-  let emailSamples: VoiceSample[] = [];
-  try {
-    emailSamples = await importVoiceSamplesFromEmail(
-      client,
-      user.id,
-      persistWorkspaceId,
-    );
-    if (emailSamples.length > 0 && !connectedPlatforms.includes('Gmail')) {
-      connectedPlatforms.push('Gmail');
-    }
-  } catch (err) {
-    console.warn('[onboarding/ingest] email import failed:', err);
+  await Promise.all(persistJobs);
+
+  const emailSamples = await emailPromise;
+  if (emailSamples.length > 0 && !connectedPlatforms.includes('Gmail')) {
+    connectedPlatforms.push('Gmail');
   }
 
   const allSamples: VoiceSample[] = [...postSamples, ...emailSamples];
 
-  if (allSamples.length < MIN_SAMPLES) {
+  if (postSamples.length < MIN_SAMPLES) {
     return NextResponse.json(
       {
         error:
-          'Need at least one post or sent email to build your voice. Connect LinkedIn/X or Gmail, then try again.',
+          'Need at least one post from LinkedIn or X to build your voice. Connect an account with public posts, then try again.',
         postsImported: postSamples.length,
         emailsImported: emailSamples.length,
         platforms: connectedPlatforms,
@@ -151,7 +207,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const analysisSamples = selectBalancedVoiceSamples(allSamples, 20);
+    const analysisSamples = selectBalancedVoiceSamples(allSamples, 25);
     const analysis = await analyzeVoiceSamples(analysisSamples);
     const persona = await synthesizePersonaFromAnalysis(analysis);
 
@@ -162,7 +218,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
       displayName,
     });
 
-    await persistOnboardingVoice(
+    const brainCheck = await persistOnboardingVoice(
       client,
       user.id,
       persistWorkspaceId,
@@ -171,7 +227,28 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
       postSamples,
       emailSamples,
       analysisSamples,
+      creatorIntel,
+      {
+        requireLinkedInIntel: linkedinConnected,
+        requireWebIntel: Boolean(creatorIntel.web),
+      },
     );
+
+    if (!brainCheck.ok) {
+      return NextResponse.json(
+        {
+          error:
+            'Voice was analyzed but your creator brain did not sync. Please retry — missing: ' +
+            brainCheck.missing.join(', '),
+          baseline,
+          postsImported: postSamples.length,
+          emailsImported: emailSamples.length,
+          platforms: connectedPlatforms,
+          brainCheck,
+        },
+        { status: 500 },
+      );
+    }
 
     const response: OnboardingIngestResponse = {
       baseline,
@@ -179,6 +256,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
       emailsImported: emailSamples.length,
       platforms: connectedPlatforms,
       saved: true,
+      brainCheck,
     };
 
     return NextResponse.json(response);
@@ -196,7 +274,11 @@ async function persistOnboardingVoice(
   postSamples: VoiceSample[],
   emailSamples: VoiceSample[],
   analysisSamples: VoiceSample[],
-): Promise<void> {
+  creatorIntel: CreatorIntelBundle,
+  verifyOptions: { requireLinkedInIntel: boolean; requireWebIntel: boolean },
+): Promise<OnboardingBrainCheck> {
+  const bioFacts = creatorIntel.bioFacts || baseline.voiceSummary;
+
   const { data: existingProfile } = await client.database
     .from('creator_profile')
     .select('id')
@@ -207,6 +289,7 @@ async function persistOnboardingVoice(
     voice_description: persona.voice_description,
     voice_rules: persona.voice_rules,
     display_name: baseline.displayName,
+    bio_facts: bioFacts,
     content_pillars: baseline.pillars,
     updated_at: new Date().toISOString(),
   };
@@ -220,7 +303,6 @@ async function persistOnboardingVoice(
     await client.database.from('creator_profile').insert([{
       user_id: userId,
       workspace_id: workspaceId,
-      bio_facts: '',
       ...profilePayload,
     }]);
   }
@@ -234,6 +316,10 @@ async function persistOnboardingVoice(
     { key: 'voice_analysis_samples', value: JSON.stringify(analysisSamples.slice(0, 12)) },
     { key: 'onboarding_baseline', value: JSON.stringify(baseline) },
     { key: 'onboarding_suggested_topic', value: baseline.suggestedTopic },
+    { key: 'creator_intel_linkedin', value: JSON.stringify(creatorIntel.linkedin) },
+    { key: 'creator_intel_twitter', value: JSON.stringify(creatorIntel.twitter) },
+    { key: 'creator_intel_web', value: JSON.stringify(creatorIntel.web) },
+    { key: 'creator_bio_facts', value: bioFacts },
   ];
 
   for (const setting of settings) {
@@ -247,6 +333,14 @@ async function persistOnboardingVoice(
   }
 
   try {
+    await syncCreatorIntelToBrain(
+      client,
+      userId,
+      workspaceId,
+      creatorIntel,
+      baseline.displayName,
+      baseline.pillars,
+    );
     await syncBrainVoiceLab(
       client,
       userId,
@@ -258,14 +352,38 @@ async function persistOnboardingVoice(
       },
       workspaceId,
     );
-  } catch (err) {
-    console.warn('[onboarding/ingest] brain sync failed (non-critical):', err);
-  }
-
-  try {
     await syncCreatorBrainFull(client, userId, workspaceId);
   } catch (err) {
-    console.warn('[onboarding/ingest] full brain sync failed (non-critical):', err);
+    console.warn('[onboarding/ingest] brain sync failed:', err);
+  }
+
+  let brainCheck = await verifyOnboardingBrain(client, userId, workspaceId, verifyOptions);
+  if (!brainCheck.ok) {
+    try {
+      await syncCreatorIntelToBrain(
+        client,
+        userId,
+        workspaceId,
+        creatorIntel,
+        baseline.displayName,
+        baseline.pillars,
+      );
+      await syncBrainVoiceLab(
+        client,
+        userId,
+        {
+          voice_description: persona.voice_description,
+          voice_rules: persona.voice_rules,
+          vocabulary_fingerprint: persona.vocabulary_fingerprint,
+          structural_patterns: persona.structural_patterns,
+        },
+        workspaceId,
+      );
+      await syncCreatorBrainFull(client, userId, workspaceId);
+      brainCheck = await verifyOnboardingBrain(client, userId, workspaceId, verifyOptions);
+    } catch (err) {
+      console.warn('[onboarding/ingest] brain sync retry failed:', err);
+    }
   }
 
   try {
@@ -280,4 +398,6 @@ async function persistOnboardingVoice(
   }
 
   await captureVoiceDriftBaseline(client, workspaceId, userId, 8, 3, 'linkedin');
+
+  return brainCheck;
 }
