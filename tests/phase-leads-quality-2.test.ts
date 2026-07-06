@@ -33,7 +33,9 @@ import { classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import { scoreIcpFit } from '@/lib/signals/leads/icp-score';
 import { chatCompletion } from '@/lib/llm';
 import { mapWithConcurrency } from '@/lib/util/concurrency';
+import { mergeFeed, FEED_PAGE_LIMIT } from '@/lib/signals/feed/store';
 import type { IngestedPost, SignalEventWithPost } from '@/lib/signals/types';
+import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 
 beforeAll(() => {
   process.env.UNIPILE_DSN = 'api1.unipile.com:1234';
@@ -348,5 +350,49 @@ describe('Phase: Leads quality 2 - Task 3: mapWithConcurrency', () => {
     const result = await mapWithConcurrency<number, number>([], 5, fn);
     expect(result).toEqual([]);
     expect(fn).not.toHaveBeenCalled();
+  });
+});
+
+describe('Phase: Leads quality 2 - Task 4: unified feed page size', () => {
+  const card = (over: Partial<UnifiedLeadCard>): UnifiedLeadCard => ({
+    id: 'x', kind: 'directory', source: 'yc_directory', companyName: 'C', tagline: null,
+    signalType: null, signalSummary: null, sourceUrl: null, batch: null, accelerator: null,
+    contact: null, contactStatus: null, score: 0.5, status: 'new', detectedAt: '2026-07-01T00:00:00Z',
+    ...over,
+  });
+
+  it('caps merged output to the page limit, keeping the top-scored slice', () => {
+    // 120 directory cards with descending scores so the top FEED_PAGE_LIMIT
+    // (by score) are the ones expected to survive the cap.
+    const directoryCards = Array.from({ length: 120 }, (_unused, i) =>
+      card({ id: `d${i}`, score: 1 - i * 0.001 }));
+
+    const out = mergeFeed(directoryCards, [], {});
+
+    expect(out).toHaveLength(FEED_PAGE_LIMIT);
+    const expectedIds = directoryCards
+      .slice(0, FEED_PAGE_LIMIT) // top FEED_PAGE_LIMIT scores are the first FEED_PAGE_LIMIT entries (already descending)
+      .map((c) => c.id);
+    expect(out.map((c) => c.id)).toEqual(expectedIds);
+  });
+
+  it('caps merged output to an explicit filters.limit smaller than FEED_PAGE_LIMIT', () => {
+    const directoryCards = Array.from({ length: 10 }, (_unused, i) =>
+      card({ id: `d${i}`, score: 1 - i * 0.01 }));
+
+    const out = mergeFeed(directoryCards, [], { limit: 3 });
+
+    expect(out).toHaveLength(3);
+    expect(out.map((c) => c.id)).toEqual(['d0', 'd1', 'd2']);
+  });
+
+  it('returns all cards unchanged when there are fewer than the limit', () => {
+    const directoryCards = [card({ id: 'a', score: 0.9 }), card({ id: 'b', score: 0.4 })];
+    const signalCards = [card({ id: 'c', kind: 'signal', source: 'x', score: 0.6 })];
+
+    const out = mergeFeed(directoryCards, signalCards, {});
+
+    expect(out).toHaveLength(3);
+    expect(out.map((c) => c.id)).toEqual(['a', 'c', 'b']);
   });
 });
