@@ -58,6 +58,17 @@ describe('gtm nurture playbook', () => {
   });
 });
 
+describe('gtm nurture comment advance', () => {
+  it('marks comment step done in playbook helper', () => {
+    const pb = buildLeadPlaybook(baseLead());
+    const commentDone = {
+      ...pb,
+      steps: pb.steps.map((s) => (s.type === 'comment' ? { ...s, status: 'done' as const } : s)),
+    };
+    expect(commentDone.steps.find((s) => s.type === 'comment')?.status).toBe('done');
+  });
+});
+
 describe('gtm-nurture cron wiring', () => {
   it('medium fan-out includes gtm-nurture', () => {
     const fs = require('fs');

@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/insforge/server';
+import {
+  getUnipileApiBase,
+  getUnipileApiKey,
+  getUnipileServerUrl,
+  isUnipileConfigured,
+} from '@/lib/unipile/config';
 
 /**
  * GET /api/social-accounts/connect/unipile
@@ -31,24 +37,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       : `${appUrl}/settings?tab=connections&error=unipile_failed`
     : `${appUrl}/settings?tab=connections&error=unipile_failed`;
 
-  const apiKey = process.env.UNIPILE_API_KEY;
-  const dsn = process.env.UNIPILE_DSN;
+  const apiKey = getUnipileApiKey();
+  const apiBase = getUnipileApiBase();
+  const serverUrl = getUnipileServerUrl();
 
-  if (!apiKey || !dsn) {
+  if (!isUnipileConfigured() || !apiKey || !apiBase || !serverUrl) {
     const message = encodeURIComponent(
       'Unipile is not configured on this deployment. Set UNIPILE_API_KEY and UNIPILE_DSN.',
     );
     return NextResponse.redirect(`${appUrl}/settings?tab=connections&error=${message}`);
   }
 
-  const apiBase = `https://${dsn.replace(/\/$/, '')}/api/v1`;
   const isLocalhost = appUrl.includes('localhost') || appUrl.includes('127.0.0.1');
 
   // api_url = the Unipile server URL (required). notify_url = our webhook (optional).
   const requestBody: Record<string, unknown> = {
     type: 'create',
     // Required: Unipile server URL — not our webhook, the Unipile API base.
-    api_url: `https://${dsn.replace(/\/$/, '')}`,
+    api_url: serverUrl,
     // Required: link expiry (ISO 8601 UTC). Unipile also expires on daily restart.
     expiresOn: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     // Providers to show (schema enum: LINKEDIN | TWITTER | INSTAGRAM | MESSENGER | TELEGRAM | GOOGLE | OUTLOOK | MAIL)

@@ -23,6 +23,14 @@ export interface LeadPlaybook {
   }>;
   hookContext?: string;
   generatedAt: string;
+  /** Best recent post to comment on (Unipile or The Hog). */
+  targetPost?: {
+    id: string;
+    excerpt: string;
+    url?: string;
+    source: 'unipile' | 'thehog';
+  };
+  commentTaskId?: string;
 }
 
 export type SignalPlatform = 'x' | 'linkedin';

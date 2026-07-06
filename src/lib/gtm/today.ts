@@ -11,11 +11,14 @@ export interface GtmTodaySnapshot {
   icpConfigured: boolean;
   pipeline: {
     discovered: number;
+    engaging: number;
     connectReady: number;
     connectSent: number;
+    dmReady: number;
     sentToday: number;
   };
   connectsDue: Array<Pick<SignalLeadRow, 'id' | 'company_name' | 'rank_score' | 'next_action_at'>>;
+  dmsDue: Array<Pick<SignalLeadRow, 'id' | 'company_name' | 'rank_score' | 'next_action_at'>>;
   commentDrafts: EngagementTaskRow[];
 }
 
@@ -24,7 +27,7 @@ export async function buildGtmTodaySnapshot(
   workspaceId: string,
   userId: string,
 ): Promise<GtmTodaySnapshot> {
-  const [safety, settings, stageRows, dueRows, tasksRes] = await Promise.all([
+  const [safety, settings, stageRows, dueRows, dmDueRows, tasksRes] = await Promise.all([
     getSafetyStatus(client, workspaceId),
     getDirectorySettings(client, workspaceId),
     client.database
@@ -36,6 +39,14 @@ export async function buildGtmTodaySnapshot(
       .select('id, company_name, rank_score, next_action_at')
       .eq('workspace_id', workspaceId)
       .eq('nurture_stage', 'connect_ready')
+      .lte('next_action_at', new Date().toISOString())
+      .order('rank_score', { ascending: false })
+      .limit(8),
+    client.database
+      .from('signal_leads')
+      .select('id, company_name, rank_score, next_action_at')
+      .eq('workspace_id', workspaceId)
+      .eq('nurture_stage', 'dm_ready')
       .lte('next_action_at', new Date().toISOString())
       .order('rank_score', { ascending: false })
       .limit(8),
@@ -62,11 +73,14 @@ export async function buildGtmTodaySnapshot(
     icpConfigured,
     pipeline: {
       discovered: countStage('discovered') + countStage('planned'),
+      engaging: countStage('engaging'),
       connectReady: countStage('connect_ready'),
       connectSent: countStage('connect_sent') + countStage('nurturing'),
+      dmReady: countStage('dm_ready'),
       sentToday: safety.usage.linkedin_invites_today,
     },
     connectsDue: (dueRows.data ?? []) as GtmTodaySnapshot['connectsDue'],
+    dmsDue: (dmDueRows.data ?? []) as GtmTodaySnapshot['dmsDue'],
     commentDrafts: (tasksRes.data ?? []) as EngagementTaskRow[],
   };
 }

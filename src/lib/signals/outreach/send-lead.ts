@@ -6,6 +6,8 @@ import {
   getLinkedInUnipileAccountId,
   resolveLinkedInProfile,
   sendLinkedInConnectionInvite,
+  sendLinkedInDirectMessage,
+  sendLinkedInInMail,
 } from '@/lib/signals/outreach/unipile-linkedin';
 import { getXUnipileAccountId, resolveXProfile, sendXDirectMessage } from '@/lib/signals/outreach/unipile-x';
 import { sendGmailEmail } from '@/lib/composio/actions/gmail';
@@ -16,8 +18,11 @@ type InsforgeClient = ReturnType<typeof createClient>;
 
 const CONNECT_NOTE_LIMIT = 300;
 
-/** v1 lead channels: LinkedIn connection (default), X DM, or cold email. */
-export type LeadChannel = Extract<OutreachChannel, 'linkedin_connect' | 'x_dm' | 'gmail'>;
+/** v1 lead channels: LinkedIn connection (default), LinkedIn DM, X DM, or cold email. */
+export type LeadChannel = Extract<
+  OutreachChannel,
+  'linkedin_connect' | 'linkedin_dm' | 'x_dm' | 'gmail'
+>;
 
 export interface SendLeadInput {
   workspaceId: string;
@@ -69,7 +74,9 @@ export async function sendLeadOutreach(
     ? sendLeadEmail(client, input, lead)
     : channel === 'x_dm'
       ? sendLeadX(client, input, lead)
-      : sendLeadLinkedIn(client, input, lead);
+      : channel === 'linkedin_dm'
+        ? sendLeadLinkedInDm(client, input, lead)
+        : sendLeadLinkedIn(client, input, lead);
 }
 
 // --- LinkedIn connection request ---
@@ -141,6 +148,88 @@ async function sendLeadLinkedIn(
   });
   await updateLead(client, workspaceId, leadId, { lead_status: 'sent' });
   await logLeadEvent(client, workspaceId, leadId, 'rescored', { action: 'sent', channel: 'linkedin_connect' });
+
+  const updated = await getLead(client, workspaceId, leadId);
+  return { success: true, externalId: sendResult.externalId, providerId: profile.providerId, lead: updated };
+}
+
+// --- LinkedIn direct message (1st-degree or InMail fallback) ---
+
+async function sendLeadLinkedInDm(
+  client: InsforgeClient,
+  input: SendLeadInput,
+  lead: SignalLeadWithContacts,
+): Promise<SendLeadResult> {
+  const { workspaceId, userId, leadId } = input;
+  const contact = lead.primary_contact ?? lead.contacts?.[0] ?? null;
+  const identifier =
+    lead.outreach?.linkedin_provider_id?.trim() ||
+    contact?.linkedin_url?.trim() ||
+    contact?.provider_id?.trim();
+  if (!identifier) return { success: false, error: 'No LinkedIn identifier resolved for this lead.' };
+
+  const messageText = (input.messageText ?? lead.outreach?.draft_text ?? '').trim();
+  if (!messageText) return { success: false, error: 'Draft the message before sending.' };
+
+  const accountId = await getLinkedInUnipileAccountId(client, userId, workspaceId);
+  if (!accountId) return { success: false, error: 'Connect LinkedIn via Settings before sending outreach.' };
+
+  await logSignalAudit(client, {
+    workspace_id: workspaceId,
+    action: 'outreach_send_attempt',
+    channel: 'linkedin_dm',
+    lead_id: leadId,
+    social_account_id: accountId,
+    metadata: { linkedin_identifier: identifier },
+  });
+
+  let profile;
+  try {
+    profile = await resolveLinkedInProfile(accountId, identifier);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await markLeadOutreachFailed(client, workspaceId, leadId, 'linkedin_dm', msg);
+    return { success: false, error: msg };
+  }
+
+  let sendResult = await sendLinkedInInMail(accountId, profile.providerId, messageText);
+  if (
+    !sendResult.success &&
+    sendResult.error &&
+    /connection|not_allowed_inmail|insufficient_credits/i.test(sendResult.error)
+  ) {
+    sendResult = await sendLinkedInDirectMessage(accountId, profile.providerId, messageText);
+  }
+
+  if (!sendResult.success) {
+    await logSignalAudit(client, {
+      workspace_id: workspaceId,
+      action: 'outreach_blocked',
+      channel: 'linkedin_dm',
+      lead_id: leadId,
+      social_account_id: accountId,
+      blocked_reason: sendResult.error,
+    });
+    await markLeadOutreachFailed(client, workspaceId, leadId, 'linkedin_dm', sendResult.error ?? 'Send failed');
+    return { success: false, error: sendResult.error, providerId: profile.providerId };
+  }
+
+  await logSignalAudit(client, {
+    workspace_id: workspaceId,
+    action: 'outreach_send_success',
+    channel: 'linkedin_dm',
+    lead_id: leadId,
+    social_account_id: accountId,
+    metadata: { external_id: sendResult.externalId, provider_id: profile.providerId },
+  });
+
+  await markLeadOutreachSent(client, workspaceId, leadId, 'linkedin_dm', messageText, {
+    providerId: profile.providerId,
+    identifier,
+    externalId: sendResult.externalId,
+  });
+  await updateLead(client, workspaceId, leadId, { lead_status: 'sent' });
+  await logLeadEvent(client, workspaceId, leadId, 'rescored', { action: 'sent', channel: 'linkedin_dm' });
 
   const updated = await getLead(client, workspaceId, leadId);
   return { success: true, externalId: sendResult.externalId, providerId: profile.providerId, lead: updated };

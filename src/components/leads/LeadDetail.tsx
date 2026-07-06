@@ -467,6 +467,11 @@ function PlaybookView({
           {due ? ` · next action ${new Date(due).toLocaleDateString()}` : ''}
         </p>
       )}
+      {playbook.targetPost && (
+        <p className="text-xs text-text-tertiary line-clamp-2">
+          Target post ({playbook.targetPost.source}): {playbook.targetPost.excerpt}
+        </p>
+      )}
       <ol className="list-decimal list-inside space-y-1 text-xs text-text-secondary">
         {playbook.steps.map((s) => (
           <li key={`${s.type}-${s.label}`} className={s.status === 'done' ? 'line-through opacity-60' : ''}>

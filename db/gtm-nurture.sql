@@ -32,3 +32,6 @@ alter table engagement_tasks
   add column if not exists workspace_id uuid;
 
 create index if not exists engagement_tasks_lead on engagement_tasks (lead_id);
+
+-- Allow GTM nurture-sourced comment tasks (idempotent comment update).
+comment on column engagement_tasks.source is 'manual | signal | gtm_nurture';

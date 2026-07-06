@@ -11,11 +11,19 @@ interface GtmTodayData {
   icpConfigured: boolean;
   pipeline: {
     discovered: number;
+    engaging: number;
     connectReady: number;
     connectSent: number;
+    dmReady: number;
     sentToday: number;
   };
   connectsDue: Array<{
+    id: string;
+    company_name: string;
+    rank_score: number;
+    next_action_at: string | null;
+  }>;
+  dmsDue: Array<{
     id: string;
     company_name: string;
     rank_score: number;
@@ -83,7 +91,7 @@ export function GtmCommandCenter() {
 
   if (!data) return null;
 
-  const { safety, pipeline, connectsDue, commentDrafts, icpConfigured } = data;
+  const { safety, pipeline, connectsDue, dmsDue, commentDrafts, icpConfigured } = data;
   const sendingLive =
     safety.settings.outreach_enabled && !safety.settings.dry_run;
   const autoOn = safety.settings.auto_send_enabled && sendingLive;
@@ -130,10 +138,14 @@ export function GtmCommandCenter() {
           </div>
         </div>
 
-        <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-3">
           <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
             <p className="text-xs text-ink2">New / planned</p>
             <p className="font-mono text-2xl font-semibold text-ink tabular-nums">{pipeline.discovered}</p>
+          </div>
+          <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
+            <p className="text-xs text-ink2">Commenting</p>
+            <p className="font-mono text-2xl font-semibold text-ink tabular-nums">{pipeline.engaging}</p>
           </div>
           <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
             <p className="text-xs text-ink2">Connect queued</p>
@@ -144,12 +156,16 @@ export function GtmCommandCenter() {
             <p className="font-mono text-2xl font-semibold text-ink tabular-nums">{pipeline.connectSent}</p>
           </div>
           <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
-            <p className="text-xs text-ink2">Sent today</p>
-            <p className="font-mono text-2xl font-semibold text-flame tabular-nums">{pipeline.sentToday}</p>
+            <p className="text-xs text-ink2">DM ready</p>
+            <p className="font-mono text-2xl font-semibold text-teal tabular-nums">{pipeline.dmReady}</p>
           </div>
         </div>
 
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="rounded-2xl border border-hair bg-paper2/60 p-3 sm:col-span-1">
+            <p className="text-xs text-ink2">Sent today</p>
+            <p className="font-mono text-2xl font-semibold text-flame tabular-nums">{pipeline.sentToday}</p>
+          </div>
           <LimitBar
             label="LinkedIn invites today"
             used={safety.usage.linkedin_invites_today}
@@ -163,7 +179,7 @@ export function GtmCommandCenter() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-hair">
+      <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-hair">
         <div className="p-5 md:p-6">
           <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
             <Linkedin className="h-4 w-4 text-blue" />
@@ -180,6 +196,30 @@ export function GtmCommandCenter() {
                   <Link
                     href={`/leads?lead=${l.id}`}
                     className="flex items-center justify-between rounded-xl border border-hair bg-white/70 px-3 py-2 text-sm hover:border-blue/30 transition-colors"
+                  >
+                    <span className="font-medium text-ink truncate">{l.company_name}</span>
+                    <ArrowRight className="h-4 w-4 text-ink3 shrink-0" />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="p-5 md:p-6">
+          <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
+            <Sparkles className="h-4 w-4 text-teal" />
+            DMs due
+          </h3>
+          {dmsDue.length === 0 ? (
+            <p className="mt-2 text-sm text-ink2">No follow-up DMs queued yet.</p>
+          ) : (
+            <ul className="mt-3 space-y-2">
+              {dmsDue.map((l) => (
+                <li key={l.id}>
+                  <Link
+                    href={`/leads?lead=${l.id}`}
+                    className="flex items-center justify-between rounded-xl border border-hair bg-white/70 px-3 py-2 text-sm hover:border-teal/30 transition-colors"
                   >
                     <span className="font-medium text-ink truncate">{l.company_name}</span>
                     <ArrowRight className="h-4 w-4 text-ink3 shrink-0" />

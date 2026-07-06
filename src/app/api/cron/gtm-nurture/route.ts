@@ -28,7 +28,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     for (const workspaceId of workspaceIds) {
       try {
         const r = await runGtmNurtureForWorkspace(client, workspaceId);
-        if (r.prepared > 0 || r.connectsSent > 0) {
+        if (r.prepared > 0 || r.connectsSent > 0 || r.commentsAdvanced > 0 || r.dmsSent > 0) {
           logInfo('[gtm-nurture] workspace run', { workspaceId, ...r });
         }
         results.push({ workspaceId, ...r });
@@ -45,7 +45,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       ok: true,
       workspaces: results.length,
       prepared: results.reduce((s, r) => s + ((r as { prepared?: number }).prepared ?? 0), 0),
+      commentsAdvanced: results.reduce(
+        (s, r) => s + ((r as { commentsAdvanced?: number }).commentsAdvanced ?? 0),
+        0,
+      ),
       connectsSent: results.reduce((s, r) => s + ((r as { connectsSent?: number }).connectsSent ?? 0), 0),
+      dmsPrepared: results.reduce((s, r) => s + ((r as { dmsPrepared?: number }).dmsPrepared ?? 0), 0),
+      dmsSent: results.reduce((s, r) => s + ((r as { dmsSent?: number }).dmsSent ?? 0), 0),
       results,
     });
   } catch (err) {

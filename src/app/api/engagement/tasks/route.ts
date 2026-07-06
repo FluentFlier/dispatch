@@ -24,7 +24,7 @@ const CreateSchema = z
     kind: z.enum(['comment', 'reaction']).default('comment'),
     reaction_type: z.string().max(30).optional(),
     platform: z.enum(['linkedin']).default('linkedin'),
-    source: z.enum(['manual', 'signal']).default('manual'),
+    source: z.enum(['manual', 'signal', 'gtm_nurture']).default('manual'),
   })
   .strict();
 

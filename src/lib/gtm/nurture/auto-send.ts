@@ -4,6 +4,8 @@ import { getSafetySettings } from '@/lib/signals/safety/settings';
 import { getLead, listLeads, logLeadEvent, updateLead } from '@/lib/signals/leads/store';
 import { sendLeadOutreach } from '@/lib/signals/outreach/send-lead';
 import { getWorkspaceOwnerUserId } from '@/lib/signals/ingest/workspace-account';
+import { advanceLeadsAfterSentComments } from '@/lib/gtm/nurture/comment-task';
+import { autoSendDueDms, prepareDueFollowUpDms } from '@/lib/gtm/nurture/dm-stage';
 import { planLeadNurture } from '@/lib/gtm/nurture/plan-lead';
 import type { NurtureProcessResult } from '@/lib/gtm/nurture/types';
 import { logError, logInfo } from '@/lib/logger';
@@ -144,16 +146,32 @@ export async function runGtmNurtureForWorkspace(
 ): Promise<NurtureProcessResult> {
   const userId = (await getWorkspaceOwnerUserId(client, workspaceId)) ?? null;
   if (!userId) {
-    return { prepared: 0, connectsSent: 0, blocked: 0, errors: ['No workspace owner.'] };
+    return {
+      prepared: 0,
+      commentsAdvanced: 0,
+      connectsSent: 0,
+      dmsPrepared: 0,
+      dmsSent: 0,
+      blocked: 0,
+      errors: ['No workspace owner.'],
+    };
   }
 
   const prepared = await autoPrepareLeads(client, workspaceId, userId);
+  const commentsAdvanced = await advanceLeadsAfterSentComments(client, workspaceId, userId);
   const send = await autoSendDueConnects(client, workspaceId, userId);
+  const dmsPrepared = await prepareDueFollowUpDms(client, workspaceId, userId);
+  const dmSend = await autoSendDueDms(client, workspaceId, userId);
+
+  const errors = [...send.errors, ...dmSend.errors];
 
   return {
     prepared,
+    commentsAdvanced,
     connectsSent: send.sent,
-    blocked: send.blocked,
-    errors: send.errors,
+    dmsPrepared,
+    dmsSent: dmSend.sent,
+    blocked: send.blocked + dmSend.blocked,
+    errors,
   };
 }

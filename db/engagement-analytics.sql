@@ -36,7 +36,7 @@ create table if not exists engagement_tasks (
   target_post_url text,
   target_author_name text,
   target_post_excerpt text,
-  source text not null default 'manual', -- manual | signal
+  source text not null default 'manual', -- manual | signal | gtm_nurture
   comment_text text,
   reaction_type text not null default 'like',
   status text not null default 'draft'

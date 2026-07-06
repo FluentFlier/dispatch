@@ -1,6 +1,7 @@
 import { getServerClient } from '@/lib/insforge/server';
 import { getAppUrl } from '@/lib/env';
 import { detectImageType } from '@/lib/image-type';
+import { getUnipileApiBase, getUnipileApiKey } from '@/lib/unipile/config';
 import type {
   ConnectedSocialAccount,
   PublishPayload,
@@ -10,14 +11,13 @@ import type {
 } from '@/lib/social/types';
 
 function getUnipileBase(): string {
-  const dsn = process.env.UNIPILE_DSN;
-  if (!dsn) throw new Error('UNIPILE_DSN is not configured');
-  // DSN format: api54.unipile.com:18402 — ensure no trailing slash
-  return `https://${dsn.replace(/\/$/, '')}/api/v1`;
+  const base = getUnipileApiBase();
+  if (!base) throw new Error('UNIPILE_DSN is not configured');
+  return base;
 }
 
 function getApiKey(): string {
-  const key = process.env.UNIPILE_API_KEY;
+  const key = getUnipileApiKey();
   if (!key) throw new Error('UNIPILE_API_KEY is not configured');
   return key;
 }

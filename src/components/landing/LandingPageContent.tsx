@@ -24,7 +24,7 @@ interface Props {
 export default function LandingPageContent({ funnel }: Props) {
   return (
     <LandingSmoothScroll>
-      <main className="editorial relative min-h-screen overflow-x-hidden bg-paper text-ink">
+      <main className="editorial relative min-h-screen overflow-x-hidden bg-transparent text-ink">
         <LandingAmbient />
         <LandingGrain />
         <a
