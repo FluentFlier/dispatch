@@ -7,22 +7,13 @@ import { getInsforgeClient } from '@/lib/insforge/client';
  * Proactively refreshes the session BEFORE the access token expires, so the user
  * never hits the expired-token 401 -> TokenRefreshGate -> reload jank.
  *
- * Why this exists: on the web sign-in flow the InsForge refresh token is kept in
- * InsForge's own httpOnly cookie and is never exposed to JS, so our server-side
- * `content-os-refresh` cookie can't be populated and the server cannot refresh on
- * its own. The only working refresh path is the browser SDK's refreshSession()
- * (which uses that httpOnly cookie). We drive it on a schedule derived from the
- * access token's own `exp`, then sync the fresh token into our httpOnly cookie so
- * server-side getAuthenticatedUser() keeps seeing a valid token.
- *
- * Safe by construction: if refreshSession() fails (e.g. dev cross-origin cookie),
- * it's a silent no-op and the reactive TokenRefreshGate still handles recovery.
+ * Also runs an immediate refresh on mount (e.g. after a Vercel deploy) so the
+ * server httpOnly cookie stays in sync with InsForge's browser session.
  */
-const REFRESH_SKEW_MS = 120_000; // refresh ~2 min before expiry
-const FALLBACK_INTERVAL_MS = 10 * 60_000; // if exp is unreadable, refresh every 10 min
+const REFRESH_SKEW_MS = 120_000;
+const FALLBACK_INTERVAL_MS = 10 * 60_000;
 const MIN_DELAY_MS = 1_000;
 
-/** Decode a JWT's exp (ms epoch) without verification; null if unreadable. */
 function decodeExpMs(token: string | null): number | null {
   if (!token) return null;
   try {
@@ -43,7 +34,6 @@ export default function SessionKeepAlive() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
 
-    /** Read the access token the SDK holds in memory (for its exp). */
     function currentAccessToken(): string | null {
       try {
         const auth = client.auth as unknown as { tokenManager?: { getAccessToken?: () => unknown } };
@@ -54,7 +44,6 @@ export default function SessionKeepAlive() {
       }
     }
 
-    /** Refresh via the SDK (InsForge httpOnly cookie) and sync into our cookie. */
     async function refreshAndSync(): Promise<void> {
       try {
         const { data, error } = await client.auth.refreshSession();
@@ -69,7 +58,7 @@ export default function SessionKeepAlive() {
           }),
         });
       } catch {
-        // No-op: reactive TokenRefreshGate remains the fallback.
+        // TokenRefreshGate / restore-session remain fallbacks.
       }
     }
 
@@ -81,18 +70,17 @@ export default function SessionKeepAlive() {
         : FALLBACK_INTERVAL_MS;
       timer = setTimeout(async () => {
         await refreshAndSync();
-        schedule(); // re-derive the next delay from the fresh token
+        schedule();
       }, delay);
     }
 
-    // Returning to a backgrounded tab is a common expiry point — re-arm immediately.
     function onVisible(): void {
       if (document.visibilityState !== 'visible') return;
       if (timer) clearTimeout(timer);
-      schedule();
+      void refreshAndSync().finally(schedule);
     }
 
-    schedule();
+    void refreshAndSync().finally(schedule);
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       cancelled = true;

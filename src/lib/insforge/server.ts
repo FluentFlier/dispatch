@@ -1,6 +1,7 @@
 import { createClient } from '@insforge/sdk';
 import { cookies } from 'next/headers';
 import { isProduction } from '@/lib/env';
+import { AUTH_COOKIE } from '@/lib/auth-cookies';
 import { displayNameFromAuthUser, fetchOAuthDisplayName } from '@/lib/user-display-name';
 import { applyImpersonation, type EffectiveUser } from '@/lib/admin/impersonation';
 
@@ -41,7 +42,7 @@ export function getServerClient(): ReturnType<typeof createClient> {
 
   const url = rawUrl.replace(/\/+$/, '');
   const cookieStore = cookies();
-  const token = cookieStore.get('content-os-token')?.value;
+  const token = cookieStore.get(AUTH_COOKIE.access)?.value;
 
   return createClient({
     baseUrl: url,
@@ -100,12 +101,11 @@ function decodeJwtPayload(token: string): {
 export async function getSessionUser(): Promise<{ id: string; email: string; name?: string } | null> {
   try {
     const cookieStore = cookies();
-    const token = cookieStore.get('content-os-token')?.value;
+    const token = cookieStore.get(AUTH_COOKIE.access)?.value;
     if (!token) return null;
 
     const claims = decodeJwtPayload(token);
 
-    // Token is not a JWT (opaque token) — fall back to API validation.
     if (!claims || !claims.sub) {
       return await validateViaApi(token);
     }
@@ -113,25 +113,19 @@ export async function getSessionUser(): Promise<{ id: string; email: string; nam
     const nowSec = Math.floor(Date.now() / 1000);
     const isExpired = claims.exp !== undefined && claims.exp < nowSec;
 
-    if (!isExpired) {
-      // JWT is valid — return user from claims without hitting InsForge API.
-      const email = claims.email ?? claims.user_metadata?.email ?? '';
-      const name =
-        claims.user_metadata?.full_name?.trim() ||
-        claims.user_metadata?.name?.trim() ||
-        claims.name?.trim() ||
-        undefined;
-      return { id: claims.sub, email, ...(name ? { name } : {}) };
-    }
-
-    // JWT expired — attempt server-side refresh using the refresh token cookie.
-    const refreshToken = cookieStore.get('content-os-refresh')?.value;
-    if (!refreshToken) {
-      console.warn('[auth] Token expired, no refresh token cookie — cannot refresh session.');
+    if (isExpired) {
+      // Middleware redirects to /api/auth/refresh or /auth/restore-session before
+      // layout runs. If we still see an expired JWT, avoid cookies().set() in RSC.
       return null;
     }
 
-    return await refreshViaToken(refreshToken);
+    const email = claims.email ?? claims.user_metadata?.email ?? '';
+    const name =
+      claims.user_metadata?.full_name?.trim() ||
+      claims.user_metadata?.name?.trim() ||
+      claims.name?.trim() ||
+      undefined;
+    return { id: claims.sub, email, ...(name ? { name } : {}) };
   } catch {
     return null;
   }
@@ -176,54 +170,4 @@ async function validateViaApi(token: string): Promise<{ id: string; email: strin
   } catch {
     return null;
   }
-}
-
-/**
- * Server-side session refresh using an httpOnly refresh token cookie.
- * Stores updated tokens back into cookies on success.
- */
-async function refreshViaToken(refreshToken: string): Promise<{ id: string; email: string; name?: string } | null> {
-  const rawUrl = process.env.NEXT_PUBLIC_INSFORGE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY;
-  if (!rawUrl || !anonKey) return null;
-
-  const { createClient: create } = await import('@insforge/sdk');
-  const refreshClient = create({
-    baseUrl: rawUrl.replace(/\/+$/, ''),
-    anonKey,
-    isServerMode: true,
-  });
-
-  const { data: refreshed, error: refreshError } = await (
-    refreshClient.auth as unknown as {
-      refreshSession: (opts: { refreshToken: string }) => Promise<{
-        data: { accessToken?: string; refreshToken?: string; user?: { id: string; email?: string } } | null;
-        error: unknown;
-      }>;
-    }
-  ).refreshSession({ refreshToken });
-
-  if (refreshError || !refreshed?.accessToken || !refreshed.user?.id) return null;
-
-  // Re-set cookies with the fresh tokens so subsequent requests use them.
-  const { cookies: responseCookies } = await import('next/headers');
-  const cookieOpts = {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax' as const,
-    path: '/',
-    maxAge: 60 * 60 * 24 * 7,
-  };
-  const store = responseCookies();
-  store.set('content-os-token', refreshed.accessToken, cookieOpts);
-  if (refreshed.refreshToken) {
-    store.set('content-os-refresh', refreshed.refreshToken, cookieOpts);
-  }
-
-  const name = await fetchOAuthDisplayName(refreshed.accessToken);
-  return {
-    id: refreshed.user.id,
-    email: refreshed.user.email ?? '',
-    ...(name ? { name } : {}),
-  };
 }

@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { AUTH_COOKIE, isJwtExpired } from '@/lib/auth-cookies';
 
 const PROTECTED_ROUTES = [
   '/admin',
@@ -22,26 +23,45 @@ const PROTECTED_ROUTES = [
   '/get-started',
 ];
 
-export function middleware(request: NextRequest): NextResponse {
-  const { pathname } = request.nextUrl;
+const AUTH_BYPASS_PREFIXES = [
+  '/api/auth',
+  '/auth/restore-session',
+  '/login',
+  '/auth/continue',
+];
 
-  // Always set x-pathname header
+function shouldBypassAuthRefresh(pathname: string): boolean {
+  return AUTH_BYPASS_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
+export function middleware(request: NextRequest): NextResponse {
+  const { pathname, search } = request.nextUrl;
+
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set('x-pathname', pathname);
 
-  const token = request.cookies.get('content-os-token')?.value;
+  const token = request.cookies.get(AUTH_COOKIE.access)?.value;
+  const refreshToken = request.cookies.get(AUTH_COOKIE.refresh)?.value;
 
-  // Public marketing routes
   if (pathname === '/pricing' || pathname === '/book-demo' || pathname === '/terms' || pathname === '/privacy') {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // Authenticated user hitting /login -> redirect to /dashboard.
-  // Exception: ?expired=1 or ?error means the server rejected the token — let
-  // the login page render so the user can re-authenticate.
-  // We do NOT clear the cookie here: any URL (/login?expired=1) could be used
-  // to force-logout a user (CSRF). getAuthenticatedUser() handles stale/expired
-  // tokens gracefully server-side — the cookie will be replaced on next sign-in.
+  // Expired access JWT: refresh server-side or restore via browser SDK before RSC layout runs.
+  if (token && isJwtExpired(token) && !shouldBypassAuthRefresh(pathname)) {
+    const nextTarget = `${pathname}${search}`;
+    if (refreshToken) {
+      const refreshUrl = new URL('/api/auth/refresh', request.url);
+      refreshUrl.searchParams.set('next', nextTarget);
+      return NextResponse.redirect(refreshUrl, 307);
+    }
+    const restoreUrl = new URL('/auth/restore-session', request.url);
+    restoreUrl.searchParams.set('next', nextTarget);
+    return NextResponse.redirect(restoreUrl, 307);
+  }
+
   if (pathname === '/login' && token) {
     const { searchParams } = request.nextUrl;
     if (searchParams.get('expired') === '1' || searchParams.has('error')) {
@@ -51,9 +71,8 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.redirect(continueUrl, 307);
   }
 
-  // Protected routes: redirect to /login if no token
   const isProtected = PROTECTED_ROUTES.some(
-    (route) => pathname === route || pathname.startsWith(route + '/')
+    (route) => pathname === route || pathname.startsWith(`${route}/`),
   );
 
   if (isProtected && !token) {

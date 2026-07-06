@@ -5,6 +5,7 @@ import BottomBar from '@/components/nav/BottomBar';
 import { ToastProvider } from '@/components/ui/Toast';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { getAuthenticatedUser, getServerClient, getSessionUser } from '@/lib/insforge/server';
+import { AUTH_COOKIE } from '@/lib/auth-cookies';
 import { getImpersonationContext } from '@/lib/admin/impersonation';
 import { ImpersonationBanner } from '@/components/admin/ImpersonationBanner';
 import TokenRefreshGate from '@/components/auth/TokenRefreshGate';
@@ -27,7 +28,7 @@ export default async function DashboardLayout({
 
   if (!user) {
     const cookieStore = cookies();
-    const hasToken = !!cookieStore.get('content-os-token')?.value;
+    const hasToken = !!cookieStore.get(AUTH_COOKIE.access)?.value;
     if (!hasToken) {
       redirect('/login');
     }

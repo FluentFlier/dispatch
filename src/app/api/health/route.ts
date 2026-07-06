@@ -39,6 +39,7 @@ export async function GET(): Promise<NextResponse> {
       status,
       service: 'content-os',
       version: process.env.npm_package_version ?? '0.1.0',
+      deploymentId: process.env.VERCEL_DEPLOYMENT_ID ?? process.env.VERCEL_GIT_COMMIT_SHA ?? null,
       timestamp: new Date().toISOString(),
       checks,
       provider: getSocialProviderMode(),

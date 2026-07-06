@@ -17,19 +17,32 @@ export default function TokenRefreshGate() {
 
   useEffect(() => {
     const RETRY_KEY = 'token_refresh_attempts';
+    const DEPLOY_KEY = 'content_os_deploy_id';
 
     function goToLogin() {
       sessionStorage.removeItem(RETRY_KEY);
       setStatus('failed');
-      // Must use ?expired=1 — middleware redirects plain /login back to /dashboard
-      // when the content-os-token cookie still exists (even if expired).
-      setTimeout(() => { window.location.href = '/login?expired=1'; }, 800);
+      setTimeout(() => {
+        window.location.href = '/login?expired=1';
+      }, 800);
     }
 
     async function tryRefresh() {
-      // Break infinite reload loop: if we've already tried twice, give up.
+      try {
+        const healthRes = await fetch('/api/health', { cache: 'no-store' });
+        const health = (await healthRes.json()) as { deploymentId?: string };
+        const deployId = health.deploymentId ?? '';
+        const prevDeploy = sessionStorage.getItem(DEPLOY_KEY);
+        if (deployId && prevDeploy && prevDeploy !== deployId) {
+          sessionStorage.removeItem(RETRY_KEY);
+        }
+        if (deployId) sessionStorage.setItem(DEPLOY_KEY, deployId);
+      } catch {
+        /* health probe optional */
+      }
+
       const attempts = Number(sessionStorage.getItem(RETRY_KEY) ?? '0');
-      if (attempts >= 2) {
+      if (attempts >= 3) {
         goToLogin();
         return;
       }
