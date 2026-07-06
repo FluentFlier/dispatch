@@ -42,7 +42,7 @@ export function CreatorBrainCard() {
       const res = await fetch('/api/brain/provision', { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed');
-      setMessage('Brain ready');
+      setMessage(`Memory ready · ${data.synced_posts ?? 0} posts synced`);
       await loadStatus();
     } catch (err) {
       setMessage(err instanceof Error ? err.message : 'Setup failed');
@@ -107,10 +107,16 @@ export function CreatorBrainCard() {
         <div className="flex shrink-0 gap-2">
           {!status?.provisioned ? (
             <Button size="sm" variant="secondary" onClick={handleProvision} disabled={syncing}>
-              Set up
+              {syncing ? 'Syncing…' : 'Set up'}
             </Button>
           ) : (
-            <Button size="sm" variant="secondary" onClick={handleSync} disabled={syncing}>
+            <Button
+              size="sm"
+              variant="secondary"
+              onClick={handleSync}
+              disabled={syncing}
+              title="Refresh memory from profile and published posts"
+            >
               <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
             </Button>
           )}

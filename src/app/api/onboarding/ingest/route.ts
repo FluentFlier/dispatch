@@ -17,7 +17,7 @@ import { analyzeVoiceSamples } from '@/lib/voice-lab/analyze-samples';
 import { importVoiceSamplesFromEmail } from '@/lib/voice-lab/import-from-email';
 import { selectBalancedVoiceSamples } from '@/lib/voice-lab/select-voice-samples';
 import { persistImportedPosts } from '@/lib/voice-lab/persist-imported-posts';
-import { syncBrainVoiceLab } from '@/lib/brain/sync';
+import { syncBrainVoiceLab, syncCreatorBrainFull } from '@/lib/brain/sync';
 import { storePersona } from '@/lib/supermemory';
 import { captureVoiceDriftBaseline } from '@/lib/voice-drift';
 
@@ -247,14 +247,25 @@ async function persistOnboardingVoice(
   }
 
   try {
-    await syncBrainVoiceLab(client, userId, {
-      voice_description: persona.voice_description,
-      voice_rules: persona.voice_rules,
-      vocabulary_fingerprint: persona.vocabulary_fingerprint,
-      structural_patterns: persona.structural_patterns,
-    });
+    await syncBrainVoiceLab(
+      client,
+      userId,
+      {
+        voice_description: persona.voice_description,
+        voice_rules: persona.voice_rules,
+        vocabulary_fingerprint: persona.vocabulary_fingerprint,
+        structural_patterns: persona.structural_patterns,
+      },
+      workspaceId,
+    );
   } catch (err) {
     console.warn('[onboarding/ingest] brain sync failed (non-critical):', err);
+  }
+
+  try {
+    await syncCreatorBrainFull(client, userId, workspaceId);
+  } catch (err) {
+    console.warn('[onboarding/ingest] full brain sync failed (non-critical):', err);
   }
 
   try {

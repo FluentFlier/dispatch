@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getBrainPage, putBrainPage } from '@/lib/brain/pages';
+import { BRAIN_SLUG } from '@/lib/brain/types';
 
 const SaveSchema = z.object({
   content: z.string().trim().min(1).max(2000),
@@ -34,14 +35,14 @@ export async function POST(req: Request): Promise<NextResponse> {
   const client = getServerClient();
 
   try {
-    const existing = await getBrainPage(client, user.id, 'saved-references');
+    const existing = await getBrainPage(client, user.id, BRAIN_SLUG.savedReferences);
     const entry = `- ${content}${source ? ` (${source})` : ''}`;
     const nextBody = existing?.body
       ? `${existing.body}\n${entry}`
       : `Saved references and hooks worth reusing.\n\n${entry}`;
 
     await putBrainPage(client, user.id, {
-      slug: 'saved-references',
+      slug: BRAIN_SLUG.savedReferences,
       title: 'Saved references',
       tags: ['saved', type ?? 'reference'],
       body: nextBody,

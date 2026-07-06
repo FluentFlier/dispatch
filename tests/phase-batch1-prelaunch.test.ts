@@ -105,5 +105,23 @@ describe('Batch 1: pre-launch fixes', () => {
       expect(joined).toContain('[gtm]');
       expect(joined).toContain('Rho treasury');
     });
+
+    it('includes saved-references when present (analytics hooks)', async () => {
+      vi.doMock('@/lib/brain/pages', () => ({
+        getBrainPage: vi.fn(async (_c: unknown, _u: string, slug: string) => {
+          if (slug === 'voice') return { body: JSON.stringify({ voice_description: 'Direct' }) };
+          if (slug === 'saved-references') {
+            return { body: 'Saved references\n\n- Hook that converted 12%' };
+          }
+          return null;
+        }),
+        listBrainPages: vi.fn(async () => []),
+      }));
+      const { retrieveBrainContext } = await import('@/lib/brain/retrieve');
+      const snippets = await retrieveBrainContext({} as never, 'user1');
+      const joined = snippets.join('\n');
+      expect(joined).toContain('[saved-references]');
+      expect(joined).toContain('Hook that converted 12%');
+    });
   });
 });

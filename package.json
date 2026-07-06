@@ -20,6 +20,8 @@
     "landing:assets": "npx tsx scripts/generate-landing-assets.ts",
     "db:intelligence": "bash scripts/apply-all-intelligence.sh",
     "db:agent": "bash scripts/apply-agent-integration.sh",
+    "db:admin-ops": "npx @insforge/cli db import db/admin-ops.sql -y",
+    "brain:backfill": "npx @insforge/cli db import db/backfill-creator-brain.sql -y",
     "deploy:vercel": "bash scripts/deploy-vercel.sh"
   },
   "dependencies": {

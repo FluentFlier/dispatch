@@ -5,6 +5,9 @@ import { getBrainPage, listBrainPages } from './pages';
 type InsforgeClient = ReturnType<typeof createClient>;
 
 function pageToSnippet(slug: string, body: string): string {
+  if (slug === BRAIN_SLUG.savedReferences) {
+    return body.trim().slice(0, 1200);
+  }
   try {
     const parsed = JSON.parse(body) as Record<string, unknown>;
     if (slug === BRAIN_SLUG.voice) {
@@ -85,6 +88,14 @@ export async function retrieveBrainContext(
     const snippet = pageToSnippet(slug, page.body);
     if (snippet.trim()) {
       snippets.push(`[${slug}]\n${snippet}`);
+    }
+  }
+
+  const savedRefs = await getBrainPage(client, userId, BRAIN_SLUG.savedReferences, workspaceId);
+  if (savedRefs?.body?.trim() && !savedRefs.body.includes('"status":"pending"')) {
+    const snippet = pageToSnippet(BRAIN_SLUG.savedReferences, savedRefs.body);
+    if (snippet.trim()) {
+      snippets.push(`[${BRAIN_SLUG.savedReferences}]\n${snippet}`);
     }
   }
 

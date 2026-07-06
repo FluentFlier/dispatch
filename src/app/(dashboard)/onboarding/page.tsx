@@ -221,7 +221,7 @@ function OnboardingInner() {
 
     try {
       await completeOnboardingFromBaseline(baseline);
-      void fetch('/api/brain/provision', { method: 'POST' }).catch(() => undefined);
+      void fetch('/api/brain/sync', { method: 'POST' }).catch(() => undefined);
       const topic = encodeURIComponent(baseline.suggestedTopic);
       router.push(`/generate?welcome=1&tab=script&topic=${topic}&platform=linkedin`);
     } catch (err) {
@@ -235,7 +235,7 @@ function OnboardingInner() {
     setError('');
     try {
       await completeOnboardingMinimal('');
-      void fetch('/api/brain/provision', { method: 'POST' }).catch(() => undefined);
+      void fetch('/api/brain/sync', { method: 'POST' }).catch(() => undefined);
       router.push('/generate?welcome=1&tab=script&topic=Something%20I%20learned%20this%20week&platform=linkedin');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to continue');
