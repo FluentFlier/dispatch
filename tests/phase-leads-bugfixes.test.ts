@@ -119,6 +119,16 @@ describe('Phase: Leads bugfixes', () => {
       expect(r.escalated).toBe(true);
       expect(r.signal?.signalType).toBe('accelerator_join');
     });
+
+    it('rejects a bare stopword company name recovered from the LLM, instead of passing it through', async () => {
+      vi.mocked(chatCompletion).mockResolvedValue(JSON.stringify({
+        is_signal: true, signal_type: 'accelerator_join', company_name: 'the',
+      }));
+      const r = await classifyPostHybridWithMeta(post('Excited to announce we joined Y Combinator W26!'));
+      expect(r.signal?.companyName).toBeUndefined();
+      expect(r.signal?.companyName).not.toBe('the');
+      expect(r.escalated).toBe(true);
+    });
   });
 
   describe('Task 3: reject stopword company names (defense-in-depth)', () => {

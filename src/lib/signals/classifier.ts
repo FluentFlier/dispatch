@@ -67,11 +67,13 @@ function extractCompanyHint(text: string): string | undefined {
 
 /**
  * Defense-in-depth guard applied to the FINAL companyName, regardless of which
- * code path produced it (regex extraction today, potentially LLM recovery or
- * other sources later). Rejects stopwords and sub-2-char junk even though
- * `extractCompanyHint` already filters its own regex branch — this closes the
- * gap for any future extraction path that forgets to re-check the stopword
- * set, and for stale data shapes that predate the regex-level fix.
+ * code path produced it (regex extraction here, and LLM recovery in
+ * src/lib/signals/detect/hybrid.ts). Rejects stopwords and sub-2-char junk
+ * even though `extractCompanyHint` already filters its own regex branch -
+ * this closes the gap for the LLM recovery path (which has no stopword
+ * awareness of its own), for any future extraction path that forgets to
+ * re-check the stopword set, and for stale data shapes that predate the
+ * regex-level fix.
  */
 function rejectStopwordCompanyName(companyName: string | undefined): string | undefined {
   if (!companyName) return companyName;

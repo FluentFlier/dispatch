@@ -24,10 +24,16 @@ export interface ProcessBatchResult {
   errors: string[];
 }
 
-/** Per-batch ceiling on actual LLM confirm calls (keyword-miss posts from a
- *  high-value source that get escalated). Bounds cost when a single chatty
- *  tracked account floods a batch. Keyword hits never consume this cap since
- *  they never reach the LLM stage. */
+/** Per-batch ceiling on actual LLM confirm calls. Two distinct paths reach the
+ *  LLM and both count against this cap: (1) keyword-miss posts from a
+ *  high-value source, escalated so the LLM can decide, and (2) company-less
+ *  keyword HITS (any source), escalated purely for company-name recovery.
+ *  Bounds cost when a single chatty tracked account floods a batch, or a
+ *  batch is full of "we joined YC" posts with no named company. The
+ *  company-recovery path's effective ceiling per batch is also bounded by
+ *  `maxItems` (default 15 fresh posts per run), independent of this cap. This
+ *  cap counts recovery calls but never blocks them (see the loop below); it
+ *  only gates the keyword-miss escalation path. */
 const MAX_LLM_CONFIRMS_PER_BATCH = 10;
 
 // Source types the user explicitly tracks (follows). Only these are worth an
@@ -71,10 +77,12 @@ export async function processIngestedPosts(
   let llmConfirmsSkippedByCap = 0;
 
   for (const post of fresh) {
-    // Only a keyword-miss post from a tracked source is LLM-eligible at all, so
-    // gating on the cap here only ever throttles that specific (bounded) case.
-    // Keyword hits never reach the LLM regardless of this flag, so they never
-    // consume or get blocked by the cap.
+    // `highValueSource` only gates the keyword-MISS escalation path below, so
+    // gating it on the cap here only ever throttles that specific (bounded)
+    // case. It has no effect on company-less keyword HITS: those escalate for
+    // company-name recovery regardless of this flag (see hybrid.ts), and DO
+    // consume the cap once the LLM call actually happens - the cap counts
+    // that usage but never blocks the recovery attempt itself.
     const capAvailable = llmConfirmsUsed < MAX_LLM_CONFIRMS_PER_BATCH;
     const highValueSource = sourceIsHighValue && capAvailable;
 

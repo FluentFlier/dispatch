@@ -1,11 +1,11 @@
 /**
  * Maintenance script: reclassifies stale `signal_events` rows whose
  * company_name (and related fields) were computed by an older classifier
- * version — most notably rows where company_name is a bare stopword like
+ * version - most notably rows where company_name is a bare stopword like
  * "the" (Issue 1a). The live classifier (src/lib/signals/classifier.ts) has
  * carried a defense-in-depth stopword guard since this fix; this script
  * repairs the DATA that predates it. It does not change any live code path
- * and is NOT wired to a cron — run it by hand after the fix ships.
+ * and is NOT wired to a cron - run it by hand after the fix ships.
  *
  * Prerequisites (same pattern as scripts/migrate-workspaces.ts):
  *   NEXT_PUBLIC_INSFORGE_URL, INSFORGE_SERVICE_ROLE_KEY set in environment.
@@ -92,7 +92,7 @@ async function loadEvents(workspaceId?: string): Promise<EventWithPost[]> {
 /** Reclassifies and updates a single event row. Returns true if it changed. */
 async function reclassifyOne(event: EventWithPost): Promise<boolean> {
   if (!event.raw_post) {
-    console.log(`  SKIP  ${event.id} — no raw_post to reclassify from`);
+    console.log(`  SKIP  ${event.id} - no raw_post to reclassify from`);
     return false;
   }
 
@@ -103,7 +103,7 @@ async function reclassifyOne(event: EventWithPost): Promise<boolean> {
   const classified = await classifyPostHybrid(post);
 
   if (!classified) {
-    console.log(`  SKIP  ${event.id} — reclassify produced no signal, leaving as-is`);
+    console.log(`  SKIP  ${event.id} - reclassify produced no signal, leaving as-is`);
     return false;
   }
 
@@ -119,7 +119,7 @@ async function reclassifyOne(event: EventWithPost): Promise<boolean> {
     nextBatch === event.batch;
 
   if (unchanged) {
-    console.log(`  SKIP  ${event.id} — reclassify agrees with stored data`);
+    console.log(`  SKIP  ${event.id} - reclassify agrees with stored data`);
     return false;
   }
 
@@ -134,12 +134,12 @@ async function reclassifyOne(event: EventWithPost): Promise<boolean> {
     .eq('id', event.id);
 
   if (error) {
-    console.error(`  FAIL  ${event.id} — update error: ${error.message}`);
+    console.error(`  FAIL  ${event.id} - update error: ${error.message}`);
     return false;
   }
 
   console.log(
-    `  FIXED ${event.id} — company_name "${event.company_name ?? 'null'}" -> "${nextCompany ?? 'null'}"`,
+    `  FIXED ${event.id} - company_name "${event.company_name ?? 'null'}" -> "${nextCompany ?? 'null'}"`,
   );
   return true;
 }
@@ -168,8 +168,8 @@ async function main() {
       const fixed = await reclassifyOne(event);
       if (fixed) fixedCount++;
     } catch (err) {
-      // Log and continue — one bad row must not abort the whole maintenance run.
-      console.error(`  ERROR ${event.id} —`, err);
+      // Log and continue - one bad row must not abort the whole maintenance run.
+      console.error(`  ERROR ${event.id} -`, err);
     }
   }
 

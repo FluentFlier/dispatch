@@ -1,4 +1,4 @@
-import { classifyPost } from '@/lib/signals/classifier';
+import { classifyPost, rejectStopwordCompanyName } from '@/lib/signals/classifier';
 import { confirmSignalWithLLM } from '@/lib/signals/detect/llm-confirm';
 import type { ClassifiedSignal, IngestedPost } from '@/lib/signals/types';
 
@@ -49,7 +49,10 @@ export async function classifyPostHybridWithMeta(
         return {
           signal: {
             ...keyword,
-            companyName: enriched.companyName,
+            // The LLM can return a bare stopword ("the") just as easily as the
+            // regex path can, so route it through the same guard before it
+            // ever reaches a signal.
+            companyName: rejectStopwordCompanyName(enriched.companyName) ?? undefined,
             personName: keyword.personName ?? enriched.personName,
             acceleratorName: keyword.acceleratorName ?? enriched.acceleratorName,
             batch: keyword.batch ?? enriched.batch,
