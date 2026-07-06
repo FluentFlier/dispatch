@@ -10,6 +10,12 @@ import { LlmError } from '@/lib/llm';
 import { formatSignalTopicsBlock, getSignalTopicsForGeneration } from '@/lib/signals/content-bridge';
 import { trackEvent } from '@/lib/analytics';
 
+// The voice pipeline runs several sequential LLM calls (base → hooks → humanize →
+// voice → evaluate) and can exceed the platform default function timeout, which
+// surfaces to the client as a failed generation. Give it the same headroom as the
+// other heavy AI routes (signals/onboarding) so prod doesn't cut it off.
+export const maxDuration = 300;
+
 const RequestSchema = z.object({
   prompt: z.string().min(1).max(10000),
   systemOverride: z.string().max(5000).optional(),

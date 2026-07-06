@@ -1,4 +1,5 @@
 import { generateContentHF } from '@/lib/huggingface';
+import { checkGlobalLlmBudget } from '@/lib/llm-budget';
 
 /**
  * Provider-agnostic LLM client.
@@ -28,6 +29,18 @@ const MAX_RATE_LIMIT_RETRIES = 4;
 const MAX_BACKOFF_MS = 12_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * OpenAI reasoning models (o-series and the GPT-5 family, e.g. gpt-5.4-mini)
+ * change the chat-completions contract: they reject the classic `max_tokens`
+ * param (require `max_completion_tokens`) and only accept the default
+ * temperature (sending 0 or 0.7 returns 400). Detect them so we build a
+ * compatible request body. Classic chat models (gpt-4o, Llama on the HF
+ * router, Groq) keep the old `max_tokens` + `temperature` shape.
+ */
+function isReasoningModel(model: string): boolean {
+  return /(^|\/)o\d/i.test(model) || /gpt-5/i.test(model);
+}
 
 /**
  * Determines how long to wait before retrying a rate-limited request.
@@ -141,15 +154,22 @@ async function callProvider(
   options: ChatCompletionOptions,
   retryRateLimit = true,
 ): Promise<string> {
-  const requestBody = JSON.stringify({
+  const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
+  const body: Record<string, unknown> = {
     model: provider.model,
     messages: [
       { role: 'system', content: systemPrompt },
       { role: 'user', content: userPrompt },
     ],
-    max_tokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
-    temperature: options.temperature ?? DEFAULT_TEMPERATURE,
-  });
+  };
+  if (isReasoningModel(provider.model)) {
+    // Reasoning models: new token param, and no custom temperature.
+    body.max_completion_tokens = maxTokens;
+  } else {
+    body.max_tokens = maxTokens;
+    body.temperature = options.temperature ?? DEFAULT_TEMPERATURE;
+  }
+  const requestBody = JSON.stringify(body);
 
   for (let attempt = 0; ; attempt++) {
     let response: Response;
@@ -211,6 +231,13 @@ export async function chatCompletion(
   userPrompt: string,
   options: ChatCompletionOptions = {},
 ): Promise<string> {
+  // Global spend backstop — runs before ANY provider (primary or HF fallback),
+  // so every text-gen path in the app (generate, signals, leads, crons) is
+  // bounded by one deployment-wide daily cap. Inert unless LLM_DAILY_HARD_CAP set.
+  if ((await checkGlobalLlmBudget()) === 'blocked') {
+    throw new LlmError('Global daily AI budget reached. Generation paused to protect credits.', 429);
+  }
+
   const primary = getPrimaryProvider(options.model);
   if (!primary) {
     // No generic provider configured -> legacy HuggingFace path.

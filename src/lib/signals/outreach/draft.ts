@@ -3,6 +3,7 @@ import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { saveOutreachDraft, getEvent } from '@/lib/signals/store';
 import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
+import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import type { SignalEventWithPost, OutreachChannel } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -61,6 +62,14 @@ export async function draftOutreachForEvent(
 ): Promise<{ draftText: string; voiceMatchScore: number; event: SignalEventWithPost | null }> {
   const platform =
     channel === 'x_dm' ? 'twitter' : channel.startsWith('linkedin') ? 'linkedin' : undefined;
+
+  // Per-workspace daily budget gate: each draft runs the full voice pipeline
+  // (several provider calls). Fan-out drafting across many signals/leads would
+  // otherwise be uncapped provider spend.
+  const budget = await checkAndIncrementUsage(client, workspaceId, 'sonnet');
+  if (budget === 'blocked') {
+    throw new Error('Daily AI draft budget reached for this workspace. Try again tomorrow.');
+  }
 
   const voiceContext = await loadCreatorVoiceContext(client, userId, {
     workspaceId,

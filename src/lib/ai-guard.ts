@@ -50,8 +50,14 @@ export async function guardAiRequest(userId: string): Promise<AiGuardResult> {
     if (!cap.ok) {
       return { ok: false, status: 402, error: cap.error ?? 'AI generation limit reached.' };
     }
-  } catch {
-    // entitlement lookup failed (infra): fall through, burst limit still applied
+  } catch (err) {
+    // Entitlement lookup failed (infra). Fail CLOSED: when the plan cap is
+    // unknowable, allowing generation would let an InsForge/DB outage bypass every
+    // per-account limit and burn provider credits without bound. Block until the
+    // cap can be read again. The GLOBAL backstop (LLM_DAILY_HARD_CAP) is the other
+    // safety net for paths that don't run through this guard.
+    console.error('[ai-guard] entitlement check failed — failing closed to protect credits:', err);
+    return { ok: false, status: 503, error: 'Usage check temporarily unavailable. Please try again shortly.' };
   }
 
   // Await the increment so failures are observable. We still return ok:true on

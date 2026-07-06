@@ -11,6 +11,7 @@ import {
 import { resolveLeadContacts } from '@/lib/signals/leads/resolve-contact';
 import { computeFitScore, computeRankScore } from '@/lib/signals/leads/score';
 import { scoreIcpFit } from '@/lib/signals/leads/icp-score';
+import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import { signalsDebugEnabled, signalsEnrichInlineEnabled } from '@/lib/signals/ingest/config';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -112,13 +113,23 @@ export async function syncWorkspaceDirectory(
     // LLM-graded ICP fit dominates the blend; the deterministic heuristic
     // `fit` above only breaks ties (and is the sole signal when the LLM call
     // fails closed to neutral 0.5).
-    const icpFit = await scoreIcpFit({
-      companyName: lead.company_name,
-      tagline: lead.tagline,
-      tags: lead.tags,
-      verticals: settings.icp_verticals,
-      keywords: settings.icp_keywords,
-    });
+    //
+    // Per-workspace daily budget gate: each scored lead is one LLM call, and a run
+    // scores up to MAX_LEADS_PER_RUN (200) leads — repeatable via "Scrape now".
+    // Without a cap this alone could drain provider credits. Gate on the workspace's
+    // daily haiku cap; once hit (or no ICP configured), fall back to the neutral 0.5
+    // score so the deterministic `fit` dominates and ranking degrades gracefully.
+    const icpConfigured = settings.icp_verticals.length > 0 || settings.icp_keywords.length > 0;
+    let icpFit = 0.5;
+    if (icpConfigured && (await checkAndIncrementUsage(client, workspaceId, 'haiku')) !== 'blocked') {
+      icpFit = await scoreIcpFit({
+        companyName: lead.company_name,
+        tagline: lead.tagline,
+        tags: lead.tags,
+        verticals: settings.icp_verticals,
+        keywords: settings.icp_keywords,
+      });
+    }
     const blendedFit = Number((0.7 * icpFit + 0.3 * fit).toFixed(3));
     const rank = computeRankScore(lead, blendedFit, today);
     await updateLead(client, workspaceId, lead.id, { fit_score: blendedFit, rank_score: rank });
