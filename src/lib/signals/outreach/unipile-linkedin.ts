@@ -1,4 +1,5 @@
 import type { createClient } from '@insforge/sdk';
+import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
 import {
   getLinkedInApiMode,
   parseUnipileError,
@@ -172,19 +173,88 @@ export interface LinkedInPersonSearchResult {
   linkedinUrl?: string;
 }
 
+/** A single item from Unipile's `/linkedin/search` classic people-search response. */
+interface UnipileSearchItem {
+  type?: string;
+  id?: string;
+  name?: string;
+  profile_url?: string;
+  headline?: string;
+}
+
 /**
  * Best-effort LinkedIn people-search by name + company, used by the contact
- * ladder's Unipile rung. Unipile's classic search requires a connected LinkedIn
- * account_id, which this module has no workspace context to resolve, and the
- * platform's people-search surface is not yet wired up here. Returns null
- * (never throws) so the ladder always degrades cleanly to `no_contact` instead
- * of blocking lead resolution on an unavailable lookup.
+ * ladder's Unipile rung (rung 4): a lead may already have a founder name
+ * without a LinkedIn URL, and this is the last deterministic attempt to turn
+ * that name into a reachable profile before the lead is marked `no_contact`.
+ *
+ * Fail-closed by design: a missing `accountId` (no connected LinkedIn account
+ * to search from), a non-2xx Unipile response, or a malformed payload all
+ * return null rather than throw, so the ladder always degrades cleanly
+ * instead of blocking lead resolution on an unavailable lookup. Failures are
+ * still surfaced via a debug log (not a silent catch) when SIGNALS_DEBUG is on.
  */
-export async function searchLinkedInPerson(_query: {
+export async function searchLinkedInPerson(query: {
   name: string;
   company: string;
+  accountId: string;
 }): Promise<LinkedInPersonSearchResult | null> {
-  return null;
+  if (!query.accountId) return null;
+
+  try {
+    const api = getLinkedInApiMode();
+    const params = new URLSearchParams({ account_id: query.accountId, limit: '10' });
+    const res = await unipileJsonPost(`/linkedin/search?${params.toString()}`, {
+      api,
+      category: 'people',
+      keywords: `${query.name} ${query.company}`.trim(),
+    });
+
+    if (!res.ok) {
+      if (signalsDebugEnabled()) {
+        console.warn(`[unipile-search] non-2xx: ${await parseUnipileError(res)}`);
+      }
+      return null;
+    }
+
+    const json = (await res.json()) as { items?: UnipileSearchItem[] } | UnipileSearchItem[];
+    const items = Array.isArray(json) ? json : (json.items ?? []);
+    const found = items.find((item) => !item.type || item.type === 'PEOPLE');
+    if (!found?.profile_url) return null;
+
+    return {
+      name: found.name,
+      role: found.headline,
+      linkedinUrl: found.profile_url,
+    };
+  } catch (err) {
+    // Network/parse failure: never throw into the ladder, just log under debug.
+    if (signalsDebugEnabled()) {
+      console.warn(`[unipile-search] error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return null;
+  }
+}
+
+/**
+ * First connected LinkedIn Unipile account in the workspace, used to resolve
+ * the `account_id` the search endpoint requires when no specific user session
+ * is available (mirrors `getWorkspacePollAccount`'s query shape).
+ */
+export async function getWorkspaceLinkedInAccountId(
+  client: InsforgeClient,
+  workspaceId: string,
+): Promise<string | null> {
+  const { data } = await client.database
+    .from('social_accounts')
+    .select('unipile_account_id')
+    .eq('workspace_id', workspaceId)
+    .eq('platform', 'linkedin')
+    .not('unipile_account_id', 'is', null)
+    .limit(1)
+    .maybeSingle();
+
+  return (data?.unipile_account_id as string) ?? null;
 }
 
 export async function sendLinkedInDirectMessage(

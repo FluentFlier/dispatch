@@ -1,8 +1,11 @@
+import type { createClient } from '@insforge/sdk';
 import { ApifyClient } from 'apify-client';
 import type { SignalLeadWithContacts } from '@/lib/signals/types';
 import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
 import { fetchYcFounders } from '@/lib/signals/ingest/yc-algolia';
-import { searchLinkedInPerson } from '@/lib/signals/outreach/unipile-linkedin';
+import { getWorkspaceLinkedInAccountId, searchLinkedInPerson } from '@/lib/signals/outreach/unipile-linkedin';
+
+type InsforgeClient = ReturnType<typeof createClient>;
 
 /**
  * Founder-contact enrichment for leads the directory didn't hand a social URL.
@@ -47,10 +50,15 @@ export interface EnrichedContact {
  * skips the slow TinyFish agent + Apify + Unipile search, so auto-resolving
  * every scraped lead inline stays within the request timeout. On-demand "Try
  * to resolve" runs the full ladder.
+ *
+ * `client`/`workspaceId` are optional because some callers (e.g. tests, or a
+ * future context with no workspace) may not have them; when absent, rung 4
+ * (Unipile search) has no account_id to search from and is skipped, exactly
+ * as it degrades when no LinkedIn account is connected.
  */
 export async function enrichFounderContact(
   lead: Pick<SignalLeadWithContacts, 'source' | 'external_id' | 'company_name' | 'website' | 'contacts'>,
-  opts: { fastOnly?: boolean } = {},
+  opts: { fastOnly?: boolean; client?: InsforgeClient; workspaceId?: string } = {},
 ): Promise<EnrichedContact | null> {
   // YC leads: the YC company detail page reliably lists founders + LinkedIn (fast).
   const viaYc = await enrichViaYcDetail(lead);
@@ -66,7 +74,11 @@ export async function enrichFounderContact(
   // is the last, deterministic attempt to turn that name into a reachable URL
   // before the lead is marked no_contact.
   const founderName = lead.contacts?.find((c) => c.name)?.name ?? undefined;
-  return enrichViaUnipileSearch({ companyName: lead.company_name, founderName });
+  const accountId =
+    opts.client && opts.workspaceId
+      ? await getWorkspaceLinkedInAccountId(opts.client, opts.workspaceId)
+      : null;
+  return enrichViaUnipileSearch({ companyName: lead.company_name, founderName, accountId });
 }
 
 /** YC detail page: founder + LinkedIn from the company's /companies/<slug> page. */
@@ -166,6 +178,8 @@ async function enrichViaApify(
 export interface UnipileSearchInput {
   companyName: string;
   founderName?: string | null;
+  /** Resolved workspace LinkedIn account id, or null when none is connected. */
+  accountId?: string | null;
 }
 
 /** Contact-shaped result returned by the Unipile name-search rung. */
@@ -177,7 +191,7 @@ export interface FoundContact {
 }
 
 /** Injectable search function so `enrichViaUnipileSearch` is unit-testable without hitting Unipile. */
-type SearchFn = (q: { name: string; company: string }) => Promise<{
+type SearchFn = (q: { name: string; company: string; accountId?: string | null }) => Promise<{
   name?: string;
   role?: string;
   linkedinUrl?: string;
@@ -195,16 +209,21 @@ export async function enrichViaUnipileSearch(
 ): Promise<FoundContact | null> {
   if (!input.founderName?.trim()) return null;
   const search = deps.search ?? defaultUnipileSearch;
-  const hit = await search({ name: input.founderName, company: input.companyName });
+  const hit = await search({ name: input.founderName, company: input.companyName, accountId: input.accountId });
   if (!hit?.linkedinUrl) return null;
   return { name: hit.name, role: hit.role, linkedinUrl: hit.linkedinUrl, via: 'unipile' };
 }
 
-/** Binds the real Unipile people-search; no-op (null) when Unipile is unconfigured or errors. */
-const defaultUnipileSearch: SearchFn = async ({ name, company }) => {
+/** Binds the real Unipile people-search; no-op (null) when Unipile is unconfigured, unaccounted, or errors. */
+const defaultUnipileSearch: SearchFn = async ({ name, company, accountId }) => {
+  if (!accountId) return null; // No connected LinkedIn account to search from.
   try {
-    return await searchLinkedInPerson({ name, company });
-  } catch {
-    return null; // Unipile down/unconfigured → ladder falls through to no_contact
+    return await searchLinkedInPerson({ name, company, accountId });
+  } catch (err) {
+    // Unipile down/unconfigured: log under debug, fall through to no_contact.
+    if (signalsDebugEnabled()) {
+      console.warn(`[unipile-search] unexpected error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return null;
   }
 };
