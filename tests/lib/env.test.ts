@@ -42,20 +42,33 @@ describe('assertProductionEnv', () => {
 describe('getSocialProviderMode', () => {
   afterEach(() => vi.unstubAllEnvs());
 
-  it('honors an explicit direct mode', () => {
+  it('honors an explicit direct mode when Unipile is not configured', () => {
     vi.stubEnv('SOCIAL_PROVIDER_MODE', 'direct');
+    vi.stubEnv('UNIPILE_API_KEY', '');
+    vi.stubEnv('UNIPILE_DSN', '');
     expect(getSocialProviderMode()).toBe('direct');
   });
 
-  it('uses unipile when UNIPILE_API_KEY is present', () => {
+  it('uses unipile when UNIPILE_API_KEY + DSN are present', () => {
     vi.stubEnv('SOCIAL_PROVIDER_MODE', '');
     vi.stubEnv('UNIPILE_API_KEY', 'key');
+    vi.stubEnv('UNIPILE_DSN', 'dsn.unipile.com');
     expect(getSocialProviderMode()).toBe('unipile');
   });
 
-  it('defaults to direct when no provider key set', () => {
+  it('prefers unipile over a stale SOCIAL_PROVIDER_MODE=direct when keys exist', () => {
+    // Regression: connect flow opens Unipile whenever keys exist, so the
+    // resolver must not report direct and leave the UI on a dead LinkedIn OAuth.
+    vi.stubEnv('SOCIAL_PROVIDER_MODE', 'direct');
+    vi.stubEnv('UNIPILE_API_KEY', 'key');
+    vi.stubEnv('UNIPILE_DSN', 'dsn.unipile.com');
+    expect(getSocialProviderMode()).toBe('unipile');
+  });
+
+  it('defaults to unipile when nothing is configured (Unipile is the supported provider)', () => {
     vi.stubEnv('SOCIAL_PROVIDER_MODE', '');
     vi.stubEnv('UNIPILE_API_KEY', '');
-    expect(getSocialProviderMode()).toBe('direct');
+    vi.stubEnv('UNIPILE_DSN', '');
+    expect(getSocialProviderMode()).toBe('unipile');
   });
 });
