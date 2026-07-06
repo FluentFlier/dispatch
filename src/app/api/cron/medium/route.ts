@@ -68,6 +68,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     jobs.push(call('intelligenceSync', '/api/cron/intelligence-sync'));
   }
 
+  // Daily 3 AM UTC: social listening + Apify mining
+  if (hour === 3 && minute === 0) {
+    jobs.push(call('intelligenceRun', '/api/intelligence/run'));
+  }
+
   const outcomes = await Promise.all(jobs);
   const result = Object.fromEntries(outcomes);
 

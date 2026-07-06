@@ -242,14 +242,32 @@ export default function AnalyticsPage() {
 
           {researchResult && (
             <div className="mt-4 rounded-lg border border-accent-primary/30 bg-accent-primary/5 p-4 text-sm">
-              <div className="font-medium mb-2 flex items-center gap-2">Research complete. Intelligence updated. <span className="text-xs opacity-70">(RAG + RL applied)</span></div>
+              {researchResult.status === 'hook-context-only' ? (
+                <>
+                  <div className="font-medium mb-2 flex items-center gap-2">
+                    Hook context refreshed
+                    <span className="text-xs opacity-70">(local intelligence dataset)</span>
+                  </div>
+                  <p className="text-xs text-text-secondary mb-2">
+                    Surfaced high-performing hook patterns for your brief. Full closed-loop training runs via
+                    engagement sync and scheduled intelligence crons.
+                  </p>
+                </>
+              ) : researchResult.error ? (
+                <div className="font-medium text-accent-primary">{researchResult.error}</div>
+              ) : (
+                <div className="font-medium mb-2 flex items-center gap-2">
+                  Research complete
+                  <span className="text-xs opacity-70">(intelligence updated)</span>
+                </div>
+              )}
               {researchResult.intelligence?.hooks && (
                 <div className="mb-2">
                   <div className="text-xs font-semibold mb-1">Top hooks surfaced:</div>
                   <div className="text-xs bg-bg/50 p-2 rounded max-h-24 overflow-auto">{researchResult.intelligence.hooks.substring(0, 300)}...</div>
                 </div>
               )}
-              <div className="text-[10px] text-text-tertiary">Run more research or let crons + engagement sync keep training the model. Your future generations will be stronger.</div>
+              <div className="text-[10px] text-text-tertiary">Use these in Generate, or let crons + engagement sync keep training the model.</div>
             </div>
           )}
         </div>

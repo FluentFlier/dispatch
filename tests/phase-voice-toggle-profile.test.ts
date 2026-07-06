@@ -26,7 +26,7 @@ vi.mock('@/lib/humanizer', () => ({
   humanize: vi.fn().mockResolvedValue('humanized'),
 }));
 vi.mock('@/lib/hooks-intelligence/resolve-hooks', () => ({
-  getBestHooksForGeneration: vi.fn().mockResolvedValue([]),
+  getBestHooksForGeneration: vi.fn().mockResolvedValue({ hooks: [], explanations: [] }),
 }));
 vi.mock('@/lib/hooks-intelligence', () => ({ getBestHooksForContext: vi.fn().mockReturnValue([]) }));
 vi.mock('@/lib/voice-prompts', () => ({ buildVoiceComposeHints: vi.fn().mockReturnValue('') }));

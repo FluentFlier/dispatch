@@ -86,6 +86,7 @@ export interface GenerateVoiceMetrics {
   revised?: boolean;
   evaluation?: VoiceEvaluationMatrix;
   used_hook_ids?: string[];
+  hook_explanations?: Array<{ id: string; text: string; author: string; rlScore: number; source: string; reason: string }>;
   pipeline_stages?: string[];
   humanize_passes?: string[];
 }
@@ -116,6 +117,7 @@ function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
     evaluation,
     pipeline_stages,
     humanize_passes,
+    hook_explanations,
   } = metrics;
   const hasHeader =
     voice_match_score !== undefined ||
@@ -168,6 +170,16 @@ function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
           Pipeline: {pipeline_stages.join(' → ')}
           {humanize_passes?.length ? ` · humanize: ${humanize_passes.join(', ')}` : ''}
         </p>
+      )}
+      {hook_explanations && hook_explanations.length > 0 && (
+        <div className="space-y-1 border-t border-hair pt-2">
+          <p className="font-mono text-[10px] uppercase tracking-wide text-ink3">Hooks used (learned)</p>
+          {hook_explanations.slice(0, 3).map((h) => (
+            <p key={h.id} className="font-body text-[11px] text-ink2 leading-snug">
+              &ldquo;{h.text}&hellip;&rdquo; — {h.reason}
+            </p>
+          ))}
+        </div>
       )}
       {evaluation && (
         <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -474,6 +486,7 @@ function SaveToLibraryModal({
           ai_score: voiceMetrics?.ai_score ?? null,
           voice_evaluation: voiceMetrics?.evaluation ?? null,
           used_hook_ids: voiceMetrics?.used_hook_ids ?? [],
+          hook_explanations: voiceMetrics?.hook_explanations ?? [],
           pipeline_stages: voiceMetrics?.pipeline_stages ?? [],
         }),
       });

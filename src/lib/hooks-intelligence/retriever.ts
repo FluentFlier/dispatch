@@ -127,3 +127,46 @@ export async function getBestHooksForVerticalDB(
   }
   return results.slice(0, limit);
 }
+
+/**
+ * Loads hook text from hook_examples DB table by ID.
+ * Falls back to empty for IDs not yet migrated from Apify mining.
+ */
+export async function getHooksByIdsFromDB(
+  client: InsforgeClient,
+  hookIds: string[],
+): Promise<Map<string, ExtractedHook>> {
+  const map = new Map<string, ExtractedHook>();
+  if (hookIds.length === 0) return map;
+
+  const unique = Array.from(new Set(hookIds));
+  const { data, error } = await client.database
+    .from('hook_examples')
+    .select('id, text, author, platform, verticals, engagement, mined_at')
+    .in('id', unique);
+
+  if (error || !data) return map;
+
+  for (const row of data) {
+    const r = row as {
+      id: string;
+      text: string;
+      author: string;
+      platform: string;
+      verticals: string[] | null;
+      engagement: ExtractedHook['engagement'];
+      mined_at: string | null;
+    };
+    map.set(r.id, {
+      id: r.id,
+      text: r.text,
+      author: r.author,
+      platform: (r.platform === 'linkedin' ? 'linkedin' : r.platform === 'x' ? 'x' : 'other') as ExtractedHook['platform'],
+      verticals: (r.verticals ?? ['general']) as HookVertical[],
+      engagement: r.engagement,
+      minedAt: r.mined_at ?? new Date().toISOString(),
+    });
+  }
+
+  return map;
+}

@@ -87,6 +87,10 @@ describe('Layer 2: RL Intelligence', () => {
       }));
       vi.doMock('@/lib/hooks-intelligence/rl-trainer', () => ({
         updateFromPerformanceDB: vi.fn(),
+        extractWinningPatterns: vi.fn().mockReturnValue([]),
+      }));
+      vi.doMock('@/lib/analytics', () => ({
+        trackEvent: vi.fn().mockResolvedValue(undefined),
       }));
 
       const { GET } = await import('@/app/api/cron/intelligence-sync/route');
@@ -137,6 +141,14 @@ describe('Layer 2: RL Intelligence', () => {
       }));
       vi.doMock('@/lib/hooks-intelligence/rl-trainer', () => ({
         updateFromPerformanceDB: vi.fn().mockResolvedValue(undefined),
+        extractWinningPatterns: vi.fn().mockReturnValue([]),
+      }));
+      vi.doMock('@/lib/engagement/categorize-leads', () => ({
+        countLeadsForPost: vi.fn().mockResolvedValue(0),
+        pillarToVertical: vi.fn().mockReturnValue('ai'),
+      }));
+      vi.doMock('@/lib/analytics', () => ({
+        trackEvent: vi.fn().mockResolvedValue(undefined),
       }));
 
       const { GET } = await import('@/app/api/cron/intelligence-sync/route');

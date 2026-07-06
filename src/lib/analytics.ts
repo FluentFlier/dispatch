@@ -14,7 +14,11 @@ export type AnalyticsEvent =
   | 'upgrade_checkout_started'
   | 'subscription_active'
   | 'trial_started'
-  | 'publish_failed';
+  | 'publish_failed'
+  | 'generation_complete'
+  | 'edit_feedback_submitted'
+  | 'rl_hooks_updated'
+  | 'voice_drift_detected';
 
 export async function trackEvent(
   event: AnalyticsEvent,

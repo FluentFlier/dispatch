@@ -152,7 +152,12 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Send failed');
-      if (result.sent > 0) {
+      if (result.stubbed > 0) {
+        toast(
+          `Connect LinkedIn or X in Settings to send replies. ${result.stubbed} draft${result.stubbed === 1 ? '' : 's'} kept ready.`,
+          'error',
+        );
+      } else if (result.sent > 0) {
         toast(`Sent ${result.sent} repl${result.sent === 1 ? 'y' : 'ies'}`);
       } else {
         toast('No approved drafts to send');
@@ -190,7 +195,11 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Send failed');
-      toast('Reply sent');
+      if (result.stubbed > 0) {
+        toast('Connect LinkedIn or X in Settings to send replies.', 'error');
+      } else {
+        toast('Reply sent');
+      }
       await loadInbox();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Send failed', 'error');

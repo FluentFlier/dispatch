@@ -7,6 +7,8 @@ import { z } from 'zod';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { errorResponse } from '@/lib/api-errors';
 import { LlmError } from '@/lib/llm';
+import { formatSignalTopicsBlock, getSignalTopicsForGeneration } from '@/lib/signals/content-bridge';
+import { trackEvent } from '@/lib/analytics';
 
 const RequestSchema = z.object({
   prompt: z.string().min(1).max(10000),
@@ -16,6 +18,7 @@ const RequestSchema = z.object({
   contentType: z.enum(['post', 'reply', 'comment', 'hooks', 'caption']).optional(),
   fast: z.boolean().optional(),
   useVoice: z.boolean().optional(),
+  mentions: z.array(z.string().max(100)).max(10).optional(),
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -35,6 +38,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const workspaceId = await getActiveWorkspaceId(user.id);
 
   const useVoice = parsed.data.useVoice !== false;
+  let signalBlock = '';
+  if (workspaceId) {
+    const topics = await getSignalTopicsForGeneration(client, workspaceId);
+    signalBlock = formatSignalTopicsBlock(topics);
+  }
+
   const { profile, contextAdditions } = useVoice
     ? await loadCreatorVoiceContext(client, user.id, {
         memoryQuery: parsed.data.topic ?? parsed.data.prompt.slice(0, 200),
@@ -43,17 +52,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       })
     : { profile: null, contextAdditions: '' };
 
+  const mergedContext = [contextAdditions, signalBlock].filter(Boolean).join('\n') || undefined;
+
   try {
     const result = await generateWithVoicePipeline({
       userPrompt: parsed.data.prompt,
       profile,
-      contextAdditions: contextAdditions || undefined,
+      contextAdditions: mergedContext,
       systemOverride: parsed.data.systemOverride,
       platform: parsed.data.platform,
       contentType: parsed.data.contentType,
       fast: parsed.data.fast ?? false,
       useVoice,
+      mentions: parsed.data.mentions,
       hooksClient: client,
+    });
+
+    void trackEvent('generation_complete', {
+      platform: parsed.data.platform ?? 'unknown',
+      hooks_used: result.usedHookIds?.length ?? 0,
+      voice_score: result.voice_match_score,
     });
 
     return NextResponse.json({
@@ -65,6 +83,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       iterations: result.iterations,
       evaluation: result.evaluation,
       used_hook_ids: result.usedHookIds ?? [],
+      hook_explanations: result.hookExplanations ?? [],
       pipeline_stages: result.stagesCompleted ?? [],
       humanize_passes: result.humanizePasses ?? [],
     });

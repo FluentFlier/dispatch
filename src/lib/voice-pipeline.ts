@@ -19,6 +19,7 @@ export interface VoicePipelineInput {
   skipHooks?: boolean;
   humanizeAlways?: boolean;
   maxIterations?: number;
+  mentions?: string[];
   hooksClient?: InsforgeClient;
 }
 
@@ -31,6 +32,7 @@ export interface VoicePipelineResult {
   evaluation?: VoiceEvaluationMatrix;
   iterations: number;
   usedHookIds?: string[];
+  hookExplanations?: Array<{ id: string; text: string; author: string; rlScore: number; source: string; reason: string }>;
   stagesCompleted?: string[];
   humanizePasses?: string[];
 }
@@ -54,6 +56,7 @@ export async function generateWithVoicePipeline(
     skipHooks: input.skipHooks,
     humanizeAlways: input.humanizeAlways,
     maxIterations: input.maxIterations,
+    mentions: input.mentions,
     hooksClient: input.hooksClient,
   };
 
@@ -68,6 +71,7 @@ export async function generateWithVoicePipeline(
     evaluation: result.evaluation,
     iterations: result.iterations,
     usedHookIds: result.usedHookIds,
+    hookExplanations: result.hookExplanations,
     stagesCompleted: result.stagesCompleted,
     humanizePasses: result.humanizePasses,
   };

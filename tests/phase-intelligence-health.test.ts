@@ -22,6 +22,8 @@ describe('Phase: Intelligence health', () => {
     expect(report.hooks).toBeDefined();
     expect(report.socialListening).toBeDefined();
     expect(report.database).toBeDefined();
+    expect(report.loop).toBeDefined();
+    expect(report.loop.flywheelStatus).toBeDefined();
     expect(Array.isArray(report.actions)).toBe(true);
   });
 

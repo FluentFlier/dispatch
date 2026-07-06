@@ -17,6 +17,7 @@ import CalendarConnectionCard from "@/components/calendar/CalendarConnectionCard
 import ProfileEditor from "@/components/settings/ProfileEditor";
 import AutoOptimizeToggle from "@/components/settings/AutoOptimizeToggle";
 import VoiceDefaultToggle from "@/components/settings/VoiceDefaultToggle";
+import HookWatchlistEditor from "@/components/settings/HookWatchlistEditor";
 import { PageHeader } from "@/components/layout/PageHeader";
 
 /* ------------------------------------------------------------------ */
@@ -678,14 +679,19 @@ export default function SettingsPage() {
       )}
 
       {activeTab === 'tools' && (
-        <Section title="Profile Bio Generator">
-          <BioGenerator
-            bioGenerating={bioGenerating}
-            bios={bios}
-            onGenerate={generateBios}
-            onBiosChange={setBios}
-          />
-        </Section>
+        <>
+          <Section title="Hook mining watchlist">
+            <HookWatchlistEditor />
+          </Section>
+          <Section title="Profile Bio Generator">
+            <BioGenerator
+              bioGenerating={bioGenerating}
+              bios={bios}
+              onGenerate={generateBios}
+              onBiosChange={setBios}
+            />
+          </Section>
+        </>
       )}
     </div>
   );

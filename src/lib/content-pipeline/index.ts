@@ -30,6 +30,8 @@ export interface ContentPipelineInput {
   skipHooks?: boolean;
   humanizeAlways?: boolean;
   maxIterations?: number;
+  /** LinkedIn/X @mentions to weave into the draft naturally. */
+  mentions?: string[];
   /** Optional InsForge client for DB-learned hook retrieval. */
   hooksClient?: InsforgeClient;
 }
@@ -43,6 +45,7 @@ export interface ContentPipelineResult {
   evaluation?: VoiceEvaluationMatrix;
   iterations: number;
   usedHookIds?: string[];
+  hookExplanations?: Array<{ id: string; text: string; author: string; rlScore: number; source: string; reason: string }>;
   stagesCompleted: PipelineStage[];
   humanizePasses?: string[];
 }
@@ -93,11 +96,15 @@ async function runBaseStage(
   substanceContext: string | undefined,
 ): Promise<string> {
   const composeHints = buildVoiceComposeHints(input.platform, input.contentType ?? 'post');
+  const mentionHint =
+    input.mentions && input.mentions.length > 0
+      ? `Include these @mentions naturally where relevant: ${input.mentions.map((m) => (m.startsWith('@') ? m : `@${m}`)).join(', ')}`
+      : undefined;
   const taskHint = input.platform
     ? `Platform: ${input.platform}. Match native format and length.`
     : undefined;
 
-  const merged = [composeHints, taskHint, substanceContext].filter(Boolean).join('\n\n');
+  const merged = [composeHints, taskHint, mentionHint, substanceContext].filter(Boolean).join('\n\n');
   const system = input.systemOverride
     ? `${input.systemOverride}\n\n${composeHints}`
     : `${BASE_SYSTEM}\n\n${merged}`;
@@ -170,11 +177,13 @@ export async function runContentPipeline(
 
   // --- Stage 2: Hooks ---
   let usedHookIds: string[] | undefined;
+  let hookExplanations: ContentPipelineResult['hookExplanations'];
   if (!input.skipHooks) {
     const vertical = topWeightedVertical(profile);
-    const hooks = await getBestHooksForGeneration(input.hooksClient, vertical, 6);
-    usedHookIds = hooks.map((h) => h.id);
-    text = await runHookStage(text, hooks, input.userPrompt);
+    const resolved = await getBestHooksForGeneration(input.hooksClient, vertical, 6);
+    usedHookIds = resolved.hooks.map((h) => h.id);
+    hookExplanations = resolved.explanations;
+    text = await runHookStage(text, resolved.hooks, input.userPrompt);
     stagesCompleted.push('hooks');
   }
 
@@ -260,6 +269,7 @@ Return ONLY the new text.`;
     humanizePasses,
     usedHookIds,
     iterations,
+    hookExplanations,
   );
 }
 
@@ -272,6 +282,7 @@ function finalizeResult(
   humanizePasses: string[] | undefined,
   usedHookIds: string[] | undefined,
   iterations = 0,
+  hookExplanations?: ContentPipelineResult['hookExplanations'],
 ): ContentPipelineResult {
   const voice_match_score = evaluation
     ? Math.round((evaluation.persona_fidelity / 10) * 100)
@@ -287,6 +298,7 @@ function finalizeResult(
     evaluation,
     iterations,
     usedHookIds,
+    hookExplanations,
     stagesCompleted,
     humanizePasses,
   };

@@ -1,6 +1,6 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { getServerClient } from '@/lib/insforge/server';
-import { generateContent, buildSystemPrompt } from '@/lib/ai';
+import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { assertCanGenerate } from '@/lib/entitlements';
 import { incrementUsage } from '@/lib/usage';
@@ -137,19 +137,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
 
       // Generate one scheduled post
-      const taskContext = [
-        `Generate a scheduled post for ${todaysPillar} pillar on ${defaultPlatform}.`,
-        contextAdditions,
-      ]
-        .filter(Boolean)
-        .join('\n\n');
-      const systemPrompt = buildSystemPrompt(profile, taskContext);
       const prompt = `Write a ${defaultPlatform} post for the "${todaysPillar}" content pillar.
 Today is ${dayOfWeek}. Write something fresh, timely, and on-brand.
 Return ONLY the post text, no JSON, no formatting.`;
 
-      const content = await generateContent(prompt, undefined, systemPrompt, profile);
-      const cleaned = content.replace(/\u2014/g, ' - ').replace(/\u2013/g, '-');
+      const result = await generateWithVoicePipeline({
+        userPrompt: prompt,
+        profile,
+        contextAdditions: contextAdditions || undefined,
+        platform: defaultPlatform as 'twitter' | 'linkedin' | 'instagram' | 'threads',
+        contentType: 'post',
+        hooksClient: adminClient,
+      });
+
+      const cleaned = result.text;
 
       await adminClient.database.from('posts').insert([{
         user_id: userId,
@@ -162,6 +163,11 @@ Return ONLY the post text, no JSON, no formatting.`;
         caption: cleaned,
         hook: cleaned.split('\n')[0],
         notes: JSON.stringify({ auto_generated: true, type: 'scheduled', cron: true }),
+        used_hook_ids: result.usedHookIds ?? [],
+        pipeline_stages: result.stagesCompleted ?? [],
+        voice_match_score: result.voice_match_score || null,
+        ai_score: result.ai_score || null,
+        voice_evaluation: result.evaluation ?? null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       }]);

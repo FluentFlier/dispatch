@@ -245,7 +245,15 @@ export default function LoginPage() {
               )}
 
               <p className="text-center text-xs text-text-tertiary mt-8">
-                By continuing, you agree to our terms.{" "}
+                By continuing, you agree to our{' '}
+                <Link href="/terms" className="text-accent-primary hover:text-accent-dark font-medium">
+                  Terms
+                </Link>{' '}
+                and{' '}
+                <Link href="/privacy" className="text-accent-primary hover:text-accent-dark font-medium">
+                  Privacy Policy
+                </Link>
+                .{' '}
                 <Link href="/pricing" className="text-accent-primary hover:text-accent-dark font-medium">
                   View plans
                 </Link>

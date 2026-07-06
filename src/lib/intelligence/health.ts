@@ -1,6 +1,7 @@
 import { loadHookDataset, getBestHooksForContext } from '@/lib/hooks-intelligence';
 import { isComposioConfigured } from '@/lib/composio/config';
 import { getSocialProviderMode } from '@/lib/env';
+import { buildLoopHealthMetrics, type LoopHealthMetrics } from '@/lib/intelligence/loop-health';
 
 export type HealthStatus = 'ok' | 'degraded' | 'missing' | 'unknown';
 
@@ -17,6 +18,7 @@ export interface IntelligenceHealthReport {
   hooks: SubsystemHealth;
   socialListening: SubsystemHealth;
   database: SubsystemHealth;
+  loop: LoopHealthMetrics;
   env: Record<string, HealthStatus>;
   actions: string[];
 }
@@ -199,6 +201,11 @@ export async function buildIntelligenceHealthReport(
   const hooks = checkHooksStack();
   const socialListening = checkSocialListeningStack();
   const database = await checkDatabaseTables(dbClient ?? null);
+  const loop = await buildLoopHealthMetrics(
+    dbClient && typeof dbClient === 'object' && 'database' in dbClient
+      ? (dbClient as Parameters<typeof buildLoopHealthMetrics>[0])
+      : null,
+  );
 
   const env: Record<string, HealthStatus> = {
     LLM_BASE_URL: envOk('LLM_BASE_URL'),
@@ -215,14 +222,18 @@ export async function buildIntelligenceHealthReport(
   if (voice.status !== 'ok') actions.push('Set LLM_* env vars for voice generation');
   if (hooks.status !== 'ok') actions.push('Run npm run hooks:research or enable USE_APIFY=true');
   if (socialListening.status !== 'ok') actions.push('Connect Unipile accounts or enable signals Apify fallback');
-  if (database.status === 'missing') actions.push('npx @insforge/cli login && bash scripts/apply-intelligence-backend.sh');
+  if (database.status === 'missing') actions.push('npx @insforge/cli login && bash scripts/apply-all-intelligence.sh');
+  actions.push(...loop.recommendations);
 
   const statuses = [voice.status, hooks.status, socialListening.status, database.status];
-  const overall: HealthStatus = statuses.includes('missing')
-    ? 'missing'
-    : statuses.includes('degraded') || statuses.includes('unknown')
-      ? 'degraded'
-      : 'ok';
+  const overall: HealthStatus =
+    loop.flywheelStatus === 'closed' && !statuses.includes('missing')
+      ? 'ok'
+      : statuses.includes('missing')
+        ? 'missing'
+        : statuses.includes('degraded') || statuses.includes('unknown') || loop.flywheelStatus === 'open'
+          ? 'degraded'
+          : 'ok';
 
   return {
     status: overall,
@@ -231,6 +242,7 @@ export async function buildIntelligenceHealthReport(
     hooks,
     socialListening,
     database,
+    loop,
     env,
     actions,
   };

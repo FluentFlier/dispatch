@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
 import { isEnabled } from '@/lib/feature-flags';
-import { PILLAR_TO_VERTICAL } from '@/lib/hooks-intelligence/types';
-import { updateFromPerformanceDB } from '@/lib/hooks-intelligence/rl-trainer';
+import { updateFromPerformanceDB, extractWinningPatterns } from '@/lib/hooks-intelligence/rl-trainer';
+import { countLeadsForPost, pillarToVertical } from '@/lib/engagement/categorize-leads';
+import { trackEvent } from '@/lib/analytics';
 
 /**
  * GET /api/cron/intelligence-sync
@@ -38,7 +39,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     //   - rl_processed_at IS NULL (process once semantics — never re-score)
     const { data: posts, error: fetchError } = await client.database
       .from('posts')
-      .select('id, pillar, saves, views, used_hook_ids')
+      .select('id, pillar, saves, views, likes, comments, used_hook_ids')
       .is('rl_processed_at', null)
       .not('used_hook_ids', 'is', null)
       .gte('views', 100)
@@ -57,15 +58,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       const hookIds = post.used_hook_ids as string[] | null;
       if (!Array.isArray(hookIds) || hookIds.length === 0) continue;
 
-      const vertical = PILLAR_TO_VERTICAL[post.pillar as string] ?? 'general';
+      const vertical = pillarToVertical(post.pillar as string);
       const views = Number(post.views) || 0;
       const saves = Number(post.saves) || 0;
+      const likes = Number((post as { likes?: number }).likes) || 0;
+      const comments = Number((post as { comments?: number }).comments) || 0;
+      const engagementRate = (saves + likes + comments) / Math.max(views, 1);
       const saveRate = saves / Math.max(views, 1);
-      const success = saveRate > 0.02 && saves >= 5;
+      const success = engagementRate > 0.03 || (saveRate > 0.02 && saves >= 5);
+      const leadsGenerated = await countLeadsForPost(client, post.id as string);
 
       // Update EMA score for each hook that was used in this post's generation
       for (const hookId of hookIds) {
-        await updateFromPerformanceDB(client, hookId, vertical, saveRate, success);
+        await updateFromPerformanceDB(client, hookId, vertical, saveRate, success, leadsGenerated);
         hooksUpdated++;
       }
 
@@ -78,7 +83,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       processed++;
     }
 
-    return NextResponse.json({ ok: true, processed, hooksUpdated });
+    if (hooksUpdated > 0) {
+      void trackEvent('rl_hooks_updated', { processed, hooksUpdated });
+    }
+
+    const winningPatterns = extractWinningPatterns(50);
+
+    return NextResponse.json({ ok: true, processed, hooksUpdated, winningPatterns: winningPatterns.length });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'intelligence-sync failed' },

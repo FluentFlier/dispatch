@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import { Loader2, Plus, X, Copy, Check, ChevronRight, Sparkles, Mic, FileText, Download, Link2 } from "lucide-react";
 import { useCreatorPreferences, POST_LENGTH_CONFIG, type PostLength } from "@/hooks/useCreatorPreferences";
+import { VoiceDriftCard } from "@/components/voice-lab/VoiceDriftCard";
 
 type Step = "samples" | "analyzing" | "interview" | "synthesizing" | "result";
 
@@ -282,6 +283,7 @@ export default function VoiceLabPage() {
 
   return (
     <div className="page-shell space-y-6">
+      <VoiceDriftCard />
       <div className="flex items-center gap-3">
         <div className="w-11 h-11 rounded-md bg-coral-light flex items-center justify-center">
           <Mic className="w-5 h-5 text-accent-primary" />

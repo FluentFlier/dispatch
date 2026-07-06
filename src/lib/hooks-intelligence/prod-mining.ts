@@ -170,13 +170,10 @@ export class ProdMiningService {
    * Cron / scheduled entrypoint. Multi-tenant ready (extend to load per-org watchlists from DB/settings).
    */
   async scheduledMineForOrg(orgId: string, verticals: string[] = ['indie_maker', 'ai']) {
-    // TODO: Load real org watchlist + verticals from InsForge (settings or dedicated table)
-    // For now use high-signal defaults from our watchlist module
-    const { DEFAULT_WATCHLIST } = await import('./watchlist');
-    const targets = DEFAULT_WATCHLIST.accounts
-      .sort((a, b) => b.priority - a.priority)
-      .slice(0, 25)
-      .map(a => a.handle);
+    const client = getServiceClient();
+    const { getWorkspaceWatchlistTargets } = await import('./workspace-watchlist');
+    const { handles } = await getWorkspaceWatchlistTargets(client, orgId);
+    const targets = handles.slice(0, 25);
 
     const results: any[] = [];
     for (const v of verticals) {

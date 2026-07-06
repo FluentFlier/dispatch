@@ -33,6 +33,8 @@ const UpdatePostSchema = z.object({
   voice_match_score: z.number().int().min(0).max(100).nullable().optional(),
   ai_score: z.number().int().min(0).max(100).nullable().optional(),
   voice_evaluation: z.record(z.string(), z.unknown()).nullable().optional(),
+  used_hook_ids: z.array(z.string()).optional(),
+  pipeline_stages: z.array(z.string()).optional(),
   updated_at: z.string().optional(),
 }).strict();
 
