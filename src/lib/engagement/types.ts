@@ -83,6 +83,8 @@ export interface SyncEngagementInput {
   manual?: ManualSyncComment[];
   /** Attempt Unipile GET /comments for published jobs (default true when UNIPILE_API_KEY set) */
   fetchFromProvider?: boolean;
+  /** Also pull reactions per post (default true; costs one extra Unipile action per post) */
+  includeReactions?: boolean;
 }
 
 export interface SyncEngagementResult {
@@ -91,7 +93,26 @@ export interface SyncEngagementResult {
   updated: number;
   skipped: number;
   provider_fetched: number;
+  reactions_fetched: number;
+  reactions_inserted: number;
+  reactions_skipped: number;
   errors: string[];
+}
+
+/** Row shape of the post_reactions table (see db/engagement-analytics.sql). */
+export interface PostReactionRow {
+  id: string;
+  user_id: string;
+  post_id: string;
+  platform: string;
+  reaction_type: string;
+  author_key: string;
+  author_name: string | null;
+  author_handle: string | null;
+  author_headline: string | null;
+  author_profile_url: string | null;
+  is_company: boolean;
+  synced_at: string;
 }
 
 export interface DraftRepliesInput {

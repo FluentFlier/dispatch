@@ -3,6 +3,7 @@ import { createClient } from '@insforge/sdk';
 import { decryptToken } from '@/lib/crypto';
 import { fetchTweetMetrics, type NormalizedMetrics } from '@/lib/platforms/twitter-metrics';
 import { fetchInstagramMetrics } from '@/lib/platforms/instagram-metrics';
+import { fetchLinkedInMetrics } from '@/lib/platforms/linkedin-metrics';
 import { logError, logInfo } from '@/lib/logger';
 
 /**
@@ -13,13 +14,15 @@ import { logError, logInfo } from '@/lib/logger';
  * existing posts.{views,likes,saves,comments,shares} columns, so Performance
  * and the best-time engine run on real data.
  *
- * Only X and Instagram are supported. LinkedIn does not expose post metrics to
- * third-party apps; Threads is deferred. Protected by CRON_SECRET.
+ * X and Instagram use their own APIs (decrypted OAuth token). LinkedIn goes
+ * through the user's connected Unipile account instead — LinkedIn's official
+ * API hides post metrics, but Unipile exposes impressions/reactions/reposts.
+ * Threads is deferred. Protected by CRON_SECRET.
  */
 
 /** Only pull metrics for posts published within this window (days). */
 const LOOKBACK_DAYS = 14;
-const SUPPORTED = new Set(['twitter', 'instagram']);
+const SUPPORTED = new Set(['twitter', 'instagram', 'linkedin']);
 
 interface PublishJobRow {
   post_id: string;
@@ -81,6 +84,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     return token;
   }
 
+  // LinkedIn metrics go through Unipile, keyed by the connected account id —
+  // there is no OAuth token to decrypt on that path.
+  const unipileCache = new Map<string, string | null>();
+  async function getUnipileAccount(userId: string): Promise<string | null> {
+    if (unipileCache.has(userId)) return unipileCache.get(userId) ?? null;
+    const { data: account } = await admin.database
+      .from('social_accounts')
+      .select('unipile_account_id')
+      .eq('user_id', userId)
+      .eq('platform', 'linkedin')
+      .not('unipile_account_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+    const id = (account as { unipile_account_id: string } | null)?.unipile_account_id ?? null;
+    unipileCache.set(userId, id);
+    return id;
+  }
+
   let updated = 0;
   let skipped = 0;
   let failed = 0;
@@ -91,17 +112,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       continue;
     }
     try {
-      const token = await getToken(job.user_id, job.platform);
-      if (!token) {
-        skipped += 1;
-        continue;
-      }
-
       let metrics: NormalizedMetrics = {};
-      if (job.platform === 'twitter') {
-        metrics = await fetchTweetMetrics(token, job.provider_post_id);
-      } else if (job.platform === 'instagram') {
-        metrics = await fetchInstagramMetrics(token, job.provider_post_id);
+      if (job.platform === 'linkedin') {
+        const unipileAccountId = await getUnipileAccount(job.user_id);
+        if (!unipileAccountId) {
+          skipped += 1;
+          continue;
+        }
+        metrics = await fetchLinkedInMetrics(unipileAccountId, job.provider_post_id);
+      } else {
+        const token = await getToken(job.user_id, job.platform);
+        if (!token) {
+          skipped += 1;
+          continue;
+        }
+        if (job.platform === 'twitter') {
+          metrics = await fetchTweetMetrics(token, job.provider_post_id);
+        } else if (job.platform === 'instagram') {
+          metrics = await fetchInstagramMetrics(token, job.provider_post_id);
+        }
       }
 
       // Only write metrics we actually received (never zero-out unknowns).

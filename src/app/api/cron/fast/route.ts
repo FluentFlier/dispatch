@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 /**
- * Fan-out cron: fires every 5 minutes, runs publish + signals-sync in parallel.
- * Exists solely to fit two high-frequency jobs into one Vercel cron slot.
- * Each sub-job keeps its own auth check and is still independently callable.
+ * Fan-out cron: fires every 5 minutes, runs publish + signals-sync +
+ * engagement-tasks in parallel. Exists solely to fit high-frequency jobs into
+ * one Vercel cron slot. Each sub-job keeps its own auth check and is still
+ * independently callable.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization');
@@ -20,9 +21,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const headers = { authorization: `Bearer ${cronSecret}` };
 
-  const [publishResult, signalsResult] = await Promise.allSettled([
+  const [publishResult, signalsResult, engagementTasksResult] = await Promise.allSettled([
     fetch(`${baseUrl}/api/cron/publish`, { headers }).then((r) => r.json()),
     fetch(`${baseUrl}/api/cron/signals-sync`, { headers }).then((r) => r.json()),
+    fetch(`${baseUrl}/api/cron/engagement-tasks`, { headers }).then((r) => r.json()),
   ]);
 
   return NextResponse.json({
@@ -34,5 +36,9 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       signalsResult.status === 'fulfilled'
         ? signalsResult.value
         : { error: String((signalsResult as PromiseRejectedResult).reason) },
+    engagementTasks:
+      engagementTasksResult.status === 'fulfilled'
+        ? engagementTasksResult.value
+        : { error: String((engagementTasksResult as PromiseRejectedResult).reason) },
   });
 }
