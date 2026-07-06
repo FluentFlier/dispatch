@@ -1,52 +1,97 @@
+import { ArrowRight, X } from 'lucide-react';
+import LandingSectionHeader from '../LandingSectionHeader';
+import LandingGlowOrb from '../LandingGlowOrb';
 import { PRODUCT_NAME } from './brand';
+import { SECTION_THEME } from './theme';
 
-/**
- * "Why it's different" — two-column comparison ledger (generic AI scheduler vs Content OS).
- */
+const theme = SECTION_THEME.different;
+
 const ROWS: [string, string][] = [
-  ['Writes from cold prompts', 'Learns from your actual content'],
-  ['No memory between posts', 'Creator Brain learns from every publish'],
-  ['Treats analytics as reports', 'Uses analytics as training signal'],
-  ['Voice drifts post to post', 'A persistent voice fingerprint'],
-  ['One platform at a time', 'Native formats for X, LinkedIn, IG & Threads'],
+  ['Writes from cold prompts', 'Learns from your posts and emails'],
+  ['No memory between posts', 'Creator Brain compounds'],
+  ['Analytics as reports', 'Analytics as training signal'],
+  ['Voice drifts', 'Persistent voice fingerprint'],
+  ['One platform at a time', 'Native LinkedIn and X'],
+];
+
+const ALSO: { label: string; accent: string }[] = [
+  { label: 'Video Studio', accent: '#8B7BB8' },
+  { label: 'Voice Lab', accent: '#0F766E' },
+  { label: 'Story Bank', accent: '#2563EB' },
+  { label: 'Warm contacts', accent: '#E8543A' },
+  { label: 'Lead signals', accent: '#D4A054' },
 ];
 
 export default function Different() {
   return (
-    <section id="different" className="scroll-mt-24 mx-auto max-w-[1180px] px-5 pb-10 pt-16 sm:px-10 sm:pt-24">
-      <div className="mb-11 max-w-[640px]">
-        <span className="font-mono text-[11.5px] tracking-[0.12em] text-flame">
-          07 / WHY IT&apos;S DIFFERENT
-        </span>
-        <h2 className="ed-serif mb-[14px] mt-[18px] text-[clamp(28px,3.8vw,50px)] font-normal leading-[1.0] tracking-[-0.025em] text-ink">
-          Not another AI caption generator.
-        </h2>
-        <p className="m-0 text-[16px] leading-[1.6] text-ink2 sm:text-[16.5px]">
-          Built around your voice, your stories, your audience, and your publishing loop —
-          so it gets sharper the more you use it.
-        </p>
-      </div>
+    <section id="different" className="relative scroll-mt-24 overflow-hidden border-t border-hair/60 bg-white/50">
+      <LandingGlowOrb tone={theme.glow} position="right" />
+      <div className="relative mx-auto max-w-[1100px] px-5 py-16 sm:px-8 sm:py-20">
+        <LandingSectionHeader
+          tag={theme.tag}
+          title="Not another caption generator."
+          subtitle={`${PRODUCT_NAME} is a command center, not a one-shot prompt box.`}
+          accent={theme.accent}
+        />
 
-      <div className="border-t border-ink">
-        <div className="grid grid-cols-1 gap-y-2 border-b border-hair py-[14px] sm:grid-cols-2 sm:gap-x-10">
-          <span className="font-mono text-[11px] tracking-[0.06em] text-ink3">
-            GENERIC AI SCHEDULER
-          </span>
-          <span className="font-mono text-[11px] tracking-[0.06em] text-blue">
-            {PRODUCT_NAME.toUpperCase()}
-          </span>
-        </div>
-        {ROWS.map(([before, after], i) => (
-          <div
-            key={before}
-            className={`grid grid-cols-1 gap-y-1 py-[18px] sm:grid-cols-2 sm:gap-x-10 ${
-              i < ROWS.length - 1 ? 'border-b border-hair' : ''
-            }`}
-          >
-            <span className="text-[15px] text-ink3 sm:text-[16px]">{before}</span>
-            <span className="text-[15px] font-medium text-ink sm:text-[16px]">{after}</span>
+        <div className="mt-8 overflow-hidden rounded-2xl border border-hair bg-white/90 shadow-[0_20px_50px_-30px_rgba(23,23,23,0.15)]">
+          <div className="hidden grid-cols-2 gap-4 border-b border-hair bg-paper2/30 px-4 py-3 text-[11px] font-medium uppercase tracking-wide text-ink3 sm:grid">
+            <span>Generic scheduler</span>
+            <span className="text-blue">{PRODUCT_NAME}</span>
           </div>
-        ))}
+          {ROWS.map(([before, after], i) => (
+            <div
+              key={before}
+              className={`px-4 py-3.5 ${i < ROWS.length - 1 ? 'border-b border-hair' : ''}`}
+            >
+              <div className="flex flex-col gap-2 sm:hidden">
+                <span className="flex items-center gap-2 text-[14px] text-ink3">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-flame/10 text-flame">
+                    <X className="h-3 w-3" />
+                  </span>
+                  {before}
+                </span>
+                <span className="flex items-center gap-2 text-[14px] font-medium text-ink">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-blue/10 text-blue">
+                    <ArrowRight className="h-3 w-3" />
+                  </span>
+                  {after}
+                </span>
+              </div>
+              <div className="hidden grid-cols-2 gap-4 sm:grid">
+                <span className="flex items-center gap-2.5 text-[14px] text-ink3">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-flame/10 text-flame">
+                    <X className="h-3.5 w-3.5" />
+                  </span>
+                  {before}
+                </span>
+                <span className="flex items-center gap-2.5 text-[14px] font-medium text-ink">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-blue/10 text-blue">
+                    <ArrowRight className="h-3.5 w-3.5" />
+                  </span>
+                  {after}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-2">
+          <span className="mr-1 self-center text-[12px] text-ink3">Also inside</span>
+          {ALSO.map((item) => (
+            <span
+              key={item.label}
+              className="inline-flex items-center gap-1.5 rounded-full border border-hair bg-white/80 px-3 py-1 text-[12px] text-ink2 backdrop-blur-sm"
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ backgroundColor: item.accent }}
+                aria-hidden
+              />
+              {item.label}
+            </span>
+          ))}
+        </div>
       </div>
     </section>
   );

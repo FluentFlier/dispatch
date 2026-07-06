@@ -47,7 +47,7 @@ export function SubscriptionEditor({ userId, plan, status }: SubscriptionEditorP
       <select
         value={editPlan}
         onChange={(e) => setEditPlan(e.target.value)}
-        className="rounded border border-[#2a2d35] bg-[#13151b] px-2 py-1 text-xs text-white"
+        className="select-field min-h-0 py-1 px-2 text-xs"
       >
         {PLANS.map((p) => (
           <option key={p} value={p}>
@@ -58,7 +58,7 @@ export function SubscriptionEditor({ userId, plan, status }: SubscriptionEditorP
       <select
         value={editStatus}
         onChange={(e) => setEditStatus(e.target.value)}
-        className="rounded border border-[#2a2d35] bg-[#13151b] px-2 py-1 text-xs text-white"
+        className="select-field min-h-0 py-1 px-2 text-xs"
       >
         {STATUSES.map((s) => (
           <option key={s} value={s}>
@@ -70,12 +70,12 @@ export function SubscriptionEditor({ userId, plan, status }: SubscriptionEditorP
         type="button"
         disabled={loading}
         onClick={() => void save()}
-        className="rounded bg-[#2563eb] px-2 py-1 text-xs font-medium text-white hover:bg-[#1d4ed8] disabled:opacity-50"
+        className="rounded-md bg-accent-primary px-2 py-1 text-xs font-medium text-text-inverse hover:bg-accent-dark disabled:opacity-50"
       >
         {loading ? '…' : 'Save'}
       </button>
       {message ? (
-        <span className={`text-xs ${message === 'Saved' ? 'text-emerald-400' : 'text-red-400'}`}>
+        <span className={`text-xs ${message === 'Saved' ? 'text-emerald-700' : 'text-red-600'}`}>
           {message}
         </span>
       ) : null}

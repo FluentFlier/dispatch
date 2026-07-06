@@ -36,7 +36,7 @@ export const LOOP_STEPS: LoopStep[] = [
     label: 'Publish',
     accent: '#0F766E',
     mark: 'SCHEDULE',
-    lede: 'One calendar. Every platform.',
+    lede: 'One calendar. LinkedIn and X.',
     exLabel: 'QUEUED',
     ex: 'LinkedIn + X · Tue 9:20',
   },

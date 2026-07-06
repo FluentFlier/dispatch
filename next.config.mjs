@@ -32,7 +32,7 @@ const securityHeaders = [
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  transpilePackages: ['@hello-pangea/dnd', '@insforge/sdk'],
+  transpilePackages: ['@hello-pangea/dnd', '@insforge/sdk', 'lenis'],
   async headers() {
     return [
       {

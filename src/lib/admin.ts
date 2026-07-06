@@ -1,4 +1,4 @@
-import { getAuthenticatedUser } from '@/lib/insforge/server';
+import { getSessionUser } from '@/lib/insforge/server';
 
 /** HTTP error with status code for API route handlers. */
 export class AdminError extends Error {
@@ -37,7 +37,7 @@ export function isAdminEmail(email: string): boolean {
  * Use at the top of admin pages and /api/admin/* routes.
  */
 export async function assertAdmin(): Promise<{ id: string; email: string }> {
-  const user = await getAuthenticatedUser();
+  const user = await getSessionUser();
   if (!user) {
     throw new AdminError('Unauthenticated', 401);
   }

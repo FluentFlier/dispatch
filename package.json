@@ -17,6 +17,7 @@
     "intelligence:run": "npx tsx scripts/intelligence-health.ts --run --remote",
     "hooks:research": "npx tsx scripts/research-hooks.ts",
     "hooks:listen": "npx tsx scripts/research-hooks.ts --all",
+    "landing:assets": "npx tsx scripts/generate-landing-assets.ts",
     "db:intelligence": "bash scripts/apply-all-intelligence.sh",
     "db:agent": "bash scripts/apply-agent-integration.sh",
     "deploy:vercel": "bash scripts/deploy-vercel.sh"

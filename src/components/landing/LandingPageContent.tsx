@@ -1,37 +1,71 @@
+import dynamic from 'next/dynamic';
+import LandingAmbient from './LandingAmbient';
+import LandingGrain from './LandingGrain';
+import LandingReveal from './LandingReveal';
+import LandingPhotoBand from './LandingPhotoBand';
 import Nav from './editorial/Nav';
 import Hero from './editorial/Hero';
 import Problem from './editorial/Problem';
 import Loop from './editorial/Loop';
-import Voice from './editorial/Voice';
 import Distribution from './editorial/Distribution';
+import Voice from './editorial/Voice';
+import Different from './editorial/Different';
 import Week from './editorial/Week';
-import Beta from './editorial/Beta';
+import Icp from './editorial/Icp';
+import LandingCta from './LandingCta';
 import Footer from './editorial/Footer';
 import type { FunnelState } from '@/lib/funnel-cta';
+
+const LandingSmoothScroll = dynamic(() => import('./LandingSmoothScroll'), { ssr: false });
 
 interface Props {
   funnel: FunnelState;
 }
 
-/** Marketing landing — nav → hero → problem → loop → voice → distribution → week → CTA → footer. */
 export default function LandingPageContent({ funnel }: Props) {
   return (
-    <main className="editorial relative min-h-screen overflow-x-hidden">
-      <a
-        href="#problem"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-ink focus:px-4 focus:py-2 focus:text-paper"
-      >
-        Skip to content
-      </a>
-      <Nav funnel={funnel} />
-      <Hero funnel={funnel} />
-      <Problem />
-      <Loop />
-      <Voice />
-      <Distribution />
-      <Week />
-      <Beta funnel={funnel} />
-      <Footer />
-    </main>
+    <LandingSmoothScroll>
+      <main className="editorial relative min-h-screen overflow-x-hidden bg-paper text-ink">
+        <LandingAmbient />
+        <LandingGrain />
+        <a
+          href="#loop"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-[60] focus:rounded-md focus:bg-ink focus:px-4 focus:py-2 focus:text-paper"
+        >
+          Skip to content
+        </a>
+        <div className="relative z-10">
+          <Nav funnel={funnel} />
+          <Hero funnel={funnel} />
+          <LandingReveal>
+            <Problem />
+          </LandingReveal>
+          <LandingPhotoBand src="/landing/mesh.png" height="sm" />
+          <LandingReveal delay={0.05}>
+            <Loop />
+          </LandingReveal>
+          <LandingReveal delay={0.05}>
+            <Distribution />
+          </LandingReveal>
+          <LandingPhotoBand src="/landing/voice-texture.png" />
+          <LandingReveal>
+            <Voice />
+          </LandingReveal>
+          <LandingReveal delay={0.05}>
+            <Different />
+          </LandingReveal>
+          <LandingReveal>
+            <Week />
+          </LandingReveal>
+          <LandingReveal delay={0.05}>
+            <Icp />
+          </LandingReveal>
+          <LandingReveal>
+            <LandingCta funnel={funnel} />
+          </LandingReveal>
+          <Footer />
+        </div>
+      </main>
+    </LandingSmoothScroll>
   );
 }
