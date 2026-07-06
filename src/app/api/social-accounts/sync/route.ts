@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
-import { getActiveWorkspaceId } from '@/lib/workspace';
+import { ensureActiveWorkspaceId, backfillNullWorkspaceSocialAccounts } from '@/lib/workspace';
 import { unipoleFetch } from '@/lib/social/unipile';
 
 interface UnipileAccount {
@@ -67,7 +67,11 @@ export async function POST(): Promise<NextResponse> {
   }
 
   const client = getServerClient();
-  const workspaceId = await getActiveWorkspaceId(user.id);
+  // Provision a workspace if the first-login race left this user without one,
+  // then repair any earlier null-workspace rows so they aren't hidden by the
+  // workspace-scoped filter in GET /api/social-accounts.
+  const workspaceId = await ensureActiveWorkspaceId(user.id);
+  await backfillNullWorkspaceSocialAccounts(user.id, workspaceId);
 
   // --- Build set of unipile_account_ids owned by OTHER users ---
   // Service client bypasses RLS so we can see all users' rows.

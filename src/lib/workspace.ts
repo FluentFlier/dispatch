@@ -70,6 +70,44 @@ export async function getActiveWorkspaceId(userId: string): Promise<string | nul
   return (await getActiveWorkspace(userId))?.id ?? null;
 }
 
+/**
+ * Active workspace id, provisioning a solo workspace if none exists yet.
+ *
+ * Use this on any path that WRITES workspace-scoped rows (social-account sync,
+ * connect, webhooks). A brand-new user can reach these paths before the
+ * fire-and-forget login provisioning finishes, in which case getActiveWorkspaceId
+ * returns null and rows get written with workspace_id = null, then hidden forever
+ * once provisioning lands. Ensuring here closes that race deterministically.
+ */
+export async function ensureActiveWorkspaceId(userId: string): Promise<string> {
+  const existing = await getActiveWorkspaceId(userId);
+  if (existing) return existing;
+  return (await ensureSoloWorkspace(userId)).id;
+}
+
+/**
+ * Repair social_accounts rows written with workspace_id = null during the
+ * first-login race, assigning them to the user's now-known workspace. Self-heals
+ * accounts that would otherwise stay hidden behind the workspace-scoped filter.
+ */
+export async function backfillNullWorkspaceSocialAccounts(
+  userId: string,
+  workspaceId: string,
+): Promise<void> {
+  const admin = getServiceClient();
+  const { error } = await admin.database
+    .from('social_accounts')
+    .update({ workspace_id: workspaceId })
+    .eq('user_id', userId)
+    .is('workspace_id', null);
+  if (error) {
+    logWarn('workspace.backfill_null_social_accounts_failed', {
+      userId,
+      dbError: error.message ?? error,
+    });
+  }
+}
+
 /** Ensure a brand-new user has a solo workspace (post-migration signups). */
 export async function ensureSoloWorkspace(userId: string): Promise<Workspace> {
   // Must use service client for BOTH the read and the insert.

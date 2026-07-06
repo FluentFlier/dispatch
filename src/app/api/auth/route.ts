@@ -34,17 +34,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Ensure every authenticated user has a solo workspace on their first login.
-    // Non-blocking: failure never blocks login. Called before the response cookie
-    // is written so getServerClient() runs anon (RLS blocks the membership read).
-    // ensureSoloWorkspace falls through to getServiceClient() for the INSERT —
-    // if the workspace already exists the INSERT may fail, which is fine.
-    ensureSoloWorkspace(validation.userId).catch((err: unknown) => {
+    // AWAITED (not fire-and-forget): a brand-new Google account would otherwise be
+    // routed into the app before workspaces/workspace_members rows exist, so
+    // workspace-scoped reads/writes (social-account sync, connect, Unipile webhook)
+    // run with workspaceId = null and rows get written null then hidden forever.
+    // ensureSoloWorkspace uses getServiceClient() for BOTH the read and the INSERT,
+    // so it does not depend on the response cookie and is safe to await here.
+    // Bounded: a provisioning failure is logged but never blocks login — the lazy
+    // fallback in /api/workspaces and ensureActiveWorkspaceId() still recovers.
+    try {
+      await ensureSoloWorkspace(validation.userId);
+    } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       // Suppress expected duplicate-workspace errors on repeat logins
       if (!msg.includes('duplicate') && !msg.includes('unique') && !msg.includes('already exists')) {
         logWarn('auth.workspace_provision_failed', { userId: validation.userId, error: msg });
       }
-    });
+    }
 
     // Fix placeholder display names (email local-part) with OAuth profile name.
     void (async () => {
