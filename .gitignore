@@ -82,3 +82,4 @@ ds-bundle/
 # design-sync durable inputs (override global *.md ignore)
 !.design-sync/NOTES.md
 !.design-sync/conventions.md
+.env*
