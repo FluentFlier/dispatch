@@ -65,6 +65,21 @@ function extractCompanyHint(text: string): string | undefined {
   return candidate;
 }
 
+/**
+ * Defense-in-depth guard applied to the FINAL companyName, regardless of which
+ * code path produced it (regex extraction today, potentially LLM recovery or
+ * other sources later). Rejects stopwords and sub-2-char junk even though
+ * `extractCompanyHint` already filters its own regex branch — this closes the
+ * gap for any future extraction path that forgets to re-check the stopword
+ * set, and for stale data shapes that predate the regex-level fix.
+ */
+function rejectStopwordCompanyName(companyName: string | undefined): string | undefined {
+  if (!companyName) return companyName;
+  if (companyName.length < 2) return undefined;
+  if (COMPANY_STOPWORDS.has(companyName.toLowerCase())) return undefined;
+  return companyName;
+}
+
 function extractPersonName(authorName?: string, authorHandle?: string): string | undefined {
   if (authorName?.trim()) return authorName.trim();
   if (authorHandle) return authorHandle.replace(/^@/, '');
@@ -134,7 +149,7 @@ export function classifyPost(post: IngestedPost): ClassifiedSignal | null {
 
   const batch = extractBatch(post.content);
   const accelerator = extractAccelerator(post.content);
-  const companyName = extractCompanyHint(post.content);
+  const companyName = rejectStopwordCompanyName(extractCompanyHint(post.content));
   const personName = extractPersonName(post.authorName, post.authorHandle);
 
   const dedupeKey = [
@@ -159,4 +174,4 @@ export function classifyPost(post: IngestedPost): ClassifiedSignal | null {
   };
 }
 
-export { SIGNAL_CONFIDENCE_THRESHOLD };
+export { SIGNAL_CONFIDENCE_THRESHOLD, COMPANY_STOPWORDS, rejectStopwordCompanyName };

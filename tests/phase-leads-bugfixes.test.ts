@@ -4,6 +4,7 @@ vi.mock('@/lib/llm', () => ({
   chatCompletion: vi.fn(),
 }));
 import { chatCompletion } from '@/lib/llm';
+import { classifyPost } from '@/lib/signals/classifier';
 import { classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import { normalizeEvent } from '@/lib/signals/feed/normalize';
 import type { IngestedPost, SignalEventWithPost } from '@/lib/signals/types';
@@ -114,6 +115,24 @@ describe('Phase: Leads bugfixes', () => {
       expect(r.signal?.companyName).toBeUndefined();
       expect(r.escalated).toBe(true);
       expect(r.signal?.signalType).toBe('accelerator_join');
+    });
+  });
+
+  describe('Task 3: reject stopword company names (defense-in-depth)', () => {
+    it('never returns a lone stopword as companyName even if the regex surfaces one', () => {
+      // "Building the future" has a keyword hit ("excited to announce" absent, so
+      // use an explicit accelerator keyword to clear the confidence threshold)
+      // and the extractor's capture group would (pre-guard) match "The" as a
+      // capitalized token immediately after "building".
+      const r = classifyPost(post('Excited to announce: building The future of fintech, joined YC S24'));
+      expect(r).not.toBeNull();
+      expect(r?.companyName).not.toBe('The');
+      expect(r?.companyName).toBeUndefined();
+    });
+
+    it('still extracts a normal proper-noun company name', () => {
+      const r = classifyPost(post('Excited to announce: building Acme, joined YC S24'));
+      expect(r?.companyName).toBe('Acme');
     });
   });
 });
