@@ -1,5 +1,9 @@
 /** Content OS Signals — shared types */
 
+import type { LeadPlaybook, NurtureStage } from '@/lib/gtm/nurture/types';
+
+export type { NurtureStage, LeadPlaybook };
+
 export type SignalPlatform = 'x' | 'linkedin';
 
 export type SignalSourceType =
@@ -187,6 +191,9 @@ export interface SignalLeadRow {
   rank_score: number;
   contact_status: LeadContactStatus;
   lead_status: LeadStatus;
+  nurture_stage?: NurtureStage | string | null;
+  playbook?: LeadPlaybook | Record<string, unknown> | null;
+  next_action_at?: string | null;
   first_seen_at: string;
   last_seen_at: string;
   digest_date: string | null;

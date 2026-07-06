@@ -52,6 +52,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const jobs: Promise<[string, unknown]>[] = [
     call('engagementSync', '/api/cron/engagement-sync'),
     call('eventEnrich', '/api/cron/event-enrich'),
+    call('gtmNurture', '/api/cron/gtm-nurture'),
   ];
 
   // Hourly: fires when cron hits the :00 minute mark
