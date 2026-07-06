@@ -219,7 +219,9 @@ export async function searchLinkedInPerson(query: {
 
     const json = (await res.json()) as { items?: UnipileSearchItem[] } | UnipileSearchItem[];
     const items = Array.isArray(json) ? json : (json.items ?? []);
-    const found = items.find((item) => !item.type || item.type === 'PEOPLE');
+    // Require an explicit PEOPLE type: a company/post result mapped as a founder
+    // contact would corrupt the record. Classic people-search always tags items.
+    const found = items.find((item) => item.type === 'PEOPLE');
     if (!found?.profile_url) return null;
 
     return {
