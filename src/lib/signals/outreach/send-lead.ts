@@ -134,7 +134,10 @@ async function sendLeadLinkedIn(
     channel: 'linkedin_connect',
     lead_id: leadId,
     social_account_id: accountId,
-    metadata: { linkedin_identifier: identifier },
+    // Surface whether the target LinkedIn was verified against Unipile at
+    // resolve time. Unverified does NOT block the send (per product decision),
+    // but it is recorded so an auto-send to an unchecked URL is never silent.
+    metadata: { linkedin_identifier: identifier, linkedin_verified: contact?.linkedin_verified === true },
   });
 
   let profile;
@@ -216,7 +219,10 @@ async function sendLeadLinkedInDm(
     channel: 'linkedin_dm',
     lead_id: leadId,
     social_account_id: accountId,
-    metadata: { linkedin_identifier: identifier },
+    // Surface whether the target LinkedIn was verified against Unipile at
+    // resolve time. Unverified does NOT block the send (per product decision),
+    // but it is recorded so an auto-send to an unchecked URL is never silent.
+    metadata: { linkedin_identifier: identifier, linkedin_verified: contact?.linkedin_verified === true },
   });
 
   let profile;

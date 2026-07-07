@@ -3,6 +3,7 @@ import type { LeadContactStatus, SignalLeadContactRow, SignalLeadWithContacts } 
 import { logLeadEvent, updateLead } from '@/lib/signals/leads/store';
 import { decideContactStatus } from '@/lib/signals/leads/identity';
 import { enrichFounderContact } from '@/lib/signals/leads/enrich-contact';
+import { getWorkspaceLinkedInAccountId, searchLinkedInPerson } from '@/lib/signals/outreach/unipile-linkedin';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -38,6 +39,10 @@ export async function resolveLeadContacts(
   // force: a user "Rescan" — re-pull fresh founder data even if the lead already
   // has a resolved contact (skips the step-1 short-circuit below).
   const force = opts.force ?? false;
+  // Verify the founder's LinkedIn against Unipile at resolve time, but never in
+  // the batch/fast path: that would fan out one search call per scraped lead.
+  // Cost rule: one verify call only on an explicit (on-demand) resolve.
+  const shouldVerify = !fastOnly;
   const contacts = lead.contacts ?? [];
   const primary = contacts.find((c) => c.is_primary) ?? contacts[0] ?? null;
 
@@ -46,7 +51,11 @@ export async function resolveLeadContacts(
   if (!force) {
     const decision = decideContactStatus(contacts);
     if (decision.status === 'resolved' && decision.primaryIndex !== null) {
-      await markPrimary(client, contacts[decision.primaryIndex]);
+      const resolvedContact = contacts[decision.primaryIndex];
+      await markPrimary(client, resolvedContact);
+      if (shouldVerify) {
+        await verifyContactLinkedIn(client, workspaceId, resolvedContact, lead.company_name);
+      }
       await setStatus(client, workspaceId, lead.id, 'resolved', decision.via);
       return { status: 'resolved', via: decision.via };
     }
@@ -54,7 +63,9 @@ export async function resolveLeadContacts(
 
   // Steps 2-4: enrichment (gated). When a provider resolves a URL, upsert it
   // onto the contact row and mark resolved. Skipped in batch mode.
-  const enriched = enrich ? await tryEnrichment(client, workspaceId, lead, primary, fastOnly) : null;
+  const enriched = enrich
+    ? await tryEnrichment(client, workspaceId, lead, primary, fastOnly, shouldVerify)
+    : null;
   if (enriched) {
     await setStatus(client, workspaceId, lead.id, 'resolved', enriched);
     return { status: 'resolved', via: enriched };
@@ -83,6 +94,7 @@ async function tryEnrichment(
   lead: SignalLeadWithContacts,
   _primary: SignalLeadContactRow | null,
   fastOnly = false,
+  shouldVerify = false,
 ): Promise<string | null> {
   const found = await enrichFounderContact(lead, { fastOnly, client, workspaceId });
   if (!found?.linkedinUrl) return null;
@@ -95,19 +107,79 @@ async function tryEnrichment(
     .eq('lead_id', lead.id)
     .eq('resolution_source', 'enriched');
   await client.database.from('signal_lead_contacts').update({ is_primary: false }).eq('lead_id', lead.id);
-  await client.database.from('signal_lead_contacts').insert([
-    {
-      lead_id: lead.id,
-      workspace_id: workspaceId,
-      name: found.name ?? null,
-      role: found.role ?? null,
-      linkedin_url: found.linkedinUrl,
-      resolution_source: 'enriched',
-      enriched_via: found.via,
-      is_primary: true,
-    },
-  ]);
+  const { data: insertedRows } = await client.database
+    .from('signal_lead_contacts')
+    .insert([
+      {
+        lead_id: lead.id,
+        workspace_id: workspaceId,
+        name: found.name ?? null,
+        role: found.role ?? null,
+        linkedin_url: found.linkedinUrl,
+        resolution_source: 'enriched',
+        enriched_via: found.via,
+        is_primary: true,
+      },
+    ])
+    .select('id');
+
+  // Verify the freshly enriched URL against Unipile (on-demand resolve only).
+  const insertedId = (insertedRows?.[0] as { id?: string } | undefined)?.id;
+  if (shouldVerify && insertedId) {
+    await verifyContactLinkedIn(
+      client,
+      workspaceId,
+      { id: insertedId, name: found.name ?? null, linkedin_url: found.linkedinUrl },
+      lead.company_name,
+    );
+  }
   return found.via;
+}
+
+/**
+ * Verifies a resolved contact's LinkedIn against the workspace's connected
+ * Unipile account with a single people-search call (at resolve time only, never
+ * per render). Sets linkedin_verified + timestamp when Unipile confirms the
+ * founder; leaves it false when no account is connected or nothing is found.
+ *
+ * Never blocks resolution: an unverified contact is still resolved (just flagged
+ * unverified so the UI and outreach path can surface it). Best-effort — any
+ * failure degrades to unverified rather than throwing.
+ */
+export async function verifyContactLinkedIn(
+  client: InsforgeClient,
+  workspaceId: string,
+  contact: Pick<SignalLeadContactRow, 'id' | 'name' | 'linkedin_url'>,
+  companyName: string,
+): Promise<boolean> {
+  if (!contact.id || !contact.linkedin_url?.trim()) return false;
+
+  const accountId = await getWorkspaceLinkedInAccountId(client, workspaceId);
+  // No connected LinkedIn account to search from: cannot verify. Leave the flag
+  // untouched (default false) and do NOT block — the lead stays resolved.
+  if (!accountId) return false;
+
+  let verified = false;
+  try {
+    const hit = await searchLinkedInPerson({
+      name: contact.name ?? '',
+      company: companyName,
+      accountId,
+    });
+    verified = Boolean(hit?.linkedinUrl);
+  } catch {
+    // Unipile down/unconfigured: treat as unverified, never throw into resolve.
+    verified = false;
+  }
+
+  await client.database
+    .from('signal_lead_contacts')
+    .update({
+      linkedin_verified: verified,
+      linkedin_verified_at: verified ? new Date().toISOString() : null,
+    })
+    .eq('id', contact.id);
+  return verified;
 }
 
 /** Persists contact_status + logs a resolved/unresolved lead event. */
