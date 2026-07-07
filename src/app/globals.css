@@ -86,7 +86,7 @@ select:focus {
 
   /* Mono eyebrow above a page/section title (e.g. "02 / THE PROBLEM"). */
   .page-eyebrow {
-    @apply font-mono text-[11.5px] uppercase tracking-[0.12em] text-flame;
+    @apply font-mono text-[11.5px] uppercase tracking-[0.12em] text-ink3;
   }
 
   /* Hairline rule used to separate major sections on the editorial grid. */

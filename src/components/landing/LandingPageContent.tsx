@@ -10,6 +10,7 @@ import Hero from './editorial/Hero';
 import Problem from './editorial/Problem';
 import Loop from './editorial/Loop';
 import Distribution from './editorial/Distribution';
+import Leads from './editorial/Leads';
 import Different from './editorial/Different';
 import Week from './editorial/Week';
 import Icp from './editorial/Icp';
@@ -33,7 +34,7 @@ export default function LandingPageContent({ funnel }: Props) {
         >
           Skip to content
         </a>
-        <div className="relative z-10">
+        <div className="relative z-10 overflow-x-clip">
           <Nav funnel={funnel} />
           <Hero funnel={funnel} />
           <LandingReveal>
@@ -45,6 +46,9 @@ export default function LandingPageContent({ funnel }: Props) {
           </LandingReveal>
           <LandingReveal delay={0.05}>
             <Distribution />
+          </LandingReveal>
+          <LandingReveal>
+            <Leads />
           </LandingReveal>
           <LandingReveal delay={0.05}>
             <Different />
