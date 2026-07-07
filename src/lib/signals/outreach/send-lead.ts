@@ -12,6 +12,7 @@ import {
 import { getXUnipileAccountId, resolveXProfile, sendXDirectMessage } from '@/lib/signals/outreach/unipile-x';
 import { sendGmailEmail } from '@/lib/composio/actions/gmail';
 import { getIntegration } from '@/lib/signals/integrations/store';
+import { recordOutreachEdit } from '@/lib/signals/outreach/edit-feedback';
 import type { LeadPlaybook, OutreachChannel, SignalLeadWithContacts } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -88,13 +89,22 @@ export async function sendLeadOutreach(
     return { success: false, error: 'No reachable contact for this lead.' };
   }
 
-  return channel === 'gmail'
+  const result = await (channel === 'gmail'
     ? sendLeadEmail(client, input, lead)
     : channel === 'x_dm'
       ? sendLeadX(client, input, lead)
       : channel === 'linkedin_dm'
         ? sendLeadLinkedInDm(client, input, lead)
-        : sendLeadLinkedIn(client, input, lead);
+        : sendLeadLinkedIn(client, input, lead));
+
+  // Edit-feedback loop: when the user rewrote the model draft before sending,
+  // capture the model -> edited pair (workspace-scoped) so future drafts learn
+  // the user's style. Best-effort; never blocks or fails the send.
+  if (result.success && input.messageText) {
+    await recordOutreachEdit(client, workspaceId, leadId, lead.outreach?.draft_text ?? null, input.messageText);
+  }
+
+  return result;
 }
 
 // --- LinkedIn connection request ---
