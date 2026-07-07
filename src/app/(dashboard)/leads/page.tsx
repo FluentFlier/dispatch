@@ -63,6 +63,8 @@ export default function LeadsPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
+  // Leads confirmed as accepted LinkedIn connections (response tracking).
+  const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set());
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Header toggle: "feed" is the unified lead list (default); "setup" is the
   // signal + directory configuration surface folded in from the retired /signals page.
@@ -313,6 +315,26 @@ export default function LeadsPage() {
       );
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not approve.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // Response tracking: has the prospect accepted the LinkedIn connection?
+  const handleCheckConnection = async (id: string) => {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/leads/${id}/check-connection`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      if (data.connected) {
+        setAcceptedIds((prev) => new Set(prev).add(id));
+        toast('Connection accepted — draft the follow-up DM.', 'success');
+      } else {
+        toast('Not accepted yet — check back later.');
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not check connection.', 'error');
     } finally {
       setBusyId(null);
     }
@@ -770,6 +792,8 @@ export default function LeadsPage() {
                   handleTogglePlaybookStep(selectedLead.id, stepIndex, status)
                 }
                 onDraftFollowup={() => handleDraftFollowup(selectedLead.id)}
+                onCheckConnection={() => handleCheckConnection(selectedLead.id)}
+                accepted={acceptedIds.has(selectedLead.id)}
               />
             ) : (
               <SignalDetail

@@ -104,6 +104,8 @@ interface LeadDetailProps {
   onPlanNurture?: () => void;
   onToggleStep?: (stepIndex: number, status: 'pending' | 'done') => void;
   onDraftFollowup?: () => void;
+  onCheckConnection?: () => void;
+  accepted?: boolean;
 }
 
 interface LeadNote {
@@ -137,6 +139,8 @@ export function LeadDetail({
   onPlanNurture,
   onToggleStep,
   onDraftFollowup,
+  onCheckConnection,
+  accepted,
 }: LeadDetailProps) {
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [noteText, setNoteText] = useState('');
@@ -346,19 +350,27 @@ export function LeadDetail({
           </p>
         )}
 
-        {/* Sequence follow-up: after the connect is sent, draft + approve the DM step. */}
+        {/* Sequence follow-up: after the connect is sent, confirm acceptance,
+            then draft + approve the DM step. */}
         {lead.nurture_stage === 'connect_sent' && (
           <div className="mt-1 flex items-center justify-between gap-2 rounded-md border border-accent-primary/25 bg-accent-primary/5 px-3 py-2">
-            <span className="text-xs text-text-secondary">
-              Connect sent. Once they accept, send the follow-up DM.
+            <span className="text-xs text-text-secondary flex items-center gap-1.5">
+              {accepted && <Check className="h-3.5 w-3.5 text-accent-secondary" />}
+              {accepted
+                ? 'Connection accepted — send the follow-up DM.'
+                : 'Connect sent. Check if they have accepted.'}
             </span>
             {lead.outreach?.channel === 'linkedin_dm' && lead.outreach?.draft_text ? (
               <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_dm')} loading={busy}>
                 <Send className="h-4 w-4" /> Approve DM
               </Button>
-            ) : onDraftFollowup ? (
+            ) : accepted && onDraftFollowup ? (
               <Button variant="secondary" size="sm" onClick={onDraftFollowup} loading={busy}>
                 <Sparkles className="h-4 w-4" /> Draft follow-up DM
+              </Button>
+            ) : onCheckConnection ? (
+              <Button variant="ghost" size="sm" onClick={onCheckConnection} loading={busy}>
+                <RefreshCw className="h-4 w-4" /> Check if accepted
               </Button>
             ) : null}
           </div>
