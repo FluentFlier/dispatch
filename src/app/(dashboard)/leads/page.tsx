@@ -61,6 +61,8 @@ export default function LeadsPage() {
   const [listLoading, setListLoading] = useState(false);
   const [scraping, setScraping] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkBusy, setBulkBusy] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Header toggle: "feed" is the unified lead list (default); "setup" is the
   // signal + directory configuration surface folded in from the retired /signals page.
@@ -351,6 +353,59 @@ export default function LeadsPage() {
     }
   };
 
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+  const clearSelection = () => setSelectedIds(new Set());
+
+  // Bulk dismiss/snooze: only directory leads carry a PATCHable lead row, so we
+  // act on the selected ids that resolve to a directory lead and drop them from
+  // the list. Runs in parallel; a partial failure still clears what succeeded.
+  const bulkLeadAction = async (action: 'dismiss' | 'snooze') => {
+    const ids = Array.from(selectedIds).filter((id) => leadsById[id]);
+    if (ids.length === 0) {
+      toast('Select directory leads to ' + action + '.', 'error');
+      return;
+    }
+    setBulkBusy(true);
+    try {
+      const results = await Promise.allSettled(
+        ids.map((id) =>
+          fetch(`/api/leads/${id}`, {
+            method: 'PATCH',
+            headers: jsonHeaders,
+            body: JSON.stringify({ action }),
+          }).then((r) => {
+            if (!r.ok) throw new Error();
+            return id;
+          }),
+        ),
+      );
+      const done = results.filter((r) => r.status === 'fulfilled').map((r) => (r as PromiseFulfilledResult<string>).value);
+      const doneSet = new Set(done);
+      setCards((prev) => prev.filter((c) => !doneSet.has(c.id)));
+      setLeadsById((prev) => {
+        const next = { ...prev };
+        for (const id of done) delete next[id];
+        return next;
+      });
+      if (selectedId && doneSet.has(selectedId)) setSelectedId(null);
+      clearSelection();
+      const failed = ids.length - done.length;
+      toast(
+        `${done.length} ${action === 'dismiss' ? 'dismissed' : 'snoozed'}${failed ? `, ${failed} failed` : ''}.`,
+        failed ? 'error' : 'success',
+      );
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   const handleExport = () => {
     // Attachment Content-Disposition downloads without navigating away. Carry the
     // active status filter so the export matches what the user is looking at.
@@ -622,7 +677,37 @@ export default function LeadsPage() {
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
           {/* List */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 space-y-2">
+            {selectedIds.size > 0 && (
+              <div className="flex items-center justify-between gap-2 rounded-lg border border-accent-primary/30 bg-accent-primary/5 px-3 py-2">
+                <span className="text-xs font-medium text-text-primary">{selectedIds.size} selected</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={bulkBusy}
+                    onClick={() => bulkLeadAction('snooze')}
+                    className="text-xs px-2 py-1 rounded-md border border-border bg-bg-secondary hover:bg-bg-primary text-text-secondary disabled:opacity-50"
+                  >
+                    Snooze
+                  </button>
+                  <button
+                    type="button"
+                    disabled={bulkBusy}
+                    onClick={() => bulkLeadAction('dismiss')}
+                    className="text-xs px-2 py-1 rounded-md border border-border bg-bg-secondary hover:bg-bg-primary text-text-secondary disabled:opacity-50"
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    type="button"
+                    onClick={clearSelection}
+                    className="text-xs px-2 py-1 rounded-md text-text-tertiary hover:text-text-primary"
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+            )}
             <UnifiedFeed
               cards={visibleCards}
               selectedId={selectedId}
@@ -630,6 +715,8 @@ export default function LeadsPage() {
               refreshing={listLoading}
               onSelect={setSelectedId}
               isFollowed={isFollowed}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
             />
           </div>
 
