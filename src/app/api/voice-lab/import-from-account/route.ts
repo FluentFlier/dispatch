@@ -8,6 +8,10 @@ import {
   fetchPostsFromUnipile,
   resolveProviderUserIds,
 } from '@/lib/onboarding/import-posts';
+import {
+  syncUnipileAccountsForUser,
+  UnipileAccountsSyncError,
+} from '@/lib/social/sync-unipile-accounts';
 import { persistImportedPosts } from '@/lib/voice-lab/persist-imported-posts';
 import { z } from 'zod';
 
@@ -51,15 +55,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const workspaceId = await ensureActiveWorkspaceId(user.id);
   await backfillNullWorkspaceSocialAccounts(user.id, workspaceId);
 
-  let query = client.database
-    .from('social_accounts')
-    .select('unipile_account_id, account_id, account_name')
-    .eq('user_id', user.id)
-    .eq('platform', platform)
-    .not('unipile_account_id', 'is', null);
-  if (workspaceId) query = query.eq('workspace_id', workspaceId);
+  const findConnectedAccount = async () => {
+    let query = client.database
+      .from('social_accounts')
+      .select('unipile_account_id, account_id, account_name')
+      .eq('user_id', user.id)
+      .eq('platform', platform)
+      .not('unipile_account_id', 'is', null);
+    if (workspaceId) query = query.eq('workspace_id', workspaceId);
 
-  const { data: account, error: dbError } = await query.maybeSingle();
+    return query.maybeSingle();
+  };
+
+  let { data: account, error: dbError } = await findConnectedAccount();
+
+  if (!dbError && !account?.unipile_account_id) {
+    try {
+      await syncUnipileAccountsForUser(user.id);
+      ({ data: account, error: dbError } = await findConnectedAccount());
+    } catch (err: unknown) {
+      if (err instanceof UnipileAccountsSyncError) {
+        return NextResponse.json(
+          { error: `Could not refresh your connected accounts. ${err.message}` },
+          { status: err.status },
+        );
+      }
+      console.error('[voice-lab/import-from-account] Account refresh failed:', err);
+    }
+  }
 
   if (dbError || !account?.unipile_account_id) {
     const label = platform === 'linkedin' ? 'LinkedIn' : 'X';
