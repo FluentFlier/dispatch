@@ -351,6 +351,18 @@ export default function LeadsPage() {
     }
   };
 
+  const handleExport = () => {
+    // Attachment Content-Disposition downloads without navigating away. Carry the
+    // active status filter so the export matches what the user is looking at.
+    const qs = filters.status !== 'all' ? `?status=${encodeURIComponent(filters.status)}` : '';
+    const a = document.createElement('a');
+    a.href = `/api/leads/export${qs}`;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  };
+
   const handleSnooze = async (id: string) => {
     setBusyId(id);
     try {
@@ -541,6 +553,7 @@ export default function LeadsPage() {
             onDraftAll={handleDraftAll}
             onRefresh={refetchList}
             onOpenDrawer={() => setDrawerOpen(true)}
+            onExport={handleExport}
           />
         }
       />

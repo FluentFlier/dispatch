@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import Link from 'next/link';
 import {
   Download,
+  FileDown,
   RefreshCw,
   Settings,
   SlidersHorizontal,
@@ -55,6 +56,7 @@ export function LeadsHeaderActions({
   onDraftAll,
   onRefresh,
   onOpenDrawer,
+  onExport,
 }: {
   view: 'feed' | 'setup';
   scraping: boolean;
@@ -64,6 +66,7 @@ export function LeadsHeaderActions({
   onDraftAll: () => void;
   onRefresh: () => void;
   onOpenDrawer: () => void;
+  onExport: () => void;
 }) {
   if (view !== 'feed') {
     return (
@@ -82,6 +85,9 @@ export function LeadsHeaderActions({
       </HeaderBtn>
       <HeaderBtn onClick={onRefresh} disabled={listLoading} icon={<RefreshCw className={`h-3.5 w-3.5 ${listLoading ? 'animate-spin' : ''}`} />}>
         Refresh
+      </HeaderBtn>
+      <HeaderBtn onClick={onExport} icon={<FileDown className="h-3.5 w-3.5" />}>
+        Export CSV
       </HeaderBtn>
       <HeaderBtn onClick={onOpenDrawer} icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
         Advanced
