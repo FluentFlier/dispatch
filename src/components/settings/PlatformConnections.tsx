@@ -63,10 +63,10 @@ export default function PlatformConnections({
   onAccountsRefresh,
   connectError = null,
 }: PlatformConnectionsProps) {
-  const [unipileLoading, setUnipileLoading] = useState(false);
+  const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
-  const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
+  const [byokPlatform, setByokPlatform] = useState<string | null>(null);
   const [byokValues, setByokValues] = useState<ByokState>({});
   const [savingPlatform, setSavingPlatform] = useState<string | null>(null);
   const [testingPlatform, setTestingPlatform] = useState<string | null>(null);
@@ -85,6 +85,14 @@ export default function PlatformConnections({
       ...prev,
       [platform]: { ...(prev[platform] ?? {}), [field]: value },
     }));
+  }
+
+  // Per-platform Unipile hosted connect. Full-page redirect to the hosted login;
+  // on success Unipile returns to /settings?tab=connections&connected=true, on
+  // failure to ?error=unipile_failed — both land back on this connections page.
+  function connectPlatform(platform: string) {
+    setConnectingPlatform(platform);
+    window.location.href = `/api/social-accounts/connect/unipile?return=settings&provider=${platform}`;
   }
 
   async function handleSaveKeys(platform: string) {
@@ -115,6 +123,7 @@ export default function PlatformConnections({
       } else {
         setSaveError((prev) => ({ ...prev, [platform]: null }));
         setByokValues((prev) => ({ ...prev, [platform]: {} }));
+        setByokPlatform(null);
         onAccountsRefresh();
       }
     } catch {
@@ -170,13 +179,6 @@ export default function PlatformConnections({
     }
   }
 
-  function connectAllViaUnipile() {
-    setUnipileLoading(true);
-    // Full-page redirect to the Unipile hosted flow. On failure Unipile returns
-    // to /settings?tab=connections&error=unipile_failed, surfaced via connectError.
-    window.location.href = '/api/social-accounts/connect/unipile?return=settings';
-  }
-
   async function syncFromUnipile() {
     setSyncing(true);
     setSyncResult(null);
@@ -198,104 +200,120 @@ export default function PlatformConnections({
 
   return (
     <>
-      {/* Primary connect: Unipile hosted flow links all social platforms at once. */}
-      <div className="mb-6 p-4 rounded-lg border border-accent-primary/25 bg-coral-light">
-        <p className="text-[13px] text-text-primary font-medium mb-1">Connect all platforms at once</p>
-        <p className="text-[11px] text-text-secondary mb-3">
-          Powered by Unipile. Link LinkedIn and X in one secure flow.
-        </p>
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            disabled={unipileLoading}
-            onClick={connectAllViaUnipile}
-            className="px-4 py-2 text-[12px] text-white bg-accent-primary rounded-md hover:bg-accent-primary/90 disabled:opacity-60 flex items-center gap-2"
-          >
-            {unipileLoading && <Loader2 size={12} className="animate-spin" />}
-            Connect accounts
-          </button>
-          <button
-            type="button"
-            disabled={syncing}
-            onClick={syncFromUnipile}
-            className="px-4 py-2 text-[12px] text-text-primary border border-border rounded-md hover:border-border-hover disabled:opacity-60 flex items-center gap-2 transition-colors"
-          >
-            <RefreshCw size={12} className={syncing ? 'animate-spin' : ''} />
-            {syncing ? 'Syncing...' : 'Sync from Unipile'}
-          </button>
+      {/* Inline failure — no fallback UI swap, no raw JSON page. */}
+      {connectError && (
+        <div className="mb-4 flex items-start gap-2 rounded-lg border border-coral/30 bg-coral/5 p-3 text-[12px] text-coral">
+          <AlertCircle size={14} className="mt-px shrink-0" />
+          <span>{connectError}</span>
         </div>
-        {/* Inline failure — no fallback UI swap, no raw JSON page. */}
-        {connectError && (
-          <div className="mt-3 flex items-start gap-2 text-[11px] text-coral">
-            <AlertCircle size={13} className="mt-px shrink-0" />
-            <span>{connectError}</span>
-          </div>
-        )}
-        {syncResult && (
-          <p className="text-[11px] text-text-secondary mt-2">{syncResult}</p>
-        )}
-      </div>
+      )}
 
-      {/* Per-platform status grid. Tap a tile to see status or add manual keys. */}
-      <div className="flex flex-wrap gap-x-6 gap-y-5">
+      {/* One row per platform: brand icon + name on the left, connect/status on the right. */}
+      <div className="rounded-lg border border-border divide-y divide-hair">
         {DASHBOARD_PLATFORMS.map((platform) => {
           const meta = PLATFORM_META[platform];
           if (!meta) return null;
+          const account = connectedAccounts.find((a) => a.platform === platform);
           const status = getConnectionStatus(platform);
           const isConnected = status !== "none";
-          const isExpanded = expandedPlatform === platform;
+          const isConnecting = connectingPlatform === platform;
+          const isDisconnecting = disconnecting === platform;
+          const showByok = byokPlatform === platform;
 
           return (
-            <button
-              key={platform}
-              type="button"
-              onClick={() => setExpandedPlatform(isExpanded ? null : platform)}
-              className="group flex flex-col items-center gap-2 w-[72px] focus:outline-none"
-              aria-expanded={isExpanded}
-              aria-label={`${meta.label} — ${isConnected ? "connected" : "not connected"}`}
-            >
-              <span className="relative">
+            <div key={platform}>
+              <div className="flex items-center gap-3 px-4 py-3">
+                {/* Icon */}
                 <span
-                  className={`w-14 h-14 rounded-[16px] flex items-center justify-center text-[18px] font-bold text-white shadow-card transition-all duration-150 group-hover:-translate-y-0.5 ${
-                    isExpanded ? "ring-2 ring-accent-primary ring-offset-2 ring-offset-bg-secondary" : "ring-1 ring-black/5"
-                  }`}
+                  className="w-10 h-10 rounded-[10px] flex items-center justify-center text-[15px] font-bold text-white shrink-0 ring-1 ring-black/5"
                   style={{ backgroundColor: meta.color }}
                 >
                   {meta.icon}
                 </span>
-                {isConnected && (
-                  <span className="absolute -top-1 -right-1 w-[18px] h-[18px] rounded-full bg-[#10B981] flex items-center justify-center ring-2 ring-bg-secondary">
-                    <Check size={11} className="text-white" strokeWidth={3} />
-                  </span>
+
+                {/* Name + status */}
+                <div className="min-w-0 flex-1">
+                  <p className="text-[13px] font-medium text-text-primary leading-tight">
+                    {meta.label}
+                  </p>
+                  <p className="text-[11px] text-text-secondary mt-0.5 truncate">
+                    {isConnected ? (
+                      <span className="text-[#3B6D11]">
+                        Connected
+                        {account?.account_name ? ` as ${account.account_name}` : ""}
+                        {status === "byok" ? " (API keys)" : ""}
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setByokPlatform(showByok ? null : platform)}
+                        className="text-text-tertiary hover:text-text-secondary transition-colors inline-flex items-center gap-1"
+                      >
+                        <KeyRound size={11} />
+                        {showByok ? "Hide API keys" : "Use API keys instead"}
+                      </button>
+                    )}
+                  </p>
+                </div>
+
+                {/* Right action */}
+                {isConnected ? (
+                  <button
+                    type="button"
+                    disabled={isDisconnecting}
+                    onClick={() => onDisconnect(platform)}
+                    className="flex items-center gap-1 px-3 py-1.5 text-[11px] text-text-tertiary border border-border rounded-[6px] hover:border-border-hover transition-colors disabled:opacity-60 shrink-0"
+                  >
+                    <Unplug size={12} />
+                    {isDisconnecting ? "..." : "Disconnect"}
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={isConnecting}
+                    onClick={() => connectPlatform(platform)}
+                    className="flex items-center gap-2 px-4 py-1.5 text-[12px] text-white bg-accent-primary rounded-md hover:bg-accent-primary/90 transition-colors disabled:opacity-60 shrink-0"
+                  >
+                    {isConnecting && <Loader2 size={12} className="animate-spin" />}
+                    {isConnecting ? "Redirecting…" : "Connect"}
+                  </button>
                 )}
-              </span>
-              <span className="text-[11px] text-text-primary text-center leading-tight">
-                {meta.label}
-              </span>
-            </button>
+              </div>
+
+              {/* Manual API keys — backup path, toggled from the row. */}
+              {showByok && (
+                <div className="px-4 pb-4">
+                  <ByokSection
+                    platform={platform}
+                    byokValues={byokValues[platform] ?? {}}
+                    onFieldChange={(field, value) => updateByokField(platform, field, value)}
+                    onSaveKeys={() => handleSaveKeys(platform)}
+                    onTestConnection={() => handleTestConnection(platform)}
+                    saving={savingPlatform === platform}
+                    testing={testingPlatform === platform}
+                    testResult={testResult[platform] ?? null}
+                    saveError={saveError[platform] ?? null}
+                  />
+                </div>
+              )}
+            </div>
           );
         })}
       </div>
 
-      {/* Detail panel for the expanded platform: status + manual-key backup. */}
-      {expandedPlatform && PLATFORM_META[expandedPlatform] && (
-        <PlatformDetail
-          platform={expandedPlatform}
-          meta={PLATFORM_META[expandedPlatform]}
-          account={connectedAccounts.find((a) => a.platform === expandedPlatform) ?? null}
-          status={getConnectionStatus(expandedPlatform)}
-          disconnecting={disconnecting === expandedPlatform}
-          onDisconnect={() => onDisconnect(expandedPlatform)}
-          byokValues={byokValues[expandedPlatform] ?? {}}
-          onFieldChange={(field, value) => updateByokField(expandedPlatform, field, value)}
-          onSaveKeys={() => handleSaveKeys(expandedPlatform)}
-          onTestConnection={() => handleTestConnection(expandedPlatform)}
-          saving={savingPlatform === expandedPlatform}
-          testing={testingPlatform === expandedPlatform}
-          testResult={testResult[expandedPlatform] ?? null}
-          saveError={saveError[expandedPlatform] ?? null}
-        />
-      )}
+      {/* Secondary: pull already-connected accounts from Unipile. */}
+      <div className="mt-3 flex items-center gap-3">
+        <button
+          type="button"
+          disabled={syncing}
+          onClick={syncFromUnipile}
+          className="flex items-center gap-2 text-[11px] text-text-secondary hover:text-text-primary transition-colors disabled:opacity-60"
+        >
+          <RefreshCw size={12} className={syncing ? "animate-spin" : ""} />
+          {syncing ? "Syncing…" : "Sync from Unipile"}
+        </button>
+        {syncResult && <span className="text-[11px] text-text-secondary">{syncResult}</span>}
+      </div>
     </>
   );
 }
@@ -303,117 +321,6 @@ export default function PlatformConnections({
 /* ------------------------------------------------------------------ */
 /*  Sub-components                                                     */
 /* ------------------------------------------------------------------ */
-
-function PlatformDetail({
-  platform,
-  meta,
-  account,
-  status,
-  disconnecting,
-  onDisconnect,
-  byokValues,
-  onFieldChange,
-  onSaveKeys,
-  onTestConnection,
-  saving,
-  testing,
-  testResult,
-  saveError,
-}: {
-  platform: string;
-  meta: { label: string; color: string; icon: string };
-  account: ConnectedAccount | null;
-  status: "oauth" | "byok" | "none";
-  disconnecting: boolean;
-  onDisconnect: () => void;
-  byokValues: Record<string, string>;
-  onFieldChange: (field: string, value: string) => void;
-  onSaveKeys: () => void;
-  onTestConnection: () => void;
-  saving: boolean;
-  testing: boolean;
-  testResult: { valid: boolean; message: string } | null;
-  saveError: string | null;
-}) {
-  return (
-    <div className="mt-5 rounded-lg border border-border p-4 space-y-4">
-      {/* Header row */}
-      <div className="flex items-center gap-3">
-        <span
-          className="w-8 h-8 rounded-[8px] flex items-center justify-center text-[13px] font-bold text-white shrink-0"
-          style={{ backgroundColor: meta.color }}
-        >
-          {meta.icon}
-        </span>
-        <span className="text-[13px] font-medium text-text-primary">{meta.label}</span>
-        <StatusBadge status={status} />
-        {status !== "none" && (
-          <button
-            type="button"
-            disabled={disconnecting}
-            onClick={onDisconnect}
-            className="ml-auto flex items-center gap-1 px-3 py-1.5 text-[11px] text-text-tertiary border border-border rounded-[6px] hover:border-border-hover transition-colors disabled:opacity-60"
-          >
-            <Unplug size={12} />
-            {disconnecting ? "..." : "Disconnect"}
-          </button>
-        )}
-      </div>
-
-      {status === "oauth" && (
-        <div className="flex items-center gap-2">
-          <Check size={14} className="text-[#3B6D11]" />
-          <span className="text-[12px] text-[#3B6D11]">
-            Connected{account?.account_name ? ` as ${account.account_name}` : ""} via Unipile
-          </span>
-        </div>
-      )}
-
-      {status === "none" && (
-        <p className="text-[11px] text-text-secondary">
-          Use <span className="font-medium text-text-primary">Connect accounts</span> above to link via Unipile.
-          If that fails, add your own API keys below as a backup.
-        </p>
-      )}
-
-      {/* Manual API keys — backup path when Unipile can't connect. */}
-      <ByokSection
-        platform={platform}
-        byokValues={byokValues}
-        onFieldChange={onFieldChange}
-        onSaveKeys={onSaveKeys}
-        onTestConnection={onTestConnection}
-        saving={saving}
-        testing={testing}
-        testResult={testResult}
-        saveError={saveError}
-        isByokConnected={status === "byok"}
-      />
-    </div>
-  );
-}
-
-function StatusBadge({ status }: { status: "oauth" | "byok" | "none" }) {
-  if (status === "oauth") {
-    return (
-      <span className="text-[10px] font-medium px-2 py-0.5 rounded-[3px] bg-[rgba(16,185,129,0.15)] text-[#10B981]">
-        Connected
-      </span>
-    );
-  }
-  if (status === "byok") {
-    return (
-      <span className="text-[10px] font-medium px-2 py-0.5 rounded-[3px] bg-[rgba(139,92,246,0.15)] text-[#8B5CF6]">
-        Manual Keys
-      </span>
-    );
-  }
-  return (
-    <span className="text-[10px] px-2 py-0.5 rounded-[3px] bg-bg-tertiary text-text-secondary">
-      Not connected
-    </span>
-  );
-}
 
 function ByokSection({
   platform,
@@ -425,7 +332,6 @@ function ByokSection({
   testing,
   testResult,
   saveError,
-  isByokConnected,
 }: {
   platform: string;
   byokValues: Record<string, string>;
@@ -436,30 +342,14 @@ function ByokSection({
   testing: boolean;
   testResult: { valid: boolean; message: string } | null;
   saveError: string | null;
-  isByokConnected: boolean;
 }) {
   const fields = BYOK_FIELDS[platform] ?? [];
 
   return (
-    <div className="border-t border-hair pt-4">
-      <div className="flex items-center gap-2 mb-2">
-        <KeyRound size={12} className="text-text-secondary" />
-        <span className="text-[10px] font-medium tracking-[0.10em] uppercase text-text-secondary">
-          USE API KEYS
-        </span>
-      </div>
+    <div className="rounded-lg border border-border bg-bg-tertiary/40 p-4">
       <p className="text-[11px] text-text-secondary mb-3">
         Enter your own API credentials as a backup to Unipile.
       </p>
-
-      {isByokConnected && (
-        <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-[rgba(139,92,246,0.1)] rounded-md">
-          <Check size={14} className="text-[#8B5CF6]" />
-          <span className="text-[12px] text-[#8B5CF6]">
-            Manual keys configured
-          </span>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {fields.map(([field, label]) => (
@@ -491,7 +381,7 @@ function ByokSection({
           type="button"
           disabled={saving}
           onClick={onSaveKeys}
-          className="px-4 py-2 min-h-[44px] text-[12px] text-white bg-accent-primary rounded-md hover:bg-accent-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-4 py-2 min-h-[40px] text-[12px] text-white bg-accent-primary rounded-md hover:bg-accent-primary/90 transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {saving && <Loader2 size={12} className="animate-spin" />}
           {saving ? "Saving..." : "Save Keys"}
@@ -500,7 +390,7 @@ function ByokSection({
           type="button"
           disabled={testing}
           onClick={onTestConnection}
-          className="px-4 py-2 min-h-[44px] text-[12px] text-text-primary border border-border rounded-md hover:border-border-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-4 py-2 min-h-[40px] text-[12px] text-text-primary border border-border rounded-md hover:border-border-hover transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {testing && <Loader2 size={12} className="animate-spin" />}
           {testing ? "Testing..." : "Test Connection"}
