@@ -13,6 +13,9 @@ interface UnipilePostItem {
   id?: string;
   text?: string;
   commentary?: string;
+  content?: string;
+  body?: string;
+  title?: string;
   is_repost?: boolean;
   is_reply?: boolean;
   attachments?: Array<{
@@ -29,6 +32,24 @@ interface UnipilePostsResponse {
 
 const PAGE_SIZE = 25;
 const MAX_POSTS_PER_PLATFORM = 150;
+
+export interface FetchPostsResult {
+  samples: VoiceSample[];
+  rawItems: UnipilePostItem[];
+  fetchedCount: number;
+  filteredCount: number;
+}
+
+function postText(item: UnipilePostItem): string {
+  return String(
+    item.text ??
+    item.commentary ??
+    item.content ??
+    item.body ??
+    item.title ??
+    '',
+  ).trim();
+}
 
 /**
  * Resolves the provider user ID Unipile expects for /users/{id}/posts.
@@ -83,23 +104,23 @@ export async function fetchPostsFromUnipile(
   unipileAccountId: string,
   platform: OnboardingPlatform,
   maxPosts = MAX_POSTS_PER_PLATFORM,
-): Promise<{ samples: VoiceSample[]; rawItems: UnipilePostItem[] }> {
+): Promise<FetchPostsResult> {
   const providerUserIds = Array.isArray(providerUserId) ? providerUserId : [providerUserId];
   let lastError: Error | null = null;
-  let sawSuccessfulEmptyFetch = false;
+  let bestEmptyResult: FetchPostsResult | null = null;
 
   for (const candidate of providerUserIds) {
     try {
       const result = await fetchPostsForProviderUser(candidate, unipileAccountId, platform, maxPosts);
-      if (result.samples.length > 0 || result.rawItems.length > 0) return result;
-      sawSuccessfulEmptyFetch = true;
+      if (result.samples.length > 0 || result.rawItems.length > 0 || result.fetchedCount > 0) return result;
+      bestEmptyResult = result;
     } catch (err) {
       lastError = err instanceof Error ? err : new Error('Failed to fetch posts');
     }
   }
 
-  if (lastError && !sawSuccessfulEmptyFetch && providerUserIds.length > 0) throw lastError;
-  return { samples: [], rawItems: [] };
+  if (lastError && !bestEmptyResult && providerUserIds.length > 0) throw lastError;
+  return bestEmptyResult ?? { samples: [], rawItems: [], fetchedCount: 0, filteredCount: 0 };
 }
 
 async function fetchPostsForProviderUser(
@@ -107,11 +128,13 @@ async function fetchPostsForProviderUser(
   unipileAccountId: string,
   platform: OnboardingPlatform,
   maxPosts: number,
-): Promise<{ samples: VoiceSample[]; rawItems: UnipilePostItem[] }> {
+): Promise<FetchPostsResult> {
   const platformLabel = platform === 'linkedin' ? 'LinkedIn' : 'Twitter/X';
   const samples: VoiceSample[] = [];
   const rawItems: UnipilePostItem[] = [];
   let cursor: string | undefined;
+  let fetchedCount = 0;
+  let filteredCount = 0;
 
   while (samples.length < maxPosts) {
     const params = new URLSearchParams({
@@ -132,11 +155,18 @@ async function fetchPostsForProviderUser(
 
     const json = (await res.json()) as UnipilePostsResponse;
     const items = json.items ?? [];
+    fetchedCount += items.length;
 
     for (const item of items) {
-      if (item.is_repost || item.is_reply) continue;
-      const content = (item.text ?? item.commentary ?? '').trim();
-      if (content.length <= 20) continue;
+      if (item.is_repost || item.is_reply) {
+        filteredCount++;
+        continue;
+      }
+      const content = postText(item);
+      if (content.length <= 20) {
+        filteredCount++;
+        continue;
+      }
 
       rawItems.push(item);
       samples.push({
@@ -153,7 +183,7 @@ async function fetchPostsForProviderUser(
     cursor = nextCursor;
   }
 
-  return { samples, rawItems };
+  return { samples, rawItems, fetchedCount, filteredCount };
 }
 
 /**

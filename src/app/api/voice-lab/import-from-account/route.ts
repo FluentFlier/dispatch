@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId, ensureSoloWorkspace } from '@/lib/workspace';
 import {
   fetchPostsFromUnipile,
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const { samples, rawItems } = await fetchPostsFromUnipile(
+    const { samples, rawItems, fetchedCount, filteredCount } = await fetchPostsFromUnipile(
       providerUserIds,
       account.unipile_account_id,
       platform,
@@ -84,15 +84,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
 
     const persistWorkspaceId = workspaceId ?? (await ensureSoloWorkspace(user.id)).id;
+    const persistClient = process.env.INSFORGE_SERVICE_ROLE_KEY?.trim()
+      ? getServiceClient()
+      : client;
     const persisted = await persistImportedPosts({
-      client,
+      client: persistClient,
       userId: user.id,
       workspaceId: persistWorkspaceId,
       platform,
       items: rawItems.filter((item) => item.id),
     });
 
-    return NextResponse.json({ samples, count: samples.length, persisted });
+    return NextResponse.json({
+      samples,
+      count: samples.length,
+      fetchedCount,
+      filteredCount,
+      persisted,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to fetch posts';
     const status = message.startsWith('Failed to fetch posts') ? 502 : 500;

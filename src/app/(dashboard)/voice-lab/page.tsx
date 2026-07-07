@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
-import { Loader2, Plus, X, Copy, Check, ChevronRight, Sparkles, Mic, FileText, Download, Link2 } from "lucide-react";
+import { useState, useCallback, useEffect, useMemo } from "react";
+import { Loader2, Plus, X, Copy, Check, ChevronRight, Sparkles, Mic, FileText, Download, Link2, Search, ExternalLink } from "lucide-react";
 import { useCreatorPreferences, POST_LENGTH_CONFIG, type PostLength } from "@/hooks/useCreatorPreferences";
 import { VoiceDriftCard } from "@/components/voice-lab/VoiceDriftCard";
 
@@ -73,6 +73,8 @@ export default function VoiceLabPage() {
   const [connectedPlatforms, setConnectedPlatforms] = useState<string[]>([]);
   const [importingAccount, setImportingAccount] = useState<string | null>(null);
   const [accountImportMessage, setAccountImportMessage] = useState("");
+  const [sampleSearch, setSampleSearch] = useState("");
+  const [samplePlatformFilter, setSamplePlatformFilter] = useState<string>("all");
 
   useEffect(() => {
     fetch("/api/social-accounts")
@@ -106,8 +108,18 @@ export default function VoiceLabPage() {
       }
 
       const imported = (data.samples ?? []) as Sample[];
+      const fetchedCount = Number(data.fetchedCount ?? imported.length);
+      const filteredCount = Number(data.filteredCount ?? Math.max(fetchedCount - imported.length, 0));
+      const persisted = data.persisted ?? {};
+      const restoredCount = Number(persisted.created ?? 0) + Number(persisted.repaired ?? 0);
+      const label = platform === "linkedin" ? "LinkedIn" : "X";
+
       if (imported.length === 0) {
-        setAccountImportMessage("No posts found. Make sure your account has public posts.");
+        if (fetchedCount > 0) {
+          setAccountImportMessage(`Found ${fetchedCount} ${label} post${fetchedCount === 1 ? "" : "s"}, but none had enough original text for voice training. Replies, reposts, and very short posts are skipped.`);
+        } else {
+          setAccountImportMessage(`No ${label} posts came back from the connected account. Try syncing the account in Settings, then import again.`);
+        }
         return;
       }
 
@@ -116,8 +128,9 @@ export default function VoiceLabPage() {
         return [...nonEmpty, ...imported].slice(0, 20);
       });
 
-      const label = platform === "linkedin" ? "LinkedIn" : "X";
-      setAccountImportMessage(`Imported ${imported.length} posts from ${label}.`);
+      const restoredText = restoredCount > 0 ? ` Restored ${restoredCount} to Posts.` : "";
+      const filteredText = filteredCount > 0 ? ` Skipped ${filteredCount} short/repost/reply item${filteredCount === 1 ? "" : "s"}.` : "";
+      setAccountImportMessage(`Imported ${imported.length} ${label} sample${imported.length === 1 ? "" : "s"}.${restoredText}${filteredText}`);
     } catch {
       setError("Failed to import posts. Try again.");
     } finally {
@@ -139,6 +152,24 @@ export default function VoiceLabPage() {
   }, []);
 
   const validSamples = samples.filter((s) => s.content.trim().length > 10);
+  const samplePlatforms = useMemo(
+    () => Array.from(new Set(samples.map((sample) => sample.platform).filter(Boolean))),
+    [samples],
+  );
+  const visibleSamples = useMemo(() => {
+    const query = sampleSearch.trim().toLowerCase();
+    return samples
+      .map((sample, index) => ({ sample, index }))
+      .filter(({ sample }) => {
+        const matchesPlatform = samplePlatformFilter === "all" || sample.platform === samplePlatformFilter;
+        const matchesSearch =
+          !query ||
+          sample.content.toLowerCase().includes(query) ||
+          sample.platform.toLowerCase().includes(query) ||
+          (sample.sourceUrl ?? "").toLowerCase().includes(query);
+        return matchesPlatform && matchesSearch;
+      });
+  }, [samples, sampleSearch, samplePlatformFilter]);
 
   async function importSamplesFromUrls() {
     const urls = importUrls
@@ -410,50 +441,100 @@ export default function VoiceLabPage() {
           </div>
 
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">
-                Paste or edit samples
-              </h2>
-              <span className="section-label">{validSamples.length} valid samples</span>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">
+                  Paste or edit samples
+                </h2>
+                <p className="mt-1 text-[13px] text-text-secondary">
+                  Add 5-15 posts that represent your voice at its best. Mix platforms for a richer profile.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2 text-[11px]">
+                <span className="rounded-md bg-sage-light px-2.5 py-1 font-medium text-accent-secondary">{validSamples.length} valid</span>
+                <span className="rounded-md bg-bg-tertiary px-2.5 py-1 text-text-secondary">{samples.length}/20 total</span>
+                <span className="rounded-md bg-bg-tertiary px-2.5 py-1 text-text-secondary">{visibleSamples.length} shown</span>
+              </div>
             </div>
-            <p className="text-[13px] text-text-secondary">
-              Add 5-15 posts that represent your voice at its best. Mix platforms for a richer profile.
-            </p>
 
-            {samples.map((sample, index) => (
-              <div key={index} className="space-y-2 p-4 rounded-lg bg-bg-tertiary border border-border">
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-1.5">
-                    {PLATFORMS.map((p) => (
-                      <button
-                        key={p}
-                        onClick={() => updateSample(index, "platform", p)}
-                        className={`text-[11px] px-2 py-0.5 rounded-full transition-colors ${
-                          sample.platform === p
-                            ? "bg-coral-light text-accent-primary"
-                            : "bg-bg-tertiary text-text-tertiary hover:text-text-secondary"
-                        }`}
+            <div className="grid gap-2 sm:grid-cols-[1fr_180px]">
+              <label className="relative block">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+                <input
+                  value={sampleSearch}
+                  onChange={(e) => setSampleSearch(e.target.value)}
+                  placeholder="Search imported text or source..."
+                  className="h-10 w-full rounded-md border border-border bg-bg-tertiary pl-9 pr-3 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-accent-primary/40 focus:outline-none"
+                />
+              </label>
+              <select
+                value={samplePlatformFilter}
+                onChange={(e) => setSamplePlatformFilter(e.target.value)}
+                className="h-10 rounded-md border border-border bg-bg-tertiary px-3 text-[13px] text-text-primary focus:border-accent-primary/40 focus:outline-none"
+              >
+                <option value="all">All platforms</option>
+                {samplePlatforms.map((platform) => (
+                  <option key={platform} value={platform}>{platform}</option>
+                ))}
+              </select>
+            </div>
+
+            {visibleSamples.length === 0 ? (
+              <div className="rounded-md border border-dashed border-border bg-bg-tertiary px-4 py-8 text-center text-[13px] text-text-secondary">
+                No samples match those filters.
+              </div>
+            ) : visibleSamples.map(({ sample, index }) => (
+              <div key={index} className="space-y-3 rounded-md border border-border bg-bg-tertiary p-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-[11px] uppercase text-text-tertiary">Sample {index + 1}</span>
+                    <span className="rounded-md bg-bg-secondary px-2 py-0.5 text-[11px] text-text-secondary">{sample.content.trim().length} chars</span>
+                    {sample.sourceUrl && (
+                      <a
+                        href={sample.sourceUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-w-0 items-center gap-1 rounded-md bg-bg-secondary px-2 py-0.5 text-[11px] text-accent-primary hover:underline"
                       >
-                        {p}
-                      </button>
-                    ))}
+                        <ExternalLink className="h-3 w-3 shrink-0" />
+                        <span className="truncate">source</span>
+                      </a>
+                    )}
                   </div>
-                  {samples.length > 1 && (
-                    <button onClick={() => removeSample(index)} className="text-text-tertiary hover:text-text-tertiary">
-                      <X className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <div className="flex items-center justify-between gap-2 sm:justify-end">
+                    <div className="flex gap-1.5">
+                      {PLATFORMS.map((p) => (
+                        <button
+                          key={p}
+                          onClick={() => updateSample(index, "platform", p)}
+                          className={`rounded-md px-2 py-1 text-[11px] transition-colors ${
+                            sample.platform === p
+                              ? "bg-coral-light text-accent-primary"
+                              : "bg-bg-secondary text-text-tertiary hover:text-text-secondary"
+                          }`}
+                        >
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                    {samples.length > 1 && (
+                      <button
+                        onClick={() => removeSample(index)}
+                        className="flex h-8 w-8 items-center justify-center rounded-md text-text-tertiary transition-colors hover:bg-bg-secondary hover:text-text-secondary"
+                        aria-label={`Remove sample ${index + 1}`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <textarea
                   value={sample.content}
                   onChange={(e) => updateSample(index, "content", e.target.value)}
                   placeholder="Paste a post, tweet, or caption..."
-                  rows={3}
-                  className="w-full bg-transparent text-[13px] text-text-primary placeholder:text-text-tertiary resize-none focus:outline-none"
+                  rows={4}
+                  className="min-h-[116px] w-full resize-y rounded-md border border-border bg-bg-secondary px-3 py-2 text-[13px] leading-relaxed text-text-primary placeholder:text-text-tertiary focus:border-accent-primary/40 focus:outline-none"
                 />
-                {sample.sourceUrl && (
-                  <p className="truncate text-[11px] text-text-tertiary">Imported from {sample.sourceUrl}</p>
-                )}
               </div>
             ))}
 

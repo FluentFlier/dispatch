@@ -214,7 +214,12 @@ export default function LibraryPage() {
       } else if ((data.count ?? 0) > 0) {
         setImportMessage('LinkedIn posts are already imported.');
       } else {
-        setImportMessage('No LinkedIn posts found. Check the connected account and try again.');
+        const fetched = data.fetchedCount ?? 0;
+        if (fetched > 0) {
+          setImportMessage(`Found ${fetched} LinkedIn post${fetched === 1 ? '' : 's'}, but none were long original posts that can be restored.`);
+        } else {
+          setImportMessage('No LinkedIn posts came back. Sync your account in Settings, then try again.');
+        }
       }
       await fetchData();
     } catch {
@@ -316,7 +321,7 @@ export default function LibraryPage() {
             className="flex items-center gap-1.5 border border-border bg-bg-secondary text-text-primary text-[13px] font-medium px-4 py-[10px] min-h-[44px] rounded-md hover:border-border-hover transition-colors disabled:opacity-60"
           >
             <RefreshCw className={`w-4 h-4 ${importingLinkedIn ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{importingLinkedIn ? 'Importing' : 'Reimport LinkedIn'}</span>
+            <span className="hidden sm:inline">{importingLinkedIn ? 'Importing' : 'Import LinkedIn'}</span>
             <span className="sm:hidden">Import</span>
           </button>
           <button
@@ -412,12 +417,23 @@ export default function LibraryPage() {
             {posts.length === 0 ? 'Generate a script or convert an idea to get started.' : 'Try adjusting your filters.'}
           </p>
           {posts.length === 0 && (
-            <a
-              href="/generate"
-              className="flex items-center gap-1.5 bg-accent-primary text-text-inverse text-[13px] font-medium px-5 py-[10px] rounded-md hover:opacity-90 transition-opacity"
-            >
-              <Plus className="w-4 h-4" /> Generate a Script
-            </a>
+            <div className="flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={handleLinkedInReimport}
+                disabled={importingLinkedIn}
+                className="flex min-h-[40px] items-center gap-1.5 rounded-md border border-border bg-bg-secondary px-4 py-[10px] text-[13px] font-medium text-text-primary transition-colors hover:border-border-hover disabled:opacity-60"
+              >
+                <RefreshCw className={`w-4 h-4 ${importingLinkedIn ? 'animate-spin' : ''}`} />
+                {importingLinkedIn ? 'Importing LinkedIn' : 'Import LinkedIn posts'}
+              </button>
+              <a
+                href="/generate"
+                className="flex items-center gap-1.5 bg-accent-primary text-text-inverse text-[13px] font-medium px-5 py-[10px] rounded-md hover:opacity-90 transition-opacity"
+              >
+                <Plus className="w-4 h-4" /> Generate a Script
+              </a>
+            </div>
           )}
         </div>
       ) : view === 'card' ? (
