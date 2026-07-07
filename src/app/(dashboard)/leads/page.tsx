@@ -351,6 +351,27 @@ export default function LeadsPage() {
     }
   };
 
+  const handleSnooze = async (id: string) => {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/leads/${id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ action: 'snooze' }) });
+      if (!res.ok) throw new Error();
+      // Snoozed leads leave today's surface (digest_date pushed +1); drop from view like dismiss.
+      setCards((prev) => prev.filter((c) => c.id !== id));
+      setLeadsById((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      if (selectedId === id) setSelectedId(null);
+      toast('Snoozed until tomorrow.');
+    } catch {
+      toast('Could not snooze.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const handleResolve = async (id: string, force = false) => {
     setBusyId(id);
     try {
@@ -596,6 +617,7 @@ export default function LeadsPage() {
                 onApprove={(channel) => handleApprove(selectedLead.id, channel)}
                 onEmail={() => handleEmail(selectedLead.id)}
                 onDismiss={() => handleDismiss(selectedLead.id)}
+                onSnooze={() => handleSnooze(selectedLead.id)}
                 onResolve={(force?: boolean) => handleResolve(selectedLead.id, force ?? false)}
                 onFollow={() => handleFollowLead(selectedLead)}
                 onPlanNurture={() => handlePlanNurture(selectedLead.id)}

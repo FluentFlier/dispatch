@@ -362,9 +362,9 @@ describe('Phase: Leads quality 2 - Task 4: unified feed page size', () => {
   });
 
   it('caps merged output to the page limit, keeping the top-scored slice', () => {
-    // 120 directory cards with descending scores so the top FEED_PAGE_LIMIT
-    // (by score) are the ones expected to survive the cap.
-    const directoryCards = Array.from({ length: 120 }, (_unused, i) =>
+    // More cards than the page limit, descending scores, so the top
+    // FEED_PAGE_LIMIT (by score) are the ones expected to survive the cap.
+    const directoryCards = Array.from({ length: FEED_PAGE_LIMIT + 20 }, (_unused, i) =>
       card({ id: `d${i}`, score: 1 - i * 0.001 }));
 
     const out = mergeFeed(directoryCards, [], {});

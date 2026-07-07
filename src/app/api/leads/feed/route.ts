@@ -9,7 +9,7 @@ import { errorResponse } from '@/lib/api-errors';
  * Unified Signals + Directory lead feed for the active workspace: both
  * sources are normalized into one card shape, merged, and score-sorted.
  * Query params are optional filters applied after the merge. `limit` is
- * parsed here and clamped to [1, 200] by `buildUnifiedFeed`; an unparsable
+ * parsed here and clamped to [1, 300] by `buildUnifiedFeed`; an unparsable
  * value is ignored and the feed's default page size is used instead.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
