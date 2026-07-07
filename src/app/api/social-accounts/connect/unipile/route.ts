@@ -50,6 +50,18 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const isLocalhost = appUrl.includes('localhost') || appUrl.includes('127.0.0.1');
 
+  // Scope the hosted flow to a single platform when the row's Connect button
+  // passes ?provider=. Absent → show both (the all-at-once entry point).
+  const PROVIDER_ENUM: Record<string, string> = {
+    linkedin: 'LINKEDIN',
+    twitter: 'TWITTER',
+    x: 'TWITTER',
+    instagram: 'INSTAGRAM',
+  };
+  const providerParam = request.nextUrl.searchParams.get('provider')?.toLowerCase();
+  const scopedProvider = providerParam ? PROVIDER_ENUM[providerParam] : undefined;
+  const providers = scopedProvider ? [scopedProvider] : ['LINKEDIN', 'TWITTER'];
+
   // api_url = the Unipile server URL (required). notify_url = our webhook (optional).
   const requestBody: Record<string, unknown> = {
     type: 'create',
@@ -58,7 +70,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     // Required: link expiry (ISO 8601 UTC). Unipile also expires on daily restart.
     expiresOn: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
     // Providers to show (schema enum: LINKEDIN | TWITTER | INSTAGRAM | MESSENGER | TELEGRAM | GOOGLE | OUTLOOK | MAIL)
-    providers: ['LINKEDIN', 'TWITTER'],
+    providers,
     success_redirect_url: successRedirect,
     failure_redirect_url: failureRedirect,
     // state is returned as payload.state in the account.connected webhook — used to identify the user.
@@ -86,16 +98,11 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const rawBody = await res.text();
 
+  // On any failure, bounce back to the connections page with the inline error
+  // flag instead of dumping raw JSON in the user's face. Details stay in logs.
   if (!res.ok) {
     console.error('[unipile/connect] failed:', res.status, rawBody);
-    // Return the raw Unipile error so we can see exactly what's wrong.
-    return NextResponse.json(
-      {
-        error: `Unipile hosted connect failed (${res.status})`,
-        unipile_error: rawBody,
-      },
-      { status: 502 },
-    );
+    return NextResponse.redirect(failureRedirect);
   }
 
   let data: { url?: string; link_url?: string };
@@ -103,17 +110,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     data = JSON.parse(rawBody);
   } catch {
     console.error('[unipile/connect] invalid JSON response:', rawBody);
-    return NextResponse.json({ error: 'Unipile returned invalid JSON', raw: rawBody }, { status: 502 });
+    return NextResponse.redirect(failureRedirect);
   }
 
   const linkUrl = data.url ?? data.link_url;
 
   if (!linkUrl) {
     console.error('[unipile/connect] no url in response:', rawBody);
-    return NextResponse.json(
-      { error: 'Unipile did not return a connect URL', response: data },
-      { status: 502 },
-    );
+    return NextResponse.redirect(failureRedirect);
   }
 
   return NextResponse.redirect(linkUrl);
