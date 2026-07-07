@@ -147,6 +147,8 @@ export const unipileProvider: SocialProvider = {
 
 export interface UnipileFullAccount {
   id: string;
+  type?: string;
+  provider?: string;
   username?: string;
   name?: string;
   connection_params?: {
