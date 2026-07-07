@@ -23,6 +23,10 @@ import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
 
+/** Initial feed page + how much each "Load more" adds. Capped by the server at 300. */
+const FEED_PAGE_SIZE = 50;
+const FEED_MAX = 300;
+
 /** Empty client-side extras applied on top of the server-filtered feed. */
 const INITIAL_FILTERS: FeedFilterState = {
   status: 'new',
@@ -65,6 +69,9 @@ export default function LeadsPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   // Leads confirmed as accepted LinkedIn connections (response tracking).
   const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set());
+  // Load-more page size: grows the requested feed limit; mergeFeed returns the
+  // top-N sorted slice, so raising N appends lower-ranked cards with no dupes.
+  const [feedLimit, setFeedLimit] = useState(FEED_PAGE_SIZE);
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Header toggle: "feed" is the unified lead list (default); "setup" is the
   // signal + directory configuration surface folded in from the retired /signals page.
@@ -87,8 +94,9 @@ export default function LeadsPage() {
     if (filters.status !== 'all') p.set('status', filters.status);
     if (filters.source !== 'all') p.set('source', filters.source);
     if (filters.signalType !== 'all') p.set('signalType', filters.signalType);
+    p.set('limit', String(feedLimit));
     return p.toString();
-  }, [filters.status, filters.source, filters.signalType]);
+  }, [filters.status, filters.source, filters.signalType, feedLimit]);
 
   const indexLeads = (leads: SignalLeadWithContacts[]) =>
     setLeadsById((prev) => {
@@ -766,6 +774,16 @@ export default function LeadsPage() {
               selectedIds={selectedIds}
               onToggleSelect={toggleSelect}
             />
+            {cards.length >= feedLimit && feedLimit < FEED_MAX && (
+              <button
+                type="button"
+                disabled={listLoading}
+                onClick={() => setFeedLimit((n) => Math.min(n + FEED_PAGE_SIZE, FEED_MAX))}
+                className="w-full text-xs font-medium py-2 rounded-md border border-border bg-bg-secondary hover:bg-bg-primary text-text-secondary disabled:opacity-50"
+              >
+                {listLoading ? 'Loading…' : 'Load more'}
+              </button>
+            )}
           </div>
 
           {/* Detail */}
