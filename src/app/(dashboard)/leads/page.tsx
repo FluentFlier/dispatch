@@ -346,10 +346,11 @@ export default function LeadsPage() {
   ) => {
     setBusy({ id, action: 'approve' });
     try {
+      // Send the (possibly edited) draft so the edit-feedback loop can capture it.
       const res = await fetch(`/api/leads/${id}/approve`, {
         method: 'POST',
         headers: jsonHeaders,
-        body: JSON.stringify({ channel }),
+        body: JSON.stringify({ channel, messageText: drafts[id] }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'blocked');
@@ -412,7 +413,7 @@ export default function LeadsPage() {
       const res = await fetch(`/api/leads/${id}/approve`, {
         method: 'POST',
         headers: jsonHeaders,
-        body: JSON.stringify({ channel: 'gmail', emailOptIn: true }),
+        body: JSON.stringify({ channel: 'gmail', emailOptIn: true, messageText: drafts[id] }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'blocked');

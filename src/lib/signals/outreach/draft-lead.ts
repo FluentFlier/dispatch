@@ -5,6 +5,7 @@ import { updateLead } from '@/lib/signals/leads/store';
 import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import { fetchYcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
+import { loadEditStyleGuidance } from '@/lib/signals/outreach/edit-feedback';
 import { withTimeout } from '@/lib/util/timeout';
 import type {
   LeadCompanyDetail,
@@ -83,6 +84,7 @@ function buildLeadPrompt(
   channel: OutreachChannel,
   rewriteInstruction?: string | null,
   company?: LeadCompanyDetail | null,
+  editGuidance?: string[],
 ): string {
   const sourceLabel = lead.source === 'product_hunt' ? 'Product Hunt' : 'YC';
   const firstName = contact?.name ? contact.name.split(' ')[0] : null;
@@ -123,6 +125,13 @@ function buildLeadPrompt(
     '2. Give one authentic reason you are reaching out (a real overlap or shared interest), not a pitch.',
     '3. End with a light, specific ask (swap notes / a quick chat), no hard sell.',
     '',
+    // Learned style: how THIS user rewrote earlier drafts. Mirror the direction
+    // of these edits (tone, length, phrasing) instead of the generic template.
+    editGuidance && editGuidance.length
+      ? 'STYLE LEARNED FROM YOUR PAST EDITS (mirror how the user rewrote earlier drafts):'
+      : null,
+    ...(editGuidance && editGuidance.length ? editGuidance.map((g) => `- ${g}`) : []),
+    editGuidance && editGuidance.length ? '' : null,
     'HARD RULES:',
     '- Human and peer-to-peer. Never salesy, never templated.',
     '- BANNED openers: "I came across", "I hope this finds you well", "As a fellow", "I noticed".',
@@ -198,10 +207,13 @@ export async function draftOutreachForLead(
   // substance without a re-scrape on repeat drafts.
   const companyDetail = await ensureLeadCompanyDetail(client, workspaceId, lead);
 
+  // Edit-feedback loop: few-shot the prompt on how this workspace rewrites drafts.
+  const editGuidance = await loadEditStyleGuidance(client, workspaceId, 3);
+
   // Fast path for the interactive first render; heavy loop only on polish.
   const pipe = draftPipelineOptions(opts.polish ?? false);
   const result = await generateWithVoicePipeline({
-    userPrompt: buildLeadPrompt(lead, contact, channel, opts.rewriteInstruction, companyDetail),
+    userPrompt: buildLeadPrompt(lead, contact, channel, opts.rewriteInstruction, companyDetail, editGuidance),
     profile: voiceContext.profile,
     contextAdditions: voiceContext.contextAdditions,
     platform,
