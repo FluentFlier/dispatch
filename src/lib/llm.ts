@@ -253,6 +253,23 @@ async function callProvider(
  * Signature mirrors the legacy `generateContentHF(systemPrompt, userPrompt)` so
  * call sites can swap to this with no shape changes.
  */
+/**
+ * Live auth/connectivity probe for the configured LLM provider. Runs one tiny
+ * chat completion so a health check can distinguish "key present" from "key
+ * actually works" — presence checks stay green even when the key is empty/wrong,
+ * which is exactly how a prod 401 stayed invisible. Returns 'skipped' when no
+ * provider is configured, 'ok' on a valid completion, 'error' on any failure.
+ */
+export async function pingLlm(): Promise<'ok' | 'error' | 'skipped'> {
+  if (!isLlmConfigured()) return 'skipped';
+  try {
+    const out = await chatCompletion('Reply with the single word ok.', 'ok', { maxTokens: 5 });
+    return out.trim().length > 0 ? 'ok' : 'error';
+  } catch {
+    return 'error';
+  }
+}
+
 export async function chatCompletion(
   systemPrompt: string,
   userPrompt: string,
