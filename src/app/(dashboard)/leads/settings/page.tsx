@@ -112,7 +112,15 @@ export default function LeadSettingsPage() {
       <Card className="p-5 space-y-3">
         <h2 className="text-sm font-medium text-text-primary">Delivery channels</h2>
         {(['today', 'slack', 'email'] as const).map((ch) => (
-          <label key={ch} className="flex items-center gap-2 text-sm text-text-secondary capitalize">
+          <label
+            key={ch}
+            className="flex items-center gap-2 text-sm text-text-secondary capitalize"
+            title={
+              ch === 'today'
+                ? 'The in-app Today tab is always on - it is where leads land. Slack and email are optional extra delivery channels.'
+                : undefined
+            }
+          >
             <input
               type="checkbox"
               disabled={ch === 'today'}
