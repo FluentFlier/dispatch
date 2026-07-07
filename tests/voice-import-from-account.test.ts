@@ -7,6 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@/lib/insforge/server', () => ({
   getAuthenticatedUser: vi.fn(),
   getServerClient: vi.fn(),
+  getServiceClient: vi.fn(),
 }));
 vi.mock('@/lib/workspace', () => ({
   getActiveWorkspaceId: vi.fn().mockResolvedValue('ws_123'),
@@ -18,7 +19,7 @@ vi.mock('@/lib/social/unipile', () => ({
   mapPlatform: vi.fn(),
 }));
 
-import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
 import { unipoleFetch, fetchUnipileAccountDetails } from '@/lib/social/unipile';
 import { NextRequest } from 'next/server';
 
@@ -87,6 +88,7 @@ describe('POST /api/voice-lab/import-from-account', () => {
     vi.stubEnv('UNIPILE_DSN', 'api.unipile.com:443');
     (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
     (getServerClient as ReturnType<typeof vi.fn>).mockReturnValue(mockServerClient());
+    (getServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockServerClient());
     (fetchUnipileAccountDetails as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     (unipoleFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
@@ -206,6 +208,23 @@ describe('POST /api/voice-lab/import-from-account', () => {
     expect(body.samples[0].content).toBe('Post using commentary field not text field.');
   });
 
+  it('handles content field as fallback for production Unipile post shapes', async () => {
+    (unipoleFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        items: [
+          { id: 'p-content', content: 'Post using content field from the provider response.', is_repost: false, is_reply: false },
+        ],
+      }),
+      text: vi.fn().mockResolvedValue(''),
+    });
+    const { POST } = await import('@/app/api/voice-lab/import-from-account/route');
+    const res = await POST(makeRequest({ platform: 'linkedin' }));
+    const body = await res.json();
+    expect(body.samples[0].content).toBe('Post using content field from the provider response.');
+    expect(body.fetchedCount).toBe(1);
+  });
+
   it('returns empty samples array when all posts are filtered', async () => {
     (unipoleFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
@@ -222,5 +241,7 @@ describe('POST /api/voice-lab/import-from-account', () => {
     const body = await res.json();
     expect(body.samples).toHaveLength(0);
     expect(body.count).toBe(0);
+    expect(body.fetchedCount).toBe(2);
+    expect(body.filteredCount).toBe(2);
   });
 });

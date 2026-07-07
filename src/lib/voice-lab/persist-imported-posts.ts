@@ -16,6 +16,9 @@ export interface UnipileItem {
   id?: string;
   text?: string;
   commentary?: string;
+  content?: string;
+  body?: string;
+  title?: string;
   provider?: string;
   is_repost?: boolean;
   is_reply?: boolean;
@@ -27,6 +30,17 @@ export interface PersistImportedPostsResult {
   repaired: number;
   skipped: number;
   failed: number;
+}
+
+function importedPostText(item: UnipileItem): string {
+  return String(
+    item.text ??
+    item.commentary ??
+    item.content ??
+    item.body ??
+    item.title ??
+    '',
+  ).trim();
 }
 
 /** Builds the canonical public post URL for a Unipile-imported post. */
@@ -69,7 +83,11 @@ export async function persistImportedPosts({
 
   for (const item of items) {
     if (!item.id) continue;
-    const content = (item.text ?? item.commentary ?? '').trim();
+    const content = importedPostText(item);
+    if (!content) {
+      result.failed++;
+      continue;
+    }
     const idempotencyKey = buildIdempotencyKey(userId, item.id, platform, null);
 
     const { data: existingJobs } = await client.database
@@ -124,6 +142,7 @@ export async function persistImportedPosts({
 
     const jobPayload = {
       user_id: userId,
+      workspace_id: workspaceId,
       post_id: postId,
       platform,
       status: 'published',
