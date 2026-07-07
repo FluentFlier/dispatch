@@ -2,8 +2,6 @@
 
 import { useEffect } from 'react';
 import { refreshAppSessionWithFallback } from '@/lib/auth-client-refresh';
-
-/**
  * Proactively refreshes the session BEFORE the access token expires.
  * Uses same-origin content-os-refresh cookie (not cross-origin InsForge cookies).
  */
@@ -16,14 +14,23 @@ export default function SessionKeepAlive() {
     let timer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
 
-    async function fetchAccessExpiresAt(): Promise<number | null> {
+    async function fetchSessionMeta(): Promise<{
+      accessExpiresAt: number | null;
+      hasRefreshToken: boolean;
+    }> {
       try {
         const res = await fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' });
-        if (!res.ok) return null;
-        const data = (await res.json()) as { accessExpiresAt?: number | null };
-        return typeof data.accessExpiresAt === 'number' ? data.accessExpiresAt * 1000 : null;
+        if (!res.ok) return { accessExpiresAt: null, hasRefreshToken: false };
+        const data = (await res.json()) as {
+          accessExpiresAt?: number | null;
+          hasRefreshToken?: boolean;
+        };
+        return {
+          accessExpiresAt: typeof data.accessExpiresAt === 'number' ? data.accessExpiresAt * 1000 : null,
+          hasRefreshToken: Boolean(data.hasRefreshToken),
+        };
       } catch {
-        return null;
+        return { accessExpiresAt: null, hasRefreshToken: false };
       }
     }
 
@@ -33,9 +40,9 @@ export default function SessionKeepAlive() {
 
     async function schedule(): Promise<void> {
       if (cancelled) return;
-      const expMs = await fetchAccessExpiresAt();
-      const delay = expMs
-        ? Math.max(MIN_DELAY_MS, expMs - Date.now() - REFRESH_SKEW_MS)
+      const meta = await fetchSessionMeta();
+      const delay = meta.accessExpiresAt
+        ? Math.max(MIN_DELAY_MS, meta.accessExpiresAt - Date.now() - REFRESH_SKEW_MS)
         : FALLBACK_INTERVAL_MS;
       timer = setTimeout(async () => {
         await refreshAndSync();

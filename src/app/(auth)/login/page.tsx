@@ -4,18 +4,11 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getInsforgeClient } from "@/lib/insforge/client";
 import { getClientTokens } from "@/lib/auth-client";
+import { INSFORGE_PKCE_VERIFIER_KEY } from "@/lib/auth-establish";
 
 /**
  * Sync access + refresh tokens into httpOnly cookies via /api/auth.
- *
- * Strategy (in order):
- * 1. refreshSession() — official SDK call, guaranteed to return both tokens when it works.
- *    May fail immediately after OAuth (SDK not yet fully initialized).
- * 2. getClientTokens() — reads SDK internals; reliably gets the access token, may get
- *    the refresh token depending on where the SDK stored it after the OAuth exchange.
- *
- * Even if only the access token is synced (no refresh token), login succeeds.
- * The refresh token path is the fix for forced re-login every ~1 hour.
+ * Requires a refresh token — sessions without one expire when the JWT does.
  */
 async function syncTokenToCookie(): Promise<boolean> {
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -23,7 +16,7 @@ async function syncTokenToCookie(): Promise<boolean> {
 
     // Path 1: read tokens directly from SDK after OAuth — most reliable for refresh token.
     const fromSdk = getClientTokens(client);
-    if (fromSdk.accessToken) {
+    if (fromSdk.accessToken && fromSdk.refreshToken) {
       try {
         const res = await fetch("/api/auth", {
           method: "POST",
@@ -43,14 +36,15 @@ async function syncTokenToCookie(): Promise<boolean> {
     // Path 2: refreshSession() — may return rotated tokens when SDK is ready.
     try {
       const { data, error } = await client.auth.refreshSession();
-      if (!error && data?.accessToken) {
+      const refreshToken = (data as { refreshToken?: string } | undefined)?.refreshToken;
+      if (!error && data?.accessToken && refreshToken) {
         const res = await fetch("/api/auth", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "same-origin",
           body: JSON.stringify({
             token: data.accessToken,
-            refreshToken: (data as { refreshToken?: string }).refreshToken ?? null,
+            refreshToken,
           }),
         });
         if (res.ok) return true;
@@ -91,8 +85,32 @@ async function finishSessionSync(): Promise<boolean> {
     credentials: "same-origin",
   });
   if (!res.ok) return false;
-  const session = (await res.json()) as { authenticated?: boolean };
-  return Boolean(session.authenticated);
+  const session = (await res.json()) as {
+    authenticated?: boolean;
+    hasRefreshToken?: boolean;
+  };
+  return Boolean(session.authenticated && session.hasRefreshToken);
+}
+
+async function completeOAuthSignIn(code: string, codeVerifier: string): Promise<boolean> {
+  const res = await fetch("/api/auth/oauth/exchange", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    body: JSON.stringify({ code, codeVerifier }),
+  });
+  if (!res.ok) return false;
+
+  const verify = await fetch("/api/auth/session", {
+    cache: "no-store",
+    credentials: "same-origin",
+  });
+  if (!verify.ok) return false;
+  const session = (await verify.json()) as {
+    authenticated?: boolean;
+    hasRefreshToken?: boolean;
+  };
+  return Boolean(session.authenticated && session.hasRefreshToken);
 }
 
 export default function LoginPage() {
@@ -122,46 +140,32 @@ export default function LoginPage() {
       return;
     }
 
-    const client = getInsforgeClient();
-
     if (hasOAuthCode) {
       setStatus("Completing sign-in...");
-      // authCallbackHandled is the SDK promise that exchanges the code for tokens.
-      // It resolves (or rejects) when the PKCE exchange is done.
-      const authReady = (client.auth as unknown as { authCallbackHandled?: Promise<void> }).authCallbackHandled;
-      if (authReady) {
-        try {
-          await authReady;
-        } catch {
-          /* exchange error — fall through to getCurrentUser check */
-        }
+      const code = params.get("insforge_code");
+      const codeVerifier = sessionStorage.getItem(INSFORGE_PKCE_VERIFIER_KEY);
+      if (!code || !codeVerifier) {
+        setError("Sign-in failed. Please try again.");
+        window.history.replaceState(null, "", "/login");
+        setReady(true);
+        return;
       }
 
-      // Small buffer to allow token propagation into http.refreshToken
-      await new Promise((r) => setTimeout(r, 300));
-
-      try {
-        const { data } = await client.auth.getCurrentUser();
-        if (data?.user) {
-          setStatus("Syncing session...");
-          const synced = await finishSessionSync();
-          if (!synced) {
-            setError("Sign-in completed, but the app could not create your session. Please try again.");
-            setReady(true);
-            return;
-          }
-          await redirectAfterAuth();
-          return;
-        }
-      } catch {
-        /* fall through */
-      }
-
-      setError("Sign-in failed. Please try again.");
+      const ok = await completeOAuthSignIn(code, codeVerifier);
+      sessionStorage.removeItem(INSFORGE_PKCE_VERIFIER_KEY);
       window.history.replaceState(null, "", "/login");
+
+      if (ok) {
+        await redirectAfterAuth();
+        return;
+      }
+
+      setError("Sign-in completed, but the app could not create your session. Please try again.");
       setReady(true);
       return;
     }
+
+    const client = getInsforgeClient();
 
     try {
       const { data } = await client.auth.getCurrentUser();
@@ -182,8 +186,11 @@ export default function LoginPage() {
         cache: "no-store",
         credentials: "same-origin",
       });
-      const session = (await res.json()) as { authenticated?: boolean };
-      if (session.authenticated) {
+      const session = (await res.json()) as {
+        authenticated?: boolean;
+        hasRefreshToken?: boolean;
+      };
+      if (session.authenticated && session.hasRefreshToken) {
         setStatus("Syncing session...");
         await redirectAfterAuth();
         return;

@@ -83,3 +83,17 @@ describe('POST /api/auth/refresh', () => {
     expect(body.error).toBe('no_refresh_token');
   });
 });
+
+describe('POST /api/auth/oauth/exchange', () => {
+  it('returns 400 when code or verifier is missing', async () => {
+    const { POST } = await import('@/app/api/auth/oauth/exchange/route');
+    const { NextRequest } = await import('next/server');
+
+    const request = new NextRequest('http://localhost/api/auth/oauth/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ code: 'abc' }),
+    });
+    const response = await POST(request);
+    expect(response.status).toBe(400);
+  });
+});

@@ -31,10 +31,12 @@ export async function GET(): Promise<NextResponse> {
   ]);
 
   const accessToken = cookies().get(AUTH_COOKIE.access)?.value;
+  const hasRefreshToken = !!cookies().get(AUTH_COOKIE.refresh)?.value;
   const accessExpiresAt = accessToken ? decodeJwtExpSec(accessToken) : null;
 
   return NextResponse.json({
     authenticated: true,
+    hasRefreshToken,
     accessExpiresAt,
     user: { id: user.id, email: user.email },
     profile: profile
