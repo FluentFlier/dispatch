@@ -319,8 +319,10 @@ describe('Phase: GTM Outreach — draft path', () => {
       expect(generateWithVoicePipeline).toHaveBeenCalledTimes(1);
       const input = generateWithVoicePipeline.mock.calls[0][0] as { contextAdditions?: string };
       const ctx = input.contextAdditions ?? '';
-      // The GTM pitch text must be present in the prompt context.
-      expect(ctx).toContain('Rho helps high-growth startups consolidate banking');
+      // The seeded GTM pitch must reach the prompt context. Asserted against the
+      // default playbook itself (not a hardcoded brand string) so this stays
+      // valid now that the neutral default replaced the Rho-specific pitch.
+      expect(ctx).toContain(DEFAULT_GTM_PLAYBOOK.pitch);
     });
   });
 });

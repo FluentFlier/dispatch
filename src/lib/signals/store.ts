@@ -1,7 +1,7 @@
 import type { createClient } from '@insforge/sdk';
 import { getBrainPage, putBrainPage } from '@/lib/brain/pages';
 import { BRAIN_SLUG } from '@/lib/brain/types';
-import { DEFAULT_GTM_PLAYBOOK, DEFAULT_GTM_SOURCES } from '@/lib/signals/defaults';
+import { gtmPlaybookForWorkspace, gtmSourcesForWorkspace } from '@/lib/signals/defaults';
 import { notifySlackForNewSignal } from '@/lib/signals/notifications/slack-alert';
 import type {
   ClassifiedSignal,
@@ -25,7 +25,9 @@ export async function ensureDefaultSources(
 
   if (existing && existing.length > 0) return 0;
 
-  const rows = DEFAULT_GTM_SOURCES.map((s) => ({
+  // Neutral set for a generic workspace; the fuller Rho/Dylan watchlist only
+  // when this workspace is the configured design partner.
+  const rows = gtmSourcesForWorkspace(workspaceId).map((s) => ({
     workspace_id: workspaceId,
     platform: s.platform,
     handle_or_url: s.handle_or_url,
@@ -52,7 +54,9 @@ export async function ensureGtmPlaybook(
     slug: BRAIN_SLUG.gtm,
     title: 'GTM playbook',
     tags: ['gtm', 'signals', 'outreach'],
-    body: JSON.stringify({ ...DEFAULT_GTM_PLAYBOOK, status: 'ready' }, null, 2),
+    // Neutral starter for a generic workspace; the Rho sales playbook only for
+    // the configured design-partner workspace. No tenant's pitch leaks to others.
+    body: JSON.stringify({ ...gtmPlaybookForWorkspace(workspaceId), status: 'ready' }, null, 2),
     workspaceId,
   });
   return true;
