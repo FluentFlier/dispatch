@@ -16,6 +16,7 @@ export type SectionKey =
   | 'problem'
   | 'loop'
   | 'distribution'
+  | 'leads'
   | 'voice'
   | 'different'
   | 'week'
@@ -31,6 +32,7 @@ export const SECTION_THEME: Record<SectionKey, SectionTheme> = {
   problem: { tag: 'Problem', accent: LAND_THEME.signal, glow: 'blue' },
   loop: { tag: 'The loop', accent: LAND_THEME.signal, glow: 'blue' },
   distribution: { tag: 'Distribution', accent: LAND_THEME.publish, glow: 'teal' },
+  leads: { tag: 'Leads', accent: '#D4A054', glow: 'flame' },
   voice: { tag: 'Voice', accent: LAND_THEME.publish, glow: 'teal' },
   different: { tag: 'Why us', accent: LAND_THEME.draft, glow: 'flame' },
   week: { tag: 'In practice', accent: '#5BC8FF', glow: 'none' },

@@ -12,6 +12,7 @@ const FOCUS =
 
 const ANCHORS = [
   ['#loop', 'Loop'],
+  ['#leads', 'Leads'],
   ['#different', 'Why us'],
   ['#week', 'Week'],
 ] as const;
@@ -49,7 +50,7 @@ export default function Nav({ funnel }: { funnel: FunnelState }) {
           : 'border-transparent bg-paper/75 backdrop-blur-xl'
       }`}
     >
-      <div className="mx-auto flex max-w-[1100px] items-center justify-between px-5 py-4 sm:px-8">
+      <div className="mx-auto flex max-w-[1160px] items-center justify-between px-5 py-4 sm:px-8">
         <Link href="/" className={`text-[17px] font-semibold text-ink ${FOCUS}`}>
           {PRODUCT_NAME.toLowerCase()}.
         </Link>

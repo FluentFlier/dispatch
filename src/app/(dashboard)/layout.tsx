@@ -36,6 +36,8 @@ export default async function DashboardLayout({
     return <TokenRefreshGate />;
   }
 
+  const sessionKeepAlive = <SessionKeepAlive />;
+
   const isGetStarted = pathname === '/get-started';
   const isOnboarding =
     pathname === '/onboarding' || pathname.startsWith('/onboarding/');
@@ -70,6 +72,7 @@ export default async function DashboardLayout({
   if (isGetStarted || isOnboarding) {
     return (
       <ToastProvider>
+        {sessionKeepAlive}
         <div className="editorial min-h-screen bg-paper text-ink">
           <main className="min-h-screen">{children}</main>
         </div>
@@ -78,12 +81,17 @@ export default async function DashboardLayout({
   }
 
   if (pathname === '/teleprompter') {
-    return <ToastProvider>{children}</ToastProvider>;
+    return (
+      <ToastProvider>
+        {sessionKeepAlive}
+        {children}
+      </ToastProvider>
+    );
   }
 
   return (
     <ToastProvider>
-      <SessionKeepAlive />
+      {sessionKeepAlive}
       <DashboardShell>
         <Sidebar />
         <main className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-6 pb-24 md:ml-[264px] md:px-8 md:pb-8">

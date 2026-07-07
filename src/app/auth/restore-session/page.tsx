@@ -2,15 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
-import { getInsforgeClient } from '@/lib/insforge/client';
+import { refreshAppSessionWithFallback } from '@/lib/auth-client-refresh';
 
 const RETRY_KEY = 'token_refresh_attempts';
 const DEPLOY_KEY = 'content_os_deploy_id';
 
 /**
- * Client-side session restore after deploy or when only InsForge's browser session
- * can refresh (no content-os-refresh cookie). Syncs a fresh access token into
- * our httpOnly cookies, then returns to the requested page.
+ * Client-side session restore when only our access JWT expired.
+ * Prefers same-origin content-os-refresh cookie refresh over InsForge cross-origin cookies.
  */
 export default function RestoreSessionPage() {
   const [message, setMessage] = useState('Restoring your session…');
@@ -47,24 +46,8 @@ export default function RestoreSessionPage() {
         }
         sessionStorage.setItem(RETRY_KEY, String(attempts + 1));
 
-        const client = getInsforgeClient();
-        const { data, error } = await client.auth.refreshSession();
-        if (error || !data?.accessToken) {
-          await goLogin();
-          return;
-        }
-
-        const syncRes = await fetch('/api/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
-          body: JSON.stringify({
-            token: data.accessToken,
-            refreshToken: (data as { refreshToken?: string }).refreshToken ?? null,
-          }),
-        });
-
-        if (!syncRes.ok) {
+        const refreshed = await refreshAppSessionWithFallback();
+        if (!refreshed) {
           await goLogin();
           return;
         }

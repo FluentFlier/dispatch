@@ -7,19 +7,41 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('@/lib/insforge/server', () => ({
   getAuthenticatedUser: vi.fn(),
   getServerClient: vi.fn(),
+  getServiceClient: vi.fn(),
 }));
 vi.mock('@/lib/workspace', () => ({
-  getActiveWorkspaceId: vi.fn().mockResolvedValue('ws_123'),
-  ensureSoloWorkspace: vi.fn().mockResolvedValue({ id: 'ws_123' }),
+  ensureActiveWorkspaceId: vi.fn().mockResolvedValue('ws_123'),
+  backfillNullWorkspaceSocialAccounts: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/lib/social/unipile', () => ({
   unipoleFetch: vi.fn(),
   fetchUnipileAccountDetails: vi.fn(),
   mapPlatform: vi.fn(),
 }));
+vi.mock('@/lib/social/sync-unipile-accounts', () => {
+  class UnipileAccountsSyncError extends Error {
+    constructor(
+      message: string,
+      public readonly status: number,
+    ) {
+      super(message);
+      this.name = 'UnipileAccountsSyncError';
+    }
+  }
 
-import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+  return {
+    syncUnipileAccountsForUser: vi.fn().mockResolvedValue({ synced: 0, workspaceId: 'ws_123' }),
+    UnipileAccountsSyncError,
+  };
+});
+
+import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
+import { backfillNullWorkspaceSocialAccounts, ensureActiveWorkspaceId } from '@/lib/workspace';
 import { unipoleFetch, fetchUnipileAccountDetails } from '@/lib/social/unipile';
+import {
+  syncUnipileAccountsForUser,
+  UnipileAccountsSyncError,
+} from '@/lib/social/sync-unipile-accounts';
 import { NextRequest } from 'next/server';
 
 const mockUser = { id: 'user_123' };
@@ -44,11 +66,19 @@ function mockDbChain(data: unknown, error = null) {
   };
 }
 
-function mockServerClient(account: unknown = mockAccount) {
+function mockServerClient(account: unknown | unknown[] = mockAccount) {
+  let socialAccountRead = 0;
+  const getSocialAccount = () => {
+    if (!Array.isArray(account)) return account;
+    const index = Math.min(socialAccountRead, account.length - 1);
+    socialAccountRead++;
+    return account[index];
+  };
+
   return {
     database: {
       from: vi.fn((table: string) => {
-        if (table === 'social_accounts') return mockDbChain(account);
+        if (table === 'social_accounts') return mockDbChain(getSocialAccount());
         if (table === 'publish_jobs') {
           return {
             select: vi.fn().mockReturnThis(),
@@ -87,7 +117,9 @@ describe('POST /api/voice-lab/import-from-account', () => {
     vi.stubEnv('UNIPILE_DSN', 'api.unipile.com:443');
     (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
     (getServerClient as ReturnType<typeof vi.fn>).mockReturnValue(mockServerClient());
+    (getServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockServerClient());
     (fetchUnipileAccountDetails as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (syncUnipileAccountsForUser as ReturnType<typeof vi.fn>).mockResolvedValue({ synced: 0, workspaceId: 'ws_123' });
     (unipoleFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue(UNIPILE_POSTS_RESPONSE),
@@ -117,11 +149,44 @@ describe('POST /api/voice-lab/import-from-account', () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toContain('No connected LinkedIn');
+    expect(syncUnipileAccountsForUser).toHaveBeenCalledWith('user_123');
+  });
+
+  it('refreshes Unipile accounts and retries when the local account row is missing', async () => {
+    (getServerClient as ReturnType<typeof vi.fn>).mockReturnValue(mockServerClient([null, mockAccount]));
+    const { POST } = await import('@/app/api/voice-lab/import-from-account/route');
+    const res = await POST(makeRequest({ platform: 'linkedin' }));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(syncUnipileAccountsForUser).toHaveBeenCalledWith('user_123');
+    expect(body.count).toBe(2);
+    expect(unipoleFetch).toHaveBeenCalledWith(
+      expect.stringMatching(/\/users\/ACoAABcDEFgH\/posts\?account_id=unipile_abc123/),
+      expect.objectContaining({ method: 'GET' }),
+    );
+  });
+
+  it('returns a useful error when account refresh cannot reach Unipile', async () => {
+    (getServerClient as ReturnType<typeof vi.fn>).mockReturnValue({
+      database: { from: vi.fn().mockReturnValue(mockDbChain(null)) },
+    });
+    (syncUnipileAccountsForUser as ReturnType<typeof vi.fn>).mockRejectedValue(
+      new UnipileAccountsSyncError('Unipile accounts fetch failed (401)', 502),
+    );
+    const { POST } = await import('@/app/api/voice-lab/import-from-account/route');
+    const res = await POST(makeRequest({ platform: 'linkedin' }));
+    const body = await res.json();
+
+    expect(res.status).toBe(502);
+    expect(body.error).toContain('Could not refresh your connected accounts');
   });
 
   it('calls Unipile /users/{provider_id}/posts with provider ID in path and unipile ID as query param', async () => {
     const { POST } = await import('@/app/api/voice-lab/import-from-account/route');
     await POST(makeRequest({ platform: 'linkedin' }));
+    expect(ensureActiveWorkspaceId).toHaveBeenCalledWith('user_123');
+    expect(backfillNullWorkspaceSocialAccounts).toHaveBeenCalledWith('user_123', 'ws_123');
     expect(unipoleFetch).toHaveBeenCalledWith(
       expect.stringMatching(/\/users\/ACoAABcDEFgH\/posts\?account_id=unipile_abc123/),
       expect.objectContaining({ method: 'GET' }),
@@ -206,6 +271,23 @@ describe('POST /api/voice-lab/import-from-account', () => {
     expect(body.samples[0].content).toBe('Post using commentary field not text field.');
   });
 
+  it('handles content field as fallback for production Unipile post shapes', async () => {
+    (unipoleFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
+      ok: true,
+      json: vi.fn().mockResolvedValue({
+        items: [
+          { id: 'p-content', content: 'Post using content field from the provider response.', is_repost: false, is_reply: false },
+        ],
+      }),
+      text: vi.fn().mockResolvedValue(''),
+    });
+    const { POST } = await import('@/app/api/voice-lab/import-from-account/route');
+    const res = await POST(makeRequest({ platform: 'linkedin' }));
+    const body = await res.json();
+    expect(body.samples[0].content).toBe('Post using content field from the provider response.');
+    expect(body.fetchedCount).toBe(1);
+  });
+
   it('returns empty samples array when all posts are filtered', async () => {
     (unipoleFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
@@ -222,5 +304,7 @@ describe('POST /api/voice-lab/import-from-account', () => {
     const body = await res.json();
     expect(body.samples).toHaveLength(0);
     expect(body.count).toBe(0);
+    expect(body.fetchedCount).toBe(2);
+    expect(body.filteredCount).toBe(2);
   });
 });

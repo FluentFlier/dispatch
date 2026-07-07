@@ -7,10 +7,10 @@ import { SECTION_THEME } from './theme';
 const theme = SECTION_THEME.problem;
 
 const ROWS: [string, string][] = [
-  ['Ideas everywhere', 'One Story Bank'],
-  ['Generic AI drafts', 'Voice scored to you'],
-  ['Scheduling elsewhere', 'One calendar'],
-  ['Comments die', 'Replies become posts'],
+  ['Ideas in Notion, drafts in ChatGPT', 'One queue from idea to post'],
+  ['AI posts you rewrite every time', 'Voice scored before you edit'],
+  ['Founders on a list you never message', 'Warm contacts with connect notes ready'],
+  ['Comments you meant to get back to', 'Replies drafted in your voice'],
 ];
 
 export default function Problem() {
@@ -21,8 +21,8 @@ export default function Problem() {
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-start">
           <LandingSectionHeader
             tag={theme.tag}
-            title="Scattered tools leak signal."
-            subtitle={`${PRODUCT_NAME} keeps the full loop in one place.`}
+            title="Too many tools. Not enough shipped."
+            subtitle="Content, replies, and outreach in one place."
             accent={theme.accent}
           />
 
@@ -39,7 +39,7 @@ export default function Problem() {
               >
                 <div className="flex flex-col gap-2 sm:hidden">
                   <span className="flex items-center gap-2 text-[14px] text-ink3">
-                    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-flame/10 text-flame">
+                    <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink/5 text-ink3">
                       <X className="h-3 w-3" strokeWidth={2.5} />
                     </span>
                     {before}
@@ -53,7 +53,7 @@ export default function Problem() {
                 </div>
                 <div className="hidden grid-cols-[1fr_32px_1fr] items-center gap-3 sm:grid">
                   <span className="flex items-center gap-2.5 text-[14px] text-ink3">
-                    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-flame/10 text-flame">
+                    <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-ink/5 text-ink3">
                       <X className="h-3.5 w-3.5" strokeWidth={2.5} />
                     </span>
                     {before}

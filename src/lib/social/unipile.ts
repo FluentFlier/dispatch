@@ -147,8 +147,9 @@ export const unipileProvider: SocialProvider = {
 
 export interface UnipileFullAccount {
   id: string;
-  /** API list response uses 'type'; single-account GET may omit it. */
+  /** API list response uses 'type'; webhook payloads use 'provider'; single-account GET may omit both. */
   type?: string;
+  provider?: string;
   username?: string;
   name?: string;
   connection_params?: {

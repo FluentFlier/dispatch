@@ -1,10 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { getActiveWorkspaceId, ensureSoloWorkspace } from '@/lib/workspace';
+import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
+import {
+  backfillNullWorkspaceSocialAccounts,
+  ensureActiveWorkspaceId,
+} from '@/lib/workspace';
 import {
   fetchPostsFromUnipile,
   resolveUnipileTarget,
 } from '@/lib/onboarding/import-posts';
+import {
+  syncUnipileAccountsForUser,
+  UnipileAccountsSyncError,
+} from '@/lib/social/sync-unipile-accounts';
 import { persistImportedPosts } from '@/lib/voice-lab/persist-imported-posts';
 import { z } from 'zod';
 
@@ -42,17 +49,40 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const client = getServerClient();
-  const workspaceId = await getActiveWorkspaceId(user.id);
+  // Match /api/social-accounts: import is often the first action after connect
+  // or login, so repair accounts written before workspace provisioning before
+  // we decide LinkedIn is missing.
+  const workspaceId = await ensureActiveWorkspaceId(user.id);
+  await backfillNullWorkspaceSocialAccounts(user.id, workspaceId);
 
-  let query = client.database
-    .from('social_accounts')
-    .select('unipile_account_id, account_id, account_name')
-    .eq('user_id', user.id)
-    .eq('platform', platform)
-    .not('unipile_account_id', 'is', null);
-  if (workspaceId) query = query.eq('workspace_id', workspaceId);
+  const findConnectedAccount = async () => {
+    let query = client.database
+      .from('social_accounts')
+      .select('unipile_account_id, account_id, account_name')
+      .eq('user_id', user.id)
+      .eq('platform', platform)
+      .not('unipile_account_id', 'is', null);
+    if (workspaceId) query = query.eq('workspace_id', workspaceId);
 
-  const { data: account, error: dbError } = await query.maybeSingle();
+    return query.maybeSingle();
+  };
+
+  let { data: account, error: dbError } = await findConnectedAccount();
+
+  if (!dbError && !account?.unipile_account_id) {
+    try {
+      await syncUnipileAccountsForUser(user.id);
+      ({ data: account, error: dbError } = await findConnectedAccount());
+    } catch (err: unknown) {
+      if (err instanceof UnipileAccountsSyncError) {
+        return NextResponse.json(
+          { error: `Could not refresh your connected accounts. ${err.message}` },
+          { status: err.status },
+        );
+      }
+      console.error('[voice-lab/import-from-account] Account refresh failed:', err);
+    }
+  }
 
   if (dbError || !account?.unipile_account_id) {
     const label = platform === 'linkedin' ? 'LinkedIn' : 'X';
@@ -91,23 +121,31 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
-    const { samples, rawItems } = await fetchPostsFromUnipile(
+    const { samples, rawItems, fetchedCount, filteredCount } = await fetchPostsFromUnipile(
       target.providerUserIds,
       target.unipileAccountId,
       platform,
       25,
     );
 
-    const persistWorkspaceId = workspaceId ?? (await ensureSoloWorkspace(user.id)).id;
+    const persistClient = process.env.INSFORGE_SERVICE_ROLE_KEY?.trim()
+      ? getServiceClient()
+      : client;
     const persisted = await persistImportedPosts({
-      client,
+      client: persistClient,
       userId: user.id,
-      workspaceId: persistWorkspaceId,
+      workspaceId,
       platform,
       items: rawItems.filter((item) => item.id),
     });
 
-    return NextResponse.json({ samples, count: samples.length, persisted });
+    return NextResponse.json({
+      samples,
+      count: samples.length,
+      fetchedCount,
+      filteredCount,
+      persisted,
+    });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to fetch posts';
     const status = message.startsWith('Failed to fetch posts') ? 502 : 500;

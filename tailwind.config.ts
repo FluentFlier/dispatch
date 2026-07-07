@@ -149,6 +149,16 @@ const config: Config = {
           '0%, 100%': { transform: 'translate3d(0, 0, 0)' },
           '50%': { transform: 'translate3d(0, -10px, 0)' },
         },
+        'land-silk-sheen': {
+          '0%': { transform: 'translateX(-120%) skewX(-12deg)', opacity: '0' },
+          '8%': { opacity: '0.55' },
+          '45%': { opacity: '0.35' },
+          '100%': { transform: 'translateX(220%) skewX(-12deg)', opacity: '0' },
+        },
+        'land-silk-breathe': {
+          '0%, 100%': { transform: 'scale(1.05)' },
+          '50%': { transform: 'scale(1.08)' },
+        },
       },
       animation: {
         'os-marquee': 'os-marquee 46s linear infinite',
@@ -164,6 +174,8 @@ const config: Config = {
         'land-drift-c': 'land-drift-c 26s ease-in-out infinite',
         'land-mesh': 'land-mesh 20s ease-in-out infinite alternate',
         'land-float': 'land-float 5s ease-in-out infinite',
+        'land-silk-sheen': 'land-silk-sheen 9s ease-in-out infinite',
+        'land-silk-breathe': 'land-silk-breathe 14s ease-in-out infinite alternate',
       },
     },
   },

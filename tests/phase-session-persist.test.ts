@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { isJwtExpired, decodeJwtExpSec } from '@/lib/auth-cookies';
 
 function makeJwt(expSec: number): string {
@@ -68,5 +68,59 @@ describe('middleware — expired JWT refresh redirect', () => {
 
     const response = await middleware(request);
     expect(response.status).not.toBe(307);
+  });
+});
+
+describe('POST /api/auth/refresh', () => {
+  it('returns 401 when refresh cookie is missing', async () => {
+    const { POST } = await import('@/app/api/auth/refresh/route');
+    const { NextRequest } = await import('next/server');
+
+    const request = new NextRequest('http://localhost/api/auth/refresh', { method: 'POST' });
+    const response = await POST(request);
+    expect(response.status).toBe(401);
+    const body = await response.json();
+    expect(body.error).toBe('no_refresh_token');
+  });
+
+  it('does not clear session cookies when refresh is unauthorized', async () => {
+    vi.doMock('@/lib/auth-refresh', async (importOriginal) => {
+      const actual = await importOriginal<typeof import('@/lib/auth-refresh')>();
+      return {
+        ...actual,
+        refreshSessionWithToken: vi.fn().mockResolvedValue('unauthorized'),
+      };
+    });
+
+    const { POST } = await import('@/app/api/auth/refresh/route');
+    const { NextRequest } = await import('next/server');
+    const { AUTH_COOKIE } = await import('@/lib/auth-cookies');
+
+    const request = new NextRequest('http://localhost/api/auth/refresh', {
+      method: 'POST',
+      headers: { cookie: `${AUTH_COOKIE.refresh}=stale_rt` },
+    });
+    const response = await POST(request);
+    expect(response.status).toBe(401);
+    const body = await response.json();
+    expect(body.error).toBe('refresh_unauthorized');
+    expect(response.cookies.get(AUTH_COOKIE.access)?.value).toBeUndefined();
+    expect(response.cookies.get(AUTH_COOKIE.refresh)?.value).toBeUndefined();
+
+    vi.doUnmock('@/lib/auth-refresh');
+  });
+});
+
+describe('POST /api/auth/oauth/exchange', () => {
+  it('returns 400 when code or verifier is missing', async () => {
+    const { POST } = await import('@/app/api/auth/oauth/exchange/route');
+    const { NextRequest } = await import('next/server');
+
+    const request = new NextRequest('http://localhost/api/auth/oauth/exchange', {
+      method: 'POST',
+      body: JSON.stringify({ code: 'abc' }),
+    });
+    const response = await POST(request);
+    expect(response.status).toBe(400);
   });
 });

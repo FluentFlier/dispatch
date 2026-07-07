@@ -1,16 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getInsforgeClient } from '@/lib/insforge/client';
 import { Loader2 } from 'lucide-react';
+import { refreshAppSessionWithFallback } from '@/lib/auth-client-refresh';
 
 /**
  * Rendered by the dashboard layout when the session cookie exists but the
- * server-side token check failed (expired). Attempts a browser-side refresh
- * using InsForge's own HttpOnly session cookie, then hard-reloads so the
- * layout re-runs getAuthenticatedUser() with the fresh token.
- *
- * Falls back to /login if the browser session is also expired.
+ * server-side token check failed (expired). Tries same-origin cookie refresh
+ * first, then InsForge SDK, then hard-reloads so getAuthenticatedUser() succeeds.
  */
 export default function TokenRefreshGate() {
   const [status, setStatus] = useState<'refreshing' | 'failed'>('refreshing');
@@ -49,32 +46,12 @@ export default function TokenRefreshGate() {
       sessionStorage.setItem(RETRY_KEY, String(attempts + 1));
 
       try {
-        const client = getInsforgeClient();
-        const { data, error } = await client.auth.refreshSession();
-
-        if (error || !data?.accessToken) {
+        const refreshed = await refreshAppSessionWithFallback();
+        if (!refreshed) {
           goToLogin();
           return;
         }
 
-        // Sync new token to server-side httpOnly cookie.
-        const syncRes = await fetch('/api/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
-          body: JSON.stringify({
-            token: data.accessToken,
-            refreshToken: (data as { refreshToken?: string }).refreshToken ?? null,
-          }),
-        });
-
-        if (!syncRes.ok) {
-          goToLogin();
-          return;
-        }
-
-        // Verify the new token actually passes server-side auth before reloading.
-        // If it fails here, reloading would just loop — go to login instead.
         const verifyRes = await fetch('/api/auth/session', { credentials: 'same-origin' });
         const verifyData = await verifyRes.json().catch(() => ({}));
         if (!verifyRes.ok || !verifyData?.authenticated) {

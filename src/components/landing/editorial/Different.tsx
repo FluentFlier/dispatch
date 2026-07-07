@@ -30,7 +30,7 @@ export default function Different() {
         <LandingSectionHeader
           tag={theme.tag}
           title="Not another caption generator."
-          subtitle={`${PRODUCT_NAME} is a command center, not a one-shot prompt box.`}
+          subtitle="A command center, not a prompt box."
           accent={theme.accent}
         />
 
@@ -46,7 +46,7 @@ export default function Different() {
             >
               <div className="flex flex-col gap-2 sm:hidden">
                 <span className="flex items-center gap-2 text-[14px] text-ink3">
-                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-flame/10 text-flame">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-ink/5 text-ink3">
                     <X className="h-3 w-3" />
                   </span>
                   {before}
@@ -60,7 +60,7 @@ export default function Different() {
               </div>
               <div className="hidden grid-cols-2 gap-4 sm:grid">
                 <span className="flex items-center gap-2.5 text-[14px] text-ink3">
-                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-flame/10 text-flame">
+                  <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-ink/5 text-ink3">
                     <X className="h-3.5 w-3.5" />
                   </span>
                   {before}

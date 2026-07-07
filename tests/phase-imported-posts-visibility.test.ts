@@ -101,6 +101,36 @@ describe('Phase: Imported Posts Visibility', () => {
     expect(insertedPosts[0].image_url).toBeNull();
   });
 
+  it('writes publish_jobs with workspace_id so restored imports stay workspace-visible', async () => {
+    const insertedJobs: Array<Record<string, unknown>> = [];
+    const client = {
+      database: {
+        from(table: string) {
+          if (table === 'publish_jobs') {
+            return {
+              select: () => ({ eq: () => ({ limit: () => ({ data: [], error: null }) }) }),
+              insert: (rows: Array<Record<string, unknown>>) => {
+                insertedJobs.push(...rows);
+                return { error: null };
+              },
+            };
+          }
+          return { insert: () => ({ error: null }) };
+        },
+      },
+    };
+
+    await persistImportedPosts({
+      client: client as never,
+      userId: 'u1',
+      workspaceId: 'ws1',
+      platform: 'linkedin',
+      items: [{ id: 'p5', content: 'A restored LinkedIn post using the provider content field.' }],
+    });
+
+    expect(insertedJobs[0]).toMatchObject({ workspace_id: 'ws1', provider_post_id: 'p5' });
+  });
+
   describe('firstImageUrl', () => {
     it('returns the first img attachment url', () => {
       expect(firstImageUrl({ attachments: [{ type: 'video', url: 'v' }, { type: 'img', url: 'i' }] })).toBe('i');

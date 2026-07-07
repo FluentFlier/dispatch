@@ -7,7 +7,7 @@ import { SECTION_THEME } from './theme';
 const theme = SECTION_THEME.who;
 
 const PEOPLE: { role: string; copy: string; icon: LucideIcon; accent: string }[] = [
-  { role: 'Founder building in public', copy: 'Ship daily without losing your voice.', icon: Rocket, accent: '#2563EB' },
+  { role: 'Founder building in public', copy: 'Ship content and reach warm leads.', icon: Rocket, accent: '#2563EB' },
   { role: 'Solo creator', copy: 'High output. One system.', icon: User, accent: '#0F766E' },
   { role: 'Technical operator', copy: 'Deep work → public authority.', icon: Code2, accent: '#E8543A' },
   { role: 'Brand operator', copy: 'Consistent voice across the week.', icon: Megaphone, accent: '#8B7BB8' },

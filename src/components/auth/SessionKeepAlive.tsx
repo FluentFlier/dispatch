@@ -1,86 +1,82 @@
 'use client';
 
 import { useEffect } from 'react';
-import { getInsforgeClient } from '@/lib/insforge/client';
+import { refreshAppSessionWithFallback } from '@/lib/auth-client-refresh';
 
 /**
- * Proactively refreshes the session BEFORE the access token expires, so the user
- * never hits the expired-token 401 -> TokenRefreshGate -> reload jank.
- *
- * Also runs an immediate refresh on mount (e.g. after a Vercel deploy) so the
- * server httpOnly cookie stays in sync with InsForge's browser session.
+ * Proactively refreshes the session BEFORE the access token expires.
+ * Uses same-origin content-os-refresh cookie (not cross-origin InsForge cookies).
  */
 const REFRESH_SKEW_MS = 120_000;
-const FALLBACK_INTERVAL_MS = 10 * 60_000;
+const FALLBACK_INTERVAL_MS = 45 * 60_000;
 const MIN_DELAY_MS = 1_000;
-
-function decodeExpMs(token: string | null): number | null {
-  if (!token) return null;
-  try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = parts[1].replace(/-/g, '+').replace(/_/g, '/');
-    const padded = payload + '=='.slice(0, (4 - (payload.length % 4)) % 4);
-    const claims = JSON.parse(atob(padded)) as { exp?: number };
-    return typeof claims.exp === 'number' ? claims.exp * 1000 : null;
-  } catch {
-    return null;
-  }
-}
 
 export default function SessionKeepAlive() {
   useEffect(() => {
-    const client = getInsforgeClient();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let cancelled = false;
 
-    function currentAccessToken(): string | null {
+    async function fetchSessionMeta(): Promise<{
+      accessExpiresAt: number | null;
+      hasRefreshToken: boolean;
+    }> {
       try {
-        const auth = client.auth as unknown as { tokenManager?: { getAccessToken?: () => unknown } };
-        const t = auth.tokenManager?.getAccessToken?.();
-        return typeof t === 'string' && t.length > 0 ? t : null;
+        const res = await fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' });
+        if (!res.ok) return { accessExpiresAt: null, hasRefreshToken: false };
+        const data = (await res.json()) as {
+          accessExpiresAt?: number | null;
+          hasRefreshToken?: boolean;
+        };
+        return {
+          accessExpiresAt: typeof data.accessExpiresAt === 'number' ? data.accessExpiresAt * 1000 : null,
+          hasRefreshToken: Boolean(data.hasRefreshToken),
+        };
       } catch {
-        return null;
+        return { accessExpiresAt: null, hasRefreshToken: false };
       }
+    }
+
+    function accessNeedsRefresh(accessExpiresAt: number | null): boolean {
+      if (!accessExpiresAt) return false;
+      return accessExpiresAt - Date.now() <= REFRESH_SKEW_MS;
     }
 
     async function refreshAndSync(): Promise<void> {
-      try {
-        const { data, error } = await client.auth.refreshSession();
-        if (error || !data?.accessToken) return;
-        await fetch('/api/auth', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'same-origin',
-          body: JSON.stringify({
-            token: data.accessToken,
-            refreshToken: (data as { refreshToken?: string }).refreshToken ?? null,
-          }),
-        });
-      } catch {
-        // TokenRefreshGate / restore-session remain fallbacks.
-      }
+      const meta = await fetchSessionMeta();
+      if (!meta.hasRefreshToken) return;
+      if (!accessNeedsRefresh(meta.accessExpiresAt)) return;
+      await refreshAppSessionWithFallback();
     }
 
-    function schedule(): void {
+    async function schedule(): Promise<void> {
       if (cancelled) return;
-      const exp = decodeExpMs(currentAccessToken());
-      const delay = exp
-        ? Math.max(MIN_DELAY_MS, exp - Date.now() - REFRESH_SKEW_MS)
+      const meta = await fetchSessionMeta();
+      if (!meta.hasRefreshToken) return;
+      const delay = meta.accessExpiresAt
+        ? Math.max(MIN_DELAY_MS, meta.accessExpiresAt - Date.now() - REFRESH_SKEW_MS)
         : FALLBACK_INTERVAL_MS;
       timer = setTimeout(async () => {
         await refreshAndSync();
-        schedule();
+        void schedule();
       }, delay);
     }
 
     function onVisible(): void {
       if (document.visibilityState !== 'visible') return;
-      if (timer) clearTimeout(timer);
-      void refreshAndSync().finally(schedule);
+      void (async () => {
+        const meta = await fetchSessionMeta();
+        if (!meta.hasRefreshToken) return;
+        if (!accessNeedsRefresh(meta.accessExpiresAt)) {
+          void schedule();
+          return;
+        }
+        if (timer) clearTimeout(timer);
+        await refreshAndSync();
+        void schedule();
+      })();
     }
 
-    void refreshAndSync().finally(schedule);
+    void schedule();
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       cancelled = true;

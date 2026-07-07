@@ -249,10 +249,10 @@ describe('migrate-workspaces.ts — backfill script', () => {
 // auth route — ensureSoloWorkspace called on login
 // ---------------------------------------------------------------------------
 describe('auth route — workspace provisioned on login', () => {
-  it('auth route source calls ensureSoloWorkspace', async () => {
+  it('establishAuthenticatedSession calls ensureSoloWorkspace', async () => {
     const fs = await import('fs');
     const path = await import('path');
-    const src = fs.readFileSync(path.resolve(__dirname, '../src/app/api/auth/route.ts'), 'utf8');
+    const src = fs.readFileSync(path.resolve(__dirname, '../src/lib/auth-establish.ts'), 'utf8');
     expect(src).toContain('ensureSoloWorkspace');
     expect(src).toContain('workspace_provision_failed');
   });
