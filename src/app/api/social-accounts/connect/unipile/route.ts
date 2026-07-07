@@ -82,7 +82,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // notify_url = our webhook, only set in deployed environments (localhost unreachable).
   // On localhost the success_redirect calls /api/social-accounts/sync as fallback.
   if (!isLocalhost) {
-    requestBody.notify_url = `${appUrl}/api/webhooks/unipile`;
+    const callbackSecret = process.env.UNIPILE_HOSTED_CALLBACK_SECRET
+      ?? process.env.UNIPILE_WEBHOOK_SECRET
+      ?? process.env.CRON_SECRET;
+    const notifyUrl = new URL(`${appUrl}/api/webhooks/unipile`);
+    if (callbackSecret) {
+      notifyUrl.searchParams.set('token', callbackSecret);
+    }
+    requestBody.notify_url = notifyUrl.toString();
   }
 
   console.log('[unipile/connect] POST', `${apiBase}/hosted/accounts/link`, JSON.stringify(requestBody));
