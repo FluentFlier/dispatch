@@ -15,6 +15,10 @@ interface UnipilePostItem {
   commentary?: string;
   is_repost?: boolean;
   is_reply?: boolean;
+  attachments?: Array<{
+    type?: string;
+    url?: string;
+  }>;
 }
 
 interface UnipilePostsResponse {
@@ -35,19 +39,38 @@ export async function resolveProviderUserId(
   unipileAccountId: string,
   storedAccountId: string | null,
 ): Promise<string | null> {
+  const ids = await resolveProviderUserIds(unipileAccountId, storedAccountId);
+  return ids[0] ?? null;
+}
+
+function uniq(values: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(values.map((v) => v?.trim()).filter(Boolean) as string[]));
+}
+
+function urnTail(value?: string): string | null {
+  if (!value?.includes(':')) return null;
+  return value.split(':').filter(Boolean).at(-1) ?? null;
+}
+
+export async function resolveProviderUserIds(
+  unipileAccountId: string,
+  storedAccountId: string | null,
+): Promise<string[]> {
   try {
     const fullAccount = await fetchUnipileAccountDetails(unipileAccountId);
     const im = fullAccount?.connection_params?.im;
-    return (
-      im?.memberId ??
-      im?.id ??
-      im?.objectUrn ??
-      im?.publicIdentifier ??
-      storedAccountId ??
-      null
-    );
+    return uniq([
+      im?.publicIdentifier,
+      im?.memberId,
+      im?.id,
+      urnTail(im?.objectUrn),
+      im?.objectUrn,
+      urnTail(im?.entityUrn),
+      im?.entityUrn,
+      storedAccountId,
+    ]);
   } catch {
-    return storedAccountId ?? null;
+    return storedAccountId ? [storedAccountId] : [];
   }
 }
 
@@ -56,10 +79,34 @@ export async function resolveProviderUserId(
  * Filters reposts/replies and very short content for voice analysis quality.
  */
 export async function fetchPostsFromUnipile(
-  providerUserId: string,
+  providerUserId: string | string[],
   unipileAccountId: string,
   platform: OnboardingPlatform,
   maxPosts = MAX_POSTS_PER_PLATFORM,
+): Promise<{ samples: VoiceSample[]; rawItems: UnipilePostItem[] }> {
+  const providerUserIds = Array.isArray(providerUserId) ? providerUserId : [providerUserId];
+  let lastError: Error | null = null;
+  let sawSuccessfulEmptyFetch = false;
+
+  for (const candidate of providerUserIds) {
+    try {
+      const result = await fetchPostsForProviderUser(candidate, unipileAccountId, platform, maxPosts);
+      if (result.samples.length > 0 || result.rawItems.length > 0) return result;
+      sawSuccessfulEmptyFetch = true;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error('Failed to fetch posts');
+    }
+  }
+
+  if (lastError && !sawSuccessfulEmptyFetch && providerUserIds.length > 0) throw lastError;
+  return { samples: [], rawItems: [] };
+}
+
+async function fetchPostsForProviderUser(
+  providerUserId: string,
+  unipileAccountId: string,
+  platform: OnboardingPlatform,
+  maxPosts: number,
 ): Promise<{ samples: VoiceSample[]; rawItems: UnipilePostItem[] }> {
   const platformLabel = platform === 'linkedin' ? 'LinkedIn' : 'Twitter/X';
   const samples: VoiceSample[] = [];

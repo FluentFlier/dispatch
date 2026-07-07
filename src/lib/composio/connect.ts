@@ -17,6 +17,7 @@ export async function startComposioConnect(
   userId: string,
   toolkit: ComposioToolkit,
   returnTo?: string,
+  requestOrigin?: string,
 ): Promise<ComposioLinkResult> {
   const composio = getComposioClient();
   if (!composio) {
@@ -37,7 +38,7 @@ export async function startComposioConnect(
   const state = encodeComposioState({ workspaceId, userId, toolkit, returnTo });
 
   const connection = await composio.connectedAccounts.link(composioUserId, authConfigId, {
-    callbackUrl: `${composioCallbackUrl()}?state=${encodeURIComponent(state)}`,
+    callbackUrl: `${composioCallbackUrl(requestOrigin)}?state=${encodeURIComponent(state)}`,
   });
 
   if (!connection.redirectUrl) {

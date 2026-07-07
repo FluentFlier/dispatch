@@ -3,11 +3,12 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { isComposioToolkitConnected } from '@/lib/composio/connect';
 import { toComposioUserId } from '@/lib/composio/client';
+import { composioAppBaseUrl } from '@/lib/composio/config';
 import { decodeComposioState } from '@/lib/composio/state';
 import { upsertIntegration } from '@/lib/signals/integrations/store';
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+  const base = composioAppBaseUrl(request.nextUrl.origin);
   const redirectBase = `${base}/settings?tab=connections`;
 
   const state = decodeComposioState(request.nextUrl.searchParams.get('state'));
@@ -17,7 +18,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const user = await getAuthenticatedUser();
   if (!user) {
-    return NextResponse.redirect(`${base}/login?next=${encodeURIComponent('/leads')}`);
+    const next = `${request.nextUrl.pathname}${request.nextUrl.search}`;
+    return NextResponse.redirect(
+      `${base}/auth/restore-session?next=${encodeURIComponent(next)}`,
+    );
   }
 
   if (user.id !== state.userId) {
