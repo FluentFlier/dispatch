@@ -1,14 +1,12 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import {
   CheckCircle2,
   ArrowRight,
-  Link2,
   AlertCircle,
   Circle,
   PenLine,
-  Radio,
-  Settings2,
-  Sparkles,
+  CalendarDays,
 } from 'lucide-react';
 import { getServerClient, getAuthenticatedUser } from '@/lib/insforge/server';
 import type { Post, ContentIdea } from '@/lib/types';
@@ -21,15 +19,14 @@ function getPillarColor(pillar: string): string {
   return PILLAR_COLORS[pillar as Pillar] ?? '#78716C';
 }
 import { formatDateShort, formatRelative } from '@/lib/utils';
-import TodaysPrompt from '@/components/dashboard/TodaysPrompt';
 import NeedsAttention, { type AttentionItem } from '@/components/dashboard/NeedsAttention';
-import { CreatorBrainCard } from '@/components/dashboard/CreatorBrainCard';
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { MorningBriefCard } from '@/components/dashboard/MorningBriefCard';
 import { GtmCommandCenter } from '@/components/dashboard/GtmCommandCenter';
+import { DashboardWelcomeBanner } from '@/components/dashboard/DashboardWelcomeBanner';
 import { getUserEntitlements } from '@/lib/entitlements';
 import { SectionHeader } from '@/components/layout/SectionHeader';
-import CalendarConnectionCard from '@/components/calendar/CalendarConnectionCard';
+import { EmptyState } from '@/components/ui/EmptyState';
 import {
   composeMorningBrief,
   type TrendRow,
@@ -119,7 +116,7 @@ export default async function DashboardPage() {
   const scoped = <T,>(q: T): T => (workspaceId ? (q as { eq: (c: string, v: string) => T }).eq('workspace_id', workspaceId) : q);
 
   // Fire all queries in parallel
-  const [weekPostsRes, pipelineRes, postedRes, streakRes, upNextRes, recentRes, ideasRes, weekScheduleRes, profileRes, socialRes, failedJobsRes, entitlements, trendsRes, yesterdayPostsRes] =
+  const [weekPostsRes, pipelineRes, postedRes, streakRes, upNextRes, recentRes, ideasRes, profileRes, socialRes, failedJobsRes, entitlements, trendsRes, yesterdayPostsRes] =
     await Promise.all([
       scoped(client.database.from('posts').select('id').eq('user_id', uid).eq('status', 'posted').gte('posted_date', start).lte('posted_date', end)),
       scoped(client.database.from('posts').select('id').eq('user_id', uid).neq('status', 'posted').neq('status', 'idea')),
@@ -128,7 +125,6 @@ export default async function DashboardPage() {
       scoped(client.database.from('posts').select('*').eq('user_id', uid).gte('scheduled_date', today).neq('status', 'posted').order('scheduled_date', { ascending: true }).limit(3)),
       scoped(client.database.from('posts').select('*').eq('user_id', uid).order('updated_at', { ascending: false }).limit(5)),
       scoped(client.database.from('content_ideas').select('*').eq('user_id', uid).eq('converted', false).order('priority', { ascending: true }).limit(3)),
-      scoped(client.database.from('posts').select('title, pillar, status').eq('user_id', uid).gte('scheduled_date', start).lte('scheduled_date', end)),
       client.database.from('creator_profile').select('display_name, content_pillars, voice_description, onboarding_complete').eq('user_id', uid).maybeSingle(),
       scoped(client.database.from('social_accounts').select('platform, connection_method, health_status').eq('user_id', uid)),
       scoped(client.database
@@ -182,17 +178,7 @@ export default async function DashboardPage() {
   const hasProfile = Boolean(creatorProfile?.display_name && creatorProfile?.content_pillars);
   const hasVoice = Boolean(creatorProfile?.voice_description);
   const hasConnections = connectedPlatforms.length > 0;
-  const allPlatforms = ['twitter', 'linkedin'] as const;
   const setupComplete = hasProfile && hasVoice && hasConnections;
-
-  // Build summary for AI prompt
-  const weekPosts = weekScheduleRes.data ?? [];
-  const postsSummary =
-    weekPosts.length > 0
-      ? weekPosts
-          .map((p: { title: string; pillar: string; status: string }) => `"${p.title}" (${p.pillar}, ${p.status})`)
-          .join(', ')
-      : 'No posts this week yet.';
 
   const attentionItems: AttentionItem[] = [];
 
@@ -234,77 +220,57 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="page-shell-wide">
-      <section className="card-surface overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.65fr]">
-          <div className="p-6 md:p-8">
-            <span className="inline-flex items-center gap-2 rounded-full border border-hair bg-white/80 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink2 shadow-sm backdrop-blur-sm">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue shadow-[0_0_8px_#2563EB]" aria-hidden />
-              Dashboard
-            </span>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-teal/20 bg-teal/10 px-3 py-1 text-xs font-medium text-teal">
-                <Radio className="h-3.5 w-3.5" />
-                Workspace live
-              </span>
-              {!hasConnections && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-flame/20 bg-flame/10 px-3 py-1 text-xs font-medium text-flame">
-                  <Circle className="h-2 w-2 fill-current" />
-                  Publishing not connected
-                </span>
-              )}
-            </div>
-            <h1 className="mt-5 max-w-2xl text-[clamp(32px,4vw,44px)] font-semibold leading-[1.05] tracking-[-0.04em] text-ink">
-              {creatorProfile?.display_name
-                ? `${creatorProfile.display_name.split(' ')[0]}, your content system is ready for the next move.`
-                : 'Your content system is ready for the next move.'}
-            </h1>
-            <p className="mt-3 max-w-xl text-[15px] leading-6 text-ink2">
-              Draft the next post, schedule the week, or turn replies into leads. Content OS should feel like a command center, not a folder of half-finished tools.
-            </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Link href="/generate" className="btn-primary">
-                <PenLine className="h-4 w-4" />
-                Write next post
-              </Link>
-              <Link href="/settings?tab=connections" className="btn-secondary">
-                <Settings2 className="h-4 w-4" />
-                Connect channels
-              </Link>
-            </div>
-          </div>
+    <div className="page-shell-wide space-y-6">
+      <Suspense fallback={null}>
+        <DashboardWelcomeBanner />
+      </Suspense>
 
-          <div className="border-t border-hair bg-paper2/50 p-6 lg:border-l lg:border-t-0">
-            <p className="section-label">This week</p>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <MetricTile value={postsThisWeek} label="Published" />
-              <MetricTile value={inPipeline} label="In progress" />
-              <MetricTile value={totalPosted} label="All time" />
-              <MetricTile value={streak} label="Day streak" accent />
-            </div>
-            <div className="mt-5 rounded-2xl border border-hair bg-white/80 p-4 backdrop-blur-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-ink">Creator Brain</p>
-                  <p className="mt-1 text-xs leading-5 text-ink2">Memory, voice, and shipped posts powering your drafts.</p>
-                </div>
-                <Sparkles className="h-5 w-5 text-blue" />
-              </div>
-            </div>
+      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="page-title">
+            {creatorProfile?.display_name
+              ? `Hey ${creatorProfile.display_name.split(' ')[0]}`
+              : 'Dashboard'}
+          </h1>
+          <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-ink2">
+            Draft your next post, see what&apos;s scheduled, and handle anything that needs attention.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Link href="/generate" className="btn-primary">
+              <PenLine className="h-4 w-4" />
+              Write next post
+            </Link>
+            <Link href="/calendar" className="btn-secondary">
+              <CalendarDays className="h-4 w-4" />
+              Plan week
+            </Link>
+            {!hasConnections && (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-flame/20 bg-flame/10 px-3 py-1 text-xs font-medium text-flame">
+                <Circle className="h-2 w-2 fill-current" />
+                Connect a channel to publish
+              </span>
+            )}
           </div>
         </div>
-      </section>
+
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
+          <MetricTile value={postsThisWeek} label="Published" />
+          <MetricTile value={inPipeline} label="In progress" />
+          <MetricTile value={streak} label="Day streak" accent />
+          <MetricTile value={totalPosted} label="All time" />
+        </div>
+      </header>
 
       <QuickActions />
 
-      <GtmCommandCenter />
-
       <MorningBriefCard brief={morningBrief} />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-6">
-          <NeedsAttention items={attentionItems} />
+      <NeedsAttention items={attentionItems} />
 
+      <GtmCommandCenter />
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
+        <div className="space-y-6">
           <section className="card-surface p-5">
             <SectionHeader
               tag="Publishing pipeline"
@@ -371,28 +337,36 @@ export default async function DashboardPage() {
             />
             {backlog.length === 0 ? (
               <div className="empty-state mt-4">
-                Capture one sharp idea before you leave. Empty idea backlogs make the next writing session start from zero.
+                Capture one sharp idea before you leave.{' '}
+                <Link href="/ideas" className="text-blue hover:underline">
+                  Add an idea
+                </Link>
               </div>
             ) : (
               <ul className="mt-4 divide-y divide-hair">
                 {backlog.map((idea) => (
-                  <li key={idea.id} className="flex items-center justify-between gap-3 py-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span
-                        className="inline-block w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: getPillarColor(idea.pillar) }}
-                      />
-                      <span className="text-sm text-ink truncate">{idea.idea}</span>
-                    </div>
-                    <span
-                      className="inline-flex items-center px-2 py-0.5 rounded-badge text-xs font-medium capitalize shrink-0"
-                      style={{
-                        backgroundColor: `${PRIORITY_COLORS[idea.priority]}18`,
-                        color: PRIORITY_COLORS[idea.priority],
-                      }}
+                  <li key={idea.id}>
+                    <Link
+                      href="/ideas"
+                      className="flex items-center justify-between gap-3 py-3 hover:bg-paper2/50 rounded-lg px-1 -mx-1 transition-colors"
                     >
-                      {idea.priority}
-                    </span>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span
+                          className="inline-block w-2 h-2 rounded-full shrink-0"
+                          style={{ backgroundColor: getPillarColor(idea.pillar) }}
+                        />
+                        <span className="text-sm text-ink truncate">{idea.idea}</span>
+                      </div>
+                      <span
+                        className="inline-flex items-center px-2 py-0.5 rounded-badge text-xs font-medium capitalize shrink-0"
+                        style={{
+                          backgroundColor: `${PRIORITY_COLORS[idea.priority]}18`,
+                          color: PRIORITY_COLORS[idea.priority],
+                        }}
+                      >
+                        {idea.priority}
+                      </span>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -407,67 +381,37 @@ export default async function DashboardPage() {
                 <AlertCircle size={16} className="text-blue shrink-0" />
                 <h2 className="text-sm font-semibold text-ink">Finish setup</h2>
               </div>
-              <p className="mt-2 text-sm leading-6 text-ink2">
-                Publishing only feels real after voice, profile, and channels are connected.
-              </p>
-              <div className="mt-4 space-y-2">
-                <SetupStep done={hasProfile} label="Profile saved" href="/settings" />
-                <SetupStep done={hasVoice} label="Voice trained" href="/voice-lab" />
-                <SetupStep done={hasConnections} label="Channel connected" href="/settings?tab=connections" />
+              <div className="mt-3 space-y-1.5">
+                <SetupStep done={hasProfile} label="Profile" href="/settings" />
+                <SetupStep done={hasVoice} label="Voice" href="/voice-lab" />
+                <SetupStep done={hasConnections} label="Channels" href="/settings?tab=connections" />
               </div>
             </section>
           )}
 
-          <CreatorBrainCard />
-
-          <TodaysPrompt postsSummary={postsSummary} />
-
-          <section className="card-surface p-5">
-            <div className="flex items-center justify-between">
-              <p className="section-label">Channels</p>
-              <Link href="/settings?tab=connections" className="text-xs font-medium text-blue">Manage</Link>
-            </div>
-            <div className="mt-4 grid grid-cols-2 gap-2">
-              {allPlatforms.map((p) => {
-                const connected = connectedPlatforms.includes(p);
-                return (
-                  <span
-                    key={p}
-                    className={`inline-flex items-center justify-between rounded-full border px-3 py-2 text-xs font-medium capitalize ${
-                      connected
-                        ? 'border-teal/20 bg-teal/10 text-teal'
-                        : 'border-hair bg-paper2 text-ink3'
-                    }`}
-                  >
-                    {p === 'twitter' ? 'X' : 'LinkedIn'}
-                    <Link2 size={13} />
-                  </span>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="card-surface p-5">
-            <p className="section-label mb-3">Calendar</p>
-            <CalendarConnectionCard />
-          </section>
-
           <section className="card-surface p-5">
             <p className="section-label">Recent activity</p>
             {recentActivity.length === 0 ? (
-              <p className="mt-3 text-sm text-ink2">Draft, schedule, or publish something and it will appear here.</p>
+              <div className="mt-3">
+                <EmptyState
+                  title="No activity yet"
+                  description="Draft, schedule, or publish something and it will appear here."
+                />
+              </div>
             ) : (
               <ul className="mt-3 space-y-3">
                 {recentActivity.map((post) => (
-                  <li key={post.id} className="flex items-start gap-3">
-                    <span
-                      className="mt-1 inline-block w-2 h-2 rounded-full shrink-0"
-                      style={{ backgroundColor: getPillarColor(post.pillar) }}
-                    />
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-ink">{post.title}</p>
-                      <p className="mt-0.5 font-mono text-xs text-ink3">{STATUS_LABELS[post.status]} · {formatRelative(post.updated_at)}</p>
-                    </div>
+                  <li key={post.id}>
+                    <Link href={`/library?post=${post.id}`} className="flex items-start gap-3 rounded-lg p-1 -m-1 hover:bg-paper2/60 transition-colors">
+                      <span
+                        className="mt-1 inline-block w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: getPillarColor(post.pillar) }}
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-ink">{post.title}</p>
+                        <p className="mt-0.5 font-mono text-xs text-ink3">{STATUS_LABELS[post.status]} · {formatRelative(post.updated_at)}</p>
+                      </div>
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -493,9 +437,9 @@ function MetricTile({
   accent?: boolean;
 }) {
   return (
-    <div className="rounded-2xl border border-hair bg-white/80 p-3 backdrop-blur-sm">
-      <p className={`font-mono text-2xl font-semibold tabular-nums ${accent ? 'text-flame' : 'text-ink'}`}>{value}</p>
-      <p className="mt-1 text-xs text-ink2">{label}</p>
+    <div className="min-w-[88px] rounded-xl border border-hair bg-white/80 px-3 py-2.5 backdrop-blur-sm">
+      <p className={`font-mono text-xl font-semibold tabular-nums ${accent ? 'text-flame' : 'text-ink'}`}>{value}</p>
+      <p className="mt-0.5 text-[11px] text-ink2">{label}</p>
     </div>
   );
 }
@@ -504,10 +448,8 @@ function SetupStep({ done, label, href }: { done: boolean; label: string; href: 
   return (
     <Link
       href={href}
-      className={`flex items-center gap-2 px-3 py-3 rounded-full text-sm transition-colors min-h-[44px] ${
-        done
-          ? 'bg-teal/10 text-teal'
-          : 'bg-paper2 text-ink2 hover:bg-hair/30'
+      className={`flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors ${
+        done ? 'text-teal' : 'text-ink2 hover:bg-paper2/60'
       }`}
     >
       {done ? (
