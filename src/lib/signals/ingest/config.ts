@@ -26,6 +26,17 @@ export function getIngestSecret(): string | undefined {
 }
 
 /**
+ * True when leads are the built-in fictional demo set rather than live scrapes.
+ * TINYFISH_API_KEY doubles as the "live scraping enabled" switch, so with no key
+ * the directory pipeline returns the seed companies. The UI uses this to badge
+ * the feed as demo data so a user never mistakes the seed set for real leads.
+ * Lightweight (env-only) so route/UI code can import it without the TinyFish SDK.
+ */
+export function isLeadsDemoMode(): boolean {
+  return !process.env.TINYFISH_API_KEY?.trim();
+}
+
+/**
  * True when verbose Signals ingest logging is enabled (SIGNALS_DEBUG=true|1).
  * Gates the per-source scrape diagnostics (endpoint, run_id, status, counts,
  * timing) so the directory pipeline is observable without a debugger, yet quiet

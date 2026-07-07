@@ -87,6 +87,9 @@ export default function LeadsPage() {
   const [view, setView] = useState<'feed' | 'setup'>('feed');
   const [companyById, setCompanyById] = useState<Record<string, YcCompanyDetail | 'loading'>>({});
   const [draftAll, setDraftAll] = useState<{ done: number; total: number } | null>(null);
+  // True when the feed is the built-in demo set (no live scraping key); badged so
+  // a user never mistakes seed companies for real leads.
+  const [demoData, setDemoData] = useState(false);
   const bootstrapped = useRef(false);
 
   useEffect(() => {
@@ -128,6 +131,7 @@ export default function LeadsPage() {
       indexLeads(boot.leads ?? []);
       setSettings(boot.settings ?? null);
       setFollowed(boot.followedCompanies ?? []);
+      setDemoData(Boolean(boot.demoData));
       // Persist the browser timezone once if the workspace has none.
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       if (tz) void fetch('/api/leads/settings', { method: 'PUT', headers: jsonHeaders, body: JSON.stringify({ timezone: tz }) });
@@ -699,6 +703,12 @@ export default function LeadsPage() {
 
   // --- Render ---
   const verticals = settings?.icp_verticals ?? [];
+  // First-run: the workspace has not described its ICP yet. Drives a guided
+  // banner so a brand-new user configures THEIR audience instead of inheriting a
+  // default. Only meaningful once settings have loaded.
+  const icpConfigured = Boolean(
+    settings && (settings.icp_description?.trim() || (settings.icp_verticals?.length ?? 0) > 0),
+  );
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -754,6 +764,34 @@ export default function LeadsPage() {
         </div>
       ) : (
       <>
+      {/* First-run guidance: no ICP yet -> point the user at Setup to describe
+          who THEY want to reach (writes signal_directory_settings via IcpChat). */}
+      {!loading && !icpConfigured && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-accent-primary/30 bg-accent-primary/5 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-text-primary">Tell us who you want to reach</p>
+            <p className="text-xs text-text-secondary">
+              Set your ideal customer profile so these leads match your market, not a generic default.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setView('setup')}
+            className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-md bg-accent-primary text-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+          >
+            Set up your ICP
+          </button>
+        </div>
+      )}
+      {/* Demo-data notice: the feed is the built-in seed set, not live scrapes. */}
+      {!loading && demoData && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-50/60 px-4 py-2 text-xs text-amber-800">
+          <span className="inline-flex items-center rounded-full bg-amber-400/20 px-2 py-0.5 font-medium uppercase tracking-wide">
+            Demo data
+          </span>
+          <span>These are sample companies. Connect live scraping to see real leads for your ICP.</span>
+        </div>
+      )}
       <FeedFilters state={filters} onChange={setFilters} verticals={verticals} />
 
       {loading ? (
