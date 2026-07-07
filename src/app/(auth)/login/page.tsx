@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getInsforgeClient } from "@/lib/insforge/client";
 import { getClientTokens } from "@/lib/auth-client";
-import { INSFORGE_PKCE_VERIFIER_KEY } from "@/lib/auth-establish";
+import { INSFORGE_PKCE_VERIFIER_KEY } from "@/lib/auth-constants";
 
 /**
  * Sync access + refresh tokens into httpOnly cookies via /api/auth.

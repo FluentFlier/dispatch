@@ -49,8 +49,8 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.next({ request: { headers: requestHeaders } });
   }
 
-  // Expired access JWT: refresh server-side or restore via browser SDK before RSC layout runs.
-  if (token && isJwtExpired(token) && !shouldBypassAuthRefresh(pathname)) {
+  // Expired access JWT (or expiring within 5m): refresh before RSC layout runs.
+  if (token && isJwtExpired(token, 300) && !shouldBypassAuthRefresh(pathname)) {
     const nextTarget = `${pathname}${search}`;
     if (refreshToken) {
       const refreshUrl = new URL('/api/auth/refresh', request.url);

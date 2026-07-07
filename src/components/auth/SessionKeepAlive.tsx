@@ -2,6 +2,8 @@
 
 import { useEffect } from 'react';
 import { refreshAppSessionWithFallback } from '@/lib/auth-client-refresh';
+
+/**
  * Proactively refreshes the session BEFORE the access token expires.
  * Uses same-origin content-os-refresh cookie (not cross-origin InsForge cookies).
  */

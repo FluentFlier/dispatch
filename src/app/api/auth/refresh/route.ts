@@ -17,14 +17,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const refreshed = await refreshSessionWithToken(refreshToken);
-  if (!refreshed) {
-    const response = NextResponse.json({ ok: false, error: 'refresh_failed' }, { status: 401 });
-    clearAuthCookiesOnResponse(response);
-    return response;
+  if (!refreshed || refreshed === 'unauthorized') {
+    if (refreshed === 'unauthorized') {
+      const response = NextResponse.json({ ok: false, error: 'refresh_unauthorized' }, { status: 401 });
+      clearAuthCookiesOnResponse(response);
+      return response;
+    }
+    return NextResponse.json({ ok: false, error: 'refresh_failed' }, { status: 503 });
   }
 
   const response = NextResponse.json({ ok: true });
-  setAuthCookiesOnResponse(response, refreshed.accessToken, refreshed.refreshToken);
+  setAuthCookiesOnResponse(response, refreshed.accessToken, refreshed.refreshToken, {
+    fallbackRefreshToken: refreshToken,
+  });
   return response;
 }
 
@@ -48,13 +53,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const refreshed = await refreshSessionWithToken(refreshToken);
-  if (!refreshed) {
-    const login = NextResponse.redirect(new URL('/login?expired=1', request.url), 307);
-    clearAuthCookiesOnResponse(login);
-    return login;
+  if (!refreshed || refreshed === 'unauthorized') {
+    if (refreshed === 'unauthorized') {
+      const login = NextResponse.redirect(new URL('/login?expired=1', request.url), 307);
+      clearAuthCookiesOnResponse(login);
+      return login;
+    }
+    const restore = new URL('/auth/restore-session', request.url);
+    restore.searchParams.set('next', nextPath);
+    return NextResponse.redirect(restore, 307);
   }
 
   const response = NextResponse.redirect(new URL(nextPath, request.url), 307);
-  setAuthCookiesOnResponse(response, refreshed.accessToken, refreshed.refreshToken);
+  setAuthCookiesOnResponse(response, refreshed.accessToken, refreshed.refreshToken, {
+    fallbackRefreshToken: refreshToken,
+  });
   return response;
 }

@@ -4,9 +4,6 @@ import { getServiceClient } from '@/lib/insforge/server';
 import { logInfo, logWarn } from '@/lib/logger';
 import { fetchOAuthDisplayName, syncProfileDisplayNameFromOAuth } from '@/lib/user-display-name';
 
-/** PKCE verifier key used by @insforge/sdk during OAuth sign-in. */
-export const INSFORGE_PKCE_VERIFIER_KEY = 'insforge_pkce_verifier';
-
 export interface EstablishedSession {
   userId: string;
   email: string;
