@@ -36,13 +36,22 @@ export default function SessionKeepAlive() {
       }
     }
 
+    function accessNeedsRefresh(accessExpiresAt: number | null): boolean {
+      if (!accessExpiresAt) return false;
+      return accessExpiresAt - Date.now() <= REFRESH_SKEW_MS;
+    }
+
     async function refreshAndSync(): Promise<void> {
+      const meta = await fetchSessionMeta();
+      if (!meta.hasRefreshToken) return;
+      if (!accessNeedsRefresh(meta.accessExpiresAt)) return;
       await refreshAppSessionWithFallback();
     }
 
     async function schedule(): Promise<void> {
       if (cancelled) return;
       const meta = await fetchSessionMeta();
+      if (!meta.hasRefreshToken) return;
       const delay = meta.accessExpiresAt
         ? Math.max(MIN_DELAY_MS, meta.accessExpiresAt - Date.now() - REFRESH_SKEW_MS)
         : FALLBACK_INTERVAL_MS;
@@ -54,15 +63,20 @@ export default function SessionKeepAlive() {
 
     function onVisible(): void {
       if (document.visibilityState !== 'visible') return;
-      if (timer) clearTimeout(timer);
-      void refreshAndSync().finally(() => {
+      void (async () => {
+        const meta = await fetchSessionMeta();
+        if (!meta.hasRefreshToken) return;
+        if (!accessNeedsRefresh(meta.accessExpiresAt)) {
+          void schedule();
+          return;
+        }
+        if (timer) clearTimeout(timer);
+        await refreshAndSync();
         void schedule();
-      });
+      })();
     }
 
-    void refreshAndSync().finally(() => {
-      void schedule();
-    });
+    void schedule();
     document.addEventListener('visibilitychange', onVisible);
     return () => {
       cancelled = true;

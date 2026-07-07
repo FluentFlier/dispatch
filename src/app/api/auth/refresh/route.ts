@@ -18,12 +18,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const refreshed = await refreshSessionWithToken(refreshToken);
   if (!refreshed || refreshed === 'unauthorized') {
-    if (refreshed === 'unauthorized') {
-      const response = NextResponse.json({ ok: false, error: 'refresh_unauthorized' }, { status: 401 });
-      clearAuthCookiesOnResponse(response);
-      return response;
-    }
-    return NextResponse.json({ ok: false, error: 'refresh_failed' }, { status: 503 });
+    // Do not clear cookies on POST — the access JWT may still be valid. Clearing here
+    // caused logout on every page refresh when keep-alive fired a redundant refresh.
+    const error =
+      refreshed === 'unauthorized' ? 'refresh_unauthorized' : 'refresh_failed';
+    const status = refreshed === 'unauthorized' ? 401 : 503;
+    return NextResponse.json({ ok: false, error }, { status });
   }
 
   const response = NextResponse.json({ ok: true });
