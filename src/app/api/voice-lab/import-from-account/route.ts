@@ -3,7 +3,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId, ensureSoloWorkspace } from '@/lib/workspace';
 import {
   fetchPostsFromUnipile,
-  resolveProviderUserIds,
+  resolveUnipileTarget,
 } from '@/lib/onboarding/import-posts';
 import { persistImportedPosts } from '@/lib/voice-lab/persist-imported-posts';
 import { z } from 'zod';
@@ -62,12 +62,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const providerUserIds = await resolveProviderUserIds(
+  // Self-heals a rotated unipile_account_id (Unipile re-issues it on LinkedIn
+  // credential re-auth) by re-matching on the stable publicIdentifier — avoids
+  // spurious "reconnect" prompts on a still-valid connection.
+  const target = await resolveUnipileTarget(
     account.unipile_account_id,
     account.account_id,
+    platform,
   );
 
-  if (providerUserIds.length === 0) {
+  if (!target || target.providerUserIds.length === 0) {
     const label = platform === 'linkedin' ? 'LinkedIn' : 'X';
     return NextResponse.json(
       { error: `${label} account missing provider ID. Disconnect and reconnect via Settings.` },
@@ -75,10 +79,21 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
+  // Persist the recovered id so subsequent reads don't repeat the lookup.
+  if (target.refreshed) {
+    let update = client.database
+      .from('social_accounts')
+      .update({ unipile_account_id: target.unipileAccountId })
+      .eq('user_id', user.id)
+      .eq('platform', platform);
+    if (workspaceId) update = update.eq('workspace_id', workspaceId);
+    await update;
+  }
+
   try {
     const { samples, rawItems } = await fetchPostsFromUnipile(
-      providerUserIds,
-      account.unipile_account_id,
+      target.providerUserIds,
+      target.unipileAccountId,
       platform,
       25,
     );

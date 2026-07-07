@@ -147,6 +147,8 @@ export const unipileProvider: SocialProvider = {
 
 export interface UnipileFullAccount {
   id: string;
+  /** API list response uses 'type'; single-account GET may omit it. */
+  type?: string;
   username?: string;
   name?: string;
   connection_params?: {
@@ -177,6 +179,28 @@ export async function fetchUnipileAccountDetails(unipileAccountId: string): Prom
     return res.json() as Promise<UnipileFullAccount>;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Lists all accounts visible to the current Unipile API key.
+ * Used to re-resolve a rotated account id: Unipile's `account.id` changes when a
+ * LinkedIn credential session re-auths, so a cached unipile_account_id can 404.
+ * Matching the stable publicIdentifier/member id against this list recovers the
+ * current account id without forcing the user to reconnect.
+ */
+export async function listUnipileAccounts(): Promise<UnipileFullAccount[]> {
+  try {
+    const res = await unipoleFetch('/accounts?limit=100', { method: 'GET' });
+    if (!res.ok) return [];
+    const json = (await res.json()) as {
+      items?: UnipileFullAccount[];
+      accounts?: UnipileFullAccount[];
+      data?: UnipileFullAccount[];
+    };
+    return json.items ?? json.accounts ?? json.data ?? [];
+  } catch {
+    return [];
   }
 }
 
