@@ -92,7 +92,9 @@ function AboutText({ text }: { text: string }) {
 
 interface LeadDetailProps {
   lead: SignalLeadWithContacts;
-  company: YcCompanyDetail | 'loading' | undefined;
+  company: YcCompanyDetail | 'loading' | 'error' | undefined;
+  /** Retry a failed company-info fetch (re-arms the parent's fetch effect). */
+  onRetryCompany?: () => void;
   draft: string;
   onDraftChange: (v: string) => void;
   busyAction: LeadDetailAction | null;
@@ -133,6 +135,7 @@ interface LeadNote {
 export function LeadDetail({
   lead,
   company,
+  onRetryCompany,
   draft,
   onDraftChange,
   busyAction,
@@ -203,8 +206,9 @@ export function LeadDetail({
   const overLimit = draft.length > CONNECT_LIMIT;
   const fact = lead.source_fact as { batch?: string; tagline?: string };
 
-  const detail = company && company !== 'loading' ? company : null;
+  const detail = company && company !== 'loading' && company !== 'error' ? company : null;
   const loadingCompany = company === 'loading';
+  const companyError = company === 'error';
   const tagline = detail?.oneLiner || lead.tagline || null;
   const website = detail?.website || lead.website || null;
   const ycUrl = detail?.ycUrl || (lead.external_id && lead.source === 'yc_directory'
@@ -272,7 +276,16 @@ export function LeadDetail({
       </div>
 
       {/* Body: About on the left, info box + tags on the right */}
-      {loadingCompany && !detail ? (
+      {companyError && !detail ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg-tertiary px-3 py-2 text-sm text-text-secondary">
+          <span>Could not load company info.</span>
+          {onRetryCompany && (
+            <Button variant="ghost" size="sm" onClick={onRetryCompany}>
+              <RefreshCw className="h-3.5 w-3.5" /> Retry
+            </Button>
+          )}
+        </div>
+      ) : loadingCompany && !detail ? (
         <div className="h-28 rounded-lg bg-bg-tertiary animate-pulse" />
       ) : (
         <div className="flex flex-col sm:flex-row gap-4">
