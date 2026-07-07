@@ -95,7 +95,7 @@ interface LeadDetailProps {
   busy: boolean;
   followed: boolean;
   onDraft: () => void;
-  onApprove: (channel?: 'linkedin_connect' | 'x_dm') => void;
+  onApprove: (channel?: 'linkedin_connect' | 'linkedin_dm' | 'x_dm') => void;
   onEmail: () => void;
   onDismiss: () => void;
   onSnooze?: () => void;
@@ -103,6 +103,7 @@ interface LeadDetailProps {
   onFollow: () => void;
   onPlanNurture?: () => void;
   onToggleStep?: (stepIndex: number, status: 'pending' | 'done') => void;
+  onDraftFollowup?: () => void;
 }
 
 interface LeadNote {
@@ -135,6 +136,7 @@ export function LeadDetail({
   onFollow,
   onPlanNurture,
   onToggleStep,
+  onDraftFollowup,
 }: LeadDetailProps) {
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [noteText, setNoteText] = useState('');
@@ -342,6 +344,24 @@ export function LeadDetail({
           <p className="text-xs text-text-tertiary">
             Generate a 4-step plan: research → comment → connect → follow-up DM. Connect note drafts in your voice.
           </p>
+        )}
+
+        {/* Sequence follow-up: after the connect is sent, draft + approve the DM step. */}
+        {lead.nurture_stage === 'connect_sent' && (
+          <div className="mt-1 flex items-center justify-between gap-2 rounded-md border border-accent-primary/25 bg-accent-primary/5 px-3 py-2">
+            <span className="text-xs text-text-secondary">
+              Connect sent. Once they accept, send the follow-up DM.
+            </span>
+            {lead.outreach?.channel === 'linkedin_dm' && lead.outreach?.draft_text ? (
+              <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_dm')} loading={busy}>
+                <Send className="h-4 w-4" /> Approve DM
+              </Button>
+            ) : onDraftFollowup ? (
+              <Button variant="secondary" size="sm" onClick={onDraftFollowup} loading={busy}>
+                <Sparkles className="h-4 w-4" /> Draft follow-up DM
+              </Button>
+            ) : null}
+          </div>
         )}
       </section>
 

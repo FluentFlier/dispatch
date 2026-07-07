@@ -294,7 +294,10 @@ export default function LeadsPage() {
     }
   };
 
-  const handleApprove = async (id: string, channel: 'linkedin_connect' | 'x_dm' = 'linkedin_connect') => {
+  const handleApprove = async (
+    id: string,
+    channel: 'linkedin_connect' | 'linkedin_dm' | 'x_dm' = 'linkedin_connect',
+  ) => {
     setBusyId(id);
     try {
       const res = await fetch(`/api/leads/${id}/approve`, {
@@ -305,9 +308,32 @@ export default function LeadsPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'blocked');
       mergeLead(data.lead);
-      toast(channel === 'x_dm' ? 'X DM sent.' : 'LinkedIn invite sent.');
+      toast(
+        channel === 'x_dm' ? 'X DM sent.' : channel === 'linkedin_dm' ? 'Follow-up DM sent.' : 'LinkedIn invite sent.',
+      );
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not approve.', 'error');
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  // Draft the follow-up DM step of the sequence (after a connect is accepted).
+  const handleDraftFollowup = async (id: string) => {
+    setBusyId(id);
+    try {
+      const res = await fetch(`/api/leads/${id}/draft`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ channel: 'linkedin_dm' }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      mergeLead(data.lead);
+      setDrafts((d) => ({ ...d, [id]: data.draftText }));
+      toast('Follow-up DM drafted — review and approve.');
+    } catch {
+      toast('Could not draft follow-up.', 'error');
     } finally {
       setBusyId(null);
     }
@@ -743,6 +769,7 @@ export default function LeadsPage() {
                 onToggleStep={(stepIndex, status) =>
                   handleTogglePlaybookStep(selectedLead.id, stepIndex, status)
                 }
+                onDraftFollowup={() => handleDraftFollowup(selectedLead.id)}
               />
             ) : (
               <SignalDetail

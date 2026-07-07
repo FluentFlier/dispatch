@@ -12,11 +12,29 @@ import {
 import { getXUnipileAccountId, resolveXProfile, sendXDirectMessage } from '@/lib/signals/outreach/unipile-x';
 import { sendGmailEmail } from '@/lib/composio/actions/gmail';
 import { getIntegration } from '@/lib/signals/integrations/store';
-import type { OutreachChannel, SignalLeadWithContacts } from '@/lib/signals/types';
+import type { LeadPlaybook, OutreachChannel, SignalLeadWithContacts } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
 const CONNECT_NOTE_LIMIT = 300;
+
+/** Mark one playbook step done (by type) so the sequence reflects a sent step. */
+function markPlaybookStepDone(
+  playbook: SignalLeadWithContacts['playbook'],
+  type: LeadPlaybook['steps'][number]['type'],
+): LeadPlaybook | undefined {
+  const pb = playbook as LeadPlaybook | null;
+  if (!pb?.steps) return undefined;
+  return { ...pb, steps: pb.steps.map((s) => (s.type === type ? { ...s, status: 'done' as const } : s)) };
+}
+
+/** Follow-up DM fires ~5 days after the connect is sent (16:00 UTC). */
+function followUpDmDueAt(from: Date = new Date()): string {
+  const due = new Date(from);
+  due.setUTCDate(due.getUTCDate() + 5);
+  due.setUTCHours(16, 0, 0, 0);
+  return due.toISOString();
+}
 
 /** v1 lead channels: LinkedIn connection (default), LinkedIn DM, X DM, or cold email. */
 export type LeadChannel = Extract<
@@ -146,7 +164,15 @@ async function sendLeadLinkedIn(
     identifier,
     externalId: sendResult.externalId,
   });
-  await updateLead(client, workspaceId, leadId, { lead_status: 'sent' });
+  // Advance the sequence so a manual connect approval also queues the follow-up
+  // DM step (the auto path re-sets these; harmless). Approval-gated sequences
+  // rely on this so the next step surfaces after each approved send.
+  await updateLead(client, workspaceId, leadId, {
+    lead_status: 'sent',
+    nurture_stage: 'connect_sent',
+    next_action_at: followUpDmDueAt(),
+    playbook: markPlaybookStepDone(lead.playbook, 'connect'),
+  });
   await logLeadEvent(client, workspaceId, leadId, 'rescored', { action: 'sent', channel: 'linkedin_connect' });
 
   const updated = await getLead(client, workspaceId, leadId);
@@ -228,7 +254,11 @@ async function sendLeadLinkedInDm(
     identifier,
     externalId: sendResult.externalId,
   });
-  await updateLead(client, workspaceId, leadId, { lead_status: 'sent' });
+  await updateLead(client, workspaceId, leadId, {
+    lead_status: 'sent',
+    nurture_stage: 'dm_sent',
+    playbook: markPlaybookStepDone(lead.playbook, 'dm'),
+  });
   await logLeadEvent(client, workspaceId, leadId, 'rescored', { action: 'sent', channel: 'linkedin_dm' });
 
   const updated = await getLead(client, workspaceId, leadId);
