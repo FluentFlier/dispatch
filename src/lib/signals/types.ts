@@ -262,6 +262,10 @@ export interface SignalLeadContactRow {
   resolution_source: 'scraped' | 'enriched' | 'manual' | null;
   enriched_via: string | null;
   is_primary: boolean;
+  /** True once the LinkedIn URL was confirmed via the workspace Unipile account. */
+  linkedin_verified?: boolean;
+  /** ISO timestamp of the last verification attempt that succeeded, else null. */
+  linkedin_verified_at?: string | null;
   created_at: string;
 }
 
