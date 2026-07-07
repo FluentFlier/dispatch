@@ -4,6 +4,7 @@ import {
   channelToLimitKey,
   computeRequiredCooldownMs,
   isWithinWorkingHours,
+  LINKEDIN_ACTION_CAPS,
   type SignalSafetySettings,
 } from '@/lib/signals/safety/limits';
 import {
@@ -166,6 +167,74 @@ export async function assertOutreachAllowed(
     if (daily >= settings.max_gmail_per_day) {
       return block(`Daily Gmail cap reached (${settings.max_gmail_per_day}). Protects sender reputation.`);
     }
+  }
+
+  if (limitKey === 'linkedin_follow') {
+    const daily = await countAuditActions(
+      client,
+      workspaceId,
+      'outreach_send_success',
+      dayStart,
+      'linkedin_follow',
+    );
+    if (daily >= LINKEDIN_ACTION_CAPS.followsPerDay) {
+      return block(
+        `Daily LinkedIn follow cap reached (${LINKEDIN_ACTION_CAPS.followsPerDay}). Unipile recommends spacing follows across the day — resets UTC midnight.`,
+      );
+    }
+  }
+
+  if (limitKey === 'linkedin_comment') {
+    const daily = await countAuditActions(
+      client,
+      workspaceId,
+      'outreach_send_success',
+      dayStart,
+      'linkedin_comment',
+    );
+    if (daily >= LINKEDIN_ACTION_CAPS.commentsPerDay) {
+      return block(
+        `Daily LinkedIn comment cap reached (${LINKEDIN_ACTION_CAPS.commentsPerDay}). Comments are spaced randomly to protect your account.`,
+      );
+    }
+  }
+
+  return { allowed: true, settings };
+}
+
+/**
+ * Profile lookups count toward LinkedIn's ~100/day recommendation. Gate before
+ * resolveLinkedInProfile so rapid lead browsing cannot burn the account quota.
+ */
+export async function assertLinkedInProfileLookupAllowed(
+  client: InsforgeClient,
+  workspaceId: string,
+  opts: { leadId?: string; now?: Date } = {},
+): Promise<OutreachGuardResult> {
+  const settings = await getSafetySettings(client, workspaceId);
+  const now = opts.now ?? new Date();
+  const dayStart = startOfUtcDay(now.toISOString());
+
+  const block = async (reason: string): Promise<OutreachGuardResult> => {
+    await logSignalAudit(client, {
+      workspace_id: workspaceId,
+      action: 'outreach_blocked',
+      channel: 'linkedin_connect',
+      lead_id: opts.leadId,
+      blocked_reason: reason,
+    });
+    return { allowed: false, reason, settings };
+  };
+
+  if (!settings.outreach_enabled) {
+    return block('Outreach is disabled for this workspace.');
+  }
+
+  const daily = await countAuditActions(client, workspaceId, 'profile_lookup', dayStart);
+  if (daily >= LINKEDIN_ACTION_CAPS.profileLookupsPerDay) {
+    return block(
+      `Daily LinkedIn profile lookup cap reached (${LINKEDIN_ACTION_CAPS.profileLookupsPerDay}). Try again tomorrow to avoid account restrictions.`,
+    );
   }
 
   return { allowed: true, settings };

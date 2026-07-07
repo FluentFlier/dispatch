@@ -15,6 +15,10 @@ function channelLabel(channel: OutreachChannel): string {
       return 'LinkedIn connection note (300 char max)';
     case 'linkedin_dm':
       return 'LinkedIn direct message';
+    case 'linkedin_comment':
+      return 'short, genuine comment on their recent LinkedIn post';
+    case 'linkedin_follow':
+      return 'LinkedIn connection note (300 char max)';
     case 'x_dm':
       return 'X/Twitter direct message';
     case 'gmail':

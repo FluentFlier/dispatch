@@ -167,6 +167,37 @@ export async function sendLinkedInConnectionInvite(
   };
 }
 
+/**
+ * Follows a LinkedIn profile. Unipile exposes no first-class follow endpoint, so
+ * this uses the documented raw-data passthrough (`POST /linkedin`) to the Voyager
+ * `followingStates` mutation. `providerId` is the target's internal id (ACoAA…),
+ * the same value used in the `fsd_profile` URN.
+ *
+ * https://developer.unipile.com/docs/get-raw-data-example#following-someone
+ */
+export async function followLinkedInProfile(
+  accountId: string,
+  providerId: string,
+): Promise<SendResult> {
+  const requestUrl =
+    'https://www.linkedin.com/voyager/api/feed/dash/followingStates/' +
+    `urn:li:fsd_followingState:urn:li:fsd_profile:${providerId}`;
+
+  const res = await unipileJsonPost('/linkedin', {
+    account_id: accountId,
+    method: 'POST',
+    request_url: requestUrl,
+    body: { patch: { $set: { following: true } } },
+    encoding: false,
+  });
+
+  if (!res.ok) {
+    return { success: false, error: await parseUnipileError(res) };
+  }
+
+  return { success: true, externalId: providerId };
+}
+
 export interface LinkedInPersonSearchResult {
   name?: string;
   role?: string;

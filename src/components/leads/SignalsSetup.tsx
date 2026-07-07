@@ -364,7 +364,8 @@ export function SignalsSetup() {
             <h2 className="text-sm font-semibold text-text-primary">Sending &amp; safety</h2>
             <p className="mt-1 text-xs text-text-secondary">
               Sending is {safety?.settings.outreach_enabled && !safety?.settings.dry_run ? 'on' : 'off'}.
-              Caps keep outreach within safe daily and weekly limits.
+              Caps keep outreach within safe daily and weekly limits. Actions are spaced randomly (Unipile
+              recommends ≥2 min between sends, comments scheduled inside working hours) to reduce ban risk.
             </p>
           </div>
           {(!safety?.settings.outreach_enabled || safety?.settings.dry_run) && (
