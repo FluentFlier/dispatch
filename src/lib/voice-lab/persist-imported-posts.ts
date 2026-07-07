@@ -22,6 +22,13 @@ export interface UnipileItem {
   attachments?: UnipileAttachment[];
 }
 
+export interface PersistImportedPostsResult {
+  created: number;
+  repaired: number;
+  skipped: number;
+  failed: number;
+}
+
 /** Builds the canonical public post URL for a Unipile-imported post. */
 export function buildPostUrl(platform: string, postId: string): string {
   if (platform === 'linkedin') {
@@ -57,20 +64,34 @@ export async function persistImportedPosts({
   workspaceId: string | null;
   platform: string;
   items: UnipileItem[];
-}): Promise<void> {
+}): Promise<PersistImportedPostsResult> {
+  const result: PersistImportedPostsResult = { created: 0, repaired: 0, skipped: 0, failed: 0 };
+
   for (const item of items) {
     if (!item.id) continue;
     const content = (item.text ?? item.commentary ?? '').trim();
     const idempotencyKey = buildIdempotencyKey(userId, item.id, platform, null);
 
-    // Skip if already tracked
-    const { data: existing } = await client.database
+    const { data: existingJobs } = await client.database
       .from('publish_jobs')
-      .select('id')
+      .select('id, post_id')
       .eq('idempotency_key', idempotencyKey)
       .limit(1);
 
-    if (existing?.[0]) continue;
+    const existingJob = existingJobs?.[0] as { id: string; post_id: string } | undefined;
+    if (existingJob?.post_id) {
+      const { data: existingPost } = await client.database
+        .from('posts')
+        .select('id')
+        .eq('id', existingJob.post_id)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      if (existingPost) {
+        result.skipped++;
+        continue;
+      }
+    }
 
     // Create a posts row for this historically-published post
     const postId = randomUUID();
@@ -97,11 +118,11 @@ export async function persistImportedPosts({
 
     if (postErr) {
       console.warn('[import-from-account] post insert failed:', postErr.message);
+      result.failed++;
       continue;
     }
 
-    // Create the publish_job row with provider_post_id so comments sync works
-    const { error: jobErr } = await client.database.from('publish_jobs').insert([{
+    const jobPayload = {
       user_id: userId,
       post_id: postId,
       platform,
@@ -114,10 +135,24 @@ export async function persistImportedPosts({
       max_attempts: 3,
       scheduled_for: null,
       last_error: null,
-    }]);
+    };
+
+    const { error: jobErr } = existingJob
+      ? await client.database
+        .from('publish_jobs')
+        .update({ ...jobPayload, updated_at: new Date().toISOString() })
+        .eq('id', existingJob.id)
+      : await client.database.from('publish_jobs').insert([jobPayload]);
 
     if (jobErr) {
       console.warn('[import-from-account] publish_job insert failed:', jobErr.message);
+      result.failed++;
+      continue;
     }
+
+    if (existingJob) result.repaired++;
+    else result.created++;
   }
+
+  return result;
 }

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import type { Post } from '@/lib/types';
 import { usePillars } from '@/hooks/usePillars';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -29,18 +30,32 @@ export default function PostCard({ post, selected, onSelect, onClick }: PostCard
         style={{ backgroundColor: borderColor }}
       />
 
+      {/* Checkbox */}
+      <input
+        type="checkbox"
+        checked={selected}
+        onChange={(e) => {
+          e.stopPropagation();
+          onSelect(post.id);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute top-3 right-3 z-10 w-4 h-4 accent-accent-primary"
+      />
+
+      {post.image_url && (
+        <div className="relative h-32 w-full overflow-hidden border-b border-border bg-bg-tertiary">
+          <Image
+            src={post.image_url}
+            alt=""
+            fill
+            sizes="(max-width: 768px) 100vw, 33vw"
+            className="object-cover"
+            unoptimized
+          />
+        </div>
+      )}
+
       <div className="p-[13px_14px] pl-[18px]">
-        {/* Checkbox */}
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={(e) => {
-            e.stopPropagation();
-            onSelect(post.id);
-          }}
-          onClick={(e) => e.stopPropagation()}
-          className="absolute top-3 right-3 w-4 h-4 accent-accent-primary"
-        />
 
         {/* Title */}
         <h3 className="font-body font-[500] text-text-primary text-[13px] truncate pr-6 mb-2 leading-[1.3]">

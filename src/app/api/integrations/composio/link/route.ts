@@ -45,6 +45,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       user.id,
       parsed.data.toolkit,
       returnTo,
+      request.nextUrl.origin,
     );
     return NextResponse.json({ redirect_url: redirectUrl, composio_user_id: composioUserId });
   } catch (err) {

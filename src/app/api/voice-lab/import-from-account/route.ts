@@ -3,7 +3,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId, ensureSoloWorkspace } from '@/lib/workspace';
 import {
   fetchPostsFromUnipile,
-  resolveProviderUserId,
+  resolveProviderUserIds,
 } from '@/lib/onboarding/import-posts';
 import { persistImportedPosts } from '@/lib/voice-lab/persist-imported-posts';
 import { z } from 'zod';
@@ -62,12 +62,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const providerUserId = await resolveProviderUserId(
+  const providerUserIds = await resolveProviderUserIds(
     account.unipile_account_id,
     account.account_id,
   );
 
-  if (!providerUserId) {
+  if (providerUserIds.length === 0) {
     const label = platform === 'linkedin' ? 'LinkedIn' : 'X';
     return NextResponse.json(
       { error: `${label} account missing provider ID. Disconnect and reconnect via Settings.` },
@@ -77,24 +77,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   try {
     const { samples, rawItems } = await fetchPostsFromUnipile(
-      providerUserId,
+      providerUserIds,
       account.unipile_account_id,
       platform,
       25,
     );
 
     const persistWorkspaceId = workspaceId ?? (await ensureSoloWorkspace(user.id)).id;
-    void persistImportedPosts({
+    const persisted = await persistImportedPosts({
       client,
       userId: user.id,
       workspaceId: persistWorkspaceId,
       platform,
       items: rawItems.filter((item) => item.id),
-    }).catch((err) => {
-      console.warn('[import-from-account] background post persist failed:', err);
     });
 
-    return NextResponse.json({ samples, count: samples.length });
+    return NextResponse.json({ samples, count: samples.length, persisted });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to fetch posts';
     const status = message.startsWith('Failed to fetch posts') ? 502 : 500;

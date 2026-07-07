@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { startComposioConnect } from '@/lib/composio/connect';
-import { isComposioConfigured, isComposioToolkitReady } from '@/lib/composio/config';
+import { composioAppBaseUrl, isComposioConfigured, isComposioToolkitReady } from '@/lib/composio/config';
 
 function settingsRedirect(base: string, calendarError: string): NextResponse {
   return NextResponse.redirect(
@@ -21,7 +21,7 @@ function settingsRedirect(base: string, calendarError: string): NextResponse {
  * signal_integrations row.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
-  const base = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
+  const base = composioAppBaseUrl(request.nextUrl.origin);
 
   if (!isComposioConfigured()) {
     return settingsRedirect(base, 'composio_not_configured');
@@ -52,6 +52,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       user.id,
       'googlecalendar',
       returnTo,
+      request.nextUrl.origin,
     );
     return NextResponse.redirect(redirectUrl);
   } catch (err) {

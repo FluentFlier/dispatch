@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileText, Grid3X3, List, Plus, Search, Trash2, ChevronDown } from 'lucide-react';
+import { FileText, Grid3X3, List, Plus, Search, Trash2, ChevronDown, RefreshCw } from 'lucide-react';
 import type { Post, Series } from '@/lib/types';
 import type { Platform, Status } from '@/lib/constants';
 import { PLATFORMS, PLATFORM_LABELS, DASHBOARD_PLATFORMS, isDashboardPlatform, STATUSES, STATUS_LABELS } from '@/lib/constants';
@@ -23,6 +23,9 @@ export default function LibraryPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [importingLinkedIn, setImportingLinkedIn] = useState(false);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
   const PAGE_SIZE = 50;
 
   // View
@@ -186,6 +189,41 @@ export default function LibraryPage() {
     }
   };
 
+  const handleLinkedInReimport = async () => {
+    setImportingLinkedIn(true);
+    setImportMessage(null);
+    setImportError(null);
+
+    try {
+      const res = await fetch('/api/voice-lab/import-from-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ platform: 'linkedin' }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setImportError(data.error ?? 'Could not import LinkedIn posts.');
+        return;
+      }
+
+      const persisted = data.persisted ?? {};
+      const changed = (persisted.created ?? 0) + (persisted.repaired ?? 0);
+      if (changed > 0) {
+        setImportMessage(`Imported ${changed} LinkedIn post${changed === 1 ? '' : 's'}.`);
+      } else if ((data.count ?? 0) > 0) {
+        setImportMessage('LinkedIn posts are already imported.');
+      } else {
+        setImportMessage('No LinkedIn posts found. Check the connected account and try again.');
+      }
+      await fetchData();
+    } catch {
+      setImportError('Network error while importing LinkedIn posts.');
+    } finally {
+      setImportingLinkedIn(false);
+    }
+  };
+
   // Load more pagination
   const loadMore = async () => {
     if (loadingMore || !hasMore) return;
@@ -273,6 +311,15 @@ export default function LibraryPage() {
           </button>
           {/* New Post */}
           <button
+            onClick={handleLinkedInReimport}
+            disabled={importingLinkedIn}
+            className="flex items-center gap-1.5 border border-border bg-bg-secondary text-text-primary text-[13px] font-medium px-4 py-[10px] min-h-[44px] rounded-md hover:border-border-hover transition-colors disabled:opacity-60"
+          >
+            <RefreshCw className={`w-4 h-4 ${importingLinkedIn ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{importingLinkedIn ? 'Importing' : 'Reimport LinkedIn'}</span>
+            <span className="sm:hidden">Import</span>
+          </button>
+          <button
             onClick={handleNewPost}
             className="flex items-center gap-1.5 bg-accent-primary text-text-inverse text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-md hover:opacity-90 transition-opacity"
           >
@@ -283,6 +330,18 @@ export default function LibraryPage() {
         </div>
         }
       />
+
+      {(importMessage || importError) && (
+        <div
+          className={`rounded-md border px-3 py-2 text-[12px] ${
+            importError
+              ? 'border-red-200 bg-red-50 text-red-800'
+              : 'border-border bg-sage-light text-accent-secondary'
+          }`}
+        >
+          {importError ?? importMessage}
+        </div>
+      )}
 
       {/* Filters row */}
       <div className="flex flex-wrap gap-2">

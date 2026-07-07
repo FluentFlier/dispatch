@@ -14,11 +14,12 @@ vi.mock('@/lib/workspace', () => ({
 }));
 vi.mock('@/lib/social/unipile', () => ({
   unipoleFetch: vi.fn(),
+  fetchUnipileAccountDetails: vi.fn(),
   mapPlatform: vi.fn(),
 }));
 
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { unipoleFetch } from '@/lib/social/unipile';
+import { unipoleFetch, fetchUnipileAccountDetails } from '@/lib/social/unipile';
 import { NextRequest } from 'next/server';
 
 const mockUser = { id: 'user_123' };
@@ -43,6 +44,34 @@ function mockDbChain(data: unknown, error = null) {
   };
 }
 
+function mockServerClient(account: unknown = mockAccount) {
+  return {
+    database: {
+      from: vi.fn((table: string) => {
+        if (table === 'social_accounts') return mockDbChain(account);
+        if (table === 'publish_jobs') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+            insert: vi.fn().mockResolvedValue({ error: null }),
+            update: vi.fn().mockReturnValue({ eq: vi.fn().mockResolvedValue({ error: null }) }),
+          };
+        }
+        if (table === 'posts') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+            insert: vi.fn().mockResolvedValue({ error: null }),
+          };
+        }
+        return mockDbChain(null);
+      }),
+    },
+  };
+}
+
 function makeRequest(body: unknown) {
   return new NextRequest('http://localhost/api/voice-lab/import-from-account', {
     method: 'POST',
@@ -57,9 +86,8 @@ describe('POST /api/voice-lab/import-from-account', () => {
     vi.stubEnv('UNIPILE_API_KEY', 'test-key');
     vi.stubEnv('UNIPILE_DSN', 'api.unipile.com:443');
     (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
-    (getServerClient as ReturnType<typeof vi.fn>).mockReturnValue({
-      database: { from: vi.fn().mockReturnValue(mockDbChain(mockAccount)) },
-    });
+    (getServerClient as ReturnType<typeof vi.fn>).mockReturnValue(mockServerClient());
+    (fetchUnipileAccountDetails as ReturnType<typeof vi.fn>).mockResolvedValue(null);
     (unipoleFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: vi.fn().mockResolvedValue(UNIPILE_POSTS_RESPONSE),

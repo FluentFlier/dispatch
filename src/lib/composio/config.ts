@@ -24,7 +24,12 @@ export function isComposioToolkitReady(toolkit: ComposioToolkit): boolean {
   return isComposioConfigured() && Boolean(getComposioAuthConfigId(toolkit));
 }
 
-export function composioCallbackUrl(): string {
-  const base = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+export function composioAppBaseUrl(requestOrigin?: string): string {
+  const base = requestOrigin?.trim() || process.env.NEXT_PUBLIC_APP_URL?.trim() || 'http://localhost:3000';
+  return base.replace(/\/$/, '');
+}
+
+export function composioCallbackUrl(requestOrigin?: string): string {
+  const base = composioAppBaseUrl(requestOrigin);
   return `${base.replace(/\/$/, '')}/api/integrations/composio/callback`;
 }

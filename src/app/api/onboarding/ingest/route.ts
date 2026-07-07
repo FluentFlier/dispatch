@@ -85,7 +85,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
 
   const postSamples: VoiceSample[] = [];
   const connectedPlatforms: string[] = [];
-  const persistJobs: Array<Promise<void>> = [];
+  const persistJobs: Array<Promise<unknown>> = [];
   const oauthName =
     user.name ?? (await fetchOAuthDisplayName(cookies().get('content-os-token')?.value ?? ''));
   let displayName = resolveDisplayName({ oauthName });
