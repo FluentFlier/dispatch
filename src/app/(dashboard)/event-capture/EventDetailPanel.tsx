@@ -53,11 +53,23 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
     }
   }, [detail, router]);
 
+  // Prefill the answer form from whatever is already stored server-side. Runs on
+  // every fetch (load, reload, regenerate) rather than just mount, so answers
+  // the user already gave for THIS capture are visible instead of silently
+  // discarded, and so switching to a different capture doesn't leave a stale
+  // answer set typed for the previous one behind.
+  useEffect(() => {
+    const cap = detail?.capture;
+    if (cap) setAnswers(cap.answers ?? {});
+  }, [detail]);
+
   if (!detail || !capture) {
     return <p className="text-sm text-text-tertiary">Loading…</p>;
   }
 
   const { research } = detail;
+  const questions = capture.questions ?? [];
+  const answeredCount = Object.values(answers).filter((v) => v.trim().length > 0).length;
 
   const handleReload = async (): Promise<void> => {
     if (!window.confirm('Reload questions? This replaces the current questions and clears your saved answers.')) return;
@@ -83,7 +95,7 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
     setBusy('regen');
     setError(null);
     try {
-      const res = await regenerateDraft(id);
+      const res = await regenerateDraft(id, answers);
       if (!res.ok && res.status !== 202) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? 'Could not regenerate draft');
@@ -103,18 +115,40 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
       <div className="space-y-4">
         <h2 className="text-xl font-display text-text-primary">{capture.title}</h2>
         {posts.length === 0 ? (
-          <div className="space-y-3">
+          <div className="space-y-4">
             <p className="text-sm text-text-tertiary">
-              Draft generation didn&apos;t save a post. Regenerate it, or reload the questions to answer again.
+              Draft generation didn&apos;t save a post.
+              {questions.length > 0
+                ? ' Answer (or update) at least one question below, then generate again — or reload for a fresh set of questions.'
+                : ' Reload the questions to try again.'}
             </p>
             {error && <p className="text-sm text-red-600">{error}</p>}
+
+            {questions.length > 0 && (
+              <div className="space-y-3">
+                {questions.map((q, i) => (
+                  <label key={i} className="block space-y-1.5">
+                    <span className="text-sm text-text-primary">{q}</span>
+                    <textarea
+                      className="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm text-text-primary"
+                      rows={2}
+                      maxLength={500}
+                      value={answers[String(i)] ?? ''}
+                      onChange={(e) => setAnswers((a) => ({ ...a, [String(i)]: e.target.value }))}
+                    />
+                  </label>
+                ))}
+              </div>
+            )}
+
             <div className="flex gap-2">
               <button
                 onClick={handleRegenerate}
-                disabled={busy !== null}
+                disabled={busy !== null || (questions.length > 0 && answeredCount < 1)}
                 className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-md bg-accent-primary text-white disabled:opacity-50"
               >
-                <RefreshCw className={`h-4 w-4 ${busy === 'regen' ? 'animate-spin' : ''}`} /> Regenerate draft
+                <RefreshCw className={`h-4 w-4 ${busy === 'regen' ? 'animate-spin' : ''}`} />
+                {questions.length > 0 ? `Generate draft (${answeredCount}/${questions.length} answered)` : 'Regenerate draft'}
               </button>
               <button
                 onClick={handleReload}
@@ -162,9 +196,6 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
   }
 
   // --- Questions ready ---
-  const questions = capture.questions ?? [];
-  const answeredCount = Object.values(answers).filter((v) => v.trim().length > 0).length;
-
   const handleSubmit = async (e: React.FormEvent): Promise<void> => {
     e.preventDefault();
     if (answeredCount < 1) return;
