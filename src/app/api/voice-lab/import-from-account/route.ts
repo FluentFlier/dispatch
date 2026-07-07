@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
-import { getActiveWorkspaceId, ensureSoloWorkspace } from '@/lib/workspace';
+import {
+  backfillNullWorkspaceSocialAccounts,
+  ensureActiveWorkspaceId,
+} from '@/lib/workspace';
 import {
   fetchPostsFromUnipile,
   resolveProviderUserIds,
@@ -42,7 +45,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   const client = getServerClient();
-  const workspaceId = await getActiveWorkspaceId(user.id);
+  // Match /api/social-accounts: import is often the first action after connect
+  // or login, so repair accounts written before workspace provisioning before
+  // we decide LinkedIn is missing.
+  const workspaceId = await ensureActiveWorkspaceId(user.id);
+  await backfillNullWorkspaceSocialAccounts(user.id, workspaceId);
 
   let query = client.database
     .from('social_accounts')
@@ -83,14 +90,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       25,
     );
 
-    const persistWorkspaceId = workspaceId ?? (await ensureSoloWorkspace(user.id)).id;
     const persistClient = process.env.INSFORGE_SERVICE_ROLE_KEY?.trim()
       ? getServiceClient()
       : client;
     const persisted = await persistImportedPosts({
       client: persistClient,
       userId: user.id,
-      workspaceId: persistWorkspaceId,
+      workspaceId,
       platform,
       items: rawItems.filter((item) => item.id),
     });
