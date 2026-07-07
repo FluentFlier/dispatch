@@ -297,19 +297,43 @@ export default function LeadsPage() {
     }
   };
 
-  const handleDraft = async (id: string) => {
+  const handleDraft = async (id: string, rewriteInstruction?: string) => {
     setBusy({ id, action: 'draft' });
     try {
-      const res = await fetch(`/api/leads/${id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
+      const res = await fetch(`/api/leads/${id}/draft`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify(rewriteInstruction ? { rewriteInstruction } : {}),
+      });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       mergeLead(data.lead);
       setDrafts((d) => ({ ...d, [id]: data.draftText }));
-      toast('Draft ready.');
+      toast(rewriteInstruction ? 'Rewritten.' : 'Draft ready.');
     } catch {
       toast('Could not draft.', 'error');
     } finally {
       setBusy(null);
+    }
+  };
+
+  // Persist user edits to the nurture plan's free-text fields (why/angle/steps).
+  const handleEditPlan = async (
+    id: string,
+    edit: { whyThem?: string; angle?: string; stepLabels?: string[] },
+  ) => {
+    try {
+      const res = await fetch(`/api/leads/${id}/playbook`, {
+        method: 'PATCH',
+        headers: jsonHeaders,
+        body: JSON.stringify({ edit }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      mergeLead(data.lead);
+      toast('Plan updated.');
+    } catch {
+      toast('Could not update plan.', 'error');
     }
   };
 
@@ -807,7 +831,7 @@ export default function LeadsPage() {
                 onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedLead.id]: v }))}
                 busyAction={busyActionFor(selectedLead.id) as LeadDetailAction | null}
                 followed={isFollowed(selectedCard)}
-                onDraft={() => handleDraft(selectedLead.id)}
+                onDraft={(rewriteInstruction) => handleDraft(selectedLead.id, rewriteInstruction)}
                 onApprove={(channel) => handleApprove(selectedLead.id, channel)}
                 onEmail={() => handleEmail(selectedLead.id)}
                 onDismiss={() => handleDismiss(selectedLead.id)}
@@ -815,6 +839,7 @@ export default function LeadsPage() {
                 onResolve={(force?: boolean) => handleResolve(selectedLead.id, force ?? false)}
                 onFollow={() => handleFollowLead(selectedLead)}
                 onPlanNurture={() => handlePlanNurture(selectedLead.id)}
+                onEditPlan={(edit) => handleEditPlan(selectedLead.id, edit)}
                 onToggleStep={(stepIndex, status) =>
                   handleTogglePlaybookStep(selectedLead.id, stepIndex, status)
                 }

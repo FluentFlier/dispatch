@@ -33,10 +33,12 @@ function buildLeadPrompt(
   lead: SignalLeadWithContacts,
   contact: SignalLeadContactRow | null,
   channel: OutreachChannel,
+  rewriteInstruction?: string | null,
 ): string {
   const sourceLabel = lead.source === 'product_hunt' ? 'Product Hunt' : 'YC';
   const firstName = contact?.name ? contact.name.split(' ')[0] : null;
   const detail = lead.tagline || (lead.source_fact as { tagline?: string })?.tagline || null;
+  const instruction = rewriteInstruction?.trim();
 
   return [
     `Write a ${channelLabel(channel)} to a startup founder. It must read like a real,`,
@@ -65,6 +67,11 @@ function buildLeadPrompt(
     channel === 'linkedin_connect'
       ? '- HARD LIMIT 300 characters total. Every word must earn its place.'
       : '- Keep it tight: 3-5 sentences.',
+    // User's rewrite instruction (e.g. "shorter, more casual") takes priority
+    // over the default style rules where they conflict.
+    instruction ? '' : null,
+    instruction ? 'REWRITE INSTRUCTION (follow this exactly; it overrides the style defaults above where they conflict):' : null,
+    instruction ? `- ${instruction}` : null,
     'Return ONLY the message text, nothing else.',
   ]
     .filter(Boolean)
@@ -82,6 +89,7 @@ export async function draftOutreachForLead(
   workspaceId: string,
   lead: SignalLeadWithContacts,
   channel: OutreachChannel = 'linkedin_connect',
+  opts: { rewriteInstruction?: string | null } = {},
 ): Promise<{ draftText: string; voiceMatchScore: number }> {
   const platform = channel === 'x_dm' ? 'twitter' : channel.startsWith('linkedin') ? 'linkedin' : undefined;
   const contact = lead.primary_contact ?? lead.contacts?.[0] ?? null;
@@ -101,7 +109,7 @@ export async function draftOutreachForLead(
   });
 
   const result = await generateWithVoicePipeline({
-    userPrompt: buildLeadPrompt(lead, contact, channel),
+    userPrompt: buildLeadPrompt(lead, contact, channel, opts.rewriteInstruction),
     profile: voiceContext.profile,
     contextAdditions: voiceContext.contextAdditions,
     platform,

@@ -97,7 +97,8 @@ interface LeadDetailProps {
   onDraftChange: (v: string) => void;
   busyAction: LeadDetailAction | null;
   followed: boolean;
-  onDraft: () => void;
+  /** Draft / regenerate. An optional instruction rewrites in that direction. */
+  onDraft: (rewriteInstruction?: string) => void;
   onApprove: (channel?: 'linkedin_connect' | 'linkedin_dm' | 'x_dm') => void;
   onEmail: () => void;
   onDismiss: () => void;
@@ -105,6 +106,8 @@ interface LeadDetailProps {
   onResolve: (force?: boolean) => void;
   onFollow: () => void;
   onPlanNurture?: () => void;
+  /** Persist free-text edits to the plan (why / angle / step labels). */
+  onEditPlan?: (edit: { whyThem?: string; angle?: string; stepLabels?: string[] }) => void;
   onToggleStep?: (stepIndex: number, status: 'pending' | 'done') => void;
   onDraftFollowup?: () => void;
   onCheckConnection?: () => void;
@@ -140,6 +143,7 @@ export function LeadDetail({
   onResolve,
   onFollow,
   onPlanNurture,
+  onEditPlan,
   onToggleStep,
   onDraftFollowup,
   onCheckConnection,
@@ -153,6 +157,8 @@ export function LeadDetail({
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [noteText, setNoteText] = useState('');
   const [notesLoading, setNotesLoading] = useState(false);
+  // Free-text "how to change it" instruction for a targeted rewrite of the draft.
+  const [rewriteInstruction, setRewriteInstruction] = useState('');
 
   const loadNotes = useCallback(async () => {
     setNotesLoading(true);
@@ -344,14 +350,14 @@ export function LeadDetail({
           <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5" /> Nurture plan
           </p>
-          {onPlanNurture && lead.contact_status === 'resolved' && !lead.playbook && (
+          {onPlanNurture && lead.contact_status === 'resolved' && (
             <Button variant="secondary" size="sm" onClick={onPlanNurture} loading={planBusy}>
-              Plan outreach
+              {lead.playbook ? 'Regenerate plan' : 'Plan outreach'}
             </Button>
           )}
         </div>
         {lead.playbook ? (
-          <PlaybookView playbook={lead.playbook as LeadPlaybook} stage={lead.nurture_stage} due={lead.next_action_at} onToggleStep={onToggleStep} />
+          <PlaybookView playbook={lead.playbook as LeadPlaybook} stage={lead.nurture_stage} due={lead.next_action_at} onToggleStep={onToggleStep} onEditPlan={onEditPlan} />
         ) : (
           <p className="text-xs text-text-tertiary">
             Generate a 4-step plan: research → comment → connect → follow-up DM. Connect note drafts in your voice.
@@ -448,7 +454,7 @@ export function LeadDetail({
           </div>
         </div>
       ) : (
-        <Button variant="primary" size="sm" onClick={onDraft} loading={draftBusy}>
+        <Button variant="primary" size="sm" onClick={() => onDraft()} loading={draftBusy}>
           <Sparkles className="h-4 w-4" /> Draft message
         </Button>
       )}
@@ -476,7 +482,7 @@ export function LeadDetail({
               <Mail className="h-4 w-4" /> Email
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={onDraft} loading={draftBusy}>
+          <Button variant="ghost" size="sm" onClick={() => onDraft()} loading={draftBusy} title="Re-roll a fresh draft">
             <RefreshCw className="h-4 w-4" /> Regenerate
           </Button>
           {onSnooze && (
@@ -489,6 +495,31 @@ export function LeadDetail({
           </Button>
         </div>
       )}
+
+      {/* Rewrite-with-instruction: steer the next generation instead of a blind re-roll. */}
+      {draft && (
+        <div className="flex items-center gap-2">
+          <input
+            value={rewriteInstruction}
+            onChange={(e) => setRewriteInstruction(e.target.value)}
+            placeholder="Tell the model how to change it, e.g. 'shorter, more casual'"
+            aria-label="Rewrite instruction"
+            className="flex-1 rounded-md border border-border bg-bg-primary px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && rewriteInstruction.trim()) onDraft(rewriteInstruction.trim());
+            }}
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => onDraft(rewriteInstruction.trim() || undefined)}
+            loading={draftBusy}
+            disabled={!rewriteInstruction.trim()}
+          >
+            <Sparkles className="h-4 w-4" /> Rewrite
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
@@ -498,15 +529,94 @@ function PlaybookView({
   stage,
   due,
   onToggleStep,
+  onEditPlan,
 }: {
   playbook: LeadPlaybook;
   stage?: string | null;
   due?: string | null;
   onToggleStep?: (stepIndex: number, status: 'pending' | 'done') => void;
+  onEditPlan?: (edit: { whyThem?: string; angle?: string; stepLabels?: string[] }) => void;
 }) {
   const doneCount = playbook.steps.filter((s) => s.status === 'done').length;
+  const [editing, setEditing] = useState(false);
+  const [whyThem, setWhyThem] = useState(playbook.whyThem);
+  const [angle, setAngle] = useState(playbook.angle);
+  const [stepLabels, setStepLabels] = useState(playbook.steps.map((s) => s.label));
+
+  // Re-seed the editable copy whenever the underlying plan changes (e.g. after a
+  // regenerate), so a stale draft is never shown when the user opens the editor.
+  useEffect(() => {
+    if (editing) return;
+    setWhyThem(playbook.whyThem);
+    setAngle(playbook.angle);
+    setStepLabels(playbook.steps.map((s) => s.label));
+  }, [editing, playbook]);
+
+  if (editing) {
+    return (
+      <div className="space-y-2 text-sm">
+        <label className="block">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Why them</span>
+          <textarea
+            value={whyThem}
+            onChange={(e) => setWhyThem(e.target.value)}
+            rows={2}
+            className="mt-1 w-full rounded-md border border-border bg-bg-primary p-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Angle</span>
+          <textarea
+            value={angle}
+            onChange={(e) => setAngle(e.target.value)}
+            rows={2}
+            className="mt-1 w-full rounded-md border border-border bg-bg-primary p-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+          />
+        </label>
+        <div className="space-y-1">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Steps</span>
+          {stepLabels.map((label, i) => (
+            <input
+              key={`edit-step-${i}`}
+              value={label}
+              onChange={(e) => setStepLabels((prev) => prev.map((l, j) => (j === i ? e.target.value : l)))}
+              aria-label={`Step ${i + 1} label`}
+              className="w-full rounded-md border border-border bg-bg-primary px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-2 pt-1">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              onEditPlan?.({ whyThem: whyThem.trim(), angle: angle.trim(), stepLabels: stepLabels.map((l) => l.trim()) });
+              setEditing(false);
+            }}
+          >
+            <Check className="h-4 w-4" /> Save plan
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-2 text-sm">
+      {onEditPlan && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="text-xs font-medium text-accent-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary rounded"
+          >
+            Edit plan
+          </button>
+        </div>
+      )}
       <p className="text-text-secondary">
         <span className="font-medium text-text-primary">Why: </span>
         {playbook.whyThem}

@@ -4,6 +4,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { planLeadNurture } from '@/lib/gtm/nurture/plan-lead';
 import { getLead, updateLead } from '@/lib/signals/leads/store';
+import { applyPlaybookPatch } from '@/lib/gtm/nurture/playbook-patch';
 import type { LeadPlaybook } from '@/lib/signals/types';
 import { errorResponse } from '@/lib/api-errors';
 
@@ -33,15 +34,28 @@ export async function POST(
   }
 }
 
-const patchSchema = z.object({
+// Two PATCH shapes: a single-step status toggle (the living checklist), or a
+// free-text edit of the plan (whyThem / angle / step labels).
+const stepPatchSchema = z.object({
   stepIndex: z.number().int().min(0),
   status: z.enum(['pending', 'done', 'skipped']),
 });
+const editPatchSchema = z.object({
+  edit: z.object({
+    whyThem: z.string().max(2000).optional(),
+    angle: z.string().max(2000).optional(),
+    stepLabels: z.array(z.string().max(500)).optional(),
+  }),
+});
+const patchSchema = z.union([stepPatchSchema, editPatchSchema]);
 
 /**
  * PATCH /api/leads/:id/playbook
- * Toggle a single playbook step's status so the nurture plan is a living
- * checklist (mark research/comment/connect/dm done) instead of read-only.
+ * Two modes:
+ *  - { stepIndex, status }: toggle a single step so the plan is a living
+ *    checklist (mark research/comment/connect/dm done) instead of read-only.
+ *  - { edit: { whyThem?, angle?, stepLabels? } }: persist user edits to the
+ *    plan's free-text fields so a generated plan is never a one-shot dead-end.
  */
 export async function PATCH(
   request: NextRequest,
@@ -64,16 +78,16 @@ export async function PATCH(
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
     const playbook = lead.playbook as LeadPlaybook | null;
-    if (!playbook?.steps || parsed.data.stepIndex >= playbook.steps.length) {
-      return NextResponse.json({ error: 'No such playbook step' }, { status: 404 });
+    if (!playbook?.steps) {
+      return NextResponse.json({ error: 'No plan to update' }, { status: 404 });
     }
 
-    const steps = playbook.steps.map((s, i) =>
-      i === parsed.data.stepIndex ? { ...s, status: parsed.data.status } : s,
-    );
-    await updateLead(client, workspaceId, params.id, {
-      playbook: { ...playbook, steps },
-    });
+    const result = applyPlaybookPatch(playbook, parsed.data);
+    if (!result.ok) {
+      return NextResponse.json({ error: result.error }, { status: 404 });
+    }
+
+    await updateLead(client, workspaceId, params.id, { playbook: result.playbook });
 
     const updated = await getLead(client, workspaceId, params.id);
     return NextResponse.json({ lead: updated });

@@ -4,6 +4,7 @@ import {
   leadButtonBusy,
   signalButtonBusy,
   type LeadBusy,
+  type LeadDetailAction,
 } from '@/lib/leads/busy';
 
 /**
@@ -34,7 +35,9 @@ describe('WS1.1 busyActionFor: only the acting lead is busy', () => {
 
 describe('WS1.1 leadButtonBusy: Plan and Draft spinners are independent', () => {
   it('planning spins ONLY Plan; Draft stays clickable', () => {
-    const flags = leadButtonBusy(busyActionFor({ id: LEAD_A, action: 'plan' }, LEAD_A));
+    const flags = leadButtonBusy(
+      busyActionFor({ id: LEAD_A, action: 'plan' }, LEAD_A) as LeadDetailAction | null,
+    );
     expect(flags.planBusy).toBe(true);
     // The core regression assertion: drafting is NOT skeletoned by planning.
     expect(flags.draftBusy).toBe(false);
@@ -43,7 +46,9 @@ describe('WS1.1 leadButtonBusy: Plan and Draft spinners are independent', () => 
   });
 
   it('drafting spins ONLY Draft/Regenerate; Plan stays clickable', () => {
-    const flags = leadButtonBusy(busyActionFor({ id: LEAD_A, action: 'draft' }, LEAD_A));
+    const flags = leadButtonBusy(
+      busyActionFor({ id: LEAD_A, action: 'draft' }, LEAD_A) as LeadDetailAction | null,
+    );
     expect(flags.draftBusy).toBe(true);
     expect(flags.planBusy).toBe(false);
   });
