@@ -208,7 +208,7 @@ async function readAlgoliaOpts(): Promise<AlgoliaOpts> {
 }
 
 /** Maps one Algolia hit to a normalized IngestedLead, or null if unusable. */
-function mapHit(hit: YcHit): IngestedLead | null {
+export function mapHit(hit: YcHit): IngestedLead | null {
   const companyName = String(hit.name ?? '').trim();
   const externalId = String(hit.slug ?? companyName).trim();
   if (!companyName || !externalId) return null;
@@ -217,6 +217,9 @@ function mapHit(hit: YcHit): IngestedLead | null {
     externalId,
     companyName,
     tagline: hit.one_liner || hit.long_description || undefined,
+    // Keep the long description + industries so the draft prompt has real
+    // substance without a re-scrape (previously both were discarded here).
+    longDescription: hit.long_description || undefined,
     website: hit.website || undefined,
     batch: hit.batch_name || undefined,
     tags: hit.industries ?? hit.tags ?? [],
