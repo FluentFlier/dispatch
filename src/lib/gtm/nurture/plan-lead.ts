@@ -5,9 +5,17 @@ import { buildLeadPlaybook, connectDueAt } from '@/lib/gtm/nurture/playbook';
 import type { LeadPlaybook, NurtureStage } from '@/lib/signals/types';
 import { draftOutreachForLead } from '@/lib/signals/outreach/draft-lead';
 import { getLead, logLeadEvent, updateLead } from '@/lib/signals/leads/store';
+import { withTimeout } from '@/lib/util/timeout';
 import type { SignalLeadWithContacts } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
+
+/**
+ * Time budget for the best-effort prospect-post lookup. If it misses, we fall
+ * straight through to the template (connect-directly) plan rather than block the
+ * interactive plan on a slow external fetch.
+ */
+const PLAN_POST_FETCH_TIMEOUT_MS = 3500;
 
 export interface PlanLeadResult {
   lead: SignalLeadWithContacts;
@@ -25,6 +33,7 @@ export async function planLeadNurture(
   leadId: string,
   opts?: { connectDueOverride?: Date },
 ): Promise<PlanLeadResult> {
+  const startedAt = Date.now();
   const lead = await getLead(client, workspaceId, leadId);
   if (!lead) throw new Error('Lead not found.');
   if (lead.contact_status === 'no_contact') {
@@ -32,7 +41,12 @@ export async function planLeadNurture(
   }
 
   const playbook = buildLeadPlaybook(lead);
-  const targetPost = await fetchProspectLinkedInPost(client, workspaceId, userId, lead);
+  // Best-effort, time-boxed: a slow LinkedIn post fetch must not stall the plan.
+  const targetPost = await withTimeout(
+    fetchProspectLinkedInPost(client, workspaceId, userId, lead),
+    PLAN_POST_FETCH_TIMEOUT_MS,
+    null,
+  );
 
   if (targetPost) {
     const { playbook: queuedPlaybook } = await queueLeadCommentTask(
@@ -55,6 +69,9 @@ export async function planLeadNurture(
     const updated = await getLead(client, workspaceId, leadId);
     if (!updated) throw new Error('Lead missing after plan.');
 
+    console.info(
+      `[latency] lead-plan workspace=${workspaceId} lead=${leadId} path=comment ms=${Date.now() - startedAt}`,
+    );
     return { lead: updated, playbook: queuedPlaybook, connectDue: connectDue.toISOString() };
   }
 
@@ -90,5 +107,8 @@ export async function planLeadNurture(
   const updated = await getLead(client, workspaceId, leadId);
   if (!updated) throw new Error('Lead missing after plan.');
 
+  console.info(
+    `[latency] lead-plan workspace=${workspaceId} lead=${leadId} path=connect-direct ms=${Date.now() - startedAt}`,
+  );
   return { lead: updated, playbook: skippedCommentPlaybook, connectDue: due.toISOString() };
 }

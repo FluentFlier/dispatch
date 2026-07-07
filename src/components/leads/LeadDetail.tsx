@@ -99,6 +99,8 @@ interface LeadDetailProps {
   followed: boolean;
   /** Draft / regenerate. An optional instruction rewrites in that direction. */
   onDraft: (rewriteInstruction?: string) => void;
+  /** Run the full voice + critique loop for a higher-fidelity rewrite (slower). */
+  onPolish?: () => void;
   onApprove: (channel?: 'linkedin_connect' | 'linkedin_dm' | 'x_dm') => void;
   onEmail: () => void;
   onDismiss: () => void;
@@ -136,6 +138,7 @@ export function LeadDetail({
   busyAction,
   followed,
   onDraft,
+  onPolish,
   onApprove,
   onEmail,
   onDismiss,
@@ -485,6 +488,11 @@ export function LeadDetail({
           <Button variant="ghost" size="sm" onClick={() => onDraft()} loading={draftBusy} title="Re-roll a fresh draft">
             <RefreshCw className="h-4 w-4" /> Regenerate
           </Button>
+          {onPolish && (
+            <Button variant="ghost" size="sm" onClick={onPolish} loading={draftBusy} title="Run the full voice loop for a higher-fidelity rewrite (slower)">
+              <Sparkles className="h-4 w-4" /> Polish
+            </Button>
+          )}
           {onSnooze && (
             <Button variant="ghost" size="sm" onClick={onSnooze} title="Hide until tomorrow's digest">
               <Clock className="h-4 w-4" /> Snooze

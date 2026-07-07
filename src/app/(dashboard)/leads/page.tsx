@@ -297,19 +297,22 @@ export default function LeadsPage() {
     }
   };
 
-  const handleDraft = async (id: string, rewriteInstruction?: string) => {
+  const handleDraft = async (id: string, rewriteInstruction?: string, polish?: boolean) => {
     setBusy({ id, action: 'draft' });
     try {
+      const payload: Record<string, unknown> = {};
+      if (rewriteInstruction) payload.rewriteInstruction = rewriteInstruction;
+      if (polish) payload.polish = true;
       const res = await fetch(`/api/leads/${id}/draft`, {
         method: 'POST',
         headers: jsonHeaders,
-        body: JSON.stringify(rewriteInstruction ? { rewriteInstruction } : {}),
+        body: JSON.stringify(payload),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       mergeLead(data.lead);
       setDrafts((d) => ({ ...d, [id]: data.draftText }));
-      toast(rewriteInstruction ? 'Rewritten.' : 'Draft ready.');
+      toast(polish ? 'Polished.' : rewriteInstruction ? 'Rewritten.' : 'Draft ready.');
     } catch {
       toast('Could not draft.', 'error');
     } finally {
@@ -832,6 +835,7 @@ export default function LeadsPage() {
                 busyAction={busyActionFor(selectedLead.id) as LeadDetailAction | null}
                 followed={isFollowed(selectedCard)}
                 onDraft={(rewriteInstruction) => handleDraft(selectedLead.id, rewriteInstruction)}
+                onPolish={() => handleDraft(selectedLead.id, undefined, true)}
                 onApprove={(channel) => handleApprove(selectedLead.id, channel)}
                 onEmail={() => handleEmail(selectedLead.id)}
                 onDismiss={() => handleDismiss(selectedLead.id)}

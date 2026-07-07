@@ -79,9 +79,31 @@ function buildLeadPrompt(
 }
 
 /**
+ * Voice-pipeline settings for a lead draft.
+ *
+ * The interactive first render uses the FAST path (base + light humanize, no
+ * evaluate/revise loop) so it returns in a few seconds instead of the ~4-8
+ * sequential LLM round-trips the full loop needs. An explicit "polish" pass
+ * runs the heavy voice + critique loop for a higher-fidelity rewrite.
+ */
+export function draftPipelineOptions(polish: boolean): {
+  fast: boolean;
+  maxIterations: number;
+  humanizeAlways: boolean;
+  skipHooks: boolean;
+} {
+  return polish
+    ? { fast: false, maxIterations: 2, humanizeAlways: true, skipHooks: true }
+    : { fast: true, maxIterations: 1, humanizeAlways: true, skipHooks: true };
+}
+
+/**
  * Drafts an outreach message for a directory lead in the creator's voice and
  * saves it against the lead (signal_outreach.lead_id). Reuses the same voice
  * pipeline + GTM playbook as event drafting. Transitions the lead to `drafted`.
+ *
+ * Interactive by default (fast path). Pass `opts.polish` for the full quality
+ * loop. Wall-clock is logged as `[latency] lead-draft ...` for measurement.
  */
 export async function draftOutreachForLead(
   client: InsforgeClient,
@@ -89,8 +111,9 @@ export async function draftOutreachForLead(
   workspaceId: string,
   lead: SignalLeadWithContacts,
   channel: OutreachChannel = 'linkedin_connect',
-  opts: { rewriteInstruction?: string | null } = {},
+  opts: { rewriteInstruction?: string | null; polish?: boolean } = {},
 ): Promise<{ draftText: string; voiceMatchScore: number }> {
+  const startedAt = Date.now();
   const platform = channel === 'x_dm' ? 'twitter' : channel.startsWith('linkedin') ? 'linkedin' : undefined;
   const contact = lead.primary_contact ?? lead.contacts?.[0] ?? null;
 
@@ -108,18 +131,18 @@ export async function draftOutreachForLead(
     includeGtm: true,
   });
 
+  // Fast path for the interactive first render; heavy loop only on polish.
+  const pipe = draftPipelineOptions(opts.polish ?? false);
   const result = await generateWithVoicePipeline({
     userPrompt: buildLeadPrompt(lead, contact, channel, opts.rewriteInstruction),
     profile: voiceContext.profile,
     contextAdditions: voiceContext.contextAdditions,
     platform,
     contentType: 'reply',
-    // Quality over speed for a one-shot outreach line: run the critique/revise
-    // loop (fast:false) with an extra pass so a weak first draft gets improved.
-    fast: false,
-    skipHooks: true,
-    maxIterations: 2,
-    humanizeAlways: true,
+    fast: pipe.fast,
+    skipHooks: pipe.skipHooks,
+    maxIterations: pipe.maxIterations,
+    humanizeAlways: pipe.humanizeAlways,
   });
 
   // The 300-char instruction above is a soft prompt; the model can and does
@@ -129,6 +152,11 @@ export async function draftOutreachForLead(
 
   await saveLeadDraft(client, workspaceId, lead.id, draftText, channel);
   await updateLead(client, workspaceId, lead.id, { lead_status: 'drafted' });
+
+  // Instrumentation: wall-clock so the 10-20s budget can be verified in logs.
+  console.info(
+    `[latency] lead-draft workspace=${workspaceId} lead=${lead.id} polish=${opts.polish ? 1 : 0} ms=${Date.now() - startedAt}`,
+  );
 
   return { draftText, voiceMatchScore: result.voice_match_score };
 }
