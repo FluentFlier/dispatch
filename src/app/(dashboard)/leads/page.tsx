@@ -363,6 +363,25 @@ export default function LeadsPage() {
     a.remove();
   };
 
+  const handleTogglePlaybookStep = async (
+    id: string,
+    stepIndex: number,
+    status: 'pending' | 'done',
+  ) => {
+    try {
+      const res = await fetch(`/api/leads/${id}/playbook`, {
+        method: 'PATCH',
+        headers: jsonHeaders,
+        body: JSON.stringify({ stepIndex, status }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      mergeLead(data.lead);
+    } catch {
+      toast('Could not update step.', 'error');
+    }
+  };
+
   const handleSnooze = async (id: string) => {
     setBusyId(id);
     try {
@@ -634,6 +653,9 @@ export default function LeadsPage() {
                 onResolve={(force?: boolean) => handleResolve(selectedLead.id, force ?? false)}
                 onFollow={() => handleFollowLead(selectedLead)}
                 onPlanNurture={() => handlePlanNurture(selectedLead.id)}
+                onToggleStep={(stepIndex, status) =>
+                  handleTogglePlaybookStep(selectedLead.id, stepIndex, status)
+                }
               />
             ) : (
               <SignalDetail

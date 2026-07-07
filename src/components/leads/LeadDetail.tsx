@@ -15,6 +15,7 @@ import {
   Twitter,
   MessageSquare,
   Clock,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import type { SignalLeadWithContacts, LeadPlaybook } from '@/lib/signals/types';
@@ -101,6 +102,7 @@ interface LeadDetailProps {
   onResolve: (force?: boolean) => void;
   onFollow: () => void;
   onPlanNurture?: () => void;
+  onToggleStep?: (stepIndex: number, status: 'pending' | 'done') => void;
 }
 
 interface LeadNote {
@@ -132,6 +134,7 @@ export function LeadDetail({
   onResolve,
   onFollow,
   onPlanNurture,
+  onToggleStep,
 }: LeadDetailProps) {
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [noteText, setNoteText] = useState('');
@@ -334,7 +337,7 @@ export function LeadDetail({
           )}
         </div>
         {lead.playbook ? (
-          <PlaybookView playbook={lead.playbook as LeadPlaybook} stage={lead.nurture_stage} due={lead.next_action_at} />
+          <PlaybookView playbook={lead.playbook as LeadPlaybook} stage={lead.nurture_stage} due={lead.next_action_at} onToggleStep={onToggleStep} />
         ) : (
           <p className="text-xs text-text-tertiary">
             Generate a 4-step plan: research → comment → connect → follow-up DM. Connect note drafts in your voice.
@@ -454,11 +457,14 @@ function PlaybookView({
   playbook,
   stage,
   due,
+  onToggleStep,
 }: {
   playbook: LeadPlaybook;
   stage?: string | null;
   due?: string | null;
+  onToggleStep?: (stepIndex: number, status: 'pending' | 'done') => void;
 }) {
+  const doneCount = playbook.steps.filter((s) => s.status === 'done').length;
   return (
     <div className="space-y-2 text-sm">
       <p className="text-text-secondary">
@@ -480,13 +486,36 @@ function PlaybookView({
           Target post ({playbook.targetPost.source}): {playbook.targetPost.excerpt}
         </p>
       )}
-      <ol className="list-decimal list-inside space-y-1 text-xs text-text-secondary">
-        {playbook.steps.map((s) => (
-          <li key={`${s.type}-${s.label}`} className={s.status === 'done' ? 'line-through opacity-60' : ''}>
-            {s.label}
-          </li>
-        ))}
-      </ol>
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Steps</span>
+        <span className="text-[11px] text-text-tertiary">{doneCount}/{playbook.steps.length} done</span>
+      </div>
+      <ul className="space-y-1">
+        {playbook.steps.map((s, i) => {
+          const done = s.status === 'done';
+          return (
+            <li key={`${s.type}-${i}`}>
+              <button
+                type="button"
+                disabled={!onToggleStep}
+                onClick={() => onToggleStep?.(i, done ? 'pending' : 'done')}
+                className="group flex w-full items-start gap-2 rounded-md px-1.5 py-1 text-left text-xs hover:bg-bg-primary disabled:cursor-default disabled:hover:bg-transparent"
+              >
+                <span
+                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                    done ? 'border-accent-primary bg-accent-primary text-white' : 'border-border text-transparent group-hover:border-accent-primary/50'
+                  }`}
+                >
+                  <Check className="h-3 w-3" />
+                </span>
+                <span className={done ? 'text-text-tertiary line-through' : 'text-text-secondary'}>
+                  {s.label}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
