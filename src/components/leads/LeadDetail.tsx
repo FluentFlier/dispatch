@@ -20,6 +20,9 @@ import {
 import { Button } from '@/components/ui/Button';
 import type { SignalLeadWithContacts, LeadPlaybook } from '@/lib/signals/types';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
+import { leadButtonBusy, type LeadDetailAction } from '@/lib/leads/busy';
+
+export type { LeadDetailAction };
 
 /** LinkedIn connect-note character ceiling; drafts over this can't be approved. */
 export const CONNECT_LIMIT = 300;
@@ -92,7 +95,7 @@ interface LeadDetailProps {
   company: YcCompanyDetail | 'loading' | undefined;
   draft: string;
   onDraftChange: (v: string) => void;
-  busy: boolean;
+  busyAction: LeadDetailAction | null;
   followed: boolean;
   onDraft: () => void;
   onApprove: (channel?: 'linkedin_connect' | 'linkedin_dm' | 'x_dm') => void;
@@ -127,7 +130,7 @@ export function LeadDetail({
   company,
   draft,
   onDraftChange,
-  busy,
+  busyAction,
   followed,
   onDraft,
   onApprove,
@@ -142,6 +145,11 @@ export function LeadDetail({
   onCheckConnection,
   accepted,
 }: LeadDetailProps) {
+  // Per-action flags: a spinner shows only on the button whose action is live.
+  // `anyBusy` gates send/email/dismiss so an unrelated in-flight action can't be
+  // double-submitted, without skeletoning those buttons.
+  const { draftBusy, planBusy, approveBusy, resolveBusy, followupBusy, checkBusy, anyBusy } =
+    leadButtonBusy(busyAction);
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [noteText, setNoteText] = useState('');
   const [notesLoading, setNotesLoading] = useState(false);
@@ -310,7 +318,7 @@ export function LeadDetail({
       {noContact ? (
         <div className="bg-bg-tertiary rounded-md p-3 text-sm text-text-secondary flex items-center justify-between gap-3">
           <span>No reachable contact found. This lead can&apos;t be messaged yet.</span>
-          <Button variant="ghost" size="sm" onClick={() => onResolve(false)} loading={busy}>Try to resolve</Button>
+          <Button variant="ghost" size="sm" onClick={() => onResolve(false)} loading={resolveBusy}>Try to resolve</Button>
         </div>
       ) : contact ? (
         <div className="flex items-center justify-between gap-3">
@@ -324,7 +332,7 @@ export function LeadDetail({
             )}
           </p>
           {/* Rescan: force a fresh contact re-pull (e.g. wrong/stale founder). */}
-          <Button variant="ghost" size="sm" onClick={() => onResolve(true)} loading={busy} title="Re-pull the founder contact from source">
+          <Button variant="ghost" size="sm" onClick={() => onResolve(true)} loading={resolveBusy} title="Re-pull the founder contact from source">
             <RefreshCw className="h-3.5 w-3.5" /> Rescan
           </Button>
         </div>
@@ -337,7 +345,7 @@ export function LeadDetail({
             <Sparkles className="h-3.5 w-3.5" /> Nurture plan
           </p>
           {onPlanNurture && lead.contact_status === 'resolved' && !lead.playbook && (
-            <Button variant="secondary" size="sm" onClick={onPlanNurture} loading={busy}>
+            <Button variant="secondary" size="sm" onClick={onPlanNurture} loading={planBusy}>
               Plan outreach
             </Button>
           )}
@@ -361,15 +369,15 @@ export function LeadDetail({
                 : 'Connect sent. Check if they have accepted.'}
             </span>
             {lead.outreach?.channel === 'linkedin_dm' && lead.outreach?.draft_text ? (
-              <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_dm')} loading={busy}>
+              <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_dm')} loading={approveBusy}>
                 <Send className="h-4 w-4" /> Approve DM
               </Button>
             ) : accepted && onDraftFollowup ? (
-              <Button variant="secondary" size="sm" onClick={onDraftFollowup} loading={busy}>
+              <Button variant="secondary" size="sm" onClick={onDraftFollowup} loading={followupBusy}>
                 <Sparkles className="h-4 w-4" /> Draft follow-up DM
               </Button>
             ) : onCheckConnection ? (
-              <Button variant="ghost" size="sm" onClick={onCheckConnection} loading={busy}>
+              <Button variant="ghost" size="sm" onClick={onCheckConnection} loading={checkBusy}>
                 <RefreshCw className="h-4 w-4" /> Check if accepted
               </Button>
             ) : null}
@@ -440,7 +448,7 @@ export function LeadDetail({
           </div>
         </div>
       ) : (
-        <Button variant="primary" size="sm" onClick={onDraft} loading={busy}>
+        <Button variant="primary" size="sm" onClick={onDraft} loading={draftBusy}>
           <Sparkles className="h-4 w-4" /> Draft message
         </Button>
       )}
@@ -449,26 +457,26 @@ export function LeadDetail({
       {draft && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {hasLinkedIn && (
-            <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_connect')} disabled={noContact || overLimit || busy}>
+            <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_connect')} loading={approveBusy} disabled={noContact || overLimit || anyBusy}>
               <Send className="h-4 w-4" /> LinkedIn
             </Button>
           )}
           {xHandle && (
-            <Button variant="primary" size="sm" onClick={() => onApprove('x_dm')} disabled={noContact || busy}>
+            <Button variant="primary" size="sm" onClick={() => onApprove('x_dm')} loading={approveBusy} disabled={noContact || anyBusy}>
               <Twitter className="h-4 w-4" /> X DM
             </Button>
           )}
           {!hasLinkedIn && !xHandle && (
-            <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_connect')} disabled={noContact || overLimit || busy}>
+            <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_connect')} loading={approveBusy} disabled={noContact || overLimit || anyBusy}>
               <Send className="h-4 w-4" /> Approve
             </Button>
           )}
           {leadEmail && (
-            <Button variant="secondary" size="sm" onClick={onEmail} disabled={busy} title={`Cold email ${leadEmail} (opt-in)`}>
+            <Button variant="secondary" size="sm" onClick={onEmail} disabled={anyBusy} title={`Cold email ${leadEmail} (opt-in)`}>
               <Mail className="h-4 w-4" /> Email
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={onDraft} loading={busy}>
+          <Button variant="ghost" size="sm" onClick={onDraft} loading={draftBusy}>
             <RefreshCw className="h-4 w-4" /> Regenerate
           </Button>
           {onSnooze && (

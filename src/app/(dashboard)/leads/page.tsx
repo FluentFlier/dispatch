@@ -20,6 +20,12 @@ import type {
 } from '@/lib/signals/types';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
+import {
+  busyActionFor as deriveBusyAction,
+  type LeadBusy,
+  type LeadDetailAction,
+  type SignalDetailAction,
+} from '@/lib/leads/busy';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
 
@@ -64,7 +70,10 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [listLoading, setListLoading] = useState(false);
   const [scraping, setScraping] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  // Per-action busy tracking: only the clicked button spins, not every button
+  // for the lead. `busyActionFor(id)` returns the in-flight action or null.
+  const [busy, setBusy] = useState<LeadBusy | null>(null);
+  const busyActionFor = useCallback((id: string) => deriveBusyAction(busy, id), [busy]);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState(false);
   // Leads confirmed as accepted LinkedIn connections (response tracking).
@@ -289,7 +298,7 @@ export default function LeadsPage() {
   };
 
   const handleDraft = async (id: string) => {
-    setBusyId(id);
+    setBusy({ id, action: 'draft' });
     try {
       const res = await fetch(`/api/leads/${id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
       const data = await res.json();
@@ -300,7 +309,7 @@ export default function LeadsPage() {
     } catch {
       toast('Could not draft.', 'error');
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
@@ -308,7 +317,7 @@ export default function LeadsPage() {
     id: string,
     channel: 'linkedin_connect' | 'linkedin_dm' | 'x_dm' = 'linkedin_connect',
   ) => {
-    setBusyId(id);
+    setBusy({ id, action: 'approve' });
     try {
       const res = await fetch(`/api/leads/${id}/approve`, {
         method: 'POST',
@@ -324,13 +333,13 @@ export default function LeadsPage() {
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not approve.', 'error');
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
   // Response tracking: has the prospect accepted the LinkedIn connection?
   const handleCheckConnection = async (id: string) => {
-    setBusyId(id);
+    setBusy({ id, action: 'check' });
     try {
       const res = await fetch(`/api/leads/${id}/check-connection`, { method: 'POST' });
       const data = await res.json();
@@ -344,13 +353,13 @@ export default function LeadsPage() {
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not check connection.', 'error');
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
   // Draft the follow-up DM step of the sequence (after a connect is accepted).
   const handleDraftFollowup = async (id: string) => {
-    setBusyId(id);
+    setBusy({ id, action: 'followup' });
     try {
       const res = await fetch(`/api/leads/${id}/draft`, {
         method: 'POST',
@@ -365,13 +374,13 @@ export default function LeadsPage() {
     } catch {
       toast('Could not draft follow-up.', 'error');
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
   const handleEmail = async (id: string) => {
     if (!window.confirm('Send a cold email to this lead? This is a one-time opt-in; an unsubscribe line is added automatically.')) return;
-    setBusyId(id);
+    setBusy({ id, action: 'email' });
     try {
       const res = await fetch(`/api/leads/${id}/approve`, {
         method: 'POST',
@@ -385,12 +394,12 @@ export default function LeadsPage() {
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not email.', 'error');
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
   const handleDismiss = async (id: string) => {
-    setBusyId(id);
+    setBusy({ id, action: 'dismiss' });
     try {
       const res = await fetch(`/api/leads/${id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ action: 'dismiss' }) });
       if (!res.ok) throw new Error();
@@ -405,7 +414,7 @@ export default function LeadsPage() {
     } catch {
       toast('Could not dismiss.', 'error');
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
@@ -494,7 +503,7 @@ export default function LeadsPage() {
   };
 
   const handleSnooze = async (id: string) => {
-    setBusyId(id);
+    setBusy({ id, action: 'snooze' });
     try {
       const res = await fetch(`/api/leads/${id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ action: 'snooze' }) });
       if (!res.ok) throw new Error();
@@ -510,12 +519,12 @@ export default function LeadsPage() {
     } catch {
       toast('Could not snooze.', 'error');
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
   const handleResolve = async (id: string, force = false) => {
-    setBusyId(id);
+    setBusy({ id, action: 'resolve' });
     try {
       const res = await fetch(`/api/leads/${id}/resolve`, {
         method: 'POST',
@@ -544,12 +553,12 @@ export default function LeadsPage() {
     } catch {
       toast('Could not resolve.', 'error');
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
   const handlePlanNurture = async (id: string) => {
-    setBusyId(id);
+    setBusy({ id, action: 'plan' });
     try {
       const res = await fetch(`/api/leads/${id}/playbook`, { method: 'POST' });
       const data = await res.json();
@@ -562,7 +571,7 @@ export default function LeadsPage() {
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not plan nurture.', 'error');
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
@@ -588,7 +597,7 @@ export default function LeadsPage() {
   // for the surface it will actually be sent on.
   const handleSignalDraft = async (card: UnifiedLeadCard) => {
     const id = card.id;
-    setBusyId(id);
+    setBusy({ id, action: 'draft' });
     setSignalNotices((n) => {
       const next = { ...n };
       delete next[id];
@@ -609,7 +618,7 @@ export default function LeadsPage() {
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not draft.', 'error');
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
@@ -623,7 +632,7 @@ export default function LeadsPage() {
       toast('No messaging channel on this signal. Copy the draft to send by hand.', 'error');
       return;
     }
-    setBusyId(id);
+    setBusy({ id, action: 'send' });
     setSignalNotices((n) => {
       const next = { ...n };
       delete next[id];
@@ -652,7 +661,7 @@ export default function LeadsPage() {
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not send.', 'error');
     } finally {
-      setBusyId(null);
+      setBusy(null);
     }
   };
 
@@ -796,7 +805,7 @@ export default function LeadsPage() {
                 company={companyById[selectedLead.id]}
                 draft={drafts[selectedLead.id] ?? selectedLead.outreach?.draft_text ?? ''}
                 onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedLead.id]: v }))}
-                busy={busyId === selectedLead.id}
+                busyAction={busyActionFor(selectedLead.id) as LeadDetailAction | null}
                 followed={isFollowed(selectedCard)}
                 onDraft={() => handleDraft(selectedLead.id)}
                 onApprove={(channel) => handleApprove(selectedLead.id, channel)}
@@ -818,7 +827,7 @@ export default function LeadsPage() {
                 card={selectedCard}
                 draft={drafts[selectedCard.id] ?? ''}
                 onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedCard.id]: v }))}
-                busy={busyId === selectedCard.id}
+                busyAction={busyActionFor(selectedCard.id) as SignalDetailAction | null}
                 notice={signalNotices[selectedCard.id] ?? null}
                 onDraft={() => handleSignalDraft(selectedCard)}
                 onSend={() => handleSignalSend(selectedCard)}
