@@ -10,8 +10,8 @@ vi.mock('@/lib/insforge/server', () => ({
   getServiceClient: vi.fn(),
 }));
 vi.mock('@/lib/workspace', () => ({
-  getActiveWorkspaceId: vi.fn().mockResolvedValue('ws_123'),
-  ensureSoloWorkspace: vi.fn().mockResolvedValue({ id: 'ws_123' }),
+  ensureActiveWorkspaceId: vi.fn().mockResolvedValue('ws_123'),
+  backfillNullWorkspaceSocialAccounts: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/lib/social/unipile', () => ({
   unipoleFetch: vi.fn(),
@@ -20,6 +20,7 @@ vi.mock('@/lib/social/unipile', () => ({
 }));
 
 import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
+import { backfillNullWorkspaceSocialAccounts, ensureActiveWorkspaceId } from '@/lib/workspace';
 import { unipoleFetch, fetchUnipileAccountDetails } from '@/lib/social/unipile';
 import { NextRequest } from 'next/server';
 
@@ -124,6 +125,8 @@ describe('POST /api/voice-lab/import-from-account', () => {
   it('calls Unipile /users/{provider_id}/posts with provider ID in path and unipile ID as query param', async () => {
     const { POST } = await import('@/app/api/voice-lab/import-from-account/route');
     await POST(makeRequest({ platform: 'linkedin' }));
+    expect(ensureActiveWorkspaceId).toHaveBeenCalledWith('user_123');
+    expect(backfillNullWorkspaceSocialAccounts).toHaveBeenCalledWith('user_123', 'ws_123');
     expect(unipoleFetch).toHaveBeenCalledWith(
       expect.stringMatching(/\/users\/ACoAABcDEFgH\/posts\?account_id=unipile_abc123/),
       expect.objectContaining({ method: 'GET' }),
