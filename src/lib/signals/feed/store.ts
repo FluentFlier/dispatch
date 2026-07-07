@@ -17,7 +17,7 @@ import { normalizeEvent, normalizeLead, type UnifiedLeadCard } from '@/lib/signa
 type InsforgeClient = ReturnType<typeof createClient>;
 
 /** Shared page size for the unified feed, applied to both sources and the merged result. */
-export const FEED_PAGE_LIMIT = 100;
+export const FEED_PAGE_LIMIT = 200;
 
 /** Query filters accepted by the unified feed. `status: 'all'` disables the status filter. */
 export interface FeedFilters {
@@ -67,7 +67,7 @@ export async function buildUnifiedFeed(
   workspaceId: string,
   filters: FeedFilters = {},
 ): Promise<UnifiedLeadCard[]> {
-  const limit = Math.min(Math.max(filters.limit ?? FEED_PAGE_LIMIT, 1), 200);
+  const limit = Math.min(Math.max(filters.limit ?? FEED_PAGE_LIMIT, 1), 300);
   const [leads, events] = await Promise.all([
     listLeads(client, workspaceId, { limit }),
     listEventsWithPosts(client, workspaceId, { limit }),

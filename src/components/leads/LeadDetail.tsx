@@ -14,6 +14,7 @@ import {
   Globe,
   Twitter,
   MessageSquare,
+  Clock,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import type { SignalLeadWithContacts, LeadPlaybook } from '@/lib/signals/types';
@@ -96,6 +97,7 @@ interface LeadDetailProps {
   onApprove: (channel?: 'linkedin_connect' | 'x_dm') => void;
   onEmail: () => void;
   onDismiss: () => void;
+  onSnooze?: () => void;
   onResolve: (force?: boolean) => void;
   onFollow: () => void;
   onPlanNurture?: () => void;
@@ -126,6 +128,7 @@ export function LeadDetail({
   onApprove,
   onEmail,
   onDismiss,
+  onSnooze,
   onResolve,
   onFollow,
   onPlanNurture,
@@ -433,6 +436,11 @@ export function LeadDetail({
           <Button variant="ghost" size="sm" onClick={onDraft} loading={busy}>
             <RefreshCw className="h-4 w-4" /> Regenerate
           </Button>
+          {onSnooze && (
+            <Button variant="ghost" size="sm" onClick={onSnooze} title="Hide until tomorrow's digest">
+              <Clock className="h-4 w-4" /> Snooze
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={onDismiss}>
             <X className="h-4 w-4" /> Dismiss
           </Button>
