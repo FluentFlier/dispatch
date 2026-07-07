@@ -53,7 +53,7 @@ export default function EventCapturePage() {
 
         <div className="lg:col-span-3 border border-border rounded-lg bg-bg-secondary p-5">
           {selectedId ? (
-            <EventDetailPanel id={selectedId} onSubmitted={refresh} />
+            <EventDetailPanel key={selectedId} id={selectedId} onSubmitted={refresh} />
           ) : (
             <p className="text-sm text-text-tertiary">Select an event to review.</p>
           )}
