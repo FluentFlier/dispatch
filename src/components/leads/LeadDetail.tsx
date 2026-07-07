@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/Button';
 import type { SignalLeadWithContacts, LeadPlaybook } from '@/lib/signals/types';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { leadButtonBusy, type LeadDetailAction } from '@/lib/leads/busy';
+import { linkedInBadgeState } from '@/lib/leads/verified-badge';
 
 export type { LeadDetailAction };
 
@@ -352,6 +353,21 @@ export function LeadDetail({
                 LinkedIn <ExternalLink className="h-3 w-3" />
               </a>
             )}
+            {linkedInBadgeState(contact) === 'verified' ? (
+              <span
+                title="LinkedIn profile confirmed via your connected account"
+                className="inline-flex items-center gap-1 ml-2 rounded-full bg-sage-light px-1.5 py-0.5 text-[11px] font-medium text-accent-secondary align-middle"
+              >
+                <Check className="h-3 w-3" /> Verified
+              </span>
+            ) : linkedInBadgeState(contact) === 'unverified' ? (
+              <span
+                title="Not verified yet - this profile link may be out of date. Rescan to check."
+                className="ml-2 text-[11px] text-text-tertiary align-middle"
+              >
+                Unverified
+              </span>
+            ) : null}
           </p>
           {/* Rescan: force a fresh contact re-pull (e.g. wrong/stale founder). */}
           <Button variant="ghost" size="sm" onClick={() => onResolve(true)} loading={resolveBusy} title="Re-pull the founder contact from source">
