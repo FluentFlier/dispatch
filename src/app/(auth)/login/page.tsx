@@ -21,7 +21,26 @@ async function syncTokenToCookie(): Promise<boolean> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const client = getInsforgeClient();
 
-    // Path 1: refreshSession() — gives both tokens reliably when SDK is ready.
+    // Path 1: read tokens directly from SDK after OAuth — most reliable for refresh token.
+    const fromSdk = getClientTokens(client);
+    if (fromSdk.accessToken) {
+      try {
+        const res = await fetch("/api/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          body: JSON.stringify({
+            token: fromSdk.accessToken,
+            refreshToken: fromSdk.refreshToken,
+          }),
+        });
+        if (res.ok) return true;
+      } catch {
+        /* fall through */
+      }
+    }
+
+    // Path 2: refreshSession() — may return rotated tokens when SDK is ready.
     try {
       const { data, error } = await client.auth.refreshSession();
       if (!error && data?.accessToken) {
@@ -37,23 +56,7 @@ async function syncTokenToCookie(): Promise<boolean> {
         if (res.ok) return true;
       }
     } catch {
-      /* fall through to SDK-internal path */
-    }
-
-    // Path 2: SDK internals fallback — access token always present, refresh token best-effort.
-    const { accessToken, refreshToken } = getClientTokens(client);
-    if (accessToken) {
-      try {
-        const res = await fetch("/api/auth", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({ token: accessToken, refreshToken }),
-        });
-        if (res.ok) return true;
-      } catch {
-        /* retry */
-      }
+      /* retry */
     }
 
     await new Promise((r) => setTimeout(r, (attempt + 1) * 300));

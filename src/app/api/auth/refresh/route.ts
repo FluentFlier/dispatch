@@ -7,7 +7,29 @@ import {
 } from '@/lib/auth-refresh';
 
 /**
- * Server-side session refresh using the httpOnly refresh token cookie.
+ * POST: JSON session refresh for client keep-alive (SessionKeepAlive, fetchWithAuth).
+ * Uses the httpOnly content-os-refresh cookie — no cross-origin InsForge cookies needed.
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const refreshToken = request.cookies.get(AUTH_COOKIE.refresh)?.value;
+  if (!refreshToken) {
+    return NextResponse.json({ ok: false, error: 'no_refresh_token' }, { status: 401 });
+  }
+
+  const refreshed = await refreshSessionWithToken(refreshToken);
+  if (!refreshed) {
+    const response = NextResponse.json({ ok: false, error: 'refresh_failed' }, { status: 401 });
+    clearAuthCookiesOnResponse(response);
+    return response;
+  }
+
+  const response = NextResponse.json({ ok: true });
+  setAuthCookiesOnResponse(response, refreshed.accessToken, refreshed.refreshToken);
+  return response;
+}
+
+/**
+ * GET: Server-side session refresh using the httpOnly refresh token cookie.
  * Middleware redirects here when the access JWT is expired but refresh exists.
  * Sets fresh cookies on the redirect response (works in route handlers; not in RSC).
  */

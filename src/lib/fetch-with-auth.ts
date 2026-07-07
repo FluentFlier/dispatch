@@ -1,45 +1,19 @@
 'use client';
 
-import { getInsforgeClient } from '@/lib/insforge/client';
+import { refreshAppSessionWithFallback } from '@/lib/auth-client-refresh';
 
 let refreshInProgress: Promise<boolean> | null = null;
 
 /**
- * Refresh the InsForge session using the browser SDK (which sends InsForge's
- * own HttpOnly cookie via credentials:include), then re-sync the new access
- * token to our server-side httpOnly cookie.
- *
- * Using a shared promise ensures concurrent 401s only trigger one refresh,
- * not N parallel refresh attempts.
+ * Refresh session via same-origin cookies first, then InsForge SDK fallback.
+ * Shared promise ensures concurrent 401s only trigger one refresh.
  */
 async function resyncToken(): Promise<boolean> {
   if (refreshInProgress) return refreshInProgress;
 
-  refreshInProgress = (async () => {
-    try {
-      const client = getInsforgeClient();
-      // Browser-mode refreshSession uses InsForge's own session cookie.
-      // No refreshToken arg needed — the SDK calls /api/auth/refresh with
-      // credentials:include so InsForge's HttpOnly cookie is sent automatically.
-      const { data, error } = await client.auth.refreshSession();
-      if (error || !data?.accessToken) return false;
-
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({
-          token: data.accessToken,
-          refreshToken: (data as { refreshToken?: string }).refreshToken ?? null,
-        }),
-      });
-      return res.ok;
-    } catch {
-      return false;
-    } finally {
-      refreshInProgress = null;
-    }
-  })();
+  refreshInProgress = refreshAppSessionWithFallback().finally(() => {
+    refreshInProgress = null;
+  });
 
   return refreshInProgress;
 }

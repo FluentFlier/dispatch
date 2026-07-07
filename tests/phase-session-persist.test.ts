@@ -70,3 +70,16 @@ describe('middleware — expired JWT refresh redirect', () => {
     expect(response.status).not.toBe(307);
   });
 });
+
+describe('POST /api/auth/refresh', () => {
+  it('returns 401 when refresh cookie is missing', async () => {
+    const { POST } = await import('@/app/api/auth/refresh/route');
+    const { NextRequest } = await import('next/server');
+
+    const request = new NextRequest('http://localhost/api/auth/refresh', { method: 'POST' });
+    const response = await POST(request);
+    expect(response.status).toBe(401);
+    const body = await response.json();
+    expect(body.error).toBe('no_refresh_token');
+  });
+});

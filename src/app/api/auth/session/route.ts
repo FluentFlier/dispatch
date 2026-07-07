@@ -1,4 +1,6 @@
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { AUTH_COOKIE, decodeJwtExpSec } from '@/lib/auth-cookies';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getUserEntitlements, getOrCreateSubscription } from '@/lib/entitlements';
 import { isAppTrialActive, isAppTrialExpired, trialDaysRemaining } from '@/lib/trial';
@@ -28,8 +30,12 @@ export async function GET(): Promise<NextResponse> {
       .maybeSingle(),
   ]);
 
+  const accessToken = cookies().get(AUTH_COOKIE.access)?.value;
+  const accessExpiresAt = accessToken ? decodeJwtExpSec(accessToken) : null;
+
   return NextResponse.json({
     authenticated: true,
+    accessExpiresAt,
     user: { id: user.id, email: user.email },
     profile: profile
       ? {
