@@ -7,7 +7,7 @@ import { errorResponse } from '@/lib/api-errors';
 import { fetchOAuthDisplayName, resolveDisplayName } from '@/lib/user-display-name';
 import {
   fetchPostsFromUnipile,
-  resolveProviderUserId,
+  resolveUnipileTarget,
   type OnboardingPlatform,
   type VoiceSample,
 } from '@/lib/onboarding/import-posts';
@@ -121,16 +121,28 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
       const platform = account.platform as OnboardingPlatform;
       if (!TARGET_PLATFORMS.includes(platform)) continue;
 
-      const providerUserId = await resolveProviderUserId(
+      const target = await resolveUnipileTarget(
         account.unipile_account_id,
         account.account_id,
+        platform,
       );
-      if (!providerUserId) continue;
+      if (!target || target.providerUserIds.length === 0) continue;
+
+      // Persist a recovered id when the stored one had rotated.
+      if (target.refreshed) {
+        let update = client.database
+          .from('social_accounts')
+          .update({ unipile_account_id: target.unipileAccountId })
+          .eq('user_id', user.id)
+          .eq('platform', platform);
+        if (workspaceId) update = update.eq('workspace_id', workspaceId);
+        await update;
+      }
 
       try {
         const { samples, rawItems } = await fetchPostsFromUnipile(
-          providerUserId,
-          account.unipile_account_id,
+          target.providerUserIds,
+          target.unipileAccountId,
           platform,
         );
 

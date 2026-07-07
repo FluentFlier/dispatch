@@ -1,4 +1,9 @@
-import { unipoleFetch, fetchUnipileAccountDetails } from '@/lib/social/unipile';
+import {
+  unipoleFetch,
+  fetchUnipileAccountDetails,
+  listUnipileAccounts,
+  type UnipileFullAccount,
+} from '@/lib/social/unipile';
 import { buildPostUrl } from '@/lib/voice-lab/persist-imported-posts';
 
 export type OnboardingPlatform = 'linkedin' | 'twitter';
@@ -73,26 +78,94 @@ function urnTail(value?: string): string | null {
   return value.split(':').filter(Boolean).at(-1) ?? null;
 }
 
+type UnipileIm = NonNullable<NonNullable<UnipileFullAccount['connection_params']>['im']>;
+
+/** Extract every candidate provider user id from an account's connection_params.im. */
+function imToProviderIds(im: UnipileIm | undefined, storedAccountId: string | null): string[] {
+  return uniq([
+    im?.publicIdentifier,
+    im?.memberId,
+    im?.id,
+    urnTail(im?.objectUrn),
+    im?.objectUrn,
+    urnTail(im?.entityUrn),
+    im?.entityUrn,
+    storedAccountId,
+  ]);
+}
+
 export async function resolveProviderUserIds(
   unipileAccountId: string,
   storedAccountId: string | null,
 ): Promise<string[]> {
   try {
     const fullAccount = await fetchUnipileAccountDetails(unipileAccountId);
-    const im = fullAccount?.connection_params?.im;
-    return uniq([
-      im?.publicIdentifier,
-      im?.memberId,
-      im?.id,
-      urnTail(im?.objectUrn),
-      im?.objectUrn,
-      urnTail(im?.entityUrn),
-      im?.entityUrn,
-      storedAccountId,
-    ]);
+    return imToProviderIds(fullAccount?.connection_params?.im, storedAccountId);
   } catch {
     return storedAccountId ? [storedAccountId] : [];
   }
+}
+
+export interface ResolvedUnipileTarget {
+  /** The CURRENT Unipile account id (may differ from the stored one after rotation). */
+  unipileAccountId: string;
+  /** Ordered candidate provider user ids for GET /users/{id}/posts. */
+  providerUserIds: string[];
+  /** True when the stored id was stale and we recovered a new one — caller should persist. */
+  refreshed: boolean;
+}
+
+/** True if a Unipile account's type matches our canonical platform name. */
+function accountMatchesPlatform(account: UnipileFullAccount, platform: OnboardingPlatform): boolean {
+  const type = (account.type ?? '').toLowerCase();
+  if (platform === 'linkedin') return type === 'linkedin';
+  return type === 'twitter' || type === 'x' || type === 'twitter_v2';
+}
+
+/**
+ * Resolves the account to import from, self-healing a rotated unipile_account_id.
+ *
+ * Unipile re-issues `account.id` whenever a LinkedIn credential session re-auths,
+ * so the id cached in social_accounts goes stale and GET /accounts/{id} 404s —
+ * which previously surfaced to users as a spurious "disconnect and reconnect".
+ * Instead we re-list accounts and match on the STABLE identity (publicIdentifier /
+ * member id / username, captured in storedAccountId) to recover the live id.
+ */
+export async function resolveUnipileTarget(
+  unipileAccountId: string,
+  storedAccountId: string | null,
+  platform: OnboardingPlatform,
+): Promise<ResolvedUnipileTarget | null> {
+  // 1. Stored id still valid — the common, fast path.
+  const full = await fetchUnipileAccountDetails(unipileAccountId);
+  if (full) {
+    return {
+      unipileAccountId,
+      providerUserIds: imToProviderIds(full.connection_params?.im, storedAccountId),
+      refreshed: false,
+    };
+  }
+
+  // 2. Stale id — re-resolve by stable identity against the live account list.
+  if (!storedAccountId) return null;
+  const accounts = await listUnipileAccounts();
+  const match = accounts.find((account) => {
+    if (!accountMatchesPlatform(account, platform)) return false;
+    const im = account.connection_params?.im;
+    return (
+      im?.publicIdentifier === storedAccountId ||
+      im?.id === storedAccountId ||
+      im?.memberId === storedAccountId ||
+      account.username === storedAccountId
+    );
+  });
+
+  if (!match) return null;
+  return {
+    unipileAccountId: match.id,
+    providerUserIds: imToProviderIds(match.connection_params?.im, storedAccountId),
+    refreshed: match.id !== unipileAccountId,
+  };
 }
 
 /**
