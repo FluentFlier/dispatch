@@ -220,6 +220,12 @@ export async function upsertIngestedLeads(
             tags: lead.tags ?? [],
             intent_flags: lead.intentFlags ?? {},
             source_fact: { batch: lead.batch, tagline: lead.tagline },
+            // Seed rich company facts from the scrape (description + industries).
+            // Completed once from the YC detail page at first draft, then reused.
+            company_detail: {
+              description: lead.longDescription,
+              industries: lead.tags?.length ? lead.tags : undefined,
+            },
             lead_status: 'new',
             digest_date: digestDate,
             first_seen_at: nowIso,

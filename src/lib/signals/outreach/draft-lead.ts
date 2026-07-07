@@ -4,9 +4,57 @@ import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { updateLead } from '@/lib/signals/leads/store';
 import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
-import type { OutreachChannel, SignalLeadContactRow, SignalLeadWithContacts } from '@/lib/signals/types';
+import { fetchYcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
+import { withTimeout } from '@/lib/util/timeout';
+import type {
+  LeadCompanyDetail,
+  OutreachChannel,
+  SignalLeadContactRow,
+  SignalLeadWithContacts,
+} from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
+
+/** Time budget for the one-time YC detail-page fetch during a draft. */
+const COMPANY_DETAIL_TIMEOUT_MS = 3500;
+
+/**
+ * Returns the lead's rich company detail for the prompt, fetching the YC detail
+ * page at most ONCE per lead and persisting it (`fetchedAt` marks a full fetch).
+ * Repeat drafts reuse the stored value with no re-scrape. Seed-only detail (from
+ * ingest: description + industries, no fetchedAt) triggers exactly one fetch to
+ * fill headcount/status; a persisted `fetchedAt` short-circuits the fetch.
+ */
+export async function ensureLeadCompanyDetail(
+  client: InsforgeClient,
+  workspaceId: string,
+  lead: SignalLeadWithContacts,
+): Promise<LeadCompanyDetail | null> {
+  const existing = (lead.company_detail as LeadCompanyDetail | null | undefined) ?? null;
+  // Already fully fetched once — reuse, never re-scrape.
+  if (existing?.fetchedAt) return existing;
+  // Only YC leads have a detail page to complete from.
+  if (lead.source !== 'yc_directory' || !lead.external_id) return existing;
+
+  const detail = await withTimeout(
+    fetchYcCompanyDetail(lead.external_id),
+    COMPANY_DETAIL_TIMEOUT_MS,
+    null,
+  );
+  if (!detail) return existing;
+
+  const compact: LeadCompanyDetail = {
+    description: detail.description ?? existing?.description,
+    teamSize: detail.teamSize,
+    industries: detail.industries?.length ? detail.industries.slice(0, 6) : existing?.industries,
+    location: detail.location,
+    status: detail.status,
+    yearFounded: detail.yearFounded,
+    fetchedAt: new Date().toISOString(),
+  };
+  await updateLead(client, workspaceId, lead.id, { company_detail: compact });
+  return compact;
+}
 
 /** Directory leads default to a LinkedIn connection note. */
 function channelLabel(channel: OutreachChannel): string {
@@ -34,11 +82,23 @@ function buildLeadPrompt(
   contact: SignalLeadContactRow | null,
   channel: OutreachChannel,
   rewriteInstruction?: string | null,
+  company?: LeadCompanyDetail | null,
 ): string {
   const sourceLabel = lead.source === 'product_hunt' ? 'Product Hunt' : 'YC';
   const firstName = contact?.name ? contact.name.split(' ')[0] : null;
-  const detail = lead.tagline || (lead.source_fact as { tagline?: string })?.tagline || null;
   const instruction = rewriteInstruction?.trim();
+
+  // Prefer the richer persisted description; fall back to tagline/source_fact.
+  const description =
+    company?.description?.trim() ||
+    lead.tagline ||
+    (lead.source_fact as { tagline?: string })?.tagline ||
+    null;
+  const industries = company?.industries?.length
+    ? company.industries
+    : Array.isArray(lead.tags)
+      ? lead.tags
+      : [];
 
   return [
     `Write a ${channelLabel(channel)} to a startup founder. It must read like a real,`,
@@ -50,9 +110,12 @@ function buildLeadPrompt(
       ? `- Founder: ${contact!.name}${contact?.role ? ` (${contact.role})` : ''} — address them as "${firstName}".`
       : `- A founder at ${lead.company_name} (name unknown — do NOT invent one; open with the company/what they build).`,
     `- Company: ${lead.company_name}`,
-    detail ? `- What they build: ${detail}` : null,
+    // Cap the description so a long one does not bloat the prompt (latency).
+    description ? `- What they build: ${description.slice(0, 400)}` : null,
+    company?.teamSize ? `- Team size: ~${company.teamSize} people` : null,
+    industries.length ? `- Industry: ${industries.slice(0, 3).join(', ')}` : null,
+    company?.status ? `- Stage: ${company.status}` : null,
     lead.batch ? `- ${sourceLabel} batch: ${lead.batch}` : `- Discovered via ${sourceLabel}`,
-    Array.isArray(lead.tags) && lead.tags.length ? `- Space: ${lead.tags.slice(0, 3).join(', ')}` : null,
     lead.intent_flags?.raised ? '- Signal: recently raised funding' : null,
     '',
     'THE MESSAGE MUST:',
@@ -131,10 +194,14 @@ export async function draftOutreachForLead(
     includeGtm: true,
   });
 
+  // Load (or one-time fetch + persist) rich company facts so the prompt has real
+  // substance without a re-scrape on repeat drafts.
+  const companyDetail = await ensureLeadCompanyDetail(client, workspaceId, lead);
+
   // Fast path for the interactive first render; heavy loop only on polish.
   const pipe = draftPipelineOptions(opts.polish ?? false);
   const result = await generateWithVoicePipeline({
-    userPrompt: buildLeadPrompt(lead, contact, channel, opts.rewriteInstruction),
+    userPrompt: buildLeadPrompt(lead, contact, channel, opts.rewriteInstruction, companyDetail),
     profile: voiceContext.profile,
     contextAdditions: voiceContext.contextAdditions,
     platform,
