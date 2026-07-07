@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { AUTH_COOKIE } from '@/lib/auth-cookies';
+import { AUTH_COOKIE, decodeJwtExpSec } from '@/lib/auth-cookies';
 import {
   clearAuthCookiesOnResponse,
   refreshSessionWithToken,
@@ -54,7 +54,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const refreshed = await refreshSessionWithToken(refreshToken);
   if (!refreshed || refreshed === 'unauthorized') {
-    if (refreshed === 'unauthorized') {
+    // Only hard-logout when the refresh token is ACTUALLY expired. Its exp is
+    // the true ~7-day session boundary. A single transient 'unauthorized'
+    // (rotation/reuse race, brief InsForge blip) must NOT clear cookies and
+    // bounce to /login — that was ending week-long sessions minutes/hours in.
+    // While the refresh window is still open, hand off to the recoverable
+    // restore-session flow (SDK fallback + bounded retries) instead.
+    const expSec = decodeJwtExpSec(refreshToken);
+    const trulyExpired = expSec !== null && expSec <= Math.floor(Date.now() / 1000);
+    if (refreshed === 'unauthorized' && trulyExpired) {
       const login = NextResponse.redirect(new URL('/login?expired=1', request.url), 307);
       clearAuthCookiesOnResponse(login);
       return login;
