@@ -23,11 +23,14 @@ export async function POST(
   const body = (await request.json().catch(() => ({}))) as {
     channel?: OutreachChannel;
     rewriteInstruction?: string;
+    polish?: boolean;
   };
   // Trim + cap the free-text rewrite instruction so a stray paste can't bloat
   // the prompt (and latency). Empty means a plain regenerate.
   const rewriteInstruction =
     typeof body.rewriteInstruction === 'string' ? body.rewriteInstruction.trim().slice(0, 280) : '';
+  // Polish = opt in to the full voice + critique loop (slower, higher fidelity).
+  const polish = body.polish === true;
 
   try {
     const client = getServerClient();
@@ -40,7 +43,7 @@ export async function POST(
       workspaceId,
       lead,
       body.channel ?? 'linkedin_connect',
-      { rewriteInstruction: rewriteInstruction || null },
+      { rewriteInstruction: rewriteInstruction || null, polish },
     );
     const updated = await getLead(client, workspaceId, params.id);
     return NextResponse.json({ lead: updated, draftText, voiceMatchScore });
