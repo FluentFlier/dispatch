@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { deterministicPreClean, AI_SLOP_PATTERNS } from '@/lib/humanizer';
 import { substanceContextOnly } from '@/lib/content-pipeline/context-split';
+import { stripMarkdownFormatting } from '@/lib/content-pipeline';
 import { selectBalancedVoiceSamples } from '@/lib/voice-lab/select-voice-samples';
 
 describe('Phase: Content pipeline + humanizer', () => {
@@ -36,6 +37,33 @@ describe('Phase: Content pipeline + humanizer', () => {
       const text = "In today's fast-paced world, let's dive into this landscape.";
       const hits = AI_SLOP_PATTERNS.some((re) => re.test(text));
       expect(hits).toBe(true);
+    });
+  });
+
+  describe('stripMarkdownFormatting', () => {
+    it('removes emphasis, headings, and code fences but keeps the words', () => {
+      const raw = [
+        '## My Big Launch',
+        '',
+        'We shipped **fast** and it was *hard* but `worth it`.',
+        '',
+        '> a quote line',
+        '',
+        '```js',
+        'const x = 1;',
+        '```',
+      ].join('\n');
+      const out = stripMarkdownFormatting(raw);
+      expect(out).not.toMatch(/\*\*|##|```|`|^>/m);
+      expect(out).toContain('My Big Launch');
+      expect(out).toContain('We shipped fast and it was hard but worth it.');
+      expect(out).toContain('a quote line');
+      expect(out).toContain('const x = 1;');
+    });
+
+    it('leaves snake_case, list dashes, and plain text untouched', () => {
+      const raw = 'Set the max_tokens value.\n- point one\n- point two';
+      expect(stripMarkdownFormatting(raw)).toBe(raw);
     });
   });
 

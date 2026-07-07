@@ -53,6 +53,21 @@ function truncate(s: string, len: number) {
   return s.length > len ? s.slice(0, len) + "..." : s;
 }
 
+/** A ranked hook from GET /api/hooks/intelligence. */
+interface IntelligenceHook {
+  text: string;
+  author?: string;
+  verticals?: string[];
+  score?: number | string;
+}
+
+/** Response shape from POST /api/research. */
+interface ResearchResult {
+  status?: string;
+  error?: string;
+  intelligence?: { hooks?: string };
+}
+
 
 
 /* ------------------------------------------------------------------ */
@@ -69,9 +84,9 @@ export default function AnalyticsPage() {
   const [bestTimes, setBestTimes] = useState<TimingResult | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // === NEW: Consumer Intelligence Surfaces (Hook Lab + Lead Insights) ===
-  const [topHooks, setTopHooks] = useState<any[]>([]);
-  const [researchResult, setResearchResult] = useState<any>(null);
+  // Hook lab + lead insights surfaces.
+  const [topHooks, setTopHooks] = useState<IntelligenceHook[]>([]);
+  const [researchResult, setResearchResult] = useState<ResearchResult | null>(null);
   const [researchLoading, setResearchLoading] = useState(false);
   const [hooksLoading, setHooksLoading] = useState(true);
 
@@ -163,20 +178,16 @@ export default function AnalyticsPage() {
       {/* Section 2 - loaded dynamically to avoid recharts SSR issues */}
       <ChartsSection posts={posts} getLabel={getLabel} getColor={getColor} />
 
-      {/* ================================================================== */}
-      {/* NEW CONSUMER SURFACE: Intelligence & Research Lab (the money maker) */}
-      {/* Makes the entire Hook Intelligence engine (Apify + RL + RAG) visible */}
-      {/* and valuable to paying users. Leads categorization = actionable ROI. */}
-      {/* ================================================================== */}
+      {/* Content intelligence: ranked hooks + who your posts are reaching. */}
       <section id="intelligence" className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-4">
           <div>
             <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
               <Sparkles className="h-5 w-5 text-accent-primary" />
-              Intelligence & Research Lab
+              Content intelligence
             </h2>
             <p className="text-sm text-text-secondary mt-1">
-              Live high-converting hooks mined + trained from the best creators. See exactly which engagers become leads.
+              Hooks ranked from top-performing posts, and a breakdown of who your content reaches.
             </p>
           </div>
           <button
@@ -190,26 +201,25 @@ export default function AnalyticsPage() {
                 });
                 const data = await res.json();
                 setResearchResult(data);
-              } catch (e) {
-                setResearchResult({ error: 'Research temporarily unavailable' });
+              } catch {
+                setResearchResult({ error: 'Research is temporarily unavailable.' });
               } finally {
                 setResearchLoading(false);
               }
             }}
             disabled={researchLoading}
-            className="flex items-center gap-2 rounded-lg bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:opacity-60 transition-colors"
+            className="flex shrink-0 items-center gap-2 rounded-lg bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:opacity-60 transition-colors"
           >
-            {researchLoading ? 'Researching...' : 'Run Fresh Research'}
+            {researchLoading ? 'Refreshing...' : 'Refresh hooks'}
             <Target className="h-4 w-4" />
           </button>
         </div>
 
-        {/* Hook Lab - Live RAG from our RL-trained dataset */}
+        {/* Hook lab */}
         <div className="rounded-xl border border-border bg-bg-secondary p-6">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="h-5 w-5 text-coral" />
-            <h3 className="font-semibold">Top Performing Hooks (live from intelligence)</h3>
-            <span className="text-xs px-2 py-0.5 rounded bg-coral/10 text-coral">RAG + RL ranked</span>
+            <h3 className="font-semibold">Top performing hooks</h3>
           </div>
 
           {hooksLoading ? (
@@ -242,7 +252,7 @@ export default function AnalyticsPage() {
               ))}
             </div>
           ) : (
-            <div className="text-sm text-text-secondary py-4">Run research or mining to populate live hooks. Your generated posts will get dramatically better.</div>
+            <div className="text-sm text-text-secondary py-4">No hooks yet. Hit &ldquo;Refresh hooks&rdquo; to pull the current top performers.</div>
           )}
 
           {researchResult && (
@@ -254,8 +264,8 @@ export default function AnalyticsPage() {
                     <span className="text-xs opacity-70">(local intelligence dataset)</span>
                   </div>
                   <p className="text-xs text-text-secondary mb-2">
-                    Surfaced high-performing hook patterns for your brief. Full closed-loop training runs via
-                    engagement sync and scheduled intelligence crons.
+                    Surfaced high-performing hook patterns for your brief. These refresh automatically as your posts
+                    collect engagement.
                   </p>
                 </>
               ) : researchResult.error ? (
@@ -272,27 +282,26 @@ export default function AnalyticsPage() {
                   <div className="text-xs bg-bg/50 p-2 rounded max-h-24 overflow-auto">{researchResult.intelligence.hooks.substring(0, 300)}...</div>
                 </div>
               )}
-              <div className="text-[10px] text-text-tertiary">Use these in Generate, or let crons + engagement sync keep training the model.</div>
+              <div className="text-[10px] text-text-tertiary">Use these in Generate, or let engagement sync keep them fresh.</div>
             </div>
           )}
         </div>
 
-        {/* Lead Categorization Insights */}
+        {/* Lead categorization insights */}
         <div className="rounded-xl border border-border bg-bg-secondary p-6">
           <div className="flex items-center gap-2 mb-3">
             <Users className="h-5 w-5 text-sage" />
-            <h3 className="font-semibold">Actionable Lead Insights</h3>
-            <span className="text-xs px-2 py-0.5 rounded bg-sage/10 text-sage">Not vanity metrics</span>
+            <h3 className="font-semibold">Who&apos;s engaging</h3>
           </div>
 
           <p className="text-sm text-text-secondary mb-4">
-            Our engagement categorizer buckets every commenter/liker into <strong>ICP • Potential Leads • Community • Other</strong>. This is how you prove your content makes money.
+            Every commenter and liker is bucketed into ICP, potential leads, community, and other, so you can see which content pulls the right audience.
           </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label: 'ICP (Ideal Customers)', count: realLeadCounts?.ICP || 0, color: 'text-coral', desc: 'Founders & decision makers' },
-              { label: 'Potential Leads', count: realLeadCounts?.['Potential Lead'] || 0, color: 'text-amber-600', desc: 'Asking questions, high intent' },
+              { label: 'ICP (ideal customers)', count: realLeadCounts?.ICP || 0, color: 'text-coral', desc: 'Founders & decision makers' },
+              { label: 'Potential leads', count: realLeadCounts?.['Potential Lead'] || 0, color: 'text-amber-600', desc: 'Asking questions, high intent' },
               { label: 'Community', count: realLeadCounts?.Community || 0, color: 'text-sage', desc: 'Creators & makers like you' },
               { label: 'Other', count: realLeadCounts?.Other || 0, color: 'text-text-tertiary', desc: 'Casual engagers' },
             ].map((bucket, i) => (
@@ -345,10 +354,9 @@ export default function AnalyticsPage() {
 function BestTimesSection({ data }: { data: TimingResult | null }) {
   return (
     <section className="bg-bg-secondary border border-border rounded-lg p-6">
-      <div className="flex items-center gap-2">
-        <Clock className="h-4 w-4 text-accent-primary" />
-        <h2 className="text-sm font-medium text-text-primary">Best times to post</h2>
-      </div>
+      <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
+        <Clock size={20} className="text-ink3" /> Best times to post
+      </h2>
 
       {!data || data.insufficientData ? (
         <p className="mt-3 text-sm text-text-secondary">
@@ -952,7 +960,7 @@ function HashtagVaultSection({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: `Analyze these hashtags for an Instagram content creator:
+          prompt: `Analyze these hashtags for a LinkedIn content creator:
 Set name: "${set.name}"
 Tags: ${set.tags}
 Pillar: ${set.pillar ?? "general"}

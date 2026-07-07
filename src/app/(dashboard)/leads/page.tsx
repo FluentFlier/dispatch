@@ -11,6 +11,7 @@ import { SignalDetail } from '@/components/leads/SignalDetail';
 import { resolveSignalOutreach } from '@/components/leads/signal-outreach';
 import { AdvancedDrawer } from '@/components/leads/AdvancedDrawer';
 import { SignalsSetup } from '@/components/leads/SignalsSetup';
+import { IcpChat } from '@/components/leads/IcpChat';
 import { LeadsHeaderActions, LeadsEmptyState } from '@/components/leads/LeadsFeedChrome';
 import type {
   DirectorySettingsRow,
@@ -562,7 +563,15 @@ export default function LeadsPage() {
       </div>
 
       {view === 'setup' ? (
-        <SignalsSetup />
+        <div className="space-y-6">
+          <IcpChat
+            settings={settings}
+            onSettingsSaved={setSettings}
+            onDiscoveryComplete={() => void loadBootstrap()}
+            toast={toast}
+          />
+          <SignalsSetup />
+        </div>
       ) : (
       <>
       <FeedFilters state={filters} onChange={setFilters} verticals={verticals} />

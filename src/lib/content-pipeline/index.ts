@@ -73,6 +73,38 @@ function stripEmDashes(text: string): string {
   return text.replace(/—/g, ' - ').replace(/–/g, '-');
 }
 
+/**
+ * Final formatting guard. The stage prompts all say "plain text, no markdown",
+ * but LLMs still leak emphasis markers, headings, and code fences — which
+ * LinkedIn and X render literally (**bold**, ## Heading), making a post look
+ * broken. Strip the markdown syntax while keeping the words. Runs once at the
+ * finalize choke point so every return path is clean. Conservative on purpose:
+ * leaves single underscores (snake_case), list dashes, and normal punctuation
+ * untouched — it only removes syntax that renders as noise on social.
+ */
+export function stripMarkdownFormatting(text: string): string {
+  return (
+    text
+      // Fenced code blocks: keep the inner code, drop the ``` fences.
+      .replace(/```[a-zA-Z0-9]*\n?([\s\S]*?)```/g, '$1')
+      // Inline code: `x` -> x
+      .replace(/`([^`\n]+)`/g, '$1')
+      // Bold/italic: **x** __x__ ***x*** -> x
+      .replace(/\*\*\*([^*\n]+)\*\*\*/g, '$1')
+      .replace(/\*\*([^*\n]+)\*\*/g, '$1')
+      .replace(/__([^_\n]+)__/g, '$1')
+      // Single-asterisk italic: *x* -> x (guard against bare/list asterisks)
+      .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![*\w])/g, '$1$2')
+      // ATX headings at line start: "## Title" -> "Title"
+      .replace(/^#{1,6}[ \t]+/gm, '')
+      // Blockquote markers at line start: "> quote" -> "quote"
+      .replace(/^[ \t]*>[ \t]?/gm, '')
+      // Collapse runs of blank lines the stripping may have opened up.
+      .replace(/\n{3,}/g, '\n\n')
+      .trim()
+  );
+}
+
 function topWeightedVertical(profile: CreatorProfileForPrompt | null): HookVertical | undefined {
   const weights = profilePillarWeights(profile?.content_pillars);
   const entries = Object.entries(weights);
@@ -289,8 +321,12 @@ function finalizeResult(
     : 0;
   const ai_score = evaluation ? evaluation.ai_slop * 10 : 0;
 
+  // Single guarantee that no markdown/em-dash noise reaches the client, whatever
+  // path produced this draft (fast, voice-off, hooks, revise loop).
+  const cleanText = stripMarkdownFormatting(stripEmDashes(text));
+
   return {
-    text,
+    text: cleanText,
     voice_match_score,
     ai_score,
     revised,
