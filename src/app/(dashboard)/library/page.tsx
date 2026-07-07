@@ -47,12 +47,10 @@ export default function LibraryPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const client = getInsforgeClient();
-      const { data: userData } = await client.auth.getCurrentUser();
-      if (!userData?.user) return;
-      const uid = userData.user.id;
-      setUserId(uid);
-
+      // Posts load via /api/posts, which authenticates from the httpOnly session
+      // cookie server-side. Do NOT gate this on the browser SDK's getCurrentUser():
+      // right after the onboarding redirect the browser session can lag the cookie,
+      // and the old early-return here left freshly imported posts invisible.
       const res = await fetch(`/api/posts?page=1&limit=${PAGE_SIZE}`);
       if (res.ok) {
         const data = await res.json();
@@ -61,13 +59,20 @@ export default function LibraryPage() {
         setPage(1);
       }
 
-      const { data: seriesData } = await client.database
-        .from('series')
-        .select('*')
-        .eq('user_id', uid)
-        .order('name', { ascending: true });
-
-      setSeries((seriesData as Series[]) ?? []);
+      // Best-effort: user id + series are browser-RLS scoped. If the browser
+      // session isn't ready yet, skip them — posts above already rendered.
+      const client = getInsforgeClient();
+      const { data: userData } = await client.auth.getCurrentUser();
+      const uid = userData?.user?.id;
+      if (uid) {
+        setUserId(uid);
+        const { data: seriesData } = await client.database
+          .from('series')
+          .select('*')
+          .eq('user_id', uid)
+          .order('name', { ascending: true });
+        setSeries((seriesData as Series[]) ?? []);
+      }
     } catch (err) {
       console.error('Failed to fetch library data', err);
     } finally {
