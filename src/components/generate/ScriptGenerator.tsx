@@ -1,14 +1,14 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback, type KeyboardEvent, useMemo } from 'react';
-import { ArrowUp, Loader2 } from 'lucide-react';
+import { ArrowUp, Loader2, Square, Plus } from 'lucide-react';
 import { MicDictate } from './MicDictate';
 import { assembleGeneratePrompt } from '@/lib/generate-prompt';
 import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
 import { usePillars } from '@/hooks/usePillars';
-import { PLATFORMS, PLATFORM_LABELS, normalizeDashboardPlatform, type DashboardPlatform } from '@/lib/constants';
+import { DASHBOARD_PLATFORMS, PLATFORM_LABELS, type DashboardPlatform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
-import { useCreatorPreferences, POST_LENGTH_CONFIG } from '@/hooks/useCreatorPreferences';
+import { useCreatorPreferences, POST_LENGTH_CONFIG, type PostLength } from '@/hooks/useCreatorPreferences';
 import {
   extractTagMentions,
   mergeMentions,
@@ -70,6 +70,20 @@ type ChatMessage =
   | { id: string; role: 'user'; content: string }
   | { id: string; role: 'assistant'; content: string; voiceMetrics?: GenerateVoiceMetrics };
 
+type GenStage = 'thinking' | 'writing' | 'revising';
+
+type StreamEvent =
+  | { type: 'stage'; stage: GenStage }
+  | { type: 'token'; delta: string }
+  | { type: 'done'; text: string; used_hook_ids?: string[] }
+  | { type: 'error'; error: string };
+
+const STAGE_LABELS: Record<GenStage, string> = {
+  thinking: 'Thinking through the angle…',
+  writing: 'Writing your draft…',
+  revising: 'Reworking the draft…',
+};
+
 function isPlatform(value: unknown): value is DashboardPlatform {
   return value === 'twitter' || value === 'linkedin';
 }
@@ -87,42 +101,45 @@ async function fetchDefaultPlatform(): Promise<DashboardPlatform> {
   }
 }
 
-async function callGenerate(
-  prompt: string,
-  platform: DashboardPlatform,
-  useVoice: boolean,
-  mentions: string[],
-): Promise<{ text: string; voiceMetrics: GenerateVoiceMetrics }> {
-  const res = await fetchWithAuth('/api/generate', {
+/**
+ * Streams a generation over SSE, calling `onEvent` for each parsed event.
+ * Throws on transport/HTTP errors and on server-sent `error` events.
+ */
+async function streamGenerate(
+  payload: Record<string, unknown>,
+  onEvent: (ev: StreamEvent) => void,
+  signal: AbortSignal,
+): Promise<void> {
+  const res = await fetchWithAuth('/api/generate/stream', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt,
-      platform,
-      topic: prompt.slice(0, 200),
-      useVoice,
-      ...(mentions.length > 0 ? { mentions } : {}),
-    }),
+    body: JSON.stringify(payload),
+    signal,
   });
-  if (!res.ok) {
+  if (!res.ok || !res.body) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.error || 'Generation failed');
+    throw new Error((body as { error?: string }).error || 'Generation failed');
   }
-  const data = await res.json();
-  return {
-    text: data.text,
-    voiceMetrics: {
-      voice_match_score: data.voice_match_score,
-      ai_score: data.ai_score,
-      iterations: data.iterations,
-      revised: data.revised,
-      evaluation: data.evaluation,
-      used_hook_ids: data.used_hook_ids,
-      hook_explanations: data.hook_explanations,
-      pipeline_stages: data.pipeline_stages,
-      humanize_passes: data.humanize_passes,
-    },
-  };
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split('\n\n');
+    buffer = events.pop() ?? '';
+    for (const evt of events) {
+      const line = evt.split('\n').find((l) => l.startsWith('data:'));
+      if (!line) continue;
+      try {
+        onEvent(JSON.parse(line.slice(5).trim()) as StreamEvent);
+      } catch {
+        // Ignore keepalive/comment lines and malformed frames.
+      }
+    }
+  }
 }
 
 function newId(): string {
@@ -176,12 +193,12 @@ export function ScriptGenerator({
     [mentionSeed, initialMentions],
   );
   const { pillars: pillarList, loading: pillarsLoading, getLabel } = usePillars();
-  const { preferredPostLength, voiceEnabled, loading: prefLoading } = useCreatorPreferences();
+  const { preferredPostLength, voiceEnabled, loading: prefLoading, savePreferredPostLength } = useCreatorPreferences();
 
   const [pillar, setPillar] = useState(initialPillar);
   const [input, setInput] = useState('');
   const [platform, setPlatform] = useState<DashboardPlatform>(initialPlatform ?? 'linkedin');
-  const [postLength, setPostLength] = useState(preferredPostLength);
+  const [postLength, setPostLength] = useState<PostLength>(preferredPostLength);
   const [useVoice, setUseVoice] = useState(voiceEnabled);
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     if (initialResult) {
@@ -194,12 +211,19 @@ export function ScriptGenerator({
     return [];
   });
   const [loading, setLoading] = useState(false);
+  const [streamingId, setStreamingId] = useState<string | null>(null);
+  const [stage, setStage] = useState<GenStage | null>(null);
   const [error, setError] = useState('');
   const autoGenTriggered = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  // Token flushing is batched to one rAF tick so a fast stream doesn't trigger a
+  // React re-render (and JSON.stringify to sessionStorage) on every single token.
+  const flushRef = useRef<{ id: string; text: string } | null>(null);
+  const rafRef = useRef<number | null>(null);
 
-  const lastDraft = [...messages].reverse().find((m) => m.role === 'assistant')?.content ?? '';
+  const lastDraft = [...messages].reverse().find((m) => m.role === 'assistant' && m.content.trim())?.content ?? '';
   const lastAssistantIdx = messages.findLastIndex((m) => m.role === 'assistant');
 
   useEffect(() => {
@@ -224,9 +248,12 @@ export function ScriptGenerator({
     else if (!pillarList.some((p) => p.value === pillar)) setPillar(pillarList[0].value);
   }, [pillarsLoading, pillarList, pillar]);
 
+  // Persist chat, but never mid-stream: writing a growing draft on every token
+  // would stringify the whole history hundreds of times per generation.
   useEffect(() => {
+    if (streamingId) return;
     try { sessionStorage.setItem(CHAT_KEY, JSON.stringify(messages)); } catch {}
-  }, [messages]);
+  }, [messages, streamingId]);
 
   // Scroll only the chat pane — scrollIntoView would also move ancestor
   // containers and jump the whole page down to the latest draft.
@@ -236,56 +263,135 @@ export function ScriptGenerator({
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages, loading]);
 
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const scheduleFlush = useCallback((id: string, text: string) => {
+    flushRef.current = { id, text };
+    if (rafRef.current != null) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      const pending = flushRef.current;
+      if (!pending) return;
+      setMessages((prev) =>
+        prev.map((m) => (m.id === pending.id && m.role === 'assistant' ? { ...m, content: pending.text } : m)),
+      );
+    });
+  }, []);
+
+  const finalizeMessage = useCallback((id: string, text: string, hookIds: string[]) => {
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+    flushRef.current = null;
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === id && m.role === 'assistant'
+          ? { ...m, content: text, voiceMetrics: { used_hook_ids: hookIds } }
+          : m,
+      ),
+    );
+  }, []);
+
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
     if (!trimmed || loading || pillarsLoading || prefLoading || !pillar) return;
 
+    const priorDraft = [...messages].reverse().find((m) => m.role === 'assistant' && m.content.trim())?.content;
+    const info = pillarList.find((p) => p.value === pillar);
+    const pillarLabel = info?.label ?? getLabel(pillar);
+    const mode: 'draft' | 'revise' = priorDraft ? 'revise' : 'draft';
+
+    let assembled: string;
+    if (priorDraft) {
+      assembled = assembleGeneratePrompt({
+        base: `Revise this ${platform} post based on the creator's latest message. Return ONLY the updated post — no commentary, no labels.`,
+        thoughts: `CURRENT DRAFT:\n${priorDraft}\n\nCREATOR SAID:\n${trimmed}`,
+        lengthHint: POST_LENGTH_CONFIG[postLength].hint,
+      });
+    } else {
+      const base = buildFirstDraftBase(pillar, pillarLabel, platform, info?.promptTemplate);
+      assembled = assembleGeneratePrompt({
+        base,
+        thoughts: trimmed,
+        lengthHint: POST_LENGTH_CONFIG[postLength].hint,
+      });
+    }
+    const mentions = mergeMentions(stableInitialMentions, extractTagMentions(trimmed));
+
     const userMsg: ChatMessage = { id: newId(), role: 'user', content: trimmed };
-    setMessages((prev) => [...prev, userMsg]);
+    const assistantId = newId();
+    setMessages((prev) => [...prev, userMsg, { id: assistantId, role: 'assistant', content: '' }]);
     setInput('');
-    setLoading(true);
     setError('');
+    setLoading(true);
+    setStreamingId(assistantId);
+    setStage(mode === 'revise' ? 'revising' : 'thinking');
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+    let acc = '';
+    let finalized = false;
 
     try {
-      const info = pillarList.find((p) => p.value === pillar);
-      const pillarLabel = info?.label ?? getLabel(pillar);
-      const priorDraft = [...messages].reverse().find((m) => m.role === 'assistant')?.content;
-
-      let assembled: string;
-      if (priorDraft) {
-        assembled = assembleGeneratePrompt({
-          base: `Revise this ${platform} post based on the creator's latest message. Return ONLY the updated post — no commentary, no labels.`,
-          thoughts: `CURRENT DRAFT:\n${priorDraft}\n\nCREATOR SAID:\n${trimmed}`,
-          lengthHint: POST_LENGTH_CONFIG[postLength].hint,
-        });
-      } else {
-        const base = buildFirstDraftBase(pillar, pillarLabel, platform, info?.promptTemplate);
-        assembled = assembleGeneratePrompt({
-          base,
-          thoughts: trimmed,
-          lengthHint: POST_LENGTH_CONFIG[postLength].hint,
-        });
+      await streamGenerate(
+        {
+          prompt: assembled,
+          topic: assembled.slice(0, 200),
+          platform,
+          useVoice,
+          mode,
+          ...(mentions.length > 0 ? { mentions } : {}),
+        },
+        (ev) => {
+          if (ev.type === 'stage') {
+            setStage(ev.stage);
+          } else if (ev.type === 'token') {
+            acc += ev.delta;
+            scheduleFlush(assistantId, acc);
+          } else if (ev.type === 'done') {
+            finalized = true;
+            finalizeMessage(assistantId, ev.text || acc, ev.used_hook_ids ?? []);
+          } else if (ev.type === 'error') {
+            throw new Error(ev.error);
+          }
+        },
+        controller.signal,
+      );
+      // Stream closed without a done event (e.g. user hit Stop): keep partial text.
+      if (!finalized) {
+        if (acc.trim()) {
+          finalizeMessage(assistantId, acc, []);
+        } else {
+          // Nothing streamed yet — drop the exchange and hand the prompt back.
+          setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
+          setInput(trimmed);
+        }
       }
-
-      const mentions = mergeMentions(stableInitialMentions, extractTagMentions(trimmed));
-      const result = await callGenerate(assembled, platform, useVoice, mentions);
-      const assistantMsg: ChatMessage = {
-        id: newId(),
-        role: 'assistant',
-        content: result.text,
-        voiceMetrics: result.voiceMetrics,
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Something went wrong');
-      setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
-      setInput(trimmed);
+      const aborted = controller.signal.aborted;
+      if (aborted && acc.trim()) {
+        finalizeMessage(assistantId, acc, []);
+      } else {
+        // Aborted-with-nothing, or a real error: drop the exchange, restore input.
+        if (!aborted) setError(e instanceof Error ? e.message : 'Something went wrong');
+        setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
+        setInput(trimmed);
+      }
     } finally {
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
       setLoading(false);
+      setStreamingId(null);
+      setStage(null);
+      abortRef.current = null;
     }
   }, [
     loading, pillarsLoading, prefLoading, pillar, pillarList, getLabel,
     platform, postLength, useVoice, stableInitialMentions, messages,
+    scheduleFlush, finalizeMessage,
   ]);
 
   useEffect(() => {
@@ -309,6 +415,23 @@ export function ScriptGenerator({
     );
   }
 
+  const stopGeneration = useCallback(() => {
+    abortRef.current?.abort();
+  }, []);
+
+  const newChat = useCallback(() => {
+    abortRef.current?.abort();
+    setMessages([]);
+    setInput('');
+    setError('');
+    try { sessionStorage.removeItem(CHAT_KEY); } catch {}
+  }, []);
+
+  function changeLength(next: PostLength) {
+    setPostLength(next);
+    void savePreferredPostLength(next);
+  }
+
   const platformLabel = PLATFORM_LABELS[platform];
   const isEmpty = messages.length === 0 && !loading;
 
@@ -326,14 +449,38 @@ export function ScriptGenerator({
           </div>
         )}
 
-        {messages.map((msg, idx) =>
-          msg.role === 'user' ? (
-            <div key={msg.id} className="flex justify-end">
-              <div className="max-w-[85%] rounded-2xl bg-ink px-4 py-2.5 text-[15px] leading-relaxed text-white">
-                {msg.content}
+        {messages.map((msg, idx) => {
+          if (msg.role === 'user') {
+            return (
+              <div key={msg.id} className="flex justify-end">
+                <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-ink px-4 py-2.5 text-[15px] leading-relaxed text-white">
+                  {msg.content}
+                </div>
               </div>
-            </div>
-          ) : (
+            );
+          }
+
+          const isStreaming = msg.id === streamingId;
+          if (isStreaming) {
+            return (
+              <div key={msg.id} className="flex justify-start">
+                <div className="w-full max-w-full space-y-2">
+                  <div className="flex items-center gap-2 text-[12px] text-ink3">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    {STAGE_LABELS[stage ?? 'thinking']}
+                  </div>
+                  {msg.content && (
+                    <div className="rounded-2xl border border-hair bg-paper p-4 text-[15px] leading-relaxed text-ink whitespace-pre-wrap">
+                      {msg.content}
+                      <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-[3px] animate-pulse bg-ink" />
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          }
+
+          return (
             <div key={msg.id} className="flex justify-start">
               {idx === lastAssistantIdx ? (
                 <div className="w-full max-w-full">
@@ -348,22 +495,13 @@ export function ScriptGenerator({
                   />
                 </div>
               ) : (
-                <div className="max-w-[90%] rounded-2xl border border-hair bg-paper2 px-4 py-3 text-[14px] leading-relaxed text-ink2 whitespace-pre-wrap">
+                <div className="max-w-[90%] whitespace-pre-wrap rounded-2xl border border-hair bg-paper2 px-4 py-3 text-[14px] leading-relaxed text-ink2">
                   {msg.content}
                 </div>
               )}
             </div>
-          ),
-        )}
-
-        {loading && (
-          <div className="flex justify-start">
-            <div className="flex items-center gap-2 rounded-2xl border border-hair bg-paper px-4 py-3 text-sm text-ink3">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Drafting…
-            </div>
-          </div>
-        )}
+          );
+        })}
 
         {error && (
           <p className="text-center text-[13px] text-accent-primary">{error}</p>
@@ -373,6 +511,61 @@ export function ScriptGenerator({
       </div>
 
       <div className="sticky bottom-0 rounded-2xl border border-hair bg-paper shadow-soft">
+        <div className="flex flex-wrap items-center gap-2 border-b border-hair px-3 py-2 text-[12px]">
+          <select
+            value={pillar}
+            onChange={(e) => setPillar(e.target.value)}
+            disabled={pillarsLoading}
+            aria-label="Content pillar"
+            className="rounded-full border border-hair bg-paper2 px-2.5 py-1 text-ink2 focus:outline-none disabled:opacity-50"
+          >
+            {pillarList.map((p) => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+          </select>
+
+          <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
+            {DASHBOARD_PLATFORMS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPlatform(p)}
+                className={`rounded-full px-2.5 py-0.5 transition-colors ${
+                  platform === p ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
+                }`}
+              >
+                {PLATFORM_LABELS[p]}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
+            {(Object.keys(POST_LENGTH_CONFIG) as PostLength[]).map((len) => (
+              <button
+                key={len}
+                type="button"
+                onClick={() => changeLength(len)}
+                className={`rounded-full px-2.5 py-0.5 transition-colors ${
+                  postLength === len ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
+                }`}
+              >
+                {POST_LENGTH_CONFIG[len].label}
+              </button>
+            ))}
+          </div>
+
+          {messages.length > 0 && (
+            <button
+              type="button"
+              onClick={newChat}
+              className="ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-ink3 transition-colors hover:text-ink2"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              New
+            </button>
+          )}
+        </div>
+
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -380,26 +573,33 @@ export function ScriptGenerator({
           rows={2}
           autoFocus
           placeholder={lastDraft ? 'Ask for changes — shorter, punchier hook, add a CTA…' : 'What do you want to post about?'}
-          className="w-full resize-none rounded-t-2xl bg-transparent px-4 py-3 font-body text-[15px] leading-relaxed text-ink placeholder:text-ink3 focus:outline-none"
+          className="w-full resize-none bg-transparent px-4 py-3 font-body text-[15px] leading-relaxed text-ink placeholder:text-ink3 focus:outline-none"
         />
         <div className="flex items-center justify-between border-t border-hair px-3 py-2">
           <MicDictate
             onText={(t) => setInput((cur) => (cur ? `${cur} ${t}` : t))}
             title="Dictate"
           />
-          <button
-            type="button"
-            onClick={() => void sendMessage(input)}
-            disabled={loading || !input.trim() || pillarsLoading}
-            aria-label="Send"
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-white transition-opacity hover:opacity-90 disabled:opacity-40"
-          >
-            {loading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
+          {loading ? (
+            <button
+              type="button"
+              onClick={stopGeneration}
+              aria-label="Stop"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-white transition-opacity hover:opacity-90"
+            >
+              <Square className="h-3.5 w-3.5 fill-current" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => void sendMessage(input)}
+              disabled={!input.trim() || pillarsLoading}
+              aria-label="Send"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-ink text-white transition-opacity hover:opacity-90 disabled:opacity-40"
+            >
               <ArrowUp className="h-4 w-4" />
-            )}
-          </button>
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -23,7 +23,7 @@ export const FEED_PAGE_LIMIT = 200;
 export interface FeedFilters {
   status?: string;
   source?: string;
-  kind?: 'signal' | 'directory';
+  kind?: 'signal' | 'directory' | 'engager';
   signalType?: string;
   limit?: number;
 }

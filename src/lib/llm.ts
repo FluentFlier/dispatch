@@ -302,3 +302,155 @@ export async function chatCompletion(
     throw err;
   }
 }
+
+/** Called for each text delta as it streams in. */
+export type StreamTokenHandler = (delta: string) => void;
+
+/**
+ * Streams a chat completion from a specific provider, invoking `onToken` for
+ * every content delta and returning the fully accumulated text. Parses the
+ * OpenAI-compatible SSE format (`data: {json}\n\n`, terminated by `[DONE]`),
+ * which Groq, OpenAI, Together, Fireworks and the HuggingFace router all speak.
+ */
+async function callProviderStream(
+  provider: Provider,
+  systemPrompt: string,
+  userPrompt: string,
+  options: ChatCompletionOptions,
+  onToken: StreamTokenHandler,
+): Promise<string> {
+  const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
+  const body: Record<string, unknown> = {
+    model: provider.model,
+    stream: true,
+    messages: [
+      { role: 'system', content: systemPrompt },
+      { role: 'user', content: userPrompt },
+    ],
+  };
+  if (isReasoningModel(provider.model)) {
+    body.max_completion_tokens = maxTokens;
+  } else {
+    body.max_tokens = maxTokens;
+    body.temperature = options.temperature ?? DEFAULT_TEMPERATURE;
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${provider.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${provider.apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new LlmError(
+      `LLM request failed: ${err instanceof Error ? err.message : String(err)}`,
+      503,
+    );
+  }
+
+  if (!response.ok || !response.body) {
+    const bodyText = await response.text().catch(() => '');
+    let detail = bodyText;
+    try {
+      const parsed = JSON.parse(bodyText);
+      detail = parsed?.error?.message ?? parsed?.error ?? bodyText.slice(0, 200);
+    } catch {
+      detail = bodyText.slice(0, 200);
+    }
+    throw new LlmError(`LLM provider returned ${response.status}: ${detail}`, response.status);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let full = '';
+
+  const consume = (chunk: string): void => {
+    buffer += chunk;
+    // SSE events are newline-delimited; keep the trailing partial line buffered.
+    const lines = buffer.split('\n');
+    buffer = lines.pop() ?? '';
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const data = trimmed.slice(5).trim();
+      if (!data || data === '[DONE]') continue;
+      try {
+        const json = JSON.parse(data) as {
+          choices?: Array<{ delta?: { content?: string } }>;
+        };
+        const delta = json.choices?.[0]?.delta?.content;
+        if (typeof delta === 'string' && delta.length > 0) {
+          full += delta;
+          onToken(delta);
+        }
+      } catch {
+        // Ignore malformed/partial JSON — the next chunk completes it.
+      }
+    }
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    consume(decoder.decode(value, { stream: true }));
+  }
+  consume(decoder.decode());
+
+  if (!full) throw new LlmError('Empty streamed response from LLM provider', 502);
+  return full;
+}
+
+/**
+ * Streaming counterpart to {@link chatCompletion}. Invokes `onToken` for every
+ * delta and resolves with the full text. Degrades gracefully: on quota it fails
+ * over to the fallback provider, and if streaming is unavailable (no provider or
+ * a non-quota transport error before any token) it falls back to a single
+ * non-streamed completion and emits the whole result at once — so callers always
+ * get text and never have to special-case provider capabilities.
+ */
+export async function chatCompletionStream(
+  systemPrompt: string,
+  userPrompt: string,
+  options: ChatCompletionOptions,
+  onToken: StreamTokenHandler,
+): Promise<string> {
+  if ((await checkGlobalLlmBudget()) === 'blocked') {
+    throw new LlmError('Global daily AI budget reached. Generation paused to protect credits.', 429);
+  }
+
+  const primary = getPrimaryProvider(options.model);
+  if (!primary) {
+    const text = await generateContentHF(systemPrompt, userPrompt);
+    if (text) onToken(text);
+    return text;
+  }
+
+  const fallback = getFallbackProvider(primary);
+  let emitted = 0;
+  const counted: StreamTokenHandler = (delta) => {
+    emitted += 1;
+    onToken(delta);
+  };
+
+  try {
+    return await callProviderStream(primary, systemPrompt, userPrompt, options, counted);
+  } catch (err) {
+    // Only recover if nothing has streamed yet — otherwise we'd duplicate output.
+    if (emitted === 0) {
+      if (err instanceof LlmError && err.isQuota && fallback) {
+        return callProviderStream(fallback, systemPrompt, userPrompt, { ...options, model: undefined }, counted);
+      }
+      // Non-quota transport failure (e.g. provider without SSE support): fall
+      // back to a single blocking completion so the user still gets a draft.
+      const text = await chatCompletion(systemPrompt, userPrompt, options);
+      if (text) onToken(text);
+      return text;
+    }
+    throw err;
+  }
+}

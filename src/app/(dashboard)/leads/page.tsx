@@ -8,6 +8,7 @@ import { FeedFilters, type FeedFilterState } from '@/components/leads/FeedFilter
 import { UnifiedFeed } from '@/components/leads/UnifiedFeed';
 import { LeadDetail } from '@/components/leads/LeadDetail';
 import { SignalDetail } from '@/components/leads/SignalDetail';
+import { EngagerDetail, type EngagerDetailAction } from '@/components/leads/EngagerDetail';
 import { resolveSignalOutreach } from '@/components/leads/signal-outreach';
 import { AdvancedDrawer } from '@/components/leads/AdvancedDrawer';
 import { SignalsSetup } from '@/components/leads/SignalsSetup';
@@ -19,6 +20,7 @@ import type {
   SignalLeadWithContacts,
 } from '@/lib/signals/types';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
+import type { WarmContactRow } from '@/lib/social-graph/types';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import {
   busyActionFor as deriveBusyAction,
@@ -90,6 +92,10 @@ export default function LeadsPage() {
   // signal + directory configuration surface folded in from the retired /signals page.
   const [view, setView] = useState<'feed' | 'setup'>('feed');
   const [companyById, setCompanyById] = useState<Record<string, YcCompanyDetail | 'loading' | 'error'>>({});
+  // Full engager records, loaded lazily when an engager card is opened.
+  const [engagersById, setEngagersById] = useState<Record<string, WarmContactRow | 'loading'>>({});
+  // Inline safety-guard notice per engager (expected 422 block on send).
+  const [engagerNotices, setEngagerNotices] = useState<Record<string, string>>({});
   const [draftAll, setDraftAll] = useState<{ done: number; total: number } | null>(null);
   // True when the feed is the built-in demo set (no live scraping key); badged so
   // a user never mistakes seed companies for real leads.
@@ -229,6 +235,32 @@ export default function LeadsPage() {
       return next;
     });
   }, []);
+
+  // Load the full engager record the first time an engager card is opened, so
+  // the detail pane can show the dossier + current draft. Mirrors companyById.
+  useEffect(() => {
+    if (!selectedId || engagersById[selectedId]) return;
+    const card = cards.find((c) => c.id === selectedId);
+    if (!card || card.kind !== 'engager') return;
+    const id = selectedId;
+    setEngagersById((m) => ({ ...m, [id]: 'loading' }));
+    fetch(`/api/social-graph/warm-contacts/${id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const contact = (d.contact as WarmContactRow) ?? null;
+        setEngagersById((m) => ({ ...m, [id]: contact ?? 'loading' }));
+        if (contact?.outreach_draft) {
+          setDrafts((dd) => (dd[id] ? dd : { ...dd, [id]: contact.outreach_draft as string }));
+        }
+      })
+      .catch(() =>
+        setEngagersById((m) => {
+          const next = { ...m };
+          delete next[id];
+          return next;
+        }),
+      );
+  }, [selectedId, engagersById, cards]);
 
   // --- Followed helpers ---
   const isFollowed = useCallback(
@@ -724,6 +756,114 @@ export default function LeadsPage() {
     }
   };
 
+  // --- Actions (engager cards) ---
+  // Reload one engager's full record and reflect its stage/status on the feed
+  // card so the list + detail stay consistent without a full refetch.
+  const refreshEngager = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/social-graph/warm-contacts/${id}`);
+      const data = await res.json();
+      const contact = (data.contact as WarmContactRow) ?? null;
+      if (!contact) return;
+      setEngagersById((m) => ({ ...m, [id]: contact }));
+      if (contact.outreach_draft) setDrafts((d) => ({ ...d, [id]: contact.outreach_draft as string }));
+      setCards((prev) =>
+        prev.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                nurtureStage: contact.nurture_stage,
+                status: contact.status === 'sent' ? 'sent' : contact.status === 'drafted' ? 'drafted' : c.status,
+                score: typeof contact.priority_score === 'number' ? contact.priority_score : c.score,
+              }
+            : c,
+        ),
+      );
+    } catch {
+      // Non-fatal: the card keeps its prior state.
+    }
+  }, []);
+
+  const handleEngagerPlan = async (id: string) => {
+    setBusy({ id, action: 'plan' });
+    setEngagerNotices((n) => {
+      const next = { ...n };
+      delete next[id];
+      return next;
+    });
+    try {
+      const res = await fetch(`/api/social-graph/warm-contacts/${id}/plan`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Plan failed');
+      await refreshEngager(id);
+      toast(
+        data.path === 'comment'
+          ? 'Sequence started — value-add comment queued.'
+          : 'Sequence started — connect note drafted.',
+      );
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not start sequence.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleEngagerSend = async (id: string, kind: 'connect' | 'dm') => {
+    setBusy({ id, action: kind });
+    setEngagerNotices((n) => {
+      const next = { ...n };
+      delete next[id];
+      return next;
+    });
+    try {
+      // Persist any inline edits to the draft before sending.
+      const draft = drafts[id];
+      if (draft?.trim()) {
+        await fetch(`/api/social-graph/warm-contacts/${id}`, {
+          method: 'PATCH',
+          headers: jsonHeaders,
+          body: JSON.stringify({ draft }),
+        }).catch(() => {});
+      }
+      const path = kind === 'connect' ? 'send' : 'send-dm';
+      const res = await fetch(`/api/social-graph/warm-contacts/${id}/${path}`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify(kind === 'connect' ? { note: draft } : { message: draft }),
+      });
+      const data = await res.json();
+      if (res.status === 429) {
+        setEngagerNotices((n) => ({
+          ...n,
+          [id]: data.error || 'Sending is blocked by your safety settings right now.',
+        }));
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || 'send failed');
+      await refreshEngager(id);
+      toast(kind === 'connect' ? 'Connect invite sent.' : 'Follow-up DM sent.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not send.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleEngagerDismiss = async (id: string) => {
+    setBusy({ id, action: 'dismiss' });
+    try {
+      const res = await fetch(`/api/social-graph/warm-contacts/${id}/dismiss`, { method: 'POST' });
+      if (!res.ok) throw new Error();
+      setCards((prev) => prev.filter((c) => c.id !== id));
+      if (selectedId === id) setSelectedId(null);
+      toast('Engager dismissed.');
+    } catch {
+      toast('Could not dismiss.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   // --- Selection resolution ---
   const selectedCard = cards.find((c) => c.id === selectedId) ?? null;
   const selectedLead = selectedId ? leadsById[selectedId] ?? null : null;
@@ -903,6 +1043,19 @@ export default function LeadsPage() {
           <div className="lg:col-span-3 border border-border rounded-lg bg-bg-secondary p-5">
             {!selectedCard ? (
               <div className="flex items-center justify-center h-full text-text-tertiary text-sm">Select a lead to review.</div>
+            ) : selectedCard.kind === 'engager' ? (
+              <EngagerDetail
+                card={selectedCard}
+                contact={engagersById[selectedCard.id] ?? null}
+                draft={drafts[selectedCard.id] ?? ''}
+                onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedCard.id]: v }))}
+                busyAction={busyActionFor(selectedCard.id) as EngagerDetailAction | null}
+                notice={engagerNotices[selectedCard.id] ?? null}
+                onPlan={() => handleEngagerPlan(selectedCard.id)}
+                onSendConnect={() => handleEngagerSend(selectedCard.id, 'connect')}
+                onSendDm={() => handleEngagerSend(selectedCard.id, 'dm')}
+                onDismiss={() => handleEngagerDismiss(selectedCard.id)}
+              />
             ) : selectedCard.kind === 'directory' && selectedLead ? (
               <LeadDetail
                 lead={selectedLead}
