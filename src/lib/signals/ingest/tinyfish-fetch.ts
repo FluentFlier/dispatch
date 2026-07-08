@@ -47,11 +47,22 @@ export function isTinyFishConfigured(): boolean {
 }
 
 /**
+ * True only when the demo-seed switch is explicitly on. The fabricated
+ * SEED_DIRECTORY_LEADS set (fictional companies with dead LinkedIn URLs) must
+ * NEVER leak into a real workspace feed, so it is returned only behind this
+ * explicit flag, never as a silent fallback for a missing scraper key.
+ */
+export function isDemoSeedEnabled(): boolean {
+  return process.env.SIGNALS_DEMO_SEED === '1';
+}
+
+/**
  * Fetches structured leads for one directory via the TinyFish Agent REST
  * endpoint. We wrap REST directly (not an SDK) so we own retries, backoff, and
  * the per-directory goals (see DIRECTORY_QUERIES). When no API key is
- * configured, falls back to a deterministic seed set so the full pipeline is
- * testable end-to-end without live scraping — swap in creds to go live.
+ * configured, returns an empty array for a real workspace; the deterministic
+ * seed set is returned ONLY behind the explicit SIGNALS_DEMO_SEED flag (demo /
+ * offline testing), never as a silent fallback — swap in creds to go live.
  *
  * Retries to a target: because a single run is unreliable, it runs up to
  * MAX_ATTEMPTS times and accumulates unique companies across runs, breaking once
@@ -66,10 +77,15 @@ export async function fetchDirectoryLeads(
   if (!config) throw new DirectoryScrapeError(source, `No query config for source ${source}`);
 
   if (!isTinyFishConfigured()) {
-    // Seed path: exercises dedupe/rename/resolve/score/draft without live TinyFish.
-    // (TINYFISH_API_KEY doubles as the "live scraping enabled" switch; the YC
-    // Algolia path below needs no key of its own but stays gated for offline tests.)
-    return SEED_DIRECTORY_LEADS.filter((l) => l.source === source);
+    // TINYFISH_API_KEY doubles as the "live scraping enabled" switch. When it is
+    // absent, only the intentional demo path may return the fabricated seed set
+    // (behind SIGNALS_DEMO_SEED); a real workspace instead sees a genuine empty
+    // state so fictional companies with dead LinkedIn URLs never leak into a
+    // real feed. The YC Algolia path below also stays gated behind the key.
+    if (isDemoSeedEnabled()) {
+      return SEED_DIRECTORY_LEADS.filter((l) => l.source === source);
+    }
+    return [];
   }
 
   // Hybrid ingest: YC directory comes from YC's Algolia index (deterministic,

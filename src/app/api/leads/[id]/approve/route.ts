@@ -25,7 +25,11 @@ export async function POST(
   const body = (await request.json().catch(() => ({}))) as {
     channel?: 'linkedin_connect' | 'linkedin_dm' | 'x_dm' | 'gmail';
     emailOptIn?: boolean;
+    // The (possibly edited) draft the user is approving. When it differs from
+    // the stored model draft, the difference is captured as edit feedback.
+    messageText?: string;
   };
+  const messageText = typeof body.messageText === 'string' ? body.messageText.trim() : undefined;
 
   try {
     const client = getServerClient();
@@ -44,6 +48,7 @@ export async function POST(
       leadId: params.id,
       channel: body.channel ?? 'linkedin_connect',
       emailOptIn: body.emailOptIn,
+      messageText: messageText || undefined,
     });
 
     if (!result.success) {

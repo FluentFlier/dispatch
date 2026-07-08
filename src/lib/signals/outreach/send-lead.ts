@@ -17,6 +17,7 @@ import {
 import { getXUnipileAccountId, resolveXProfile, sendXDirectMessage } from '@/lib/signals/outreach/unipile-x';
 import { sendGmailEmail } from '@/lib/composio/actions/gmail';
 import { getIntegration } from '@/lib/signals/integrations/store';
+import { recordOutreachEdit } from '@/lib/signals/outreach/edit-feedback';
 import type { LeadPlaybook, OutreachChannel, SignalLeadWithContacts } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -93,13 +94,22 @@ export async function sendLeadOutreach(
     return { success: false, error: 'No reachable contact for this lead.' };
   }
 
-  return channel === 'gmail'
+  const result = await (channel === 'gmail'
     ? sendLeadEmail(client, input, lead)
     : channel === 'x_dm'
       ? sendLeadX(client, input, lead)
       : channel === 'linkedin_dm'
         ? sendLeadLinkedInDm(client, input, lead)
-        : sendLeadLinkedIn(client, input, lead);
+        : sendLeadLinkedIn(client, input, lead));
+
+  // Edit-feedback loop: when the user rewrote the model draft before sending,
+  // capture the model -> edited pair (workspace-scoped) so future drafts learn
+  // the user's style. Best-effort; never blocks or fails the send.
+  if (result.success && input.messageText) {
+    await recordOutreachEdit(client, workspaceId, leadId, lead.outreach?.draft_text ?? null, input.messageText);
+  }
+
+  return result;
 }
 
 // --- LinkedIn connection request ---
@@ -142,7 +152,10 @@ async function sendLeadLinkedIn(
     channel: 'linkedin_connect',
     lead_id: leadId,
     social_account_id: accountId,
-    metadata: { linkedin_identifier: identifier },
+    // Surface whether the target LinkedIn was verified against Unipile at
+    // resolve time. Unverified does NOT block the send (per product decision),
+    // but it is recorded so an auto-send to an unchecked URL is never silent.
+    metadata: { linkedin_identifier: identifier, linkedin_verified: contact?.linkedin_verified === true },
   });
 
   let profile;
@@ -248,7 +261,10 @@ async function sendLeadLinkedInDm(
     channel: 'linkedin_dm',
     lead_id: leadId,
     social_account_id: accountId,
-    metadata: { linkedin_identifier: identifier },
+    // Surface whether the target LinkedIn was verified against Unipile at
+    // resolve time. Unverified does NOT block the send (per product decision),
+    // but it is recorded so an auto-send to an unchecked URL is never silent.
+    metadata: { linkedin_identifier: identifier, linkedin_verified: contact?.linkedin_verified === true },
   });
 
   let profile;

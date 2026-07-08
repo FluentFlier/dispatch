@@ -204,6 +204,23 @@ export interface LeadIntentFlags {
   seeking_tools?: boolean;
 }
 
+/**
+ * Compact rich company facts persisted on the lead (jsonb `company_detail`) so
+ * the draft prompt can reference description / headcount / industry without a
+ * re-scrape. Seeded from the Algolia hit at ingest, then completed once from the
+ * YC detail page at first draft (`fetchedAt` marks a full fetch).
+ */
+export interface LeadCompanyDetail {
+  description?: string;
+  teamSize?: number;
+  industries?: string[];
+  location?: string;
+  status?: string;
+  yearFounded?: number;
+  /** ISO timestamp of the one-time full detail-page fetch; absent = seed only. */
+  fetchedAt?: string;
+}
+
 export interface SignalLeadRow {
   id: string;
   workspace_id: string;
@@ -217,6 +234,8 @@ export interface SignalLeadRow {
   tags: string[];
   intent_flags: LeadIntentFlags;
   source_fact: Record<string, unknown>;
+  /** Rich company facts persisted for reuse in the draft prompt (see type). */
+  company_detail?: LeadCompanyDetail | null;
   name_history: string[];
   fit_score: number;
   rank_score: number;
@@ -245,6 +264,10 @@ export interface SignalLeadContactRow {
   resolution_source: 'scraped' | 'enriched' | 'manual' | null;
   enriched_via: string | null;
   is_primary: boolean;
+  /** True once the LinkedIn URL was confirmed via the workspace Unipile account. */
+  linkedin_verified?: boolean;
+  /** ISO timestamp of the last verification attempt that succeeded, else null. */
+  linkedin_verified_at?: string | null;
   created_at: string;
 }
 
@@ -288,6 +311,8 @@ export interface IngestedLead {
   externalId: string;
   companyName: string;
   tagline?: string;
+  /** Longer company description captured at scrape time (seeds company_detail). */
+  longDescription?: string;
   website?: string;
   batch?: string;
   tags?: string[];

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { getDirectorySettings, listFollowedCompanies, listLeads } from '@/lib/signals/leads/store';
+import { isLeadsDemoMode } from '@/lib/signals/ingest/config';
 import { errorResponse } from '@/lib/api-errors';
 import type { LeadStatus } from '@/lib/signals/types';
 
@@ -27,7 +28,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       getDirectorySettings(client, workspaceId),
       listFollowedCompanies(client, workspaceId),
     ]);
-    return NextResponse.json({ leads, settings, followedCompanies });
+    return NextResponse.json({ leads, settings, followedCompanies, demoData: isLeadsDemoMode() });
   } catch (err) {
     return errorResponse('Could not load leads.', 500, err);
   }

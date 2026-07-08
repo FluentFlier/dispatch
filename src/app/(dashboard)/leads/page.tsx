@@ -26,6 +26,7 @@ import {
   type LeadDetailAction,
   type SignalDetailAction,
 } from '@/lib/leads/busy';
+import { feedViewState, draftAllOutcome } from '@/lib/leads/feed-view';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
 
@@ -68,6 +69,9 @@ export default function LeadsPage() {
   const [signalNotices, setSignalNotices] = useState<Record<string, string>>({});
 
   const [loading, setLoading] = useState(true);
+  // True when the initial bootstrap fetch FAILED (vs a genuine empty feed), so
+  // the UI shows a retry instead of the misleading "No leads yet" empty state.
+  const [loadError, setLoadError] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [scraping, setScraping] = useState(false);
   // Per-action busy tracking: only the clicked button spins, not every button
@@ -85,8 +89,11 @@ export default function LeadsPage() {
   // Header toggle: "feed" is the unified lead list (default); "setup" is the
   // signal + directory configuration surface folded in from the retired /signals page.
   const [view, setView] = useState<'feed' | 'setup'>('feed');
-  const [companyById, setCompanyById] = useState<Record<string, YcCompanyDetail | 'loading'>>({});
+  const [companyById, setCompanyById] = useState<Record<string, YcCompanyDetail | 'loading' | 'error'>>({});
   const [draftAll, setDraftAll] = useState<{ done: number; total: number } | null>(null);
+  // True when the feed is the built-in demo set (no live scraping key); badged so
+  // a user never mistakes seed companies for real leads.
+  const [demoData, setDemoData] = useState(false);
   const bootstrapped = useRef(false);
 
   useEffect(() => {
@@ -116,6 +123,7 @@ export default function LeadsPage() {
 
   const loadBootstrap = useCallback(async () => {
     setLoading(true);
+    setLoadError(false);
     try {
       const [feedRes, bootRes] = await Promise.all([
         fetch(`/api/leads/feed?${feedQuery()}`),
@@ -128,10 +136,18 @@ export default function LeadsPage() {
       indexLeads(boot.leads ?? []);
       setSettings(boot.settings ?? null);
       setFollowed(boot.followedCompanies ?? []);
-      // Persist the browser timezone once if the workspace has none.
+      setDemoData(Boolean(boot.demoData));
+      // Persist the browser timezone once if the workspace has none. Best-effort:
+      // a failure here must not surface as a load error (swallow + ignore).
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      if (tz) void fetch('/api/leads/settings', { method: 'PUT', headers: jsonHeaders, body: JSON.stringify({ timezone: tz }) });
+      if (tz)
+        void fetch('/api/leads/settings', { method: 'PUT', headers: jsonHeaders, body: JSON.stringify({ timezone: tz }) }).catch(
+          () => {},
+        );
     } catch {
+      // Distinguish a failed fetch from a genuine empty feed so the UI can offer
+      // a retry rather than the misleading "No leads yet today" empty state.
+      setLoadError(true);
       toast('Could not load leads.', 'error');
     } finally {
       setLoading(false);
@@ -195,16 +211,24 @@ export default function LeadsPage() {
     const id = selectedId;
     setCompanyById((m) => ({ ...m, [id]: 'loading' }));
     fetch(`/api/leads/${id}/company`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error('company fetch failed');
+        return r.json();
+      })
       .then((d) => setCompanyById((m) => ({ ...m, [id]: (d.company as YcCompanyDetail) ?? null })))
-      .catch(() =>
-        setCompanyById((m) => {
-          const next = { ...m };
-          delete next[id];
-          return next;
-        }),
-      );
+      // Mark as errored (not deleted) so the detail panel can show an inline
+      // retry instead of a silently blank card.
+      .catch(() => setCompanyById((m) => ({ ...m, [id]: 'error' })));
   }, [selectedId, companyById, cards]);
+
+  // Retry a failed company-info fetch: dropping the entry re-arms the effect.
+  const retryCompany = useCallback((id: string) => {
+    setCompanyById((m) => {
+      const next = { ...m };
+      delete next[id];
+      return next;
+    });
+  }, []);
 
   // --- Followed helpers ---
   const isFollowed = useCallback(
@@ -252,6 +276,8 @@ export default function LeadsPage() {
     }
     setDraftAll({ done: 0, total: targets.length });
     let done = 0;
+    let succeeded = 0;
+    let failed = 0;
     const queue = [...targets];
     const worker = async () => {
       for (let lead = queue.shift(); lead; lead = queue.shift()) {
@@ -261,9 +287,13 @@ export default function LeadsPage() {
           if (res.ok) {
             mergeLead(data.lead);
             setDrafts((d) => ({ ...d, [lead.id]: data.draftText }));
+            succeeded += 1;
+          } else {
+            failed += 1;
           }
         } catch {
-          // Skip a failed lead; keep drafting the rest.
+          // Count the failure (don't hide it) and keep drafting the rest.
+          failed += 1;
         }
         done += 1;
         setDraftAll({ done, total: targets.length });
@@ -271,7 +301,8 @@ export default function LeadsPage() {
     };
     await Promise.all(Array.from({ length: Math.min(3, targets.length) }, worker));
     setDraftAll(null);
-    toast(`Drafted ${done} message${done === 1 ? '' : 's'}.`);
+    const outcome = draftAllOutcome(succeeded, failed);
+    toast(outcome.message, outcome.type);
   };
 
   const handleScrape = async () => {
@@ -346,10 +377,11 @@ export default function LeadsPage() {
   ) => {
     setBusy({ id, action: 'approve' });
     try {
+      // Send the (possibly edited) draft so the edit-feedback loop can capture it.
       const res = await fetch(`/api/leads/${id}/approve`, {
         method: 'POST',
         headers: jsonHeaders,
-        body: JSON.stringify({ channel }),
+        body: JSON.stringify({ channel, messageText: drafts[id] }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'blocked');
@@ -412,7 +444,7 @@ export default function LeadsPage() {
       const res = await fetch(`/api/leads/${id}/approve`, {
         method: 'POST',
         headers: jsonHeaders,
-        body: JSON.stringify({ channel: 'gmail', emailOptIn: true }),
+        body: JSON.stringify({ channel: 'gmail', emailOptIn: true, messageText: drafts[id] }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'blocked');
@@ -698,6 +730,12 @@ export default function LeadsPage() {
 
   // --- Render ---
   const verticals = settings?.icp_verticals ?? [];
+  // First-run: the workspace has not described its ICP yet. Drives a guided
+  // banner so a brand-new user configures THEIR audience instead of inheriting a
+  // default. Only meaningful once settings have loaded.
+  const icpConfigured = Boolean(
+    settings && (settings.icp_description?.trim() || (settings.icp_verticals?.length ?? 0) > 0),
+  );
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -753,9 +791,37 @@ export default function LeadsPage() {
         </div>
       ) : (
       <>
+      {/* First-run guidance: no ICP yet -> point the user at Setup to describe
+          who THEY want to reach (writes signal_directory_settings via IcpChat). */}
+      {!loading && !icpConfigured && (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-accent-primary/30 bg-accent-primary/5 px-4 py-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-text-primary">Tell us who you want to reach</p>
+            <p className="text-xs text-text-secondary">
+              Set your ideal customer profile so these leads match your market, not a generic default.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setView('setup')}
+            className="shrink-0 text-xs font-medium px-3 py-1.5 rounded-md bg-accent-primary text-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+          >
+            Set up your ICP
+          </button>
+        </div>
+      )}
+      {/* Demo-data notice: the feed is the built-in seed set, not live scrapes. */}
+      {!loading && demoData && (
+        <div className="flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-50/60 px-4 py-2 text-xs text-amber-800">
+          <span className="inline-flex items-center rounded-full bg-amber-400/20 px-2 py-0.5 font-medium uppercase tracking-wide">
+            Demo data
+          </span>
+          <span>These are sample companies. Connect live scraping to see real leads for your ICP.</span>
+        </div>
+      )}
       <FeedFilters state={filters} onChange={setFilters} verticals={verticals} />
 
-      {loading ? (
+      {feedViewState({ loading, loadError, cardCount: cards.length }) === 'loading' ? (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
           <div className="lg:col-span-2">
             <UnifiedFeed cards={[]} selectedId={null} loading onSelect={() => {}} isFollowed={() => false} />
@@ -764,7 +830,18 @@ export default function LeadsPage() {
             Loading leads…
           </div>
         </div>
-      ) : cards.length === 0 ? (
+      ) : feedViewState({ loading, loadError, cardCount: cards.length }) === 'error' ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-bg-secondary py-16 text-center">
+          <p className="text-sm text-text-secondary">Could not load your leads.</p>
+          <button
+            type="button"
+            onClick={() => void loadBootstrap()}
+            className="text-xs font-medium px-3 py-1.5 rounded-md bg-accent-primary text-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+          >
+            Retry
+          </button>
+        </div>
+      ) : feedViewState({ loading, loadError, cardCount: cards.length }) === 'empty' ? (
         <LeadsEmptyState onScrape={handleScrape} scraping={scraping} />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
@@ -830,6 +907,7 @@ export default function LeadsPage() {
               <LeadDetail
                 lead={selectedLead}
                 company={companyById[selectedLead.id]}
+                onRetryCompany={() => retryCompany(selectedLead.id)}
                 draft={drafts[selectedLead.id] ?? selectedLead.outreach?.draft_text ?? ''}
                 onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedLead.id]: v }))}
                 busyAction={busyActionFor(selectedLead.id) as LeadDetailAction | null}

@@ -1,39 +1,42 @@
+import type { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
-import Link from 'next/link';
 
 interface EmptyStateProps {
-  icon?: ReactNode;
   title: string;
-  description: string;
-  children?: ReactNode;
+  description?: string;
+  icon?: LucideIcon;
+  action?: ReactNode;
+  className?: string;
 }
 
 /**
- * Consistent empty state: dashed border, icon slot, title, body, optional CTAs.
+ * Presentational empty-state placeholder. Used when a list or panel has no
+ * content to show. Purely visual - the caller decides when to render it and
+ * supplies any optional call-to-action.
  */
-export function EmptyState({ icon, title, description, children }: EmptyStateProps) {
+export function EmptyState({
+  title,
+  description,
+  icon: Icon,
+  action,
+  className = '',
+}: EmptyStateProps) {
   return (
-    <div className="empty-state flex flex-col items-center text-center">
-      {icon ? <div className="mb-3 text-ink3">{icon}</div> : null}
-      <p className="font-medium text-ink">{title}</p>
-      <p className="mt-1 max-w-md">{description}</p>
-      {children ? <div className="mt-4 flex flex-wrap justify-center gap-2">{children}</div> : null}
+    <div
+      className={`flex flex-col items-center justify-center rounded-lg border border-dashed border-hair2 bg-paper2/40 px-6 py-10 text-center ${className}`}
+    >
+      {Icon ? (
+        <span className="mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-paper2 text-ink3">
+          <Icon className="h-5 w-5" />
+        </span>
+      ) : null}
+      <p className="text-sm font-medium text-ink">{title}</p>
+      {description ? (
+        <p className="mt-1 max-w-sm text-sm text-ink3">{description}</p>
+      ) : null}
+      {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );
 }
 
-export function EmptyStateLink({
-  href,
-  children,
-  className = '',
-}: {
-  href: string;
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <Link href={href} className={`text-sm font-medium text-blue hover:underline ${className}`}>
-      {children}
-    </Link>
-  );
-}
+export default EmptyState;

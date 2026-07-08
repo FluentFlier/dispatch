@@ -220,6 +220,12 @@ export async function upsertIngestedLeads(
             tags: lead.tags ?? [],
             intent_flags: lead.intentFlags ?? {},
             source_fact: { batch: lead.batch, tagline: lead.tagline },
+            // Seed rich company facts from the scrape (description + industries).
+            // Completed once from the YC detail page at first draft, then reused.
+            company_detail: {
+              description: lead.longDescription,
+              industries: lead.tags?.length ? lead.tags : undefined,
+            },
             lead_status: 'new',
             digest_date: digestDate,
             first_seen_at: nowIso,
@@ -273,8 +279,16 @@ export async function upsertIngestedLeads(
   return result;
 }
 
-/** Inserts scraped founder contacts (best-effort, marks the first as primary). */
-async function insertContactsForLead(
+/**
+ * Inserts scraped founder contacts, de-duplicated against what the lead already
+ * has (best-effort). A re-scrape or a cross-source domain-merge (a PH lead
+ * folding into an existing YC lead) re-runs this for a lead that already carries
+ * these founders; without a guard the same contacts piled up ~4x. We insert only
+ * founders NOT already present, matched on linkedin_url or lower(name), and only
+ * mark a primary when the lead has no contacts yet — a merge never demotes the
+ * existing primary.
+ */
+export async function insertContactsForLead(
   client: InsforgeClient,
   workspaceId: string,
   leadId: string,
@@ -282,17 +296,48 @@ async function insertContactsForLead(
 ): Promise<void> {
   const founders = lead.founders ?? [];
   if (founders.length === 0) return;
-  const rows = founders.map((f, i) => ({
-    lead_id: leadId,
-    workspace_id: workspaceId,
-    name: f.name ?? null,
-    role: f.role ?? null,
-    linkedin_url: f.linkedinUrl ?? null,
-    x_handle: f.xHandle ?? null,
-    email: f.email ?? null,
-    resolution_source: 'scraped' as const,
-    is_primary: i === 0,
-  }));
+
+  const { data: existingRows, error: existErr } = await client.database
+    .from('signal_lead_contacts')
+    .select('name, linkedin_url')
+    .eq('lead_id', leadId);
+  if (existErr) throw existErr;
+  const existing = (existingRows as Array<{ name: string | null; linkedin_url: string | null }> | null) ?? [];
+  const hasExisting = existing.length > 0;
+  const existingUrls = new Set(
+    existing.map((c) => c.linkedin_url?.trim().toLowerCase()).filter(Boolean) as string[],
+  );
+  const existingNames = new Set(
+    existing.map((c) => c.name?.trim().toLowerCase()).filter(Boolean) as string[],
+  );
+
+  // Dedupe within this batch too (a scrape can list the same founder twice).
+  const seenUrls = new Set<string>();
+  const seenNames = new Set<string>();
+  const rows: Array<Record<string, unknown>> = [];
+  for (const f of founders) {
+    const url = f.linkedinUrl?.trim().toLowerCase();
+    const name = f.name?.trim().toLowerCase();
+    if (url && (existingUrls.has(url) || seenUrls.has(url))) continue;
+    if (name && (existingNames.has(name) || seenNames.has(name))) continue;
+    if (url) seenUrls.add(url);
+    if (name) seenNames.add(name);
+    rows.push({
+      lead_id: leadId,
+      workspace_id: workspaceId,
+      name: f.name ?? null,
+      role: f.role ?? null,
+      linkedin_url: f.linkedinUrl ?? null,
+      x_handle: f.xHandle ?? null,
+      email: f.email ?? null,
+      resolution_source: 'scraped' as const,
+      // Only the very first contact on a fresh lead becomes primary; a merge
+      // into a lead that already has contacts must not steal the primary flag.
+      is_primary: !hasExisting && rows.length === 0,
+    });
+  }
+  if (rows.length === 0) return;
+
   const { error } = await client.database.from('signal_lead_contacts').insert(rows);
   if (error) throw error;
 }

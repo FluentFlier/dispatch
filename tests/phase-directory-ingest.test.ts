@@ -23,27 +23,33 @@ function agentResponse(
   } as Response;
 }
 
-describe('Phase: Directory ingest (seed provider)', () => {
+describe('Phase: Directory ingest (seed provider, demo flag ON)', () => {
   const prevKey = process.env.TINYFISH_API_KEY;
+  const prevSeed = process.env.SIGNALS_DEMO_SEED;
   beforeEach(() => {
     delete process.env.TINYFISH_API_KEY;
+    // Seed data is demo-only: it may only appear behind the explicit flag.
+    process.env.SIGNALS_DEMO_SEED = '1';
   });
   afterEach(() => {
     if (prevKey !== undefined) process.env.TINYFISH_API_KEY = prevKey;
+    else delete process.env.TINYFISH_API_KEY;
+    if (prevSeed !== undefined) process.env.SIGNALS_DEMO_SEED = prevSeed;
+    else delete process.env.SIGNALS_DEMO_SEED;
   });
 
-  it('is not configured without an API key (seed path active)', () => {
+  it('is not configured without an API key', () => {
     expect(isTinyFishConfigured()).toBe(false);
   });
 
-  it('returns the YC seed set when TinyFish is unconfigured', async () => {
+  it('returns the YC seed set when unconfigured AND the demo flag is on', async () => {
     const leads = await fetchDirectoryLeads('yc_directory');
     expect(leads.length).toBe(SEED_DIRECTORY_LEADS.filter((l) => l.source === 'yc_directory').length);
     expect(leads.every((l) => l.source === 'yc_directory')).toBe(true);
     expect(leads.every((l) => l.companyName && l.externalId)).toBe(true);
   });
 
-  it('returns the Product Hunt seed set (Phase 9 source)', async () => {
+  it('returns the Product Hunt seed set behind the demo flag (Phase 9 source)', async () => {
     const leads = await fetchDirectoryLeads('product_hunt');
     expect(leads.length).toBe(SEED_DIRECTORY_LEADS.filter((l) => l.source === 'product_hunt').length);
     expect(leads.every((l) => l.source === 'product_hunt')).toBe(true);
@@ -57,6 +63,38 @@ describe('Phase: Directory ingest (seed provider)', () => {
     );
     expect(statuses).toContain('resolved');
     expect(statuses).toContain('no_contact');
+  });
+});
+
+describe('Phase: Directory ingest (seed gating - no key, demo flag OFF)', () => {
+  const prevKey = process.env.TINYFISH_API_KEY;
+  const prevSeed = process.env.SIGNALS_DEMO_SEED;
+  beforeEach(() => {
+    // The real-user default: no scraper key configured, no demo flag. Fabricated
+    // seed leads must NEVER leak into the feed - a genuine empty state instead.
+    delete process.env.TINYFISH_API_KEY;
+    delete process.env.SIGNALS_DEMO_SEED;
+  });
+  afterEach(() => {
+    if (prevKey !== undefined) process.env.TINYFISH_API_KEY = prevKey;
+    else delete process.env.TINYFISH_API_KEY;
+    if (prevSeed !== undefined) process.env.SIGNALS_DEMO_SEED = prevSeed;
+    else delete process.env.SIGNALS_DEMO_SEED;
+  });
+
+  it('returns [] for yc_directory (no fabricated leads leak into a real feed)', async () => {
+    const leads = await fetchDirectoryLeads('yc_directory');
+    expect(leads).toEqual([]);
+  });
+
+  it('returns [] for product_hunt when the demo flag is off', async () => {
+    const leads = await fetchDirectoryLeads('product_hunt');
+    expect(leads).toEqual([]);
+  });
+
+  it('does not surface any known seed company (e.g. the fictional Verdant / Lena Fischer)', async () => {
+    const leads = await fetchDirectoryLeads('yc_directory');
+    expect(leads.some((l) => l.companyName === 'Verdant')).toBe(false);
   });
 });
 
