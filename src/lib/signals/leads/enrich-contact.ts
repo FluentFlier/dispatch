@@ -2,7 +2,8 @@ import type { createClient } from '@insforge/sdk';
 import { ApifyClient } from 'apify-client';
 import type { SignalLeadWithContacts } from '@/lib/signals/types';
 import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
-import { fetchYcFounders } from '@/lib/signals/ingest/yc-algolia';
+import { fetchYcFounders, findYcCompanyByName } from '@/lib/signals/ingest/yc-algolia';
+import type { YcFounder, YcNameMatch } from '@/lib/signals/ingest/yc-algolia';
 import { getWorkspaceLinkedInAccountId, searchLinkedInPerson } from '@/lib/signals/outreach/unipile-linkedin';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -63,6 +64,12 @@ export async function enrichFounderContact(
   // YC leads: the YC company detail page reliably lists founders + LinkedIn (fast).
   const viaYc = await enrichViaYcDetail(lead);
   if (viaYc) return viaYc;
+  // Manual/ICP leads that are really YC companies: recover the real slug by name
+  // (Algolia) and pull the founder from the YC detail page. Free (no paid API), so
+  // it runs even in the fastOnly batch path — the whole point is auto-resolving the
+  // ICP-finder leads that land as source:'manual' without founder data.
+  const viaRecovery = await enrichViaYcRecovery(lead);
+  if (viaRecovery) return viaRecovery;
   if (opts.fastOnly) return null;
   const viaTinyfish = await enrichViaTinyFish(lead);
   if (viaTinyfish) return viaTinyfish;
@@ -81,16 +88,14 @@ export async function enrichFounderContact(
   return enrichViaUnipileSearch({ companyName: lead.company_name, founderName, accountId });
 }
 
-/** YC detail page: founder + LinkedIn from the company's /companies/<slug> page. */
-async function enrichViaYcDetail(
-  lead: Pick<SignalLeadWithContacts, 'source' | 'external_id'>,
-): Promise<EnrichedContact | null> {
-  if (lead.source !== 'yc_directory' || !lead.external_id) return null;
-  const founders = await fetchYcFounders(lead.external_id);
-  // Need a LinkedIn URL to actually send a connect; among those, prefer the CEO
-  // (some list "Founder & CEO", others just "CEO"), then any founder, then first.
-  // A company where the CEO co-founder is a different person than the first-listed
-  // founder must resolve to the CEO — outreach goes to the decision-maker.
+/**
+ * Picks the best founder contact from a YC founder list: prefer the CEO (some list
+ * "Founder & CEO", others just "CEO"), then any founder, then the first with a URL.
+ * A company where the CEO co-founder differs from the first-listed founder must
+ * resolve to the CEO — outreach goes to the decision-maker. null when none has a
+ * LinkedIn URL to send a connect to.
+ */
+function pickFounderContact(founders: YcFounder[]): EnrichedContact | null {
   const withUrl = founders.filter((f) => f.linkedinUrl);
   const found =
     withUrl.find((f) => /\bceo\b/i.test(f.role ?? '')) ??
@@ -99,6 +104,51 @@ async function enrichViaYcDetail(
     founders[0];
   if (!found?.linkedinUrl) return null;
   return { name: found.name, role: found.role, linkedinUrl: found.linkedinUrl, via: 'yc_detail' };
+}
+
+/** YC detail page: founder + LinkedIn from the company's /companies/<slug> page. */
+async function enrichViaYcDetail(
+  lead: Pick<SignalLeadWithContacts, 'source' | 'external_id'>,
+): Promise<EnrichedContact | null> {
+  if (lead.source !== 'yc_directory' || !lead.external_id) return null;
+  return pickFounderContact(await fetchYcFounders(lead.external_id));
+}
+
+/** Injectable YC lookups so recovery is unit-testable without hitting YC/Algolia. */
+export type YcLookupFn = (name: string) => Promise<YcNameMatch | null>;
+export type YcFoundersFn = (slug: string) => Promise<YcFounder[]>;
+
+/**
+ * YC-identity recovery for manual/ICP leads. The ICP finder stores real YC
+ * companies as source:'manual' with a guessed slug and no founders, so the direct
+ * YC-detail rung (which keys on a real slug) skips them. Here we resolve the real
+ * YC slug FROM THE COMPANY NAME via Algolia (strict name-match gate), then pull the
+ * founder LinkedIn off the YC detail page — the same free path yc_directory leads
+ * use. Leads that already carry a real slug (source yc_directory) are handled by
+ * enrichViaYcDetail and skipped here. Best-effort: any failure returns null so the
+ * ladder falls through to the paid rungs.
+ */
+export async function enrichViaYcRecovery(
+  lead: Pick<SignalLeadWithContacts, 'source' | 'company_name'>,
+  deps: { lookup?: YcLookupFn; fetchFounders?: YcFoundersFn } = {},
+): Promise<EnrichedContact | null> {
+  if (lead.source === 'yc_directory') return null;
+  const company = lead.company_name?.trim();
+  if (!company) return null;
+  const lookup = deps.lookup ?? findYcCompanyByName;
+  const fetchFounders = deps.fetchFounders ?? fetchYcFounders;
+  let match: YcNameMatch | null;
+  try {
+    match = await lookup(company);
+  } catch (err) {
+    // YC/Algolia unreachable — degrade to the next rung rather than throwing.
+    if (signalsDebugEnabled()) {
+      console.warn(`[yc-recovery] lookup error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return null;
+  }
+  if (!match?.slug) return null;
+  return pickFounderContact(await fetchFounders(match.slug));
 }
 
 /** TinyFish: read the company site (about/team) for a founder + LinkedIn URL. */
