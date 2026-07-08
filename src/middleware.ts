@@ -67,6 +67,18 @@ export function middleware(request: NextRequest): NextResponse {
     if (searchParams.get('expired') === '1' || searchParams.has('error')) {
       return NextResponse.next({ request: { headers: requestHeaders } });
     }
+    // A returning user can land on /login holding an EXPIRED access token (the
+    // 15-min JWT lapses long before the 7-day refresh token). /auth/continue is
+    // refresh-bypassed and getAuthenticatedUser() never refreshes, so forwarding
+    // an expired token there makes it declare the session dead and bounce to
+    // /login?expired=1 — a false "Your session expired" on a fully recoverable
+    // session. Refresh FIRST when a refresh token exists; only genuinely dead
+    // sessions (no/invalid refresh) reach the expired screen.
+    if (isJwtExpired(token, 60) && refreshToken) {
+      const refreshUrl = new URL('/api/auth/refresh', request.url);
+      refreshUrl.searchParams.set('next', '/auth/continue');
+      return NextResponse.redirect(refreshUrl, 307);
+    }
     const continueUrl = new URL('/auth/continue', request.url);
     return NextResponse.redirect(continueUrl, 307);
   }
