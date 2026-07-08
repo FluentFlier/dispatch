@@ -12,7 +12,12 @@ import { resolveSignalOutreach } from '@/components/leads/signal-outreach';
 import { AdvancedDrawer } from '@/components/leads/AdvancedDrawer';
 import { SignalsSetup } from '@/components/leads/SignalsSetup';
 import { IcpChat } from '@/components/leads/IcpChat';
-import { LeadsHeaderActions, LeadsEmptyState, ScrapeProgress } from '@/components/leads/LeadsFeedChrome';
+import {
+  LeadsHeaderActions,
+  LeadsEmptyState,
+  LeadsFilteredEmptyState,
+  ScrapeProgress,
+} from '@/components/leads/LeadsFeedChrome';
 import type {
   DirectorySettingsRow,
   FollowedCompanyRow,
@@ -51,6 +56,19 @@ const INITIAL_FILTERS: FeedFilterState = {
   search: '',
   sort: 'score',
 };
+
+/**
+ * Signal types that can only ever come from the live Signal engine (X/LinkedIn
+ * post detection), never from a directory scrape. When one of these is selected
+ * and the feed is empty, the filtered-empty state explains that gap instead of
+ * misleadingly offering "Scrape now". 'launch' is intentionally excluded — it
+ * now maps to Product Hunt / YC-launch directory leads too.
+ */
+const SIGNAL_ENGINE_ONLY_TYPES = new Set<string>([
+  'funding_round',
+  'role_change',
+  'accelerator_join',
+]);
 
 /**
  * Unified leads feed page. One inbox that renders both live signal events and
@@ -791,6 +809,14 @@ export default function LeadsPage() {
   const icpConfigured = Boolean(
     settings && (settings.icp_description?.trim() || (settings.icp_verticals?.length ?? 0) > 0),
   );
+  // Any filter narrowed away from its default. Distinguishes "no leads at all"
+  // (show Scrape now) from "leads exist but filters hide them" (show clear).
+  const filtersActive =
+    filters.status !== INITIAL_FILTERS.status ||
+    filters.source !== 'all' ||
+    filters.signalType !== 'all' ||
+    filters.vertical !== 'all' ||
+    filters.search.trim() !== '';
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -905,9 +931,21 @@ export default function LeadsPage() {
       ) : feedViewState({ loading, loadError, cardCount: cards.length }) === 'empty' ? (
         scraping && scrapeProgress ? (
           <ScrapeProgress pct={scrapeProgress.pct} label={scrapeProgress.label} panel />
+        ) : filtersActive ? (
+          <LeadsFilteredEmptyState
+            onClear={() => setFilters(INITIAL_FILTERS)}
+            signalHint={SIGNAL_ENGINE_ONLY_TYPES.has(filters.signalType)}
+          />
         ) : (
           <LeadsEmptyState onScrape={handleScrape} scraping={scraping} />
         )
+      ) : visibleCards.length === 0 ? (
+        // Server returned leads, but a client-side filter (search / vertical)
+        // hides them all — explain + offer clear instead of a blank list.
+        <LeadsFilteredEmptyState
+          onClear={() => setFilters(INITIAL_FILTERS)}
+          signalHint={SIGNAL_ENGINE_ONLY_TYPES.has(filters.signalType)}
+        />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
           {/* List */}
