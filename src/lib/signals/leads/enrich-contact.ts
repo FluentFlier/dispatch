@@ -87,8 +87,16 @@ async function enrichViaYcDetail(
 ): Promise<EnrichedContact | null> {
   if (lead.source !== 'yc_directory' || !lead.external_id) return null;
   const founders = await fetchYcFounders(lead.external_id);
-  // Prefer a founder with a LinkedIn URL (needed to actually send a connect).
-  const found = founders.find((f) => f.linkedinUrl) ?? founders[0];
+  // Need a LinkedIn URL to actually send a connect; among those, prefer the CEO
+  // (some list "Founder & CEO", others just "CEO"), then any founder, then first.
+  // A company where the CEO co-founder is a different person than the first-listed
+  // founder must resolve to the CEO — outreach goes to the decision-maker.
+  const withUrl = founders.filter((f) => f.linkedinUrl);
+  const found =
+    withUrl.find((f) => /\bceo\b/i.test(f.role ?? '')) ??
+    withUrl.find((f) => /founder/i.test(f.role ?? '')) ??
+    withUrl[0] ??
+    founders[0];
   if (!found?.linkedinUrl) return null;
   return { name: found.name, role: found.role, linkedinUrl: found.linkedinUrl, via: 'yc_detail' };
 }

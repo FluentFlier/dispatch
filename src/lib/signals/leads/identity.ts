@@ -124,8 +124,12 @@ export function decideContactStatus(
     .filter(({ c }) => Boolean(c.linkedin_url || c.x_handle));
   if (resolvableIdx.length === 0) return { status: 'no_contact', primaryIndex: null };
 
+  // CEO strictly before a plain "Founder" so a multi-founder lead resolves to the
+  // decision-maker, not merely the first co-founder that happens to carry a URL.
   const preferred =
-    resolvableIdx.find(({ c }) => /ceo|founder/i.test(c.role ?? '')) ?? resolvableIdx[0];
+    resolvableIdx.find(({ c }) => /\bceo\b/i.test(c.role ?? '')) ??
+    resolvableIdx.find(({ c }) => /founder/i.test(c.role ?? '')) ??
+    resolvableIdx[0];
   return { status: 'resolved', primaryIndex: preferred.i, via: 'scraped' };
 }
 

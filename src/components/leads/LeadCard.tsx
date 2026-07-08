@@ -109,6 +109,19 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown, checke
         <p className="text-xs text-text-tertiary line-clamp-1 mt-0.5">{summary}</p>
       ) : null}
 
+      {/* Founder + their exact title (as they list it: Founder, CEO, Co-founder…).
+          Shown explicitly so it's clear WHO the outreach targets and their role. */}
+      {card.contact?.name && (
+        <p className="text-[11px] text-text-secondary line-clamp-1 mt-1">
+          {card.contact.name}
+          {card.contact.role ? (
+            <span className="text-text-tertiary"> · {card.contact.role}</span>
+          ) : (
+            <span className="text-amber-600"> · role unknown</span>
+          )}
+        </p>
+      )}
+
       {/* Contact-status pill */}
       <div className="mt-1.5">
         <span
