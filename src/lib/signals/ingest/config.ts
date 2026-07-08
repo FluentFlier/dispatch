@@ -26,14 +26,17 @@ export function getIngestSecret(): string | undefined {
 }
 
 /**
- * True when leads are the built-in fictional demo set rather than live scrapes.
- * TINYFISH_API_KEY doubles as the "live scraping enabled" switch, so with no key
- * the directory pipeline returns the seed companies. The UI uses this to badge
- * the feed as demo data so a user never mistakes the seed set for real leads.
- * Lightweight (env-only) so route/UI code can import it without the TinyFish SDK.
+ * True only when the feed is actually serving the built-in fictional seed set —
+ * i.e. the explicit SIGNALS_DEMO_SEED flag is on AND no TinyFish key is present
+ * (the only combination under which fetchDirectoryLeads returns fabricated
+ * companies). Notably this is NOT merely "no TinyFish key": a keyless workspace
+ * still gets REAL YC companies via the public Algolia index, so badging that feed
+ * as "sample data" would be a lie. The UI uses this to badge the feed as demo
+ * data so a user never mistakes the seed set for real leads. Lightweight
+ * (env-only) so route/UI code can import it without the TinyFish SDK.
  */
 export function isLeadsDemoMode(): boolean {
-  return !process.env.TINYFISH_API_KEY?.trim();
+  return process.env.SIGNALS_DEMO_SEED === '1' && !process.env.TINYFISH_API_KEY?.trim();
 }
 
 /**

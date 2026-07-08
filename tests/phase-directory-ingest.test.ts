@@ -66,12 +66,11 @@ describe('Phase: Directory ingest (seed provider, demo flag ON)', () => {
   });
 });
 
-describe('Phase: Directory ingest (seed gating - no key, demo flag OFF)', () => {
+describe('Phase: Directory ingest (no key, demo flag OFF)', () => {
   const prevKey = process.env.TINYFISH_API_KEY;
   const prevSeed = process.env.SIGNALS_DEMO_SEED;
   beforeEach(() => {
-    // The real-user default: no scraper key configured, no demo flag. Fabricated
-    // seed leads must NEVER leak into the feed - a genuine empty state instead.
+    // The real-user default: no scraper key configured, no demo flag.
     delete process.env.TINYFISH_API_KEY;
     delete process.env.SIGNALS_DEMO_SEED;
   });
@@ -80,21 +79,46 @@ describe('Phase: Directory ingest (seed gating - no key, demo flag OFF)', () => 
     else delete process.env.TINYFISH_API_KEY;
     if (prevSeed !== undefined) process.env.SIGNALS_DEMO_SEED = prevSeed;
     else delete process.env.SIGNALS_DEMO_SEED;
+    vi.restoreAllMocks();
   });
 
-  it('returns [] for yc_directory (no fabricated leads leak into a real feed)', async () => {
+  const YC_PAGE_HTML =
+    '<html><script>window.AlgoliaOpts = {"app":"TESTAPP","key":"testkey"};</script></html>';
+  const textResponse = (body: string): Response =>
+    ({ ok: true, status: 200, statusText: 'OK', text: async () => body }) as Response;
+  const jsonResponse = (obj: unknown): Response => {
+    const t = JSON.stringify(obj);
+    return { ok: true, status: 200, statusText: 'OK', json: async () => JSON.parse(t), text: async () => t } as Response;
+  };
+
+  // Core bug fix: YC directory is a keyless public Algolia index, so a workspace
+  // with NO TinyFish key must still get real YC leads — not an empty feed.
+  it('fetches real YC leads via keyless Algolia even without a TinyFish key', async () => {
+    expect(isTinyFishConfigured()).toBe(false);
+    const spy = vi
+      .spyOn(global, 'fetch')
+      .mockResolvedValueOnce(textResponse(YC_PAGE_HTML))
+      .mockResolvedValueOnce(
+        jsonResponse({
+          results: [{ hits: [{ slug: 'acme', name: 'Acme', one_liner: 'We do X', website: 'https://acme.com', batch_name: 'W2024', industries: ['AI'] }] }],
+        }),
+      );
+
     const leads = await fetchDirectoryLeads('yc_directory');
-    expect(leads).toEqual([]);
+    expect(spy).toHaveBeenNthCalledWith(
+      2,
+      'https://testapp-dsn.algolia.net/1/indexes/*/queries',
+      expect.objectContaining({ method: 'POST' }),
+    );
+    expect(leads).toHaveLength(1);
+    expect(leads[0]).toMatchObject({ source: 'yc_directory', externalId: 'acme', companyName: 'Acme' });
+    // No fabricated seed company ever leaks in from the keyless path.
+    expect(leads.some((l) => l.companyName === 'Verdant')).toBe(false);
   });
 
-  it('returns [] for product_hunt when the demo flag is off', async () => {
+  it('returns [] for product_hunt (agent source, needs the key) when the demo flag is off', async () => {
     const leads = await fetchDirectoryLeads('product_hunt');
     expect(leads).toEqual([]);
-  });
-
-  it('does not surface any known seed company (e.g. the fictional Verdant / Lena Fischer)', async () => {
-    const leads = await fetchDirectoryLeads('yc_directory');
-    expect(leads.some((l) => l.companyName === 'Verdant')).toBe(false);
   });
 });
 

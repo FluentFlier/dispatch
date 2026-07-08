@@ -74,13 +74,27 @@ describe('WS2 design-partner gating', () => {
 });
 
 describe('WS2 demo-data detection', () => {
-  it('is demo when no TinyFish key is configured', () => {
+  const prevSeed = process.env.SIGNALS_DEMO_SEED;
+  afterEach(() => {
+    if (prevSeed === undefined) delete process.env.SIGNALS_DEMO_SEED;
+    else process.env.SIGNALS_DEMO_SEED = prevSeed;
+  });
+
+  it('is demo only when the seed flag is on AND no TinyFish key is configured', () => {
     delete process.env.TINYFISH_API_KEY;
+    process.env.SIGNALS_DEMO_SEED = '1';
     expect(isLeadsDemoMode()).toBe(true);
+  });
+
+  it('is NOT demo with no key but no seed flag (feed is real keyless YC Algolia)', () => {
+    delete process.env.TINYFISH_API_KEY;
+    delete process.env.SIGNALS_DEMO_SEED;
+    expect(isLeadsDemoMode()).toBe(false);
   });
 
   it('is not demo when a TinyFish key is present', () => {
     process.env.TINYFISH_API_KEY = 'tf-live-key';
+    process.env.SIGNALS_DEMO_SEED = '1';
     expect(isLeadsDemoMode()).toBe(false);
   });
 });
