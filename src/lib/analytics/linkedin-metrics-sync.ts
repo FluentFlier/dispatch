@@ -27,7 +27,7 @@ export function providerPostIdAliases(id: string): string[] {
     const tail = id.split(':').filter(Boolean).at(-1);
     if (tail) keys.add(tail);
   }
-  return [...keys];
+  return Array.from(keys);
 }
 
 export function indexLinkedInListMetrics(
