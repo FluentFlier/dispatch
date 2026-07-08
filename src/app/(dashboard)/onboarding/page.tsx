@@ -10,7 +10,11 @@ import {
   ArrowRight,
   AlertCircle,
 } from 'lucide-react';
-import { completeOnboardingFromBaseline, completeOnboardingFromStoredBaseline } from './actions';
+import {
+  completeOnboardingFromBaseline,
+  completeOnboardingFromStoredBaseline,
+  completeOnboardingMinimal,
+} from './actions';
 import type { CreatorBaseline } from '@/lib/onboarding/baseline';
 import { PRODUCT_NAME } from '@/lib/brand';
 
@@ -68,6 +72,10 @@ function OnboardingInner() {
   const [statusLine, setStatusLine] = useState(INGEST_STATUS_LINES[0]);
   const [baseline, setBaseline] = useState<CreatorBaseline | null>(null);
   const [finishing, setFinishing] = useState(false);
+  // True once an ingest attempt has failed/timed out, so we surface an escape
+  // hatch ("continue anyway") instead of trapping the user on the connect step.
+  const [ingestFailed, setIngestFailed] = useState(false);
+  const [enteringMinimal, setEnteringMinimal] = useState(false);
   const [unipileReady, setUnipileReady] = useState<boolean | null>(null);
   const [gmailConnected, setGmailConnected] = useState(false);
   const [composioReady, setComposioReady] = useState<boolean | null>(null);
@@ -121,6 +129,7 @@ function OnboardingInner() {
   const runIngest = useCallback(async () => {
     setStep('ingest');
     setError('');
+    setIngestFailed(false);
     let lineIndex = 0;
     const interval = setInterval(() => {
       lineIndex = Math.min(lineIndex + 1, INGEST_STATUS_LINES.length - 1);
@@ -142,6 +151,7 @@ function OnboardingInner() {
               ? `Brain sync incomplete (missing: ${brainMissing}). Connect another account or retry.`
               : 'Analysis failed. Connect LinkedIn or X with public posts, then try again.'),
         );
+        setIngestFailed(true);
         setStep('connect');
         return;
       }
@@ -156,9 +166,26 @@ function OnboardingInner() {
     } catch {
       clearInterval(interval);
       setError('Something went wrong. Please try again.');
+      setIngestFailed(true);
       setStep('connect');
     }
   }, [finishAndEnterApp]);
+
+  // Escape hatch: a connected account must never trap the user. If building the
+  // baseline fails or times out, complete onboarding with a minimal profile so
+  // they reach the app; voice can be enriched later in Voice Lab.
+  const handleContinueAnyway = useCallback(async () => {
+    setEnteringMinimal(true);
+    setError('');
+    try {
+      await completeOnboardingMinimal(accounts[0]?.account_name ?? '');
+      void fetch('/api/brain/sync', { method: 'POST' }).catch(() => undefined);
+      router.push('/dashboard?welcome=1');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not continue. Please try again.');
+      setEnteringMinimal(false);
+    }
+  }, [accounts, router]);
 
   useEffect(() => {
     void refreshAccounts();
@@ -384,6 +411,30 @@ function OnboardingInner() {
         <div className="mb-6 flex items-start gap-2 rounded-lg border border-coral/30 bg-coral/5 p-4 text-sm text-coral">
           <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
           {error}
+        </div>
+      )}
+
+      {/* Escape hatch: once ingest has failed at least once, never trap a user
+          with a connected account — let them into the app with a minimal profile. */}
+      {ingestFailed && step === 'connect' && accounts.length > 0 && (
+        <div className="mb-6 rounded-lg border border-hair bg-paper2 p-4">
+          <p className="text-sm text-ink2">
+            Building your voice is taking longer than expected. You can continue now and
+            we&apos;ll finish learning your voice in the background — refine it anytime in Voice Lab.
+          </p>
+          <button
+            type="button"
+            onClick={() => void handleContinueAnyway()}
+            disabled={enteringMinimal}
+            className="btn-primary mt-4 flex w-full items-center justify-center gap-2"
+          >
+            {enteringMinimal ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ArrowRight className="h-4 w-4" />
+            )}
+            Continue to the app
+          </button>
         </div>
       )}
 
