@@ -12,11 +12,12 @@ import { EngagerDetail, type EngagerDetailAction } from '@/components/leads/Enga
 import { resolveSignalOutreach } from '@/components/leads/signal-outreach';
 import { AdvancedDrawer } from '@/components/leads/AdvancedDrawer';
 import { SignalsSetup } from '@/components/leads/SignalsSetup';
-import { IcpChat } from '@/components/leads/IcpChat';
+import { IcpManager } from '@/components/leads/IcpManager';
 import { LeadsHeaderActions, LeadsEmptyState } from '@/components/leads/LeadsFeedChrome';
 import type {
   DirectorySettingsRow,
   FollowedCompanyRow,
+  IcpProfileRow,
   SignalLeadWithContacts,
 } from '@/lib/signals/types';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
@@ -62,6 +63,7 @@ export default function LeadsPage() {
   const [cards, setCards] = useState<UnifiedLeadCard[]>([]);
   const [leadsById, setLeadsById] = useState<Record<string, SignalLeadWithContacts>>({});
   const [settings, setSettings] = useState<DirectorySettingsRow | null>(null);
+  const [profiles, setProfiles] = useState<IcpProfileRow[]>([]);
   const [followed, setFollowed] = useState<FollowedCompanyRow[]>([]);
 
   const [filters, setFilters] = useState<FeedFilterState>(INITIAL_FILTERS);
@@ -141,6 +143,7 @@ export default function LeadsPage() {
       setCards(feed.cards ?? []);
       indexLeads(boot.leads ?? []);
       setSettings(boot.settings ?? null);
+      setProfiles(boot.profiles ?? []);
       setFollowed(boot.followedCompanies ?? []);
       setDemoData(Boolean(boot.demoData));
       // Persist the browser timezone once if the workspace has none. Best-effort:
@@ -921,8 +924,10 @@ export default function LeadsPage() {
 
       {view === 'setup' ? (
         <div className="space-y-6">
-          <IcpChat
+          <IcpManager
             settings={settings}
+            profiles={profiles}
+            onProfilesChange={setProfiles}
             onSettingsSaved={setSettings}
             onDiscoveryComplete={() => void loadBootstrap()}
             toast={toast}
