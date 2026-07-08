@@ -103,6 +103,16 @@ describe('Phase: Real Analytics + Timing', () => {
       expect(res.sampleSize).toBe(MIN_POSTS_FOR_TIMING);
     });
 
+    it('flags insufficient data when engagement is all zero', () => {
+      const posts: TimingPost[] = Array.from({ length: MIN_POSTS_FOR_TIMING }, (_, i) => ({
+        postedAt: `2026-06-${String(i + 1).padStart(2, '0')}T09:00:00`,
+        engagement: 0,
+      }));
+      const res = computeBestTimes(posts);
+      expect(res.insufficientData).toBe(true);
+      expect(res.bestWeekdays).toHaveLength(0);
+    });
+
     it('ranks the highest-average window first', () => {
       // Mondays average far higher than Tuesdays.
       const posts: TimingPost[] = [

@@ -1,15 +1,25 @@
 /**
  * Best-time-to-post engine.
  *
- * WHY: with real (auto-synced) post metrics we can finally answer "when should
- * I post?" — a feature that was impossible while numbers were hand-entered.
- * This module is pure: it takes posted rows (a timestamp + an engagement score)
- * and returns the strongest weekday/hour windows, or a clear "not enough data"
- * signal below a minimum sample size.
+ * WHY: "when should I post?" should reflect BOTH how the platform's algorithm
+ * behaves across millions of posts (the benchmark prior) AND the creator's own
+ * results. With a benchmark prior we can always give a strong recommendation —
+ * even for a brand-new account — and then shrink toward the creator's personal
+ * data as they accumulate posts with real engagement.
+ *
+ * Pure module: takes posted rows + an optional platform prior and returns the
+ * strongest weekday/hour windows.
  */
+import type { TimingPrior } from '@/lib/analytics/algorithm-insights';
 
-/** Minimum posts with a usable timestamp before we surface any recommendation. */
+/** Minimum posts with a usable timestamp before we surface a PERSONAL-only recommendation. */
 export const MIN_POSTS_FOR_TIMING = 5;
+
+/** Minimum posts with non-zero engagement before personal data is trusted. */
+export const MIN_ENGAGEMENT_POSTS_FOR_TIMING = 3;
+
+/** Smoothing constant: how many benchmark "pseudo-posts" a bucket is worth before personal data dominates. */
+const SHRINKAGE_K = 4;
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
@@ -20,19 +30,30 @@ export interface TimingPost {
   engagement: number;
 }
 
+/** Where a given window's ranking came from. */
+export type TimingSource = 'personal' | 'benchmark' | 'blended';
+
 export interface TimingWindow {
   /** 0-6 (Sunday-Saturday) for weekday windows; 0-23 for hour windows. */
   index: number;
   label: string;
-  /** Number of posts that fell in this window. */
+  /** Number of the creator's own posts that fell in this window. */
   sampleSize: number;
-  /** Average engagement across posts in this window. */
+  /** Average engagement across the creator's posts in this window (0 when none). */
   avgEngagement: number;
+  /** Blended ranking score (benchmark average ≈ 1.0). Drives ordering. */
+  score: number;
+  /** Whether this window is ranked from personal data, the benchmark, or a blend. */
+  source: TimingSource;
 }
+
+/** Overall basis for the recommendation set. */
+export type TimingBasis = 'personal' | 'benchmark' | 'blended';
 
 export interface TimingResult {
   insufficientData: boolean;
   sampleSize: number;
+  basis: TimingBasis;
   bestWeekdays: TimingWindow[];
   bestHours: TimingWindow[];
 }
@@ -50,33 +71,84 @@ function rankBuckets(
   limit: number,
 ): TimingWindow[] {
   return Array.from(buckets.entries())
-    .map(([index, { total, count }]) => ({
-      index,
-      label: label(index),
-      sampleSize: count,
-      avgEngagement: count > 0 ? total / count : 0,
-    }))
-    .sort((a, b) => b.avgEngagement - a.avgEngagement)
+    .map(([index, { total, count }]) => {
+      const avg = count > 0 ? total / count : 0;
+      return {
+        index,
+        label: label(index),
+        sampleSize: count,
+        avgEngagement: avg,
+        score: avg,
+        source: 'personal' as TimingSource,
+      };
+    })
+    .sort((a, b) => b.score - a.score)
     .slice(0, limit);
 }
 
 /**
- * Compute best posting windows from posted rows. Uses local time of the
- * provided Date objects for weekday/hour bucketing.
+ * Blend the platform benchmark prior with the creator's per-bucket averages.
+ *
+ * For each bucket we shrink the creator's relative performance toward the
+ * benchmark based on how many of their posts landed there:
+ *   weightPersonal = count / (count + K)
+ *   score = weightPersonal * personalRelative + (1 - weightPersonal) * benchmark
+ * With zero personal posts the score is exactly the benchmark, so a new account
+ * still gets the platform-optimal windows.
  */
-export function computeBestTimes(posts: TimingPost[], topN = 3): TimingResult {
+function blendBuckets(
+  size: number,
+  prior: number[],
+  buckets: Map<number, { total: number; count: number }>,
+  overallMean: number,
+  label: (i: number) => string,
+  limit: number,
+): TimingWindow[] {
+  const windows: TimingWindow[] = [];
+  for (let index = 0; index < size; index++) {
+    const bucket = buckets.get(index) ?? { total: 0, count: 0 };
+    const benchmark = prior[index] ?? 1;
+    const avg = bucket.count > 0 ? bucket.total / bucket.count : 0;
+    const personalRelative = overallMean > 0 && bucket.count > 0 ? avg / overallMean : benchmark;
+    const weightPersonal = bucket.count / (bucket.count + SHRINKAGE_K);
+    const score = weightPersonal * personalRelative + (1 - weightPersonal) * benchmark;
+
+    let source: TimingSource;
+    if (bucket.count === 0) source = 'benchmark';
+    else if (weightPersonal >= 0.5) source = 'personal';
+    else source = 'blended';
+
+    windows.push({
+      index,
+      label: label(index),
+      sampleSize: bucket.count,
+      avgEngagement: avg,
+      score,
+      source,
+    });
+  }
+  return windows.sort((a, b) => b.score - a.score).slice(0, limit);
+}
+
+/**
+ * Compute best posting windows from posted rows and, optionally, a platform
+ * benchmark prior. When a prior is supplied the result is always populated
+ * (benchmark-backed), blending in personal data as it accumulates.
+ */
+export function computeBestTimes(
+  posts: TimingPost[],
+  topN = 3,
+  baseline?: TimingPrior,
+): TimingResult {
   const usable = posts
     .map((p) => ({ at: toDate(p.postedAt), engagement: Number.isFinite(p.engagement) ? p.engagement : 0 }))
     .filter((p): p is { at: Date; engagement: number } => p.at !== null);
 
-  if (usable.length < MIN_POSTS_FOR_TIMING) {
-    return { insufficientData: true, sampleSize: usable.length, bestWeekdays: [], bestHours: [] };
-  }
+  const withEngagement = usable.filter((p) => p.engagement > 0);
 
   const weekdayBuckets = new Map<number, { total: number; count: number }>();
   const hourBuckets = new Map<number, { total: number; count: number }>();
-
-  for (const { at, engagement } of usable) {
+  for (const { at, engagement } of withEngagement) {
     const wd = at.getDay();
     const hr = at.getHours();
     const w = weekdayBuckets.get(wd) ?? { total: 0, count: 0 };
@@ -89,11 +161,60 @@ export function computeBestTimes(posts: TimingPost[], topN = 3): TimingResult {
     hourBuckets.set(hr, h);
   }
 
+  // --- Blended mode: a benchmark prior is available -----------------------
+  if (baseline) {
+    const overallMean =
+      withEngagement.length > 0
+        ? withEngagement.reduce((sum, p) => sum + p.engagement, 0) / withEngagement.length
+        : 0;
+    const basis: TimingBasis = withEngagement.length === 0 ? 'benchmark' : 'blended';
+
+    return {
+      insufficientData: false,
+      sampleSize: withEngagement.length,
+      basis,
+      bestWeekdays: blendBuckets(7, baseline.weekday, weekdayBuckets, overallMean, (i) => WEEKDAYS[i], topN),
+      bestHours: blendBuckets(24, baseline.hour, hourBuckets, overallMean, (i) => formatHour(i), topN),
+    };
+  }
+
+  // --- Personal-only mode (back-compat): no prior supplied ----------------
+  if (
+    usable.length < MIN_POSTS_FOR_TIMING ||
+    withEngagement.length < MIN_ENGAGEMENT_POSTS_FOR_TIMING
+  ) {
+    return {
+      insufficientData: true,
+      sampleSize: withEngagement.length > 0 ? withEngagement.length : usable.length,
+      basis: 'personal',
+      bestWeekdays: [],
+      bestHours: [],
+    };
+  }
+
+  const bestWeekdays = rankBuckets(weekdayBuckets, (i) => WEEKDAYS[i], topN).filter(
+    (w) => w.avgEngagement >= 1,
+  );
+  const bestHours = rankBuckets(hourBuckets, (i) => formatHour(i), topN).filter(
+    (w) => w.avgEngagement >= 1,
+  );
+
+  if (bestWeekdays.length === 0 || bestHours.length === 0) {
+    return {
+      insufficientData: true,
+      sampleSize: withEngagement.length,
+      basis: 'personal',
+      bestWeekdays: [],
+      bestHours: [],
+    };
+  }
+
   return {
     insufficientData: false,
-    sampleSize: usable.length,
-    bestWeekdays: rankBuckets(weekdayBuckets, (i) => WEEKDAYS[i], topN),
-    bestHours: rankBuckets(hourBuckets, (i) => formatHour(i), topN),
+    sampleSize: withEngagement.length,
+    basis: 'personal',
+    bestWeekdays,
+    bestHours,
   };
 }
 

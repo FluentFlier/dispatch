@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { MessageSquare, ThumbsUp } from 'lucide-react';
 
 /** Shape of the `engagement` block returned by GET /api/analytics. */
@@ -36,7 +37,14 @@ export default function AudienceSection({
   engagement: AudienceEngagement | null;
 }) {
   if (!engagement || (engagement.totalReactions === 0 && engagement.totalComments === 0)) {
-    return null;
+    return (
+      <div className="rounded-xl border border-border bg-bg-secondary p-6 text-sm text-text-secondary">
+        <p>Reaction and commenter analytics appear after you publish and sync engagement.</p>
+        <Link href="/inbox" className="mt-2 inline-block text-accent-primary hover:underline">
+          Open Inbox to sync comments →
+        </Link>
+      </div>
+    );
   }
 
   const reactions = Object.entries(engagement.reactionBreakdown).sort((a, b) => b[1] - a[1]);
