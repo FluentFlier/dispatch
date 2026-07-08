@@ -123,10 +123,17 @@ export async function syncWorkspaceDirectory(
     settings.icp_description,
   );
   const collected: IngestedLead[] = [];
-  const sources = settings.enabled_sources.filter((s) => DIRECTORY_QUERIES[s]);
+  // Guard: an empty enabled_sources (e.g. the user unchecked the last source in the
+  // Advanced drawer) must not silently scrape nothing — fall back to the default YC
+  // directory so a workspace always has a working source.
+  const activeSources =
+    settings.enabled_sources.length > 0
+      ? settings.enabled_sources
+      : (['yc_directory'] as typeof settings.enabled_sources);
+  const sources = activeSources.filter((s) => DIRECTORY_QUERIES[s]);
   emit({ phase: 'scraping', label: 'Starting scrape…', pct: PCT.scrapeStart });
   let sourceIdx = 0;
-  for (const source of settings.enabled_sources) {
+  for (const source of activeSources) {
     if (!DIRECTORY_QUERIES[source]) {
       if (debug) console.log(`[directory-sync] ${source} skipped — no query config`);
       continue;
