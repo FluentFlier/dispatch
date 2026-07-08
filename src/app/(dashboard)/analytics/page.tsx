@@ -256,8 +256,9 @@ function BestTimesSection({ data }: { data: TimingResult | null }) {
       )}
 
       <p className="mt-4 text-xs text-text-tertiary">
-        Metrics sync automatically from X and Instagram. LinkedIn does not expose post metrics to
-        third-party apps, so log those by hand above.
+        Metrics sync automatically from your connected accounts — LinkedIn (impressions, reactions,
+        comments, reposts) via your linked account, plus X and Instagram. You can still override any
+        post&apos;s numbers by hand above.
       </p>
     </section>
   );
@@ -335,10 +336,8 @@ function LogPerformanceSection({
       </h2>
 
       <p className="text-sm text-text-secondary mb-4">
-        LinkedIn does not expose post impressions or engagement metrics via their API to third parties.
-        Copy your stats from{" "}
-        <span className="font-medium text-text-primary">LinkedIn Analytics</span>{" "}
-        and paste them here to track performance and train your content intelligence.
+        Posts published through Content OS sync their metrics automatically. Use this to backfill
+        numbers by hand for posts we can&apos;t auto-sync — e.g. ones you posted outside the app.
       </p>
 
       <div className="mb-4">

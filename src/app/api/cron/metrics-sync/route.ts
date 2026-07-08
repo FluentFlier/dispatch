@@ -4,6 +4,7 @@ import { decryptToken } from '@/lib/crypto';
 import { fetchTweetMetrics, type NormalizedMetrics } from '@/lib/platforms/twitter-metrics';
 import { fetchInstagramMetrics } from '@/lib/platforms/instagram-metrics';
 import { fetchLinkedInMetrics } from '@/lib/platforms/linkedin-metrics';
+import { resolveUnipileTarget } from '@/lib/onboarding/import-posts';
 import { logError, logInfo } from '@/lib/logger';
 
 /**
@@ -91,15 +92,44 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (unipileCache.has(userId)) return unipileCache.get(userId) ?? null;
     const { data: account } = await admin.database
       .from('social_accounts')
-      .select('unipile_account_id')
+      .select('unipile_account_id, account_id')
       .eq('user_id', userId)
       .eq('platform', 'linkedin')
       .not('unipile_account_id', 'is', null)
       .limit(1)
       .maybeSingle();
-    const id = (account as { unipile_account_id: string } | null)?.unipile_account_id ?? null;
-    unipileCache.set(userId, id);
-    return id;
+    const row = account as { unipile_account_id: string; account_id: string | null } | null;
+    if (!row?.unipile_account_id) {
+      unipileCache.set(userId, null);
+      return null;
+    }
+
+    // Self-heal a rotated unipile_account_id, exactly as the publish/import
+    // paths do. LinkedIn re-issues account.id on every credential re-auth, so
+    // the id cached in social_accounts eventually 404s ("Account not found") —
+    // which is why LinkedIn metrics silently came back empty. Recover the live
+    // id by matching the STABLE identity (account_id) against the account list,
+    // then persist it so the engagement-sync/comments paths heal for free.
+    let healedId: string = row.unipile_account_id;
+    try {
+      const target = await resolveUnipileTarget(row.unipile_account_id, row.account_id, 'linkedin');
+      if (target?.unipileAccountId) {
+        healedId = target.unipileAccountId;
+        if (target.refreshed) {
+          await admin.database
+            .from('social_accounts')
+            .update({ unipile_account_id: healedId })
+            .eq('user_id', userId)
+            .eq('platform', 'linkedin');
+          logInfo('[metrics-sync] Healed rotated Unipile account id', { userId });
+        }
+      }
+    } catch (e) {
+      logError('[metrics-sync] Unipile account resolve failed', { userId }, e);
+    }
+
+    unipileCache.set(userId, healedId);
+    return healedId;
   }
 
   let updated = 0;
