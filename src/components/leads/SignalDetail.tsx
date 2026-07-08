@@ -4,7 +4,6 @@ import {
   Radio,
   ExternalLink,
   Linkedin,
-  Twitter,
   Building2,
   Sparkles,
   Send,
@@ -13,6 +12,7 @@ import {
   Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { XLogo } from '@/components/ui/BrandIcons';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import { sourceBadge, signalTypeLabel, isReachable } from './feed-format';
 import {
@@ -142,7 +142,7 @@ export function SignalDetail({
           )}
           {contact.x_handle && (
             <a href={`https://x.com/${contact.x_handle.replace(/^@/, '')}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent-primary hover:underline ml-2">
-              <Twitter className="h-3.5 w-3.5" /> {contact.x_handle}
+              <XLogo className="h-3.5 w-3.5" /> {contact.x_handle}
             </a>
           )}
         </div>
