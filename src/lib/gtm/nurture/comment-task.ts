@@ -3,19 +3,14 @@ import { draftOutboundComment } from '@/lib/engagement/tasks';
 import { connectDueAt } from '@/lib/gtm/nurture/playbook';
 import { draftOutreachForLead } from '@/lib/signals/outreach/draft-lead';
 import { getLead, updateLead } from '@/lib/signals/leads/store';
+import { assertOutreachAllowed } from '@/lib/signals/safety/guard';
+import { scheduleHumanizedEngagementAt } from '@/lib/signals/safety/humanize';
 import { getSafetySettings } from '@/lib/signals/safety/settings';
 import type { LeadPlaybook, SignalLeadWithContacts } from '@/lib/signals/types';
 import type { ProspectPost } from '@/lib/gtm/nurture/linkedin-posts';
 import { logError } from '@/lib/logger';
 
 type InsforgeClient = ReturnType<typeof createClient>;
-
-function commentDueAt(from: Date = new Date()): Date {
-  const due = new Date(from);
-  due.setUTCDate(due.getUTCDate() + 1);
-  due.setUTCHours(14, 30, 0, 0);
-  return due;
-}
 
 function markStepDone(playbook: LeadPlaybook, type: LeadPlaybook['steps'][number]['type']): LeadPlaybook {
   return {
@@ -44,7 +39,10 @@ export async function queueLeadCommentTask(
   });
 
   const settings = await getSafetySettings(client, workspaceId);
-  const scheduledAt = commentDueAt();
+  const scheduledAt = scheduleHumanizedEngagementAt(settings, {
+    minDelayMinutes: 60,
+    maxDelayMinutes: 480,
+  });
   const autoApprove = settings.auto_send_enabled && settings.outreach_enabled && !settings.dry_run;
 
   const { data, error } = await client.database
@@ -92,6 +90,80 @@ export async function queueLeadCommentTask(
   });
 
   return { taskId: data.id as string, playbook: updatedPlaybook, scheduledAt: scheduledAt.toISOString() };
+}
+
+export interface LeadCommentActionResult {
+  taskId: string;
+  commentText: string;
+  status: 'approved' | 'draft';
+  scheduledAt: string;
+  post: { id: string; excerpt: string; url: string | null };
+}
+
+/**
+ * One-off comment from the leads feed. Guarded + scheduled at a random future
+ * time inside working hours so comments never fire in instant bursts.
+ */
+export async function queueLeadCommentAction(
+  client: InsforgeClient,
+  workspaceId: string,
+  userId: string,
+  lead: SignalLeadWithContacts,
+  targetPost: ProspectPost,
+): Promise<LeadCommentActionResult> {
+  const guard = await assertOutreachAllowed(client, workspaceId, 'linkedin_comment', {
+    leadId: lead.id,
+  });
+  if (!guard.allowed) {
+    throw new Error(guard.reason ?? 'Comment blocked by safety settings.');
+  }
+
+  const contact = lead.primary_contact ?? lead.contacts?.[0];
+  const draft = await draftOutboundComment(client, userId, {
+    targetPostExcerpt: targetPost.excerpt,
+    targetAuthorName: contact?.name ?? lead.company_name,
+    platform: 'linkedin',
+    fast: true,
+  });
+
+  const settings = await getSafetySettings(client, workspaceId);
+  const live = settings.outreach_enabled && !settings.dry_run;
+  const status: 'approved' | 'draft' = live ? 'approved' : 'draft';
+  const scheduledAt = scheduleHumanizedEngagementAt(settings).toISOString();
+
+  const { data, error } = await client.database
+    .from('engagement_tasks')
+    .insert([
+      {
+        user_id: userId,
+        workspace_id: workspaceId,
+        lead_id: lead.id,
+        platform: 'linkedin',
+        kind: 'comment',
+        target_provider_post_id: targetPost.id,
+        target_post_url: targetPost.url ?? null,
+        target_author_name: contact?.name ?? lead.company_name,
+        target_post_excerpt: targetPost.excerpt.slice(0, 2000),
+        source: 'lead_manual',
+        comment_text: draft.text,
+        status,
+        scheduled_at: scheduledAt,
+      },
+    ])
+    .select('id')
+    .single();
+
+  if (error || !data?.id) {
+    throw new Error(error?.message ?? 'Could not queue comment.');
+  }
+
+  return {
+    taskId: data.id as string,
+    commentText: draft.text,
+    status,
+    scheduledAt,
+    post: { id: targetPost.id, excerpt: targetPost.excerpt.slice(0, 500), url: targetPost.url ?? null },
+  };
 }
 
 /** After comment posts, draft connect note and advance lead to connect_ready. */

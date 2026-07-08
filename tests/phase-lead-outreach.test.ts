@@ -41,6 +41,10 @@ describe('Phase 9: cold-email compliance + safety', () => {
     it('routes gmail to its own limit key', () => {
       expect(channelToLimitKey('gmail')).toBe('gmail');
     });
+    it('routes linkedin follow and comment to engagement caps', () => {
+      expect(channelToLimitKey('linkedin_follow')).toBe('linkedin_follow');
+      expect(channelToLimitKey('linkedin_comment')).toBe('linkedin_comment');
+    });
   });
 });
 

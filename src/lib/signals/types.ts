@@ -63,6 +63,8 @@ export type SignalActionMode =
 export type OutreachChannel =
   | 'linkedin_connect'
   | 'linkedin_dm'
+  | 'linkedin_follow'
+  | 'linkedin_comment'
   | 'x_dm'
   | 'gmail'
   | 'copy';

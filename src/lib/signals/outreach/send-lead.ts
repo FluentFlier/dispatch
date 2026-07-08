@@ -1,7 +1,12 @@
 import type { createClient } from '@insforge/sdk';
-import { assertOutreachAllowed } from '@/lib/signals/safety';
+import { assertOutreachAllowed, assertLinkedInProfileLookupAllowed } from '@/lib/signals/safety';
+import { awaitInterCallDelay } from '@/lib/signals/safety/humanize';
 import { logSignalAudit } from '@/lib/signals/safety/audit';
 import { getDirectorySettings, getLead, logLeadEvent, updateLead } from '@/lib/signals/leads/store';
+import {
+  checkDailyUsage,
+  incrementDailyUsage,
+} from '@/lib/social/reliability';
 import {
   getLinkedInUnipileAccountId,
   resolveLinkedInProfile,
@@ -128,6 +133,19 @@ async function sendLeadLinkedIn(
   const accountId = await getLinkedInUnipileAccountId(client, userId, workspaceId);
   if (!accountId) return { success: false, error: 'Connect LinkedIn via Settings before sending outreach.' };
 
+  const usage = checkDailyUsage(accountId, 1);
+  if (!usage.allowed) {
+    return {
+      success: false,
+      error: 'Daily LinkedIn action budget reached for this account. Try again tomorrow (UTC).',
+    };
+  }
+
+  const lookupGuard = await assertLinkedInProfileLookupAllowed(client, workspaceId, { leadId });
+  if (!lookupGuard.allowed) {
+    return { success: false, error: lookupGuard.reason };
+  }
+
   await logSignalAudit(client, {
     workspace_id: workspaceId,
     action: 'outreach_send_attempt',
@@ -143,11 +161,20 @@ async function sendLeadLinkedIn(
   let profile;
   try {
     profile = await resolveLinkedInProfile(accountId, identifier);
+    await logSignalAudit(client, {
+      workspace_id: workspaceId,
+      action: 'profile_lookup',
+      channel: 'linkedin_connect',
+      lead_id: leadId,
+      social_account_id: accountId,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await markLeadOutreachFailed(client, workspaceId, leadId, 'linkedin_connect', msg);
     return { success: false, error: msg };
   }
+
+  await awaitInterCallDelay();
 
   const sendResult = await sendLinkedInConnectionInvite(accountId, profile.providerId, messageText);
   if (!sendResult.success) {
@@ -162,6 +189,8 @@ async function sendLeadLinkedIn(
     await markLeadOutreachFailed(client, workspaceId, leadId, 'linkedin_connect', sendResult.error ?? 'Send failed');
     return { success: false, error: sendResult.error, providerId: profile.providerId };
   }
+
+  incrementDailyUsage(accountId, 1);
 
   await logSignalAudit(client, {
     workspace_id: workspaceId,
@@ -213,6 +242,19 @@ async function sendLeadLinkedInDm(
   const accountId = await getLinkedInUnipileAccountId(client, userId, workspaceId);
   if (!accountId) return { success: false, error: 'Connect LinkedIn via Settings before sending outreach.' };
 
+  const usage = checkDailyUsage(accountId, 1);
+  if (!usage.allowed) {
+    return {
+      success: false,
+      error: 'Daily LinkedIn action budget reached for this account. Try again tomorrow (UTC).',
+    };
+  }
+
+  const lookupGuard = await assertLinkedInProfileLookupAllowed(client, workspaceId, { leadId });
+  if (!lookupGuard.allowed) {
+    return { success: false, error: lookupGuard.reason };
+  }
+
   await logSignalAudit(client, {
     workspace_id: workspaceId,
     action: 'outreach_send_attempt',
@@ -228,11 +270,20 @@ async function sendLeadLinkedInDm(
   let profile;
   try {
     profile = await resolveLinkedInProfile(accountId, identifier);
+    await logSignalAudit(client, {
+      workspace_id: workspaceId,
+      action: 'profile_lookup',
+      channel: 'linkedin_dm',
+      lead_id: leadId,
+      social_account_id: accountId,
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await markLeadOutreachFailed(client, workspaceId, leadId, 'linkedin_dm', msg);
     return { success: false, error: msg };
   }
+
+  await awaitInterCallDelay();
 
   let sendResult = await sendLinkedInInMail(accountId, profile.providerId, messageText);
   if (
@@ -255,6 +306,8 @@ async function sendLeadLinkedInDm(
     await markLeadOutreachFailed(client, workspaceId, leadId, 'linkedin_dm', sendResult.error ?? 'Send failed');
     return { success: false, error: sendResult.error, providerId: profile.providerId };
   }
+
+  incrementDailyUsage(accountId, 1);
 
   await logSignalAudit(client, {
     workspace_id: workspaceId,

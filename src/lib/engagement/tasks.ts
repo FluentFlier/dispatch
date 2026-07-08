@@ -16,6 +16,9 @@ import {
   randomDelay,
   throwIfNotOk,
 } from '@/lib/social/reliability';
+import { awaitEngagementGap } from '@/lib/signals/safety/humanize';
+import { getSafetySettings } from '@/lib/signals/safety/settings';
+import { logSignalAudit } from '@/lib/signals/safety/audit';
 import { logError, logInfo } from '@/lib/logger';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -31,6 +34,8 @@ export type EngagementTaskStatus =
 export interface EngagementTaskRow {
   id: string;
   user_id: string;
+  workspace_id?: string | null;
+  lead_id?: string | null;
   platform: string;
   kind: 'comment' | 'reaction';
   target_provider_post_id: string;
@@ -272,6 +277,17 @@ export async function runEngagementTaskQueue(
       const { providerResultId } = await performTask(accountId, task);
       incrementDailyUsage(accountId, ACTIONS_PER_TASK);
 
+      if (task.kind === 'comment' && task.workspace_id) {
+        await logSignalAudit(client, {
+          workspace_id: task.workspace_id,
+          action: 'outreach_send_success',
+          channel: 'linkedin_comment',
+          lead_id: task.lead_id ?? undefined,
+          social_account_id: accountId,
+          metadata: { task_id: task.id, source: task.source },
+        });
+      }
+
       await client.database
         .from('engagement_tasks')
         .update({
@@ -301,9 +317,14 @@ export async function runEngagementTaskQueue(
       logError('[engagement-tasks] task failed', { taskId: task.id, exhausted, message });
     }
 
-    // Human-mimicking gap between outbound actions (well above sync pacing —
-    // these are visible writes on LinkedIn, not reads).
-    await randomDelay(1000, 3000);
+    // Human-mimicking gap between outbound actions — Unipile recommends ≥120s
+    // between consecutive LinkedIn writes, not the old 1–3s burst pacing.
+    if (task.workspace_id) {
+      const settings = await getSafetySettings(client, task.workspace_id);
+      await awaitEngagementGap(settings);
+    } else {
+      await randomDelay(120_000, 240_000);
+    }
   }
 
   return result;

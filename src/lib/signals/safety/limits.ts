@@ -11,7 +11,16 @@ export const UNIPILE_SAFETY_REFERENCE = {
   linkedinInvitesPerWeekMax: 200,
   linkedinInmailPerDayRecommended: 50,
   linkedinProfileLookupsPerDay: 100,
+  /** Unlisted routes (follow, comment, reaction): default ≤100/day; we stay lower. */
+  linkedinEngagementActionsPerDay: 100,
   minSecondsBetweenActions: 120,
+} as const;
+
+/** Conservative caps for LinkedIn actions without a dedicated settings column. */
+export const LINKEDIN_ACTION_CAPS = {
+  followsPerDay: 30,
+  commentsPerDay: 40,
+  profileLookupsPerDay: 80,
 } as const;
 
 export interface SignalSafetySettings {
@@ -70,12 +79,23 @@ export type OutreachAuditAction =
 
 export function channelToLimitKey(
   channel: OutreachChannel,
-): 'linkedin_invite' | 'linkedin_inmail' | 'x_dm' | 'gmail' | null {
+):
+  | 'linkedin_invite'
+  | 'linkedin_inmail'
+  | 'linkedin_follow'
+  | 'linkedin_comment'
+  | 'x_dm'
+  | 'gmail'
+  | null {
   switch (channel) {
     case 'linkedin_connect':
       return 'linkedin_invite';
     case 'linkedin_dm':
       return 'linkedin_inmail';
+    case 'linkedin_follow':
+      return 'linkedin_follow';
+    case 'linkedin_comment':
+      return 'linkedin_comment';
     case 'x_dm':
       return 'x_dm';
     case 'gmail':

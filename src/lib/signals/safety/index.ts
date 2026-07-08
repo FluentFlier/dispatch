@@ -12,9 +12,16 @@ export { logSignalAudit, countAuditActions } from '@/lib/signals/safety/audit';
 export {
   assertOutreachAllowed,
   assertAutoSendAllowed,
+  assertLinkedInProfileLookupAllowed,
   getSafetyStatus,
   shouldPollSource,
   sleep,
   type OutreachGuardResult,
   type SafetyStatusSnapshot,
 } from '@/lib/signals/safety/guard';
+export {
+  awaitEngagementGap,
+  awaitInterCallDelay,
+  formatScheduledLocal,
+  scheduleHumanizedEngagementAt,
+} from '@/lib/signals/safety/humanize';

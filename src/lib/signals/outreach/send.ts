@@ -1,7 +1,12 @@
 import type { createClient } from '@insforge/sdk';
-import { assertOutreachAllowed } from '@/lib/signals/safety';
+import { assertOutreachAllowed, assertLinkedInProfileLookupAllowed } from '@/lib/signals/safety';
+import { awaitInterCallDelay } from '@/lib/signals/safety/humanize';
 import { logSignalAudit } from '@/lib/signals/safety/audit';
 import { getEvent, updateEventStatus } from '@/lib/signals/store';
+import {
+  checkDailyUsage,
+  incrementDailyUsage,
+} from '@/lib/social/reliability';
 import type { OutreachChannel, SignalEventWithPost } from '@/lib/signals/types';
 import {
   getInMailBalance,
@@ -280,6 +285,19 @@ export async function sendSignalOutreach(
     };
   }
 
+  const usage = checkDailyUsage(accountId, 1);
+  if (!usage.allowed) {
+    return {
+      success: false,
+      error: 'Daily LinkedIn action budget reached for this account. Try again tomorrow (UTC).',
+    };
+  }
+
+  const lookupGuard = await assertLinkedInProfileLookupAllowed(client, workspaceId, {});
+  if (!lookupGuard.allowed) {
+    return { success: false, error: lookupGuard.reason };
+  }
+
   await logSignalAudit(client, {
     workspace_id: workspaceId,
     action: 'outreach_send_attempt',
@@ -305,6 +323,8 @@ export async function sendSignalOutreach(
     await markOutreachFailed(client, workspaceId, eventId, channel, msg);
     return { success: false, error: msg };
   }
+
+  await awaitInterCallDelay();
 
   let sendResult;
   if (channel === 'linkedin_connect') {
@@ -338,6 +358,8 @@ export async function sendSignalOutreach(
     await markOutreachFailed(client, workspaceId, eventId, channel, sendResult.error ?? 'Send failed');
     return { success: false, error: sendResult.error, providerId: profile.providerId };
   }
+
+  incrementDailyUsage(accountId, 1);
 
   await logSignalAudit(client, {
     workspace_id: workspaceId,
