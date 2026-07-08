@@ -8,8 +8,29 @@ import { putBrainPage } from '@/lib/brain/pages';
 import { BRAIN_SLUG } from '@/lib/brain/types';
 import { parseIcpDescription } from '@/lib/signals/icp/parse-description';
 import { syncWorkspaceDirectory } from '@/lib/signals/ingest/sync-directory';
-import { chatCompletion } from '@/lib/llm';
+import { chatCompletion, LlmError } from '@/lib/llm';
 import { errorResponse } from '@/lib/api-errors';
+
+/**
+ * Friendly, HONEST reply when the AI provider is out of credits / rate-limited.
+ * Returned as a normal 200 assistant message so the user sees WHY in the chat and
+ * knows it is our provider capacity — not their account or subscription.
+ */
+function llmBusyResponse(): NextResponse {
+  return NextResponse.json(
+    {
+      assistantMessage:
+        "Our AI is temporarily over capacity on our end — this is a provider-credit issue on our side, not your account or subscription. Please try again in a few minutes.",
+      llmUnavailable: true,
+    },
+    { status: 200 },
+  );
+}
+
+/** True when a failure is the AI provider being out of credits / rate-limited. */
+function isLlmUnavailable(err: unknown): boolean {
+  return err instanceof LlmError && err.isQuota;
+}
 
 const bodySchema = z.object({
   message: z.string().min(1).max(2000),
@@ -101,6 +122,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const raw = await chatCompletion(system, userPrompt, { maxTokens: 600, temperature: 0.4 });
       intent = extractJson(raw);
     } catch (err) {
+      if (isLlmUnavailable(err)) return llmBusyResponse();
       return errorResponse('ICP assistant is unavailable right now.', 503, err);
     }
     if (!intent) {
@@ -147,6 +169,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       sync,
     });
   } catch (err) {
+    // A quota/credit failure from ICP parsing or discovery is our provider being
+    // out of credits — surface it honestly instead of a generic 500.
+    if (isLlmUnavailable(err)) return llmBusyResponse();
     return errorResponse('Could not process ICP chat.', 500, err);
   }
 }

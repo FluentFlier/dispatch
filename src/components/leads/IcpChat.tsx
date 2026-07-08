@@ -142,12 +142,14 @@ export function IcpChat({
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not send message.';
       toast?.(msg, 'error');
+      // Show the ACTUAL reason in the chat, not a generic "something went wrong",
+      // so the user can tell a provider/config problem from their own input.
       setMessages((prev) => [
         ...prev,
         {
           id: newId(),
           role: 'assistant',
-          content: 'Something went wrong on my side. Try again in a moment.',
+          content: msg || 'Could not reach the assistant. Try again in a moment.',
         },
       ]);
     } finally {
