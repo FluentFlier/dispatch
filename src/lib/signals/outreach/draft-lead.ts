@@ -16,8 +16,13 @@ import type {
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
-/** Time budget for the one-time YC detail-page fetch during a draft. */
-const COMPANY_DETAIL_TIMEOUT_MS = 3500;
+/**
+ * Time budget for the one-time YC detail-page fetch during a draft. Bounds the
+ * cold first-draft path: on a timeout the draft proceeds on the seed/tagline
+ * context (the fetch is abandoned) so a slow YC page never blows the latency
+ * budget. Runs in parallel with the voice-context + edit-style loads below.
+ */
+const COMPANY_DETAIL_TIMEOUT_MS = 3000;
 
 /**
  * Returns the lead's rich company detail for the prompt, fetching the YC detail
@@ -196,22 +201,31 @@ export async function draftOutreachForLead(
     throw new Error('Daily AI draft budget reached for this workspace. Try again tomorrow.');
   }
 
-  const voiceContext = await loadCreatorVoiceContext(client, userId, {
-    workspaceId,
-    platform,
-    lightweight: true,
-    includeGtm: true,
-  });
-
-  // Load (or one-time fetch + persist) rich company facts so the prompt has real
-  // substance without a re-scrape on repeat drafts.
-  const companyDetail = await ensureLeadCompanyDetail(client, workspaceId, lead);
-
-  // Edit-feedback loop: few-shot the prompt on how this workspace rewrites drafts.
-  const editGuidance = await loadEditStyleGuidance(client, workspaceId, 3);
+  // The three pre-generation loads are independent, so run them concurrently
+  // instead of summing their latency. On a COLD first draft this is the main
+  // saving: the company-detail fetch (time-boxed) overlaps the voice-context and
+  // edit-style reads rather than stacking on top of them. Each is timed so the
+  // dominant contributor is visible in the [latency] log below.
+  const loadsStartedAt = Date.now();
+  const [voiceContext, companyDetail, editGuidance] = await Promise.all([
+    loadCreatorVoiceContext(client, userId, {
+      workspaceId,
+      platform,
+      lightweight: true,
+      includeGtm: true,
+    }),
+    // Load (or one-time fetch + persist) rich company facts so the prompt has
+    // real substance without a re-scrape on repeat drafts. Time-boxed so a cold
+    // fetch cannot block generation past the budget; falls back to seed/tagline.
+    ensureLeadCompanyDetail(client, workspaceId, lead),
+    // Edit-feedback loop: few-shot the prompt on how this workspace rewrites.
+    loadEditStyleGuidance(client, workspaceId, 3),
+  ]);
+  const loadsMs = Date.now() - loadsStartedAt;
 
   // Fast path for the interactive first render; heavy loop only on polish.
   const pipe = draftPipelineOptions(opts.polish ?? false);
+  const genStartedAt = Date.now();
   const result = await generateWithVoicePipeline({
     userPrompt: buildLeadPrompt(lead, contact, channel, opts.rewriteInstruction, companyDetail, editGuidance),
     profile: voiceContext.profile,
@@ -223,6 +237,7 @@ export async function draftOutreachForLead(
     maxIterations: pipe.maxIterations,
     humanizeAlways: pipe.humanizeAlways,
   });
+  const genMs = Date.now() - genStartedAt;
 
   // The 300-char instruction above is a soft prompt; the model can and does
   // overrun it. Enforce the hard limit server-side so every saved connect
@@ -232,9 +247,11 @@ export async function draftOutreachForLead(
   await saveLeadDraft(client, workspaceId, lead.id, draftText, channel);
   await updateLead(client, workspaceId, lead.id, { lead_status: 'drafted' });
 
-  // Instrumentation: wall-clock so the 10-20s budget can be verified in logs.
+  // Instrumentation: wall-clock + per-stage ms so the 10-20s budget can be
+  // verified and the dominant contributor pinpointed (loads vs generation).
   console.info(
-    `[latency] lead-draft workspace=${workspaceId} lead=${lead.id} polish=${opts.polish ? 1 : 0} ms=${Date.now() - startedAt}`,
+    `[latency] lead-draft workspace=${workspaceId} lead=${lead.id} polish=${opts.polish ? 1 : 0} ` +
+      `loadsMs=${loadsMs} genMs=${genMs} ms=${Date.now() - startedAt}`,
   );
 
   return { draftText, voiceMatchScore: result.voice_match_score };
