@@ -1,6 +1,11 @@
 import { randomUUID } from 'crypto';
 import type { getServerClient } from '@/lib/insforge/server';
 import { buildIdempotencyKey } from '@/lib/publish-queue';
+import {
+  extractLinkedInMetrics,
+  extractLinkedInPublishedAt,
+} from '@/lib/platforms/linkedin-metrics';
+import { metricsPatchFromNormalized } from '@/lib/analytics/post-metrics';
 
 // Extracted from the import-from-account route so it can be unit-tested
 // directly. Next.js route modules may only export HTTP handlers, so this
@@ -111,6 +116,13 @@ export async function persistImportedPosts({
       }
     }
 
+    // Unipile list payloads often include impression/reaction counters — seed
+    // analytics immediately instead of waiting for a later metrics sync.
+    const importedMetrics =
+      platform === 'linkedin' ? metricsPatchFromNormalized(extractLinkedInMetrics(item)) : {};
+    const importedPublishedAt =
+      platform === 'linkedin' ? extractLinkedInPublishedAt(item) : undefined;
+
     // Create a posts row for this historically-published post
     const postId = randomUUID();
     const { error: postErr } = await client.database.from('posts').insert([{
@@ -131,7 +143,8 @@ export async function persistImportedPosts({
       image_url: firstImageUrl(item),
       platform,
       status: 'posted',
-      posted_date: new Date().toISOString().split('T')[0],
+      posted_date: importedPublishedAt?.split('T')[0] ?? new Date().toISOString().split('T')[0],
+      ...importedMetrics,
     }]);
 
     if (postErr) {

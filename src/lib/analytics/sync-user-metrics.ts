@@ -4,7 +4,8 @@ import { metricsPatchFromNormalized } from '@/lib/analytics/post-metrics';
 import { fetchLinkedInPostDetails } from '@/lib/platforms/linkedin-metrics';
 import { fetchTweetMetrics } from '@/lib/platforms/twitter-metrics';
 import { fetchInstagramMetrics } from '@/lib/platforms/instagram-metrics';
-import { logError } from '@/lib/logger';
+import { resolveUnipileTarget } from '@/lib/onboarding/import-posts';
+import { logError, logInfo } from '@/lib/logger';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -71,15 +72,39 @@ export async function syncUserPostMetrics(
     if (unipileCache.has('linkedin')) return unipileCache.get('linkedin') ?? null;
     const { data: account } = await client.database
       .from('social_accounts')
-      .select('unipile_account_id')
+      .select('unipile_account_id, account_id')
       .eq('user_id', userId)
       .eq('platform', 'linkedin')
       .not('unipile_account_id', 'is', null)
       .limit(1)
       .maybeSingle();
-    const id = (account as { unipile_account_id: string } | null)?.unipile_account_id ?? null;
-    unipileCache.set('linkedin', id);
-    return id;
+    const row = account as { unipile_account_id: string; account_id: string | null } | null;
+    if (!row?.unipile_account_id) {
+      unipileCache.set('linkedin', null);
+      return null;
+    }
+
+    // Self-heal rotated Unipile account ids (same fix as metrics-sync cron).
+    let healedId = row.unipile_account_id;
+    try {
+      const target = await resolveUnipileTarget(row.unipile_account_id, row.account_id, 'linkedin');
+      if (target?.unipileAccountId) {
+        healedId = target.unipileAccountId;
+        if (target.refreshed) {
+          await client.database
+            .from('social_accounts')
+            .update({ unipile_account_id: healedId })
+            .eq('user_id', userId)
+            .eq('platform', 'linkedin');
+          logInfo('[analytics-sync] Healed rotated Unipile account id', { userId });
+        }
+      }
+    } catch (e) {
+      logError('[analytics-sync] Unipile account resolve failed', { userId }, e);
+    }
+
+    unipileCache.set('linkedin', healedId);
+    return healedId;
   }
 
   let updated = 0;
