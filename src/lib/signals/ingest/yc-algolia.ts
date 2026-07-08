@@ -286,7 +286,18 @@ export function mapHit(hit: YcHit): IngestedLead | null {
 export async function fetchYcCompaniesViaAlgolia(limit: number, query = ''): Promise<IngestedLead[]> {
   const startedAt = Date.now();
   const { app, key } = await readAlgoliaOpts();
-  const q = encodeURIComponent(query.trim());
+  const trimmed = query.trim();
+  const q = encodeURIComponent(trimmed);
+
+  // ICP-derived queries concatenate many verticals + keywords (e.g. "fintech
+  // treasury seed round B2B SaaS ..."). Algolia requires ALL query words to
+  // match by default, so a rich multi-term ICP matched ZERO companies (the
+  // better a user described their ICP, the emptier the scrape). Marking every
+  // word optional keeps ranking — records matching more terms rank higher —
+  // while never filtering the result set to nothing. Bare/empty queries are
+  // unaffected (no optional words to send).
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  const optionalWords = words.length > 1 ? `&optionalWords=${encodeURIComponent(JSON.stringify(words))}` : '';
 
   const res = await fetch(`https://${app.toLowerCase()}-dsn.algolia.net/1/indexes/*/queries`, {
     method: 'POST',
@@ -299,7 +310,7 @@ export async function fetchYcCompaniesViaAlgolia(limit: number, query = ''): Pro
       requests: [
         {
           indexName: YC_ALGOLIA_INDEX,
-          params: `query=${q}&hitsPerPage=${Math.min(Math.max(limit, 1), MAX_HITS)}&page=0`,
+          params: `query=${q}${optionalWords}&hitsPerPage=${Math.min(Math.max(limit, 1), MAX_HITS)}&page=0`,
         },
       ],
     }),
