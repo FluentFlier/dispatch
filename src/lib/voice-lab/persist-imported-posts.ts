@@ -5,7 +5,7 @@ import {
   extractLinkedInMetrics,
   extractLinkedInPublishedAt,
 } from '@/lib/platforms/linkedin-metrics';
-import { metricsPatchFromNormalized } from '@/lib/analytics/post-metrics';
+import { metricsPatchFromNormalized, hasPostMetrics } from '@/lib/analytics/post-metrics';
 
 // Extracted from the import-from-account route so it can be unit-tested
 // directly. Next.js route modules may only export HTTP handlers, so this
@@ -105,12 +105,23 @@ export async function persistImportedPosts({
     if (existingJob?.post_id) {
       const { data: existingPost } = await client.database
         .from('posts')
-        .select('id')
+        .select('id, views, likes, saves, comments, shares')
         .eq('id', existingJob.post_id)
         .eq('user_id', userId)
         .maybeSingle();
 
       if (existingPost) {
+        if (platform === 'linkedin') {
+          const patch = metricsPatchFromNormalized(extractLinkedInMetrics(item));
+          if (!hasPostMetrics(existingPost) && Object.keys(patch).length > 0) {
+            const publishedAt = extractLinkedInPublishedAt(item);
+            const postPatch: Record<string, string | number> = { ...patch };
+            if (publishedAt) postPatch.posted_date = publishedAt.split('T')[0];
+            await client.database.from('posts').update(postPatch).eq('id', existingJob.post_id);
+            result.repaired++;
+            continue;
+          }
+        }
         result.skipped++;
         continue;
       }
