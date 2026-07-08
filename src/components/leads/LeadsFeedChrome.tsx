@@ -154,6 +154,46 @@ export function LeadsHeaderActions({
   );
 }
 
+/**
+ * Empty state shown when the feed has leads but the ACTIVE FILTERS exclude them
+ * all — distinct from `LeadsEmptyState` (no leads at all). Offers a one-click
+ * clear, and when a signal-type filter is the culprit, explains that
+ * funding / role-change / accelerator signals come from the live Signal engine
+ * (X/LinkedIn detection), not the directory scrape — so those can be legitimately
+ * empty until the engine is configured.
+ */
+export function LeadsFilteredEmptyState({
+  onClear,
+  signalHint,
+}: {
+  onClear: () => void;
+  signalHint: boolean;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center text-center min-h-[360px] gap-3">
+      <div className="p-3 rounded-lg bg-bg-tertiary">
+        <SlidersHorizontal className="h-6 w-6 text-text-secondary" aria-hidden="true" />
+      </div>
+      <h2 className="font-serif text-[20px] text-text-primary">No leads match these filters</h2>
+      <p className="text-sm text-text-secondary max-w-md">
+        {signalHint
+          ? 'Funding, new-role, and accelerator signals are detected from live X / LinkedIn posts by the Signal engine — the directory scrape only surfaces companies and launches. Configure the Signal engine in Setup, or clear the filter to see your scraped leads.'
+          : 'Your scraped leads don’t match the current filters. Clear them to see everything.'}
+      </p>
+      <div className="flex gap-2 mt-1">
+        <Button variant="primary" size="sm" onClick={onClear}>
+          Clear filters
+        </Button>
+        <Link href="/leads?view=setup">
+          <Button variant="secondary" size="sm">
+            Open Setup
+          </Button>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 /** Empty state shown when the feed has no cards for the active filters. */
 export function LeadsEmptyState({ onScrape, scraping }: { onScrape: () => void; scraping: boolean }) {
   return (

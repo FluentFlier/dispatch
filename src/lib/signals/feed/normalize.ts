@@ -128,13 +128,20 @@ export function normalizeEvent(e: SignalEventWithPost): UnifiedLeadCard {
  */
 export function normalizeLead(l: SignalLeadWithContacts): UnifiedLeadCard {
   const pc = l.primary_contact ?? null;
+  // A Product Hunt listing and a YC "launch" post ARE launch events, so they
+  // carry the 'launch' signal type — this lets the "Launched" feed filter match
+  // scraped directory leads instead of returning nothing. Funding / role-change
+  // / accelerator-join can't be inferred from a directory record, so those
+  // signal types stay exclusive to the live Signal engine (normalizeEvent).
+  const signalType: SignalType | null =
+    l.source === 'product_hunt' || l.source === 'yc_launches' ? 'launch' : null;
   return {
     id: l.id,
     kind: 'directory',
     source: l.source,
     companyName: l.company_name,
     tagline: l.tagline,
-    signalType: null,
+    signalType,
     signalSummary: l.tagline,
     sourceUrl: l.website,
     batch: l.batch,
