@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { usage } from '@/lib/hooks-intelligence/usage-tracker';
 import { postPillars } from '@/lib/pillars';
@@ -112,7 +112,10 @@ export async function GET(): Promise<NextResponse> {
   // When posts exist but every metric is zero, pull live stats before rendering charts.
   if (rawPosts.length > 0 && countPostsWithMetrics(rawPosts) === 0) {
     try {
-      const syncResult = await syncUserPostMetrics(client, user.id);
+      const syncClient = process.env.INSFORGE_SERVICE_ROLE_KEY?.trim()
+        ? getServiceClient()
+        : client;
+      const syncResult = await syncUserPostMetrics(syncClient, user.id);
       if (syncResult.updated > 0) {
         let refetchQuery = client.database.from('posts')
           .select('*')

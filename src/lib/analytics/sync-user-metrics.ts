@@ -4,8 +4,11 @@ import { metricsPatchFromNormalized } from '@/lib/analytics/post-metrics';
 import { fetchLinkedInPostDetails } from '@/lib/platforms/linkedin-metrics';
 import { fetchTweetMetrics } from '@/lib/platforms/twitter-metrics';
 import { fetchInstagramMetrics } from '@/lib/platforms/instagram-metrics';
-import { resolveUnipileTarget } from '@/lib/onboarding/import-posts';
-import { logError, logInfo } from '@/lib/logger';
+import {
+  backfillLinkedInMetricsFromPostList,
+  resolveLinkedInSyncTarget,
+} from '@/lib/analytics/linkedin-metrics-sync';
+import { logError } from '@/lib/logger';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -67,45 +70,8 @@ export async function syncUserPostMetrics(
     return token;
   }
 
-  const unipileCache = new Map<string, string | null>();
-  async function getUnipileAccount(): Promise<string | null> {
-    if (unipileCache.has('linkedin')) return unipileCache.get('linkedin') ?? null;
-    const { data: account } = await client.database
-      .from('social_accounts')
-      .select('unipile_account_id, account_id')
-      .eq('user_id', userId)
-      .eq('platform', 'linkedin')
-      .not('unipile_account_id', 'is', null)
-      .limit(1)
-      .maybeSingle();
-    const row = account as { unipile_account_id: string; account_id: string | null } | null;
-    if (!row?.unipile_account_id) {
-      unipileCache.set('linkedin', null);
-      return null;
-    }
-
-    // Self-heal rotated Unipile account ids (same fix as metrics-sync cron).
-    let healedId = row.unipile_account_id;
-    try {
-      const target = await resolveUnipileTarget(row.unipile_account_id, row.account_id, 'linkedin');
-      if (target?.unipileAccountId) {
-        healedId = target.unipileAccountId;
-        if (target.refreshed) {
-          await client.database
-            .from('social_accounts')
-            .update({ unipile_account_id: healedId })
-            .eq('user_id', userId)
-            .eq('platform', 'linkedin');
-          logInfo('[analytics-sync] Healed rotated Unipile account id', { userId });
-        }
-      }
-    } catch (e) {
-      logError('[analytics-sync] Unipile account resolve failed', { userId }, e);
-    }
-
-    unipileCache.set('linkedin', healedId);
-    return healedId;
-  }
+  const linkedInTarget = await resolveLinkedInSyncTarget(client, userId);
+  const linkedInJobs: Array<{ post_id: string; provider_post_id: string }> = [];
 
   let updated = 0;
   let skipped = 0;
@@ -117,17 +83,23 @@ export async function syncUserPostMetrics(
       continue;
     }
 
+    if (job.platform === 'linkedin') {
+      linkedInJobs.push({ post_id: job.post_id, provider_post_id: job.provider_post_id });
+    }
+
     try {
       let metricsPatch: Record<string, number> = {};
       let publishedAt: string | undefined;
 
       if (job.platform === 'linkedin') {
-        const unipileAccountId = await getUnipileAccount();
-        if (!unipileAccountId) {
+        if (!linkedInTarget) {
           skipped += 1;
           continue;
         }
-        const details = await fetchLinkedInPostDetails(unipileAccountId, job.provider_post_id);
+        const details = await fetchLinkedInPostDetails(
+          linkedInTarget.unipileAccountId,
+          job.provider_post_id,
+        );
         metricsPatch = metricsPatchFromNormalized(details.metrics);
         publishedAt = details.publishedAt;
       } else {
@@ -175,6 +147,16 @@ export async function syncUserPostMetrics(
       failed += 1;
       logError('[analytics-sync] job failed', { postId: job.post_id, platform: job.platform }, e);
     }
+  }
+
+  if (linkedInTarget && linkedInJobs.length > 0) {
+    updated += await backfillLinkedInMetricsFromPostList(
+      client,
+      userId,
+      linkedInTarget,
+      linkedInJobs,
+      MAX_JOBS,
+    );
   }
 
   return { updated, skipped, failed, total: jobs?.length ?? 0 };
