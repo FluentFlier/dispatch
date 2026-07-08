@@ -14,6 +14,61 @@ import {
 import { Button } from '@/components/ui/Button';
 
 /**
+ * Live scrape progress: a labeled determinate bar driven by the NDJSON stream
+ * from /api/leads/sync. `pct` is 0-100. `panel` renders the big centered
+ * variant used in place of the empty state on a first scrape; the default is a
+ * slim inline bar shown above an already-populated feed.
+ */
+export function ScrapeProgress({
+  pct,
+  label,
+  panel = false,
+}: {
+  pct: number;
+  label: string;
+  panel?: boolean;
+}) {
+  const clamped = Math.min(100, Math.max(0, Math.round(pct)));
+  const bar = (
+    <div className="w-full">
+      <div className="flex items-center justify-between mb-1.5">
+        <span className="text-xs font-medium text-text-secondary flex items-center gap-1.5 min-w-0">
+          <Download className="h-3.5 w-3.5 shrink-0 animate-pulse" aria-hidden="true" />
+          <span className="truncate">{label}</span>
+        </span>
+        <span className="text-xs font-medium text-text-tertiary tabular-nums shrink-0 ml-2">{clamped}%</span>
+      </div>
+      <div
+        className="h-1.5 w-full rounded-full bg-bg-tertiary overflow-hidden"
+        role="progressbar"
+        aria-valuenow={clamped}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label="Scrape progress"
+      >
+        <div
+          className="h-full rounded-full bg-accent-primary transition-all duration-500 ease-out"
+          style={{ width: `${clamped}%` }}
+        />
+      </div>
+    </div>
+  );
+  if (!panel) {
+    return <div className="rounded-lg border border-border bg-bg-secondary px-4 py-3">{bar}</div>;
+  }
+  return (
+    <div className="flex flex-col items-center justify-center text-center min-h-[360px] gap-3">
+      <p className="text-sm font-medium text-text-primary">Scraping fresh leads…</p>
+      <p className="text-xs text-text-secondary max-w-sm">
+        This can take a minute or two. We&apos;re pulling directories, finding contacts, and scoring
+        fit for your ICP.
+      </p>
+      <div className="w-full max-w-md mt-1">{bar}</div>
+    </div>
+  );
+}
+
+/**
  * Small pill button used across the leads feed header (Scrape, Draft all,
  * Refresh, Advanced). Extracted from the page so the page file stays focused on
  * state and data flow and comfortably under the 500-line limit.

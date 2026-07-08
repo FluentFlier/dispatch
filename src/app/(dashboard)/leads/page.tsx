@@ -12,7 +12,7 @@ import { resolveSignalOutreach } from '@/components/leads/signal-outreach';
 import { AdvancedDrawer } from '@/components/leads/AdvancedDrawer';
 import { SignalsSetup } from '@/components/leads/SignalsSetup';
 import { IcpChat } from '@/components/leads/IcpChat';
-import { LeadsHeaderActions, LeadsEmptyState } from '@/components/leads/LeadsFeedChrome';
+import { LeadsHeaderActions, LeadsEmptyState, ScrapeProgress } from '@/components/leads/LeadsFeedChrome';
 import type {
   DirectorySettingsRow,
   FollowedCompanyRow,
@@ -29,6 +29,14 @@ import {
 import { feedViewState, draftAllOutcome } from '@/lib/leads/feed-view';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
+
+/** Fields the scrape toast reads off the streamed DirectorySyncResult. */
+type ScrapeResultSummary = {
+  inserted: number;
+  updated: number;
+  resolved: number;
+  warnings?: string[];
+};
 
 /** Initial feed page + how much each "Load more" adds. Capped by the server at 300. */
 const FEED_PAGE_SIZE = 50;
@@ -74,6 +82,8 @@ export default function LeadsPage() {
   const [loadError, setLoadError] = useState(false);
   const [listLoading, setListLoading] = useState(false);
   const [scraping, setScraping] = useState(false);
+  // Live scrape progress streamed from /api/leads/sync (null when idle).
+  const [scrapeProgress, setScrapeProgress] = useState<{ pct: number; label: string } | null>(null);
   // Per-action busy tracking: only the clicked button spins, not every button
   // for the lead. `busyActionFor(id)` returns the in-flight action or null.
   const [busy, setBusy] = useState<LeadBusy | null>(null);
@@ -307,24 +317,69 @@ export default function LeadsPage() {
 
   const handleScrape = async () => {
     setScraping(true);
+    setScrapeProgress({ pct: 0, label: 'Starting scrape…' });
     try {
       const res = await fetch('/api/leads/sync', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      const r = data.result;
-      const warnings: string[] = r.warnings ?? [];
-      if (r.inserted === 0 && warnings.length > 0) {
+      if (!res.ok || !res.body) {
+        // Non-stream error path (auth / no-workspace return plain JSON).
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? 'Scrape failed.');
+      }
+
+      // Consume the NDJSON progress stream. Each line is one JSON message; the
+      // terminal message is either {type:'result'} or {type:'error'}.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let result: ScrapeResultSummary | null = null;
+      let streamError: string | null = null;
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          let msg: Record<string, unknown>;
+          try {
+            msg = JSON.parse(trimmed);
+          } catch {
+            continue;
+          }
+          if (msg.type === 'progress') {
+            setScrapeProgress({
+              pct: typeof msg.pct === 'number' ? msg.pct : 0,
+              label: typeof msg.label === 'string' ? msg.label : 'Working…',
+            });
+          } else if (msg.type === 'result') {
+            result = msg.result as ScrapeResultSummary;
+          } else if (msg.type === 'error') {
+            streamError = typeof msg.error === 'string' ? msg.error : 'Scrape failed.';
+          }
+        }
+      }
+
+      if (streamError) throw new Error(streamError);
+      if (!result) throw new Error('Scrape ended without a result.');
+
+      setScrapeProgress({ pct: 100, label: 'Done' });
+      const warnings: string[] = result.warnings ?? [];
+      if (result.inserted === 0 && warnings.length > 0) {
         toast(`0 new leads — ${warnings[0]}`, 'error');
       } else if (warnings.length > 0) {
-        toast(`${r.inserted} new, but ${warnings.length} source(s) failed: ${warnings[0]}`, 'error');
+        toast(`${result.inserted} new, but ${warnings.length} source(s) failed: ${warnings[0]}`, 'error');
       } else {
-        toast(`Scrape done: ${r.inserted} new, ${r.updated} updated, ${r.resolved} resolved.`);
+        toast(`Scrape done: ${result.inserted} new, ${result.updated} updated, ${result.resolved} resolved.`);
       }
       await refetchList();
-    } catch {
-      toast('Scrape failed.', 'error');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Scrape failed.', 'error');
     } finally {
       setScraping(false);
+      setScrapeProgress(null);
     }
   };
 
@@ -821,6 +876,12 @@ export default function LeadsPage() {
       )}
       <FeedFilters state={filters} onChange={setFilters} verticals={verticals} />
 
+      {/* Live scrape progress above an already-populated feed. The empty-feed
+          case shows the big panel variant in the empty branch below instead. */}
+      {scraping && scrapeProgress && cards.length > 0 && (
+        <ScrapeProgress pct={scrapeProgress.pct} label={scrapeProgress.label} />
+      )}
+
       {feedViewState({ loading, loadError, cardCount: cards.length }) === 'loading' ? (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
           <div className="lg:col-span-2">
@@ -842,7 +903,11 @@ export default function LeadsPage() {
           </button>
         </div>
       ) : feedViewState({ loading, loadError, cardCount: cards.length }) === 'empty' ? (
-        <LeadsEmptyState onScrape={handleScrape} scraping={scraping} />
+        scraping && scrapeProgress ? (
+          <ScrapeProgress pct={scrapeProgress.pct} label={scrapeProgress.label} panel />
+        ) : (
+          <LeadsEmptyState onScrape={handleScrape} scraping={scraping} />
+        )
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
           {/* List */}
