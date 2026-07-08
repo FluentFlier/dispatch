@@ -13,8 +13,34 @@ import { buildPostIdCandidates } from '@/lib/engagement/unipile-reactions';
 function readCount(...values: unknown[]): number | undefined {
   for (const v of values) {
     if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return v;
+    if (Array.isArray(v)) {
+      let sum = 0;
+      for (const item of v) {
+        if (item && typeof item === 'object' && 'count' in item) {
+          const c = (item as { count?: unknown }).count;
+          if (typeof c === 'number' && Number.isFinite(c) && c >= 0) sum += c;
+        }
+      }
+      if (sum > 0) return sum;
+    }
   }
   return undefined;
+}
+
+/** ISO publish timestamp from a Unipile post payload (list or GET). */
+export function extractLinkedInPublishedAt(payload: unknown): string | undefined {
+  if (!payload || typeof payload !== 'object') return undefined;
+  const root = payload as Record<string, unknown>;
+  for (const key of ['parsed_datetime', 'created_at']) {
+    const v = root[key];
+    if (typeof v === 'string' && !Number.isNaN(new Date(v).getTime())) return v;
+  }
+  return undefined;
+}
+
+export interface LinkedInPostDetails {
+  metrics: NormalizedMetrics;
+  publishedAt?: string;
 }
 
 /**
@@ -31,7 +57,7 @@ export function extractLinkedInMetrics(payload: unknown): NormalizedMetrics {
   return {
     // LinkedIn "impressions" are our normalized "views".
     views: readCount(analytics.impressions, root.impressions_counter, root.views_count),
-    likes: readCount(analytics.reactions, root.reaction_counter, root.like_count),
+    likes: readCount(analytics.reactions, root.reaction_counter, root.reactions_counter, root.like_count),
     comments: readCount(analytics.comments, root.comment_counter, root.comments_count),
     // Reposts are the closest analogue to "shares".
     shares: readCount(analytics.reposts, root.repost_counter, root.reposts_count),
@@ -39,18 +65,15 @@ export function extractLinkedInMetrics(payload: unknown): NormalizedMetrics {
 }
 
 /**
- * Fetches metrics for a published LinkedIn post through the user's connected
- * Unipile account, trying each known post-id format (activity/share/ugcPost
- * URNs) until one resolves. Returns {} when the post can't be found so a
- * deleted post never fails the whole metrics-sync batch.
+ * Fetches metrics + publish timestamp for a LinkedIn post through Unipile.
  */
-export async function fetchLinkedInMetrics(
+export async function fetchLinkedInPostDetails(
   unipileAccountId: string,
   providerPostId: string,
-): Promise<NormalizedMetrics> {
+): Promise<LinkedInPostDetails> {
   const dsn = process.env.UNIPILE_DSN;
   const key = process.env.UNIPILE_API_KEY;
-  if (!dsn || !key) return {};
+  if (!dsn || !key) return { metrics: {} };
 
   const base = `https://${dsn.replace(/\/$/, '')}/api/v1`;
 
@@ -65,13 +88,31 @@ export async function fetchLinkedInMetrics(
           'Unipile get post',
         ),
       );
-      return extractLinkedInMetrics(await res.json());
+      const json = await res.json();
+      return {
+        metrics: extractLinkedInMetrics(json),
+        publishedAt: extractLinkedInPublishedAt(json),
+      };
     } catch (error) {
       if (error instanceof HttpStatusError && (error.status === 404 || error.status === 422)) {
-        continue; // wrong id format — try the next candidate
+        continue;
       }
       throw error;
     }
   }
-  return {};
+  return { metrics: {} };
+}
+
+/**
+ * Fetches metrics for a published LinkedIn post through the user's connected
+ * Unipile account, trying each known post-id format (activity/share/ugcPost
+ * URNs) until one resolves. Returns {} when the post can't be found so a
+ * deleted post never fails the whole metrics-sync batch.
+ */
+export async function fetchLinkedInMetrics(
+  unipileAccountId: string,
+  providerPostId: string,
+): Promise<NormalizedMetrics> {
+  const { metrics } = await fetchLinkedInPostDetails(unipileAccountId, providerPostId);
+  return metrics;
 }
