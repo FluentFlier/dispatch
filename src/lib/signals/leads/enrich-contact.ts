@@ -4,6 +4,7 @@ import type { SignalLeadWithContacts } from '@/lib/signals/types';
 import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
 import { fetchYcFounders, findYcCompanyByName } from '@/lib/signals/ingest/yc-algolia';
 import type { YcFounder, YcNameMatch } from '@/lib/signals/ingest/yc-algolia';
+import { chatCompletion } from '@/lib/llm';
 import { getWorkspaceLinkedInAccountId, searchLinkedInPerson } from '@/lib/signals/outreach/unipile-linkedin';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -42,7 +43,7 @@ export interface EnrichedContact {
   name?: string;
   role?: string;
   linkedinUrl?: string;
-  via: 'yc_detail' | 'tinyfish' | 'apify' | 'unipile';
+  via: 'yc_detail' | 'tinyfish' | 'apify' | 'unipile' | 'web_search';
 }
 
 /**
@@ -71,6 +72,12 @@ export async function enrichFounderContact(
   const viaRecovery = await enrichViaYcRecovery(lead);
   if (viaRecovery) return viaRecovery;
   if (opts.fastOnly) return null;
+  // Universal rung: LLM web search works for ANY company (non-YC website / X /
+  // non-YC ICP leads), so it runs first among the paid rungs. Its result is always
+  // verified downstream (resolveLeadContacts runs verifyContactLinkedIn on the
+  // on-demand path), so a hallucinated URL is caught before it reaches outreach.
+  const viaWeb = await enrichViaWebSearch(lead);
+  if (viaWeb) return viaWeb;
   const viaTinyfish = await enrichViaTinyFish(lead);
   if (viaTinyfish) return viaTinyfish;
   const viaApify = await enrichViaApify(lead);
@@ -230,6 +237,86 @@ async function enrichViaApify(
   } catch {
     return null;
   }
+}
+
+/** Injectable chat-completion fn so the web-search rung is unit-testable without a live LLM. */
+export type CompleteFn = (
+  system: string,
+  user: string,
+  opts?: { model?: string; temperature?: number },
+) => Promise<string>;
+
+const WEB_SEARCH_SYSTEM =
+  'You are a precise research assistant with web access. Given a company, find its FOUNDER ' +
+  'or CEO and that person\'s LinkedIn profile URL. Only report a person you can verify is ' +
+  'actually associated with THIS specific company — never guess a name or invent a URL. ' +
+  'Respond with STRICT JSON and nothing else: ' +
+  '{"name": string|null, "role": string|null, "linkedin_url": string|null}. ' +
+  'The linkedin_url must be a personal profile (linkedin.com/in/...), not a company page. ' +
+  'If you are not confident, set the fields to null.';
+
+/** Parses the strict-JSON web-search reply; null unless it yields a personal LinkedIn URL. */
+function parseWebSearchReply(raw: string): { name?: string; role?: string; linkedinUrl: string } | null {
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) return null;
+  let obj: { name?: unknown; role?: unknown; linkedin_url?: unknown };
+  try {
+    obj = JSON.parse(match[0]);
+  } catch {
+    return null;
+  }
+  const url = typeof obj.linkedin_url === 'string' ? obj.linkedin_url.trim() : '';
+  // Must be a personal profile, not a company page — company pages can't be messaged.
+  if (!/linkedin\.com\/in\/[A-Za-z0-9\-_%]+/i.test(url)) return null;
+  return {
+    name: typeof obj.name === 'string' && obj.name.trim() ? obj.name.trim() : undefined,
+    role: typeof obj.role === 'string' && obj.role.trim() ? obj.role.trim() : undefined,
+    linkedinUrl: url,
+  };
+}
+
+/**
+ * Universal founder lookup via web-search-capable LLM. Unlike the YC / TinyFish /
+ * Apify rungs it needs no directory, key, or prior founder name — just the company
+ * name — so it's the fallback for any non-YC source (arbitrary website, X, non-YC
+ * ICP). The model is configurable via LLM_WEBSEARCH_MODEL (point it at a web-search
+ * model — e.g. an ":online" / "sonar" variant, or a HuggingFace model — with no
+ * code change); it falls back to the default chat model otherwise. Best-effort:
+ * returns null when the LLM is unconfigured, errors, or is not confident. The
+ * caller ALWAYS verifies the returned URL (Unipile) before it drives outreach, so
+ * a hallucinated profile is caught rather than messaged.
+ */
+export async function enrichViaWebSearch(
+  lead: Pick<SignalLeadWithContacts, 'company_name'> & { website?: string | null },
+  deps: { complete?: CompleteFn } = {},
+): Promise<EnrichedContact | null> {
+  const company = lead.company_name?.trim();
+  if (!company) return null;
+  const model = process.env.LLM_WEBSEARCH_MODEL?.trim() || undefined;
+  // Ships dark: the rung is inert until a dedicated web-search model is configured,
+  // so a plain (non-browsing) default model can't hallucinate profiles in prod.
+  // Tests inject `deps.complete` and are unaffected by the env gate.
+  if (!model && !deps.complete) return null;
+  const complete = deps.complete ?? chatCompletion;
+  const user =
+    `Company: ${company}` +
+    (lead.website ? `\nWebsite: ${lead.website}` : '') +
+    '\nReturn the founder/CEO name, role, and their personal LinkedIn URL as JSON.';
+
+  let raw: string;
+  try {
+    raw = await complete(WEB_SEARCH_SYSTEM, user, { model, temperature: 0 });
+  } catch (err) {
+    // LLM unconfigured / budget-capped / provider error — degrade to the next rung.
+    if (signalsDebugEnabled()) {
+      console.warn(`[web-search-enrich] error: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    return null;
+  }
+
+  const found = parseWebSearchReply(raw);
+  if (!found) return null;
+  return { name: found.name, role: found.role, linkedinUrl: found.linkedinUrl, via: 'web_search' };
 }
 
 /** Input for the Unipile name-search rung: a company plus the founder name we already have. */
