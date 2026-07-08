@@ -12,13 +12,9 @@ import {
   Save,
   Sparkles,
   Trash2,
-  Target,
   Users,
-  TrendingUp,
   Clock,
 } from "lucide-react";
-import { CopyButton } from "@/components/ui/CopyButton";
-import { useToast } from "@/components/ui/Toast";
 import { bucketEngagers, type Engager } from "@/lib/hooks-intelligence/categorize";
 import AudienceSection, { type AudienceEngagement } from "@/components/analytics/AudienceSection";
 import { getInsforge } from "@/lib/insforge/client";
@@ -53,42 +49,18 @@ function truncate(s: string, len: number) {
   return s.length > len ? s.slice(0, len) + "..." : s;
 }
 
-/** A ranked hook from GET /api/hooks/intelligence. */
-interface IntelligenceHook {
-  text: string;
-  author?: string;
-  verticals?: string[];
-  score?: number | string;
-}
-
-/** Response shape from POST /api/research. */
-interface ResearchResult {
-  status?: string;
-  error?: string;
-  intelligence?: { hooks?: string };
-}
-
-
-
 /* ------------------------------------------------------------------ */
 /*  Main Page Component                                               */
 /* ------------------------------------------------------------------ */
 
 export default function AnalyticsPage() {
   const { pillars: pillarList, getLabel, getColor } = usePillars();
-  const { toast } = useToast();
   const [userId, setUserId] = useState<string | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [hashtagSets, setHashtagSets] = useState<HashtagSet[]>([]);
   const [reviews, setReviews] = useState<WeeklyReview[]>([]);
   const [bestTimes, setBestTimes] = useState<TimingResult | null>(null);
   const [loading, setLoading] = useState(true);
-
-  // Hook lab + lead insights surfaces.
-  const [topHooks, setTopHooks] = useState<IntelligenceHook[]>([]);
-  const [researchResult, setResearchResult] = useState<ResearchResult | null>(null);
-  const [researchLoading, setResearchLoading] = useState(false);
-  const [hooksLoading, setHooksLoading] = useState(true);
 
   // Real categorized leads from DB (now that persistence is wired in the closed loop)
   const [realLeadCounts, setRealLeadCounts] = useState<Record<string, number> | null>(null);
@@ -121,25 +93,9 @@ export default function AnalyticsPage() {
     fetchData();
   }, [fetchData]);
 
-  // Intelligence surfaces: fetch live RAG hooks + track analytics view (monetization)
+  // Track this analytics view for usage billing (safe client call).
   useEffect(() => {
-    const loadIntelligence = async () => {
-      try {
-        // Track this view for usage billing (safe client call)
-        try {
-          await fetch('/api/analytics', { method: 'POST' }).catch(() => {});
-        } catch {}
-
-        const res = await fetch('/api/hooks/intelligence?limit=8');
-        if (res.ok) {
-          const data = await res.json();
-          setTopHooks(data.hooks || []);
-        }
-      } finally {
-        setHooksLoading(false);
-      }
-    };
-    loadIntelligence();
+    fetch('/api/analytics', { method: 'POST' }).catch(() => {});
   }, []);
 
   if (loading) {
@@ -178,113 +134,16 @@ export default function AnalyticsPage() {
       {/* Section 2 - loaded dynamically to avoid recharts SSR issues */}
       <ChartsSection posts={posts} getLabel={getLabel} getColor={getColor} />
 
-      {/* Content intelligence: ranked hooks + who your posts are reaching. */}
-      <section id="intelligence" className="space-y-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
-              <Sparkles className="h-5 w-5 text-accent-primary" />
-              Content intelligence
-            </h2>
-            <p className="text-sm text-text-secondary mt-1">
-              Hooks ranked from top-performing posts, and a breakdown of who your content reaches.
-            </p>
-          </div>
-          <button
-            onClick={async () => {
-              setResearchLoading(true);
-              try {
-                const res = await fetch('/api/research', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ brief: 'improve content performance and lead generation', vertical: 'indie_maker' }),
-                });
-                const data = await res.json();
-                setResearchResult(data);
-              } catch {
-                setResearchResult({ error: 'Research is temporarily unavailable.' });
-              } finally {
-                setResearchLoading(false);
-              }
-            }}
-            disabled={researchLoading}
-            className="flex shrink-0 items-center gap-2 rounded-lg bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:opacity-60 transition-colors"
-          >
-            {researchLoading ? 'Refreshing...' : 'Refresh hooks'}
-            <Target className="h-4 w-4" />
-          </button>
-        </div>
-
-        {/* Hook lab */}
-        <div className="rounded-xl border border-border bg-bg-secondary p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <TrendingUp className="h-5 w-5 text-coral" />
-            <h3 className="font-semibold">Top performing hooks</h3>
-          </div>
-
-          {hooksLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="h-20 bg-bg-tertiary rounded-lg animate-pulse" />
-              ))}
-            </div>
-          ) : topHooks.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {topHooks.slice(0, 8).map((hook, idx) => (
-                <div key={idx} className="rounded-lg border border-border/70 bg-bg p-4 hover:border-accent-primary/40 transition-colors group flex flex-col">
-                  <div className="text-sm leading-snug text-text-primary line-clamp-3 flex-1">“{hook.text}”</div>
-                  <div className="mt-3 flex items-center justify-between text-xs">
-                    <div className="text-text-secondary">@{String(hook.author ?? '').replace(/^@+/, '')} • {hook.verticals?.[0] || 'general'}</div>
-                    <div className="font-mono text-accent-primary font-semibold">{hook.score}</div>
-                  </div>
-                  <div className="mt-2 flex items-center gap-2">
-                    <CopyButton text={hook.text} className="text-[10px] px-2 py-0.5" />
-                    <a href="/generate" className="text-[10px] text-accent-primary hover:underline">Use in Generate</a>
-                    <button onClick={async () => {
-                      try {
-                        const res = await fetch('/api/brain/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: hook.text, type: 'hook', source: 'intelligence' }) });
-                        if (!res.ok) throw new Error('save failed');
-                        toast('Saved to Creator Brain');
-                      } catch { toast('Could not save. Try again.', 'error'); }
-                    }} className="text-[10px] text-sage hover:underline">Save to Brain</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-sm text-text-secondary py-4">No hooks yet. Hit &ldquo;Refresh hooks&rdquo; to pull the current top performers.</div>
-          )}
-
-          {researchResult && (
-            <div className="mt-4 rounded-lg border border-accent-primary/30 bg-accent-primary/5 p-4 text-sm">
-              {researchResult.status === 'hook-context-only' ? (
-                <>
-                  <div className="font-medium mb-2 flex items-center gap-2">
-                    Hook context refreshed
-                    <span className="text-xs opacity-70">(local intelligence dataset)</span>
-                  </div>
-                  <p className="text-xs text-text-secondary mb-2">
-                    Surfaced high-performing hook patterns for your brief. These refresh automatically as your posts
-                    collect engagement.
-                  </p>
-                </>
-              ) : researchResult.error ? (
-                <div className="font-medium text-accent-primary">{researchResult.error}</div>
-              ) : (
-                <div className="font-medium mb-2 flex items-center gap-2">
-                  Research complete
-                  <span className="text-xs opacity-70">(intelligence updated)</span>
-                </div>
-              )}
-              {researchResult.intelligence?.hooks && (
-                <div className="mb-2">
-                  <div className="text-xs font-semibold mb-1">Top hooks surfaced:</div>
-                  <div className="text-xs bg-bg/50 p-2 rounded max-h-24 overflow-auto">{researchResult.intelligence.hooks.substring(0, 300)}...</div>
-                </div>
-              )}
-              <div className="text-[10px] text-text-tertiary">Use these in Generate, or let engagement sync keep them fresh.</div>
-            </div>
-          )}
+      {/* Audience: a breakdown of who your content reaches. */}
+      <section id="audience" className="space-y-6">
+        <div>
+          <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
+            <Users className="h-5 w-5 text-accent-primary" />
+            Who your content reaches
+          </h2>
+          <p className="text-sm text-text-secondary mt-1">
+            A breakdown of the audience your posts pull in.
+          </p>
         </div>
 
         {/* Lead categorization insights */}

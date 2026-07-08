@@ -7,10 +7,27 @@ import type { ContentIdea } from "@/lib/types";
 import { postPillars, normalizePillars, DEFAULT_PILLAR_WEIGHT } from "@/lib/pillars";
 import type { Priority } from "@/lib/constants";
 import { usePillars } from "@/hooks/usePillars";
-import { Lightbulb } from "lucide-react";
+import { Lightbulb, Sparkles, Target, TrendingUp } from "lucide-react";
 import IdeaForm from "@/components/ideas/IdeaForm";
 import IdeaRow from "@/components/ideas/IdeaRow";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { CopyButton } from "@/components/ui/CopyButton";
+import { useToast } from "@/components/ui/Toast";
+
+/** A ranked hook from GET /api/hooks/intelligence. */
+interface IntelligenceHook {
+  text: string;
+  author?: string;
+  verticals?: string[];
+  score?: number | string;
+}
+
+/** Response shape from POST /api/research. */
+interface ResearchResult {
+  status?: string;
+  error?: string;
+  intelligence?: { hooks?: string };
+}
 
 type FilterMode = "all" | "unconverted" | "converted";
 
@@ -19,10 +36,17 @@ const PRIORITY_ORDER: Record<Priority, number> = { high: 0, medium: 1, low: 2 };
 export default function IdeasPage() {
   const router = useRouter();
   const { pillars: pillarList, loading: pillarsLoading, getLabel } = usePillars();
+  const { toast } = useToast();
 
   const [ideas, setIdeas] = useState<ContentIdea[]>([]);
   const [loading, setLoading] = useState(true);
   const [userId, setUserId] = useState<string | null>(null);
+
+  // Intelligence & Research Lab surfaces.
+  const [topHooks, setTopHooks] = useState<IntelligenceHook[]>([]);
+  const [researchResult, setResearchResult] = useState<ResearchResult | null>(null);
+  const [researchLoading, setResearchLoading] = useState(false);
+  const [hooksLoading, setHooksLoading] = useState(true);
 
   // Quick-add form state
   const [newIdea, setNewIdea] = useState("");
@@ -75,6 +99,22 @@ export default function IdeasPage() {
   useEffect(() => {
     fetchIdeas();
   }, [fetchIdeas]);
+
+  // Research Lab: fetch live RAG-ranked hooks.
+  useEffect(() => {
+    const loadIntelligence = async () => {
+      try {
+        const res = await fetch('/api/hooks/intelligence?limit=8');
+        if (res.ok) {
+          const data = await res.json();
+          setTopHooks(data.hooks || []);
+        }
+      } finally {
+        setHooksLoading(false);
+      }
+    };
+    loadIntelligence();
+  }, []);
 
   // --- Sorting and filtering ---
 
@@ -348,6 +388,116 @@ export default function IdeasPage() {
           ))}
         </div>
       )}
+
+      {/* Intelligence & Research Lab: ranked hooks to spark your next idea. */}
+      <section id="intelligence" className="space-y-6 pt-4">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
+              <Sparkles className="h-5 w-5 text-accent-primary" />
+              Intelligence &amp; Research Lab
+            </h2>
+            <p className="text-sm text-text-secondary mt-1">
+              Hooks ranked from top-performing posts to spark your next idea.
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              setResearchLoading(true);
+              try {
+                const res = await fetch('/api/research', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ brief: 'improve content performance and lead generation', vertical: 'indie_maker' }),
+                });
+                const data = await res.json();
+                setResearchResult(data);
+              } catch {
+                setResearchResult({ error: 'Research is temporarily unavailable.' });
+              } finally {
+                setResearchLoading(false);
+              }
+            }}
+            disabled={researchLoading}
+            className="flex shrink-0 items-center gap-2 rounded-lg bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:opacity-60 transition-colors"
+          >
+            {researchLoading ? 'Refreshing...' : 'Refresh hooks'}
+            <Target className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Hook lab */}
+        <div className="rounded-xl border border-border bg-bg-secondary p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="h-5 w-5 text-coral" />
+            <h3 className="font-semibold">Top performing hooks</h3>
+          </div>
+
+          {hooksLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-20 bg-bg-tertiary rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : topHooks.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {topHooks.slice(0, 8).map((hook, idx) => (
+                <div key={idx} className="rounded-lg border border-border/70 bg-bg p-4 hover:border-accent-primary/40 transition-colors group flex flex-col">
+                  <div className="text-sm leading-snug text-text-primary line-clamp-3 flex-1">“{hook.text}”</div>
+                  <div className="mt-3 flex items-center justify-between text-xs">
+                    <div className="text-text-secondary">@{String(hook.author ?? '').replace(/^@+/, '')} • {hook.verticals?.[0] || 'general'}</div>
+                    <div className="font-mono text-accent-primary font-semibold">{hook.score}</div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <CopyButton text={hook.text} className="text-[10px] px-2 py-0.5" />
+                    <a href="/generate" className="text-[10px] text-accent-primary hover:underline">Use in Generate</a>
+                    <button onClick={async () => {
+                      try {
+                        const res = await fetch('/api/brain/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: hook.text, type: 'hook', source: 'intelligence' }) });
+                        if (!res.ok) throw new Error('save failed');
+                        toast('Saved to Creator Brain');
+                      } catch { toast('Could not save. Try again.', 'error'); }
+                    }} className="text-[10px] text-sage hover:underline">Save to Brain</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-text-secondary py-4">No hooks yet. Hit &ldquo;Refresh hooks&rdquo; to pull the current top performers.</div>
+          )}
+
+          {researchResult && (
+            <div className="mt-4 rounded-lg border border-accent-primary/30 bg-accent-primary/5 p-4 text-sm">
+              {researchResult.status === 'hook-context-only' ? (
+                <>
+                  <div className="font-medium mb-2 flex items-center gap-2">
+                    Hook context refreshed
+                    <span className="text-xs opacity-70">(local intelligence dataset)</span>
+                  </div>
+                  <p className="text-xs text-text-secondary mb-2">
+                    Surfaced high-performing hook patterns for your brief. These refresh automatically as your posts
+                    collect engagement.
+                  </p>
+                </>
+              ) : researchResult.error ? (
+                <div className="font-medium text-accent-primary">{researchResult.error}</div>
+              ) : (
+                <div className="font-medium mb-2 flex items-center gap-2">
+                  Research complete
+                  <span className="text-xs opacity-70">(intelligence updated)</span>
+                </div>
+              )}
+              {researchResult.intelligence?.hooks && (
+                <div className="mb-2">
+                  <div className="text-xs font-semibold mb-1">Top hooks surfaced:</div>
+                  <div className="text-xs bg-bg/50 p-2 rounded max-h-24 overflow-auto">{researchResult.intelligence.hooks.substring(0, 300)}...</div>
+                </div>
+              )}
+              <div className="text-[10px] text-text-tertiary">Use these in Generate, or let engagement sync keep them fresh.</div>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
