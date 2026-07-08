@@ -53,40 +53,54 @@ async function fetchUnipileProspectPosts(
 }
 
 /**
- * Picks the best recent post from a lead's primary contact (Unipile, then The Hog).
+ * Picks the top `limit` recent posts from a lead's primary contact (Unipile, then
+ * The Hog), longest-first. Used to warm up across several of the prospect's posts
+ * before connecting. Returns [] when there's no LinkedIn URL / connected account /
+ * post to comment on.
  */
-export async function fetchProspectLinkedInPost(
+export async function fetchProspectLinkedInPosts(
   client: InsforgeClient,
   workspaceId: string,
   userId: string,
   lead: SignalLeadWithContacts,
-): Promise<ProspectPost | null> {
+  limit = 1,
+): Promise<ProspectPost[]> {
   const contact = lead.primary_contact ?? lead.contacts?.[0];
   const linkedinUrl = contact?.linkedin_url?.trim();
-  if (!linkedinUrl) return null;
+  if (!linkedinUrl) return [];
 
   const accountId =
     (await getLinkedInUnipileAccountId(client, userId, workspaceId)) ??
     (await getWorkspaceLinkedInAccountId(client, workspaceId));
-  if (!accountId) return null;
+  if (!accountId) return [];
 
   try {
     const unipilePosts = await fetchUnipileProspectPosts(accountId, linkedinUrl, 8);
     if (unipilePosts.length > 0) {
-      return unipilePosts.sort((a, b) => b.excerpt.length - a.excerpt.length)[0];
+      return unipilePosts.sort((a, b) => b.excerpt.length - a.excerpt.length).slice(0, limit);
     }
   } catch {
     // fall through to The Hog
   }
 
   const hogPosts = await fetchTheHogLinkedInPosts(linkedinUrl, 8);
-  if (hogPosts.length === 0) return null;
+  return hogPosts
+    .sort((a, b) => b.text.length - a.text.length)
+    .slice(0, limit)
+    .map((best) => ({
+      id: best.id,
+      excerpt: best.text,
+      url: best.url ?? `https://www.linkedin.com/feed/update/${encodeURIComponent(best.id)}/`,
+      source: 'thehog' as const,
+    }));
+}
 
-  const best = hogPosts.sort((a, b) => b.text.length - a.text.length)[0];
-  return {
-    id: best.id,
-    excerpt: best.text,
-    url: best.url ?? `https://www.linkedin.com/feed/update/${encodeURIComponent(best.id)}/`,
-    source: 'thehog',
-  };
+/** Picks the single best recent post (back-compat wrapper over the plural fetch). */
+export async function fetchProspectLinkedInPost(
+  client: InsforgeClient,
+  workspaceId: string,
+  userId: string,
+  lead: SignalLeadWithContacts,
+): Promise<ProspectPost | null> {
+  return (await fetchProspectLinkedInPosts(client, workspaceId, userId, lead, 1))[0] ?? null;
 }

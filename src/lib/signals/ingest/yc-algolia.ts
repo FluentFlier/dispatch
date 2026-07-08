@@ -1,5 +1,6 @@
 import type { IngestedLead } from '@/lib/signals/types';
 import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
+import { normalizeName } from '@/lib/signals/leads/identity';
 
 /**
  * Reliable YC directory ingest via YC's own Algolia search index.
@@ -327,4 +328,54 @@ export async function fetchYcCompaniesViaAlgolia(limit: number, query = ''): Pro
     );
   }
   return leads;
+}
+
+/** A company's real YC identity resolved from its display name. */
+export interface YcNameMatch {
+  slug: string;
+  name: string;
+  website?: string;
+  batch?: string;
+}
+
+/**
+ * Resolves a company NAME to its real YC identity via the same Algolia index the
+ * directory uses. Returns the top hit ONLY when its normalized name exactly matches
+ * the query — a strict gate so a generic name ("Clicks") cannot false-match a
+ * different YC company. Used to recover manual/ICP leads that are really YC
+ * companies but were stored with a guessed slug. Returns null on no confident match;
+ * throws (like the sibling scrape fn) when Algolia itself is unreachable.
+ */
+export async function findYcCompanyByName(name: string): Promise<YcNameMatch | null> {
+  const clean = name.trim();
+  if (!clean) return null;
+  const { app, key } = await readAlgoliaOpts();
+  const res = await fetch(`https://${app.toLowerCase()}-dsn.algolia.net/1/indexes/*/queries`, {
+    method: 'POST',
+    headers: {
+      'X-Algolia-Application-Id': app,
+      'X-Algolia-API-Key': key,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      requests: [
+        {
+          indexName: YC_ALGOLIA_INDEX,
+          params: `query=${encodeURIComponent(clean)}&hitsPerPage=1&page=0`,
+        },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`Algolia ${res.status}: ${await res.text()}`);
+  const json = (await res.json()) as { results?: Array<{ hits?: YcHit[] }> };
+  const hit = json.results?.[0]?.hits?.[0];
+  if (!hit?.slug || !hit?.name) return null;
+  // Strict confidence gate: normalized names must be equal (no fuzzy match).
+  if (normalizeName(String(hit.name)) !== normalizeName(clean)) return null;
+  return {
+    slug: String(hit.slug),
+    name: String(hit.name),
+    website: hit.website || undefined,
+    batch: hit.batch_name || undefined,
+  };
 }
