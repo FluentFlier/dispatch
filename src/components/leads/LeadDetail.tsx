@@ -12,12 +12,12 @@ import {
   Building2,
   Linkedin,
   Globe,
-  Twitter,
   MessageSquare,
   Clock,
   Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { YCLogo, XLogo } from '@/components/ui/BrandIcons';
 import type { SignalLeadWithContacts, LeadPlaybook } from '@/lib/signals/types';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { leadButtonBusy, type LeadDetailAction } from '@/lib/leads/busy';
@@ -317,11 +317,11 @@ export function LeadDetail({
             {/* Social / quick links, right below the tags */}
             <div className="flex flex-wrap gap-2 pt-0.5">
               {website && <IconLink href={website} title="Website"><Globe className="h-4 w-4" /></IconLink>}
-              {ycUrl && <IconLink href={ycUrl} title="YC page"><ExternalLink className="h-4 w-4" /></IconLink>}
+              {ycUrl && <IconLink href={ycUrl} title="YC page"><YCLogo className="h-4 w-4" /></IconLink>}
               {(detail?.linkedinUrl || contact?.linkedin_url) && (
                 <IconLink href={(detail?.linkedinUrl || contact?.linkedin_url)!} title="LinkedIn"><Linkedin className="h-4 w-4" /></IconLink>
               )}
-              {detail?.twitterUrl && <IconLink href={detail.twitterUrl} title="X / Twitter"><Twitter className="h-4 w-4" /></IconLink>}
+              {detail?.twitterUrl && <IconLink href={detail.twitterUrl} title="X / Twitter"><XLogo className="h-4 w-4" /></IconLink>}
             </div>
           </div>
         </div>
@@ -501,7 +501,7 @@ export function LeadDetail({
           )}
           {xHandle && (
             <Button variant="primary" size="sm" onClick={() => onApprove('x_dm')} loading={approveBusy} disabled={noContact || anyBusy}>
-              <Twitter className="h-4 w-4" /> X DM
+              <XLogo className="h-4 w-4" /> X DM
             </Button>
           )}
           {!hasLinkedIn && !xHandle && (
