@@ -217,14 +217,6 @@ export default function SettingsPage() {
         if (!uid) return;
         setUserId(uid);
 
-        // Connections data is only needed on the Connections tab and the
-        // /api/social-accounts fetch (Unipile) can be slow. Load it separately so
-        // it never blocks the Profile/Content tabs from rendering.
-        fetch("/api/social-accounts")
-          .then((r) => (r.ok ? r.json() : { accounts: [] }))
-          .then((social) => setConnectedAccounts(social.accounts ?? []))
-          .catch(() => setConnectedAccounts([]));
-
         const [settingsRes, profileRes] = await Promise.all([
           insforge.database
             .from("user_settings")
@@ -302,6 +294,18 @@ export default function SettingsPage() {
 
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Connected accounts load INDEPENDENTLY of the browser-SDK session above.
+  // /api/social-accounts authenticates off the httpOnly cookie, so it resolves
+  // even when getCurrentUser() still lags the cookie right after login. Gating
+  // this behind `uid` made the Connections tab falsely show "Not connected"
+  // after sign-out/sign-in until the browser session caught up.
+  useEffect(() => {
+    fetch("/api/social-accounts")
+      .then((r) => (r.ok ? r.json() : { accounts: [] }))
+      .then((social) => setConnectedAccounts(social.accounts ?? []))
+      .catch(() => setConnectedAccounts([]));
   }, []);
 
   useEffect(() => {
