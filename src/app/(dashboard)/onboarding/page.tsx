@@ -146,13 +146,10 @@ function OnboardingInner() {
         return;
       }
 
+      // Backend now always completes when at least one account is connected —
+      // even if posts couldn't be imported (fallback voice) or the brain only
+      // partially synced. Proceed into the app rather than looping on connect.
       const nextBaseline = data.baseline as CreatorBaseline;
-      const brainOk = Boolean(data.brainCheck?.ok);
-      if (!brainOk) {
-        setError('Voice was learned but brain verification failed. Tap "Build my baseline" to retry.');
-        setStep('connect');
-        return;
-      }
       setBaseline(nextBaseline);
       setHasBaseline(true);
       await finishAndEnterApp(nextBaseline);

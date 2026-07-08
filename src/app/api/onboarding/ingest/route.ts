@@ -11,8 +11,8 @@ import {
   type OnboardingPlatform,
   type VoiceSample,
 } from '@/lib/onboarding/import-posts';
-import { buildCreatorBaseline } from '@/lib/onboarding/baseline';
-import { synthesizePersonaFromAnalysis } from '@/lib/onboarding/synthesize-voice';
+import { buildCreatorBaseline, type CreatorBaseline } from '@/lib/onboarding/baseline';
+import { synthesizePersonaFromAnalysis, type OnboardingPersona } from '@/lib/onboarding/synthesize-voice';
 import { analyzeVoiceSamples } from '@/lib/voice-lab/analyze-samples';
 import { importVoiceSamplesFromEmail } from '@/lib/voice-lab/import-from-email';
 import { selectBalancedVoiceSamples } from '@/lib/voice-lab/select-voice-samples';
@@ -37,6 +37,8 @@ export interface OnboardingIngestResponse {
   platforms: string[];
   saved: boolean;
   brainCheck: OnboardingBrainCheck;
+  /** True when we completed with a fallback voice because no posts/emails could be imported. */
+  degraded?: boolean;
 }
 
 /**
@@ -204,31 +206,33 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
   }
 
   const allSamples: VoiceSample[] = [...postSamples, ...emailSamples];
-
-  if (postSamples.length < MIN_SAMPLES) {
-    return NextResponse.json(
-      {
-        error:
-          'Need at least one post from LinkedIn or X to build your voice. Connect an account with public posts, then try again.',
-        postsImported: postSamples.length,
-        emailsImported: emailSamples.length,
-        platforms: connectedPlatforms,
-      },
-      { status: 400 },
-    );
-  }
+  const degraded = allSamples.length < MIN_SAMPLES;
 
   try {
-    const analysisSamples = selectBalancedVoiceSamples(allSamples, 25);
-    const analysis = await analyzeVoiceSamples(analysisSamples);
-    const persona = await synthesizePersonaFromAnalysis(analysis);
+    let analysisSamples: VoiceSample[] = [];
+    let persona: OnboardingPersona;
+    let baseline: CreatorBaseline;
 
-    const baseline = buildCreatorBaseline(analysis, {
-      postsAnalyzed: postSamples.length,
-      emailsAnalyzed: emailSamples.length,
-      platforms: connectedPlatforms,
-      displayName,
-    });
+    if (degraded) {
+      // A connected account returned no importable posts/emails — common when X
+      // exposes no public timeline via the provider. Never trap the user in a
+      // loop: build a safe default voice from their name + profile intel so
+      // onboarding completes. They can enrich it later in Voice Lab.
+      console.warn('[onboarding/ingest] no importable samples — completing with fallback voice', {
+        platforms: connectedPlatforms,
+      });
+      ({ persona, baseline } = buildFallbackVoice(displayName, creatorIntel.bioFacts, connectedPlatforms));
+    } else {
+      analysisSamples = selectBalancedVoiceSamples(allSamples, 25);
+      const analysis = await analyzeVoiceSamples(analysisSamples);
+      persona = await synthesizePersonaFromAnalysis(analysis);
+      baseline = buildCreatorBaseline(analysis, {
+        postsAnalyzed: postSamples.length,
+        emailsAnalyzed: emailSamples.length,
+        platforms: connectedPlatforms,
+        displayName,
+      });
+    }
 
     const brainCheck = await persistOnboardingVoice(
       client,
@@ -241,25 +245,17 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
       analysisSamples,
       creatorIntel,
       {
-        requireLinkedInIntel: linkedinConnected,
-        requireWebIntel: Boolean(creatorIntel.web),
+        // In the fallback path we have no scraped intel, so don't demand it.
+        requireLinkedInIntel: linkedinConnected && !degraded,
+        requireWebIntel: Boolean(creatorIntel.web) && !degraded,
       },
     );
 
+    // One connected account must always get the user into the app. If the brain
+    // did not fully sync we log it but still complete — the essentials (voice,
+    // profile, specs) are persisted and can be re-synced from the dashboard.
     if (!brainCheck.ok) {
-      return NextResponse.json(
-        {
-          error:
-            'Voice was analyzed but your creator brain did not sync. Please retry — missing: ' +
-            brainCheck.missing.join(', '),
-          baseline,
-          postsImported: postSamples.length,
-          emailsImported: emailSamples.length,
-          platforms: connectedPlatforms,
-          brainCheck,
-        },
-        { status: 500 },
-      );
+      console.warn('[onboarding/ingest] brain incomplete, completing anyway:', brainCheck.missing);
     }
 
     const response: OnboardingIngestResponse = {
@@ -269,12 +265,76 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
       platforms: connectedPlatforms,
       saved: true,
       brainCheck,
+      degraded,
     };
 
     return NextResponse.json(response);
   } catch (err) {
     return errorResponse('Ingest failed.', 500, err);
   }
+}
+
+/**
+ * Builds a safe, valid default voice + baseline when we could not import any
+ * posts or emails. This keeps a single connected account from getting stuck in
+ * the onboarding loop: the persisted voice/profile/specs pass brain verification
+ * so the user reaches the app, and voice can be refined later from real samples.
+ */
+function buildFallbackVoice(
+  displayName: string,
+  bioFacts: string,
+  platforms: string[],
+): { persona: OnboardingPersona; baseline: CreatorBaseline } {
+  const name = displayName?.trim() || 'this creator';
+  const context = bioFacts?.trim() ? ` ${bioFacts.trim().slice(0, 240)}` : '';
+  const voiceDescription =
+    `Writes with a clear, direct, and authentic voice. Favors plain language over jargon, ` +
+    `short punchy sentences, and a confident but approachable tone.${context}`.trim();
+  const voiceRuleList = [
+    'DO: Write in plain, conversational language.',
+    'DO: Lead with the main point.',
+    'DO: Keep sentences short and concrete.',
+    'DO: Sound human and specific, not corporate.',
+    'NEVER: Use buzzwords or empty hype.',
+    'NEVER: Bury the point under long preambles.',
+    'NEVER: Overuse emojis or hashtags.',
+  ];
+
+  const persona: OnboardingPersona = {
+    voice_description: voiceDescription,
+    voice_rules: voiceRuleList.join('\n'),
+    vocabulary_fingerprint: {
+      uses_often: [],
+      never_uses: ['synergy', 'leverage', 'circle back'],
+      signature_phrases: [],
+    },
+    structural_patterns: {
+      avg_sentence_length: 'short',
+      paragraph_style: 'Short, punchy paragraphs',
+      hook_pattern: 'Opens with a clear claim or question',
+      closing_pattern: 'Ends with a takeaway or a question',
+    },
+    exportable_prompt:
+      `Write as ${name}. Voice: clear, direct, authentic. Use plain language and short ` +
+      `sentences, confident but approachable. Lead with the main point and avoid buzzwords ` +
+      `or hype.${context ? ` Context:${context}` : ''}`.trim(),
+  };
+
+  const baseline: CreatorBaseline = {
+    voiceSummary: voiceDescription,
+    voiceRules: voiceRuleList,
+    themes: ['Insights'],
+    hookPattern: 'Opens with a clear claim or question',
+    tone: 'Clear and direct',
+    postsAnalyzed: 0,
+    emailsAnalyzed: 0,
+    platforms,
+    displayName: name,
+    suggestedTopic: 'Something I learned this week',
+    pillars: [{ name: 'Insights', color: '#E07A5F', description: 'Your core ideas' }],
+  };
+
+  return { persona, baseline };
 }
 
 async function persistOnboardingVoice(
