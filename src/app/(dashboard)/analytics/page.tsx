@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BarChart3,
   ChevronDown,
@@ -12,14 +12,23 @@ import {
   Save,
   Sparkles,
   Trash2,
+  Target,
   Users,
+  TrendingUp,
   Clock,
+  RefreshCw,
 } from "lucide-react";
+import { CopyButton } from "@/components/ui/CopyButton";
+import { useToast } from "@/components/ui/Toast";
 import { bucketEngagers, type Engager } from "@/lib/hooks-intelligence/categorize";
 import AudienceSection, { type AudienceEngagement } from "@/components/analytics/AudienceSection";
+import PostPerformanceTable from "@/components/analytics/PostPerformanceTable";
+import AnalyticsSectionNav from "@/components/analytics/AnalyticsSectionNav";
 import { getInsforge } from "@/lib/insforge/client";
 import type { Post, HashtagSet, WeeklyReview } from "@/lib/types";
-import { MIN_POSTS_FOR_TIMING, type TimingResult } from "@/lib/analytics/timing";
+import { type TimingResult, type TimingWindow } from "@/lib/analytics/timing";
+import type { AlgorithmSignal } from "@/lib/analytics/algorithm-insights";
+import { countPostsWithMetrics, getPostDisplayTitle, parseLinkedInMetricsPaste } from "@/lib/analytics/post-metrics";
 import { usePillars } from "@/hooks/usePillars";
 import PillarDot from "@/components/PillarDot";
 import { PageHeader } from "@/components/layout/PageHeader";
@@ -49,18 +58,32 @@ function truncate(s: string, len: number) {
   return s.length > len ? s.slice(0, len) + "..." : s;
 }
 
+
+
 /* ------------------------------------------------------------------ */
 /*  Main Page Component                                               */
 /* ------------------------------------------------------------------ */
 
 export default function AnalyticsPage() {
   const { pillars: pillarList, getLabel, getColor } = usePillars();
+  const { toast } = useToast();
   const [userId, setUserId] = useState<string | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [hashtagSets, setHashtagSets] = useState<HashtagSet[]>([]);
   const [reviews, setReviews] = useState<WeeklyReview[]>([]);
   const [bestTimes, setBestTimes] = useState<TimingResult | null>(null);
+  const [algorithm, setAlgorithm] = useState<AlgorithmPanel | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const autoSynced = useRef(false);
+
+  // === NEW: Consumer Intelligence Surfaces (Hook Lab + Lead Insights) ===
+  const [topHooks, setTopHooks] = useState<any[]>([]);
+  const [researchResult, setResearchResult] = useState<any>(null);
+  const [researchLoading, setResearchLoading] = useState(false);
+  const [hooksLoading, setHooksLoading] = useState(true);
 
   // Real categorized leads from DB (now that persistence is wired in the closed loop)
   const [realLeadCounts, setRealLeadCounts] = useState<Record<string, number> | null>(null);
@@ -69,12 +92,16 @@ export default function AnalyticsPage() {
   const [audienceEngagement, setAudienceEngagement] = useState<AudienceEngagement | null>(null);
 
   const fetchData = useCallback(async () => {
+    setFetchError(null);
     try {
       const res = await fetch('/api/analytics', {
         credentials: 'same-origin',
         cache: 'no-store',
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        setFetchError('Could not load analytics. Try again in a moment.');
+        return;
+      }
       const data = await res.json();
 
       setUserId(data.userId ?? null);
@@ -83,19 +110,71 @@ export default function AnalyticsPage() {
       setReviews(data.reviews ?? []);
       setRealLeadCounts(data.leadCounts ?? null);
       setAudienceEngagement(data.engagement ?? null);
+      setAlgorithm(data.algorithm ?? null);
       setBestTimes(data.bestTimes ?? null);
+    } catch {
+      setFetchError('Could not load analytics. Try again in a moment.');
     } finally {
       setLoading(false);
     }
   }, []);
 
+  const runMetricsSync = useCallback(async () => {
+    setSyncing(true);
+    setSyncMessage(null);
+    try {
+      const res = await fetch('/api/analytics/sync', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setSyncMessage((data as { error?: string }).error ?? 'Sync failed. Try again.');
+        return;
+      }
+      const updated = (data as { updated?: number }).updated ?? 0;
+      setSyncMessage(
+        updated > 0
+          ? `Synced stats for ${updated} post${updated === 1 ? '' : 's'} from LinkedIn/X/Instagram.`
+          : 'No new stats from the platforms yet. Log LinkedIn impressions manually above.',
+      );
+      await fetchData();
+    } catch {
+      setSyncMessage('Sync failed. Try again.');
+    } finally {
+      setSyncing(false);
+    }
+  }, [fetchData]);
+
+  useEffect(() => {
+    if (loading || autoSynced.current || posts.length === 0) return;
+    const withMetrics = countPostsWithMetrics(posts);
+    if (withMetrics < Math.min(3, posts.length)) {
+      autoSynced.current = true;
+      void runMetricsSync();
+    }
+  }, [loading, posts, runMetricsSync]);
+
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Track this analytics view for usage billing (safe client call).
+  // Intelligence surfaces: fetch live RAG hooks + track analytics view (monetization)
   useEffect(() => {
-    fetch('/api/analytics', { method: 'POST' }).catch(() => {});
+    const loadIntelligence = async () => {
+      try {
+        // Track this view for usage billing (safe client call)
+        try {
+          await fetch('/api/analytics', { method: 'POST' }).catch(() => {});
+        } catch {}
+
+        const res = await fetch('/api/hooks/intelligence?limit=8');
+        if (res.ok) {
+          const data = await res.json();
+          setTopHooks(data.hooks || []);
+        }
+      } finally {
+        setHooksLoading(false);
+      }
+    };
+    loadIntelligence();
   }, []);
 
   if (loading) {
@@ -125,42 +204,183 @@ export default function AnalyticsPage() {
     <div className="space-y-10 pb-20">
       <PageHeader eyebrow="ANALYTICS" title="Stats" subtitle="See what’s working and log performance on your posts." />
 
+      <div className="flex flex-wrap items-center gap-3">
+        <button
+          type="button"
+          onClick={() => void runMetricsSync()}
+          disabled={syncing}
+          className="inline-flex items-center gap-2 rounded-lg border border-border bg-bg-secondary px-4 py-2 text-sm font-medium text-text-primary hover:bg-bg-tertiary disabled:opacity-60"
+        >
+          <RefreshCw size={16} className={syncing ? 'animate-spin' : ''} />
+          {syncing ? 'Syncing stats…' : 'Sync stats from platforms'}
+        </button>
+        {syncMessage && (
+          <p className="text-sm text-text-secondary">{syncMessage}</p>
+        )}
+      </div>
+
+      {fetchError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex flex-wrap items-center justify-between gap-3">
+          <span>{fetchError}</span>
+          <button type="button" onClick={() => void fetchData()} className="font-medium underline hover:opacity-80">
+            Retry
+          </button>
+        </div>
+      )}
+
+      <AnalyticsSectionNav />
+
       {/* Section 1 */}
+      <div id="performance">
       <LogPerformanceSection posts={posts} userId={userId} onSaved={fetchData} />
+      </div>
 
-      {/* Best time to post — derived from real synced metrics */}
-      <BestTimesSection data={bestTimes} />
+      <div id="timing">
+      <BestTimesSection data={bestTimes} algorithm={algorithm} />
+      </div>
 
-      {/* Section 2 - loaded dynamically to avoid recharts SSR issues */}
+      <div id="algorithm-playbook">
+      <AlgorithmPlaybookSection algorithm={algorithm} />
+      </div>
+
+      <div id="posts-table">
+      <PostPerformanceTable posts={posts} />
+      </div>
+
+      <div id="charts">
       <ChartsSection posts={posts} getLabel={getLabel} getColor={getColor} />
+      </div>
 
-      {/* Audience: a breakdown of who your content reaches. */}
-      <section id="audience" className="space-y-6">
-        <div>
-          <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
-            <Users className="h-5 w-5 text-accent-primary" />
-            Who your content reaches
-          </h2>
-          <p className="text-sm text-text-secondary mt-1">
-            A breakdown of the audience your posts pull in.
-          </p>
+      {/* ================================================================== */}
+      {/* NEW CONSUMER SURFACE: Intelligence & Research Lab (the money maker) */}
+      {/* Makes the entire Hook Intelligence engine (Apify + RL + RAG) visible */}
+      {/* and valuable to paying users. Leads categorization = actionable ROI. */}
+      {/* ================================================================== */}
+      <section id="intelligence" className="space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
+              <Sparkles className="h-5 w-5 text-accent-primary" />
+              Intelligence & Research Lab
+            </h2>
+            <p className="text-sm text-text-secondary mt-1">
+              Live high-converting hooks mined + trained from the best creators. See exactly which engagers become leads.
+            </p>
+          </div>
+          <button
+            onClick={async () => {
+              setResearchLoading(true);
+              try {
+                const res = await fetch('/api/research', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ brief: 'improve content performance and lead generation', vertical: 'indie_maker' }),
+                });
+                const data = await res.json();
+                setResearchResult(data);
+              } catch (e) {
+                setResearchResult({ error: 'Research temporarily unavailable' });
+              } finally {
+                setResearchLoading(false);
+              }
+            }}
+            disabled={researchLoading}
+            className="flex items-center gap-2 rounded-lg bg-accent-primary px-4 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:opacity-60 transition-colors"
+          >
+            {researchLoading ? 'Researching...' : 'Run Fresh Research'}
+            <Target className="h-4 w-4" />
+          </button>
         </div>
 
-        {/* Lead categorization insights */}
+        {/* Hook Lab - Live RAG from our RL-trained dataset */}
+        <div className="rounded-xl border border-border bg-bg-secondary p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <TrendingUp className="h-5 w-5 text-coral" />
+            <h3 className="font-semibold">Top Performing Hooks (live from intelligence)</h3>
+            <span className="text-xs px-2 py-0.5 rounded bg-coral/10 text-coral">RAG + RL ranked</span>
+          </div>
+
+          {hooksLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {Array.from({ length: 4 }).map((_, i) => (
+                <div key={i} className="h-20 bg-bg-tertiary rounded-lg animate-pulse" />
+              ))}
+            </div>
+          ) : topHooks.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {topHooks.slice(0, 8).map((hook, idx) => (
+                <div key={idx} className="rounded-lg border border-border/70 bg-bg p-4 hover:border-accent-primary/40 transition-colors group flex flex-col">
+                  <div className="text-sm leading-snug text-text-primary line-clamp-3 flex-1">“{hook.text}”</div>
+                  <div className="mt-3 flex items-center justify-between text-xs">
+                    <div className="text-text-secondary">@{String(hook.author ?? '').replace(/^@+/, '')} • {hook.verticals?.[0] || 'general'}</div>
+                    <div className="font-mono text-accent-primary font-semibold">{hook.score}</div>
+                  </div>
+                  <div className="mt-2 flex items-center gap-2">
+                    <CopyButton text={hook.text} className="text-[10px] px-2 py-0.5" />
+                    <a href="/generate" className="text-[10px] text-accent-primary hover:underline">Use in Generate</a>
+                    <button onClick={async () => {
+                      try {
+                        const res = await fetch('/api/brain/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: hook.text, type: 'hook', source: 'intelligence' }) });
+                        if (!res.ok) throw new Error('save failed');
+                        toast('Saved to Creator Brain');
+                      } catch { toast('Could not save. Try again.', 'error'); }
+                    }} className="text-[10px] text-sage hover:underline">Save to Brain</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-sm text-text-secondary py-4">Run research or mining to populate live hooks. Your generated posts will get dramatically better.</div>
+          )}
+
+          {researchResult && (
+            <div className="mt-4 rounded-lg border border-accent-primary/30 bg-accent-primary/5 p-4 text-sm">
+              {researchResult.status === 'hook-context-only' ? (
+                <>
+                  <div className="font-medium mb-2 flex items-center gap-2">
+                    Hook context refreshed
+                    <span className="text-xs opacity-70">(local intelligence dataset)</span>
+                  </div>
+                  <p className="text-xs text-text-secondary mb-2">
+                    Surfaced high-performing hook patterns for your brief. Full closed-loop training runs via
+                    engagement sync and scheduled intelligence crons.
+                  </p>
+                </>
+              ) : researchResult.error ? (
+                <div className="font-medium text-accent-primary">{researchResult.error}</div>
+              ) : (
+                <div className="font-medium mb-2 flex items-center gap-2">
+                  Research complete
+                  <span className="text-xs opacity-70">(intelligence updated)</span>
+                </div>
+              )}
+              {researchResult.intelligence?.hooks && (
+                <div className="mb-2">
+                  <div className="text-xs font-semibold mb-1">Top hooks surfaced:</div>
+                  <div className="text-xs bg-bg/50 p-2 rounded max-h-24 overflow-auto">{researchResult.intelligence.hooks.substring(0, 300)}...</div>
+                </div>
+              )}
+              <div className="text-[10px] text-text-tertiary">Use these in Generate, or let crons + engagement sync keep training the model.</div>
+            </div>
+          )}
+        </div>
+
+        {/* Lead Categorization Insights */}
         <div className="rounded-xl border border-border bg-bg-secondary p-6">
           <div className="flex items-center gap-2 mb-3">
             <Users className="h-5 w-5 text-sage" />
-            <h3 className="font-semibold">Who&apos;s engaging</h3>
+            <h3 className="font-semibold">Actionable Lead Insights</h3>
+            <span className="text-xs px-2 py-0.5 rounded bg-sage/10 text-sage">Not vanity metrics</span>
           </div>
 
           <p className="text-sm text-text-secondary mb-4">
-            Every commenter and liker is bucketed into ICP, potential leads, community, and other, so you can see which content pulls the right audience.
+            Our engagement categorizer buckets every commenter/liker into <strong>ICP • Potential Leads • Community • Other</strong>. This is how you prove your content makes money.
           </p>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {[
-              { label: 'ICP (ideal customers)', count: realLeadCounts?.ICP || 0, color: 'text-coral', desc: 'Founders & decision makers' },
-              { label: 'Potential leads', count: realLeadCounts?.['Potential Lead'] || 0, color: 'text-amber-600', desc: 'Asking questions, high intent' },
+              { label: 'ICP (Ideal Customers)', count: realLeadCounts?.ICP || 0, color: 'text-coral', desc: 'Founders & decision makers' },
+              { label: 'Potential Leads', count: realLeadCounts?.['Potential Lead'] || 0, color: 'text-amber-600', desc: 'Asking questions, high intent' },
               { label: 'Community', count: realLeadCounts?.Community || 0, color: 'text-sage', desc: 'Creators & makers like you' },
               { label: 'Other', count: realLeadCounts?.Other || 0, color: 'text-text-tertiary', desc: 'Casual engagers' },
             ].map((bucket, i) => (
@@ -181,21 +401,23 @@ export default function AnalyticsPage() {
         <AudienceSection engagement={audienceEngagement} />
       </section>
 
-      {/* Section 3 */}
-      <WeeklyReviewSection
-        posts={posts}
-        reviews={reviews}
-        userId={userId}
-        onSaved={fetchData}
-      />
+      <div id="weekly-review">
+        <WeeklyReviewSection
+          posts={posts}
+          reviews={reviews}
+          userId={userId}
+          onSaved={fetchData}
+        />
+      </div>
 
-      {/* Section 4 */}
-      <HashtagVaultSection
-        sets={hashtagSets}
-        userId={userId}
-        onSaved={fetchData}
-        pillarList={pillarList}
-      />
+      <div id="hashtags">
+        <HashtagVaultSection
+          sets={hashtagSets}
+          userId={userId}
+          onSaved={fetchData}
+          pillarList={pillarList}
+        />
+      </div>
     </div>
   );
 }
@@ -204,25 +426,69 @@ export default function AnalyticsPage() {
 /*  Best Times To Post                                                */
 /* ================================================================== */
 
+interface AlgorithmPanel {
+  platform: string;
+  model: string;
+  signals: AlgorithmSignal[];
+  rewards: string[];
+  penalties: string[];
+  timingHeadline: string;
+}
+
+const PLATFORM_LABEL: Record<string, string> = {
+  linkedin: "LinkedIn",
+  twitter: "X",
+  instagram: "Instagram",
+  threads: "Threads",
+};
+
+function windowSourceLabel(w: TimingWindow): string {
+  switch (w.source) {
+    case "personal":
+      return `${w.sampleSize} of your posts`;
+    case "blended":
+      return `you + benchmark · ${w.sampleSize} post${w.sampleSize === 1 ? "" : "s"}`;
+    case "benchmark":
+      return "platform benchmark";
+    default: {
+      const _exhaustive: never = w.source;
+      return _exhaustive;
+    }
+  }
+}
+
 /**
- * Surfaces the strongest weekday/hour posting windows computed from real,
- * auto-synced metrics. Shows an explicit "not enough data" state below the
- * sample threshold, and notes that X + Instagram sync automatically while
- * LinkedIn does not expose post metrics to third-party apps.
+ * Best times to post. Blends the platform algorithm benchmark (how millions of
+ * posts perform) with the creator's own results, so a strong recommendation is
+ * always available and sharpens as personal data accumulates.
  */
-function BestTimesSection({ data }: { data: TimingResult | null }) {
+function BestTimesSection({
+  data,
+  algorithm,
+}: {
+  data: TimingResult | null;
+  algorithm: AlgorithmPanel | null;
+}) {
+  const platformLabel = algorithm ? PLATFORM_LABEL[algorithm.platform] ?? algorithm.platform : "your platform";
+  const basisNote =
+    !data || data.basis === "benchmark"
+      ? `Based on ${platformLabel} algorithm benchmarks (millions of posts). Will personalize as your posts collect engagement.`
+      : data.basis === "blended"
+        ? `Blended: ${platformLabel} algorithm benchmarks refined by your ${data.sampleSize} post${data.sampleSize === 1 ? "" : "s"} with engagement.`
+        : `Based on your ${data.sampleSize} posts with engagement.`;
+
   return (
     <section className="bg-bg-secondary border border-border rounded-lg p-6">
-      <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
-        <Clock size={20} className="text-ink3" /> Best times to post
-      </h2>
+      <div className="flex items-center gap-2">
+        <Clock className="h-4 w-4 text-accent-primary" />
+        <h2 className="text-sm font-medium text-text-primary">Best times to post</h2>
+      </div>
 
-      {!data || data.insufficientData ? (
-        <p className="mt-3 text-sm text-text-secondary">
-          Not enough data yet. Once about {MIN_POSTS_FOR_TIMING} posts have synced metrics,
-          we&apos;ll show your strongest days and hours.
-        </p>
-      ) : (
+      {algorithm?.timingHeadline && (
+        <p className="mt-2 text-sm text-text-primary">{algorithm.timingHeadline}</p>
+      )}
+
+      {data && (data.bestWeekdays.length > 0 || data.bestHours.length > 0) ? (
         <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div>
             <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Best days</p>
@@ -230,10 +496,7 @@ function BestTimesSection({ data }: { data: TimingResult | null }) {
               {data.bestWeekdays.map((w) => (
                 <li key={`wd-${w.index}`} className="flex items-center justify-between text-sm">
                   <span className="text-text-primary">{w.label}</span>
-                  <span className="text-text-tertiary">
-                    {Math.round(w.avgEngagement).toLocaleString()} avg views · {w.sampleSize} post
-                    {w.sampleSize === 1 ? "" : "s"}
-                  </span>
+                  <span className="text-text-tertiary text-xs">{windowSourceLabel(w)}</span>
                 </li>
               ))}
             </ul>
@@ -244,21 +507,85 @@ function BestTimesSection({ data }: { data: TimingResult | null }) {
               {data.bestHours.map((h) => (
                 <li key={`hr-${h.index}`} className="flex items-center justify-between text-sm">
                   <span className="text-text-primary">{h.label}</span>
-                  <span className="text-text-tertiary">
-                    {Math.round(h.avgEngagement).toLocaleString()} avg views · {h.sampleSize} post
-                    {h.sampleSize === 1 ? "" : "s"}
-                  </span>
+                  <span className="text-text-tertiary text-xs">{windowSourceLabel(h)}</span>
                 </li>
               ))}
             </ul>
           </div>
         </div>
+      ) : (
+        <p className="mt-3 text-sm text-text-secondary">
+          Loading recommended windows…
+        </p>
       )}
 
+      <p className="mt-4 text-xs text-text-tertiary">{basisNote}</p>
+    </section>
+  );
+}
+
+/* ================================================================== */
+/*  Algorithm Playbook                                                */
+/* ================================================================== */
+
+/**
+ * What the platform's ranking system actually rewards, surfaced as data so the
+ * creator (and Content OS generation) optimize for reach, not just readability.
+ */
+function AlgorithmPlaybookSection({ algorithm }: { algorithm: AlgorithmPanel | null }) {
+  if (!algorithm) return null;
+  const platformLabel = PLATFORM_LABEL[algorithm.platform] ?? algorithm.platform;
+
+  return (
+    <section className="bg-bg-secondary border border-border rounded-lg p-6">
+      <div className="flex items-center gap-2">
+        <BarChart3 className="h-4 w-4 text-accent-primary" />
+        <h2 className="text-sm font-medium text-text-primary">{platformLabel} algorithm playbook</h2>
+      </div>
+      <p className="mt-2 text-sm text-text-secondary">{algorithm.model}</p>
+
+      <div className="mt-4">
+        <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Ranking signals that matter</p>
+        <ul className="mt-2 space-y-2">
+          {algorithm.signals.map((s) => (
+            <li key={s.signal} className="text-sm">
+              <div className="flex flex-wrap items-baseline gap-2">
+                <span className="font-medium text-text-primary">{s.signal}</span>
+                <span className="rounded bg-bg-tertiary px-1.5 py-0.5 text-[11px] font-medium text-accent-primary">
+                  {s.weight}
+                </span>
+              </div>
+              <p className="text-text-secondary">{s.action}</p>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-emerald-500">Rewards</p>
+          <ul className="mt-2 space-y-1.5">
+            {algorithm.rewards.map((r) => (
+              <li key={r} className="text-sm text-text-secondary">
+                + {r}
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-red-500">Suppresses reach</p>
+          <ul className="mt-2 space-y-1.5">
+            {algorithm.penalties.map((p) => (
+              <li key={p} className="text-sm text-text-secondary">
+                − {p}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
       <p className="mt-4 text-xs text-text-tertiary">
-        Metrics sync automatically from your connected accounts — LinkedIn (impressions, reactions,
-        comments, reposts) via your linked account, plus X and Instagram. You can still override any
-        post&apos;s numbers by hand above.
+        Content OS uses these signals when generating posts so drafts are written to rank, not just to read well.
       </p>
     </section>
   );
@@ -284,8 +611,10 @@ function LogPerformanceSection({
   const [comments, setComments] = useState(0);
   const [shares, setShares] = useState(0);
   const [followsGained, setFollowsGained] = useState(0);
+  const [pasteText, setPasteText] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
+  const [saveError, setSaveError] = useState(false);
 
   useEffect(() => {
     const post = posts.find((p) => p.id === selectedPostId);
@@ -300,32 +629,50 @@ function LogPerformanceSection({
   }, [selectedPostId, posts]);
 
   async function handleSave() {
-    if (!selectedPostId || !userId) return;
+    if (!selectedPostId) return;
     setSaving(true);
     setMessage("");
+    setSaveError(false);
     try {
-      const insforge = getInsforge();
-      const { error } = await insforge.database
-        .from("posts")
-        .update({
+      const res = await fetch(`/api/posts/${selectedPostId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
           views,
           likes,
           saves,
           comments,
           shares,
           follows_gained: followsGained,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", selectedPostId)
-        .eq("user_id", userId);
-
-      if (error) throw error;
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error((body as { error?: string }).error ?? "Save failed");
+      }
       setMessage("Stats saved successfully!");
       onSaved();
     } catch {
-      setMessage("Failed to save stats.");
+      setSaveError(true);
+      setMessage("Failed to save stats. Try again.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  function handlePasteApply() {
+    const parsed = parseLinkedInMetricsPaste(pasteText);
+    if (parsed.views !== undefined) setViews(parsed.views);
+    if (parsed.likes !== undefined) setLikes(parsed.likes);
+    if (parsed.saves !== undefined) setSaves(parsed.saves);
+    if (parsed.comments !== undefined) setComments(parsed.comments);
+    if (parsed.shares !== undefined) setShares(parsed.shares);
+    if (Object.keys(parsed).length > 0) {
+      setMessage("Pasted stats applied — review the numbers, then save.");
+      setSaveError(false);
+    } else {
+      setSaveError(true);
+      setMessage("Could not read stats from that text. Try copying directly from LinkedIn Analytics.");
     }
   }
 
@@ -336,8 +683,10 @@ function LogPerformanceSection({
       </h2>
 
       <p className="text-sm text-text-secondary mb-4">
-        Posts published through Content OS sync their metrics automatically. Use this to backfill
-        numbers by hand for posts we can&apos;t auto-sync — e.g. ones you posted outside the app.
+        LinkedIn does not expose post impressions or engagement metrics via their API to third parties.
+        Copy your stats from{" "}
+        <span className="font-medium text-text-primary">LinkedIn Analytics</span>{" "}
+        and paste them here to track performance and train your content intelligence.
       </p>
 
       <div className="mb-4">
@@ -350,7 +699,7 @@ function LogPerformanceSection({
           <option value="">-- Choose a post --</option>
           {posts.map((p) => (
             <option key={p.id} value={p.id}>
-              {truncate(p.title, 50)}
+              {truncate(getPostDisplayTitle(p), 50)}
             </option>
           ))}
         </select>
@@ -358,6 +707,26 @@ function LogPerformanceSection({
 
       {selectedPostId && (
         <>
+          <div className="mb-4">
+            <label className="block text-sm text-text-secondary mb-1">
+              Paste from LinkedIn Analytics <span className="text-text-tertiary">(optional)</span>
+            </label>
+            <textarea
+              className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-sm text-text-primary min-h-[72px]"
+              placeholder="Paste impressions, reactions, comments, etc. from LinkedIn — we&apos;ll fill the fields below."
+              value={pasteText}
+              onChange={(e) => setPasteText(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={handlePasteApply}
+              disabled={!pasteText.trim()}
+              className="mt-2 text-sm text-accent-primary hover:underline disabled:opacity-40 disabled:no-underline"
+            >
+              Apply pasted stats
+            </button>
+          </div>
+
           <div className="grid grid-cols-3 sm:grid-cols-3 md:grid-cols-6 gap-4 mb-4">
             {[
               { label: "Views", value: views, set: setViews },
@@ -391,7 +760,9 @@ function LogPerformanceSection({
           </button>
 
           {message && (
-            <p className="mt-2 text-sm text-[#3B6D11]">{message}</p>
+            <p className={`mt-2 text-sm ${saveError ? "text-accent-primary" : "text-[#3B6D11]"}`}>
+              {message}
+            </p>
           )}
         </>
       )}
@@ -736,6 +1107,7 @@ function HashtagVaultSection({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [analyzeOutput, setAnalyzeOutput] = useState<Record<string, string>>({});
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   function startEdit(set: HashtagSet) {
     setEditingId(set.id);
@@ -799,6 +1171,7 @@ function HashtagVaultSection({
         .delete()
         .eq("id", id)
         .eq("user_id", userId);
+      setConfirmDeleteId(null);
       onSaved();
     } catch {
       /* silent */
@@ -818,7 +1191,7 @@ function HashtagVaultSection({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          prompt: `Analyze these hashtags for a LinkedIn content creator:
+          prompt: `Analyze these hashtags for an Instagram content creator:
 Set name: "${set.name}"
 Tags: ${set.tags}
 Pillar: ${set.pillar ?? "general"}
@@ -958,7 +1331,7 @@ Which tags should I keep and which should I cut? Be specific and blunt. Suggest 
                   <Pencil size={14} />
                 </button>
                 <button
-                  onClick={() => handleDelete(s.id)}
+                  onClick={() => setConfirmDeleteId(s.id)}
                   className="text-text-secondary hover:text-accent-primary p-1.5 rounded-md"
                   title="Delete"
                 >
@@ -966,6 +1339,25 @@ Which tags should I keep and which should I cut? Be specific and blunt. Suggest 
                 </button>
               </div>
             </div>
+            {confirmDeleteId === s.id && (
+              <div className="flex items-center gap-2 mt-2 text-xs">
+                <span className="text-text-secondary">Delete this set?</span>
+                <button
+                  type="button"
+                  onClick={() => void handleDelete(s.id)}
+                  className="text-accent-primary font-medium hover:underline"
+                >
+                  Confirm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setConfirmDeleteId(null)}
+                  className="text-text-secondary hover:underline"
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
             <p className="text-text-secondary text-xs truncate">{s.tags}</p>
             {copiedId === s.id && (
               <p className="text-xs text-[#3B6D11]">Copied!</p>

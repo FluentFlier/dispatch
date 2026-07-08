@@ -4,6 +4,46 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
 import { usage } from '@/lib/hooks-intelligence/usage-tracker';
 import { postPillars } from '@/lib/pillars';
 import { computeBestTimes, type TimingPost } from '@/lib/analytics/timing';
+import { enrichPostsWithSyncCounts, postEngagementScore, resolvePublishedAt } from '@/lib/analytics/post-metrics';
+import { getAlgorithmInsights, normalizeInsightPlatform, type InsightPlatform } from '@/lib/analytics/algorithm-insights';
+import type { Post } from '@/lib/types';
+
+const POSTED_POSTS_LIMIT = 100;
+
+function countByPostId(rows: Array<{ post_id: string }>): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    counts.set(row.post_id, (counts.get(row.post_id) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** The platform most of the creator's posted content is on (defaults to LinkedIn). */
+function pickDominantPlatform(posts: Array<{ platform?: string | null }>): InsightPlatform {
+  const counts = new Map<InsightPlatform, number>();
+  for (const p of posts) {
+    const platform = normalizeInsightPlatform(p.platform);
+    counts.set(platform, (counts.get(platform) ?? 0) + 1);
+  }
+  let best: InsightPlatform = 'linkedin';
+  let bestCount = -1;
+  counts.forEach((count, platform) => {
+    if (count > bestCount) {
+      best = platform;
+      bestCount = count;
+    }
+  });
+  return best;
+}
+
+function applyWorkspaceScope<T extends { eq: (col: string, val: string) => T; or: (filter: string) => T }>(
+  query: T,
+  workspaceId: string | null,
+): T {
+  if (!workspaceId) return query;
+  // Legacy rows may have been written before workspace_id was stamped on every table.
+  return query.or(`workspace_id.eq.${workspaceId},workspace_id.is.null`);
+}
 
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -17,28 +57,28 @@ export async function GET(): Promise<NextResponse> {
     .eq('user_id', user.id)
     .eq('status', 'posted')
     .order('posted_date', { ascending: false })
-    .limit(30);
-  if (workspaceId) postsQuery = postsQuery.eq('workspace_id', workspaceId);
+    .limit(POSTED_POSTS_LIMIT);
+  postsQuery = applyWorkspaceScope(postsQuery, workspaceId);
 
   let setsQuery = client.database.from('hashtag_sets')
     .select('*')
     .eq('user_id', user.id)
     .order('created_at', { ascending: false });
-  if (workspaceId) setsQuery = setsQuery.eq('workspace_id', workspaceId);
+  setsQuery = applyWorkspaceScope(setsQuery, workspaceId);
 
   let reviewsQuery = client.database.from('weekly_reviews')
     .select('*')
     .eq('user_id', user.id)
     .order('week_start', { ascending: false });
-  if (workspaceId) reviewsQuery = reviewsQuery.eq('workspace_id', workspaceId);
+  reviewsQuery = applyWorkspaceScope(reviewsQuery, workspaceId);
 
   // Published jobs give a real publish timestamp (posts.posted_date is date-only),
   // which the best-time engine needs for hour-level windows.
   let jobsQuery = client.database.from('publish_jobs')
-    .select('post_id, updated_at')
+    .select('post_id, updated_at, created_at')
     .eq('user_id', user.id)
     .eq('status', 'published');
-  if (workspaceId) jobsQuery = jobsQuery.eq('workspace_id', workspaceId);
+  jobsQuery = applyWorkspaceScope(jobsQuery, workspaceId);
 
   const [postsRes, setsRes, reviewsRes, leadsRes, jobsRes, reactionsRes, commentersRes] =
     await Promise.all([
@@ -52,13 +92,13 @@ export async function GET(): Promise<NextResponse> {
       // Reaction/commenter aggregates are computed in JS: the SDK has no
       // GROUP BY, and per-user row counts stay small at these limits.
       client.database.from('post_reactions')
-        .select('reaction_type')
+        .select('post_id, reaction_type')
         .eq('user_id', user.id)
-        .limit(2000),
+        .limit(5000),
       client.database.from('post_comments')
-        .select('author_name, author_handle, author_headline')
+        .select('post_id, author_name, author_handle, author_headline')
         .eq('user_id', user.id)
-        .limit(2000),
+        .limit(5000),
     ]);
 
   if (postsRes.error) return NextResponse.json({ error: postsRes.error.message }, { status: 500 });
@@ -66,7 +106,11 @@ export async function GET(): Promise<NextResponse> {
   if (reviewsRes.error) return NextResponse.json({ error: reviewsRes.error.message }, { status: 500 });
   if (leadsRes.error) return NextResponse.json({ error: leadsRes.error.message }, { status: 500 });
 
-  const posts = postsRes.data ?? [];
+  const posts = enrichPostsWithSyncCounts(
+    (postsRes.data ?? []) as Post[],
+    countByPostId((reactionsRes.data ?? []) as Array<{ post_id: string }>),
+    countByPostId((commentersRes.data ?? []) as Array<{ post_id: string }>),
+  );
   const leadCounts: Record<string, number> = { ICP: 0, 'Potential Lead': 0, Community: 0, Other: 0 };
   for (const lead of leadsRes.data ?? []) {
     const category = (lead as { category?: string }).category;
@@ -88,21 +132,27 @@ export async function GET(): Promise<NextResponse> {
     }
   }
 
-  const totalViews = posts.reduce((sum: number, p: { views?: number }) => sum + (p.views ?? 0), 0);
-  const totalSaves = posts.reduce((sum: number, p: { saves?: number }) => sum + (p.saves ?? 0), 0);
+  const totalViews = posts.reduce((sum, p) => sum + (p.views ?? 0), 0);
+  const totalSaves = posts.reduce((sum, p) => sum + (p.saves ?? 0), 0);
 
   // Best-time recommendation. Prefer the real publish timestamp; fall back to
   // the date-only posted_date. Engagement = views (our primary reach metric).
   // jobs errors are non-fatal here — timing simply falls back to posted_date.
   const jobTimeById = new Map<string, string>();
-  for (const j of (jobsRes.data ?? []) as { post_id: string; updated_at: string }[]) {
-    jobTimeById.set(j.post_id, j.updated_at);
+  for (const j of (jobsRes.data ?? []) as { post_id: string; updated_at: string; created_at?: string }[]) {
+    jobTimeById.set(j.post_id, j.updated_at || j.created_at || '');
   }
-  const timingPosts: TimingPost[] = posts.map((p: { id: string; posted_date: string | null; views?: number }) => ({
-    postedAt: jobTimeById.get(p.id) ?? p.posted_date,
-    engagement: p.views ?? 0,
+  const timingPosts: TimingPost[] = posts.map((p) => ({
+    postedAt: resolvePublishedAt(p, jobTimeById.get(p.id)),
+    engagement: postEngagementScore(p),
   }));
-  const bestTimes = computeBestTimes(timingPosts);
+
+  // Blend the platform algorithm benchmark (how millions of posts perform) with
+  // this creator's own results, so best-times reflect the algorithm — not just
+  // our handful of posts. Prior is chosen from the creator's dominant platform.
+  const dominantPlatform = pickDominantPlatform(posts);
+  const insights = getAlgorithmInsights(dominantPlatform);
+  const bestTimes = computeBestTimes(timingPosts, 3, insights.timing);
 
   // Reaction-type distribution (LIKE/PRAISE/etc.).
   const reactionBreakdown: Record<string, number> = {};
@@ -150,6 +200,14 @@ export async function GET(): Promise<NextResponse> {
     reviews: reviewsRes.data ?? [],
     leadCounts,
     bestTimes,
+    algorithm: {
+      platform: insights.platform,
+      model: insights.model,
+      signals: insights.signals,
+      rewards: insights.rewards,
+      penalties: insights.penalties,
+      timingHeadline: insights.timing.headline,
+    },
     engagement: {
       reactionBreakdown,
       totalReactions: (reactionsRes.data ?? []).length,
