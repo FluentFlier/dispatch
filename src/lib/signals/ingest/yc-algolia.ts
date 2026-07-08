@@ -18,6 +18,13 @@ import { normalizeName } from '@/lib/signals/leads/identity';
 const YC_COMPANIES_URL = 'https://www.ycombinator.com/companies';
 // Recency-sorted index → freshest batches first (what GTM outreach wants).
 const YC_ALGOLIA_INDEX = 'YCCompany_By_Launch_Date_production';
+// Relevance-ranked index — REQUIRED for any text/ICP query. The recency index
+// above has a `distinct` setting that collapses a non-empty query to a SINGLE hit
+// (nbHits in the thousands, one returned), so an ICP scrape resolved to 1 company
+// — usually a filtered mega-corp — and threw "Algolia returned 0 companies". A
+// text query on this index returns full pages; empty/recency queries keep the
+// launch-date index so fresh batches still rank first.
+const YC_ALGOLIA_INDEX_RELEVANCE = 'YCCompany_production';
 const ALGOLIA_OPTS_RE = /AlgoliaOpts\s*=\s*(\{.*?\})/;
 const MAX_HITS = 50;
 
@@ -299,6 +306,9 @@ export async function fetchYcCompaniesViaAlgolia(limit: number, query = ''): Pro
   // unaffected (no optional words to send).
   const words = trimmed.split(/\s+/).filter(Boolean);
   const optionalWords = words.length > 1 ? `&optionalWords=${encodeURIComponent(JSON.stringify(words))}` : '';
+  // Text/ICP query -> relevance index (recency index collapses text queries to 1
+  // hit); empty query -> recency index so fresh batches rank first.
+  const indexName = trimmed ? YC_ALGOLIA_INDEX_RELEVANCE : YC_ALGOLIA_INDEX;
 
   const res = await fetch(`https://${app.toLowerCase()}-dsn.algolia.net/1/indexes/*/queries`, {
     method: 'POST',
@@ -310,7 +320,7 @@ export async function fetchYcCompaniesViaAlgolia(limit: number, query = ''): Pro
     body: JSON.stringify({
       requests: [
         {
-          indexName: YC_ALGOLIA_INDEX,
+          indexName,
           params: `query=${q}${optionalWords}&hitsPerPage=${Math.min(Math.max(limit, 1), MAX_HITS)}&page=0`,
         },
       ],
@@ -360,7 +370,9 @@ export async function findYcCompanyByName(name: string): Promise<YcNameMatch | n
     body: JSON.stringify({
       requests: [
         {
-          indexName: YC_ALGOLIA_INDEX,
+          // Name lookup is a text query — use the relevance index (the recency
+          // index collapses text queries and can return the wrong single hit).
+          indexName: YC_ALGOLIA_INDEX_RELEVANCE,
           params: `query=${encodeURIComponent(clean)}&hitsPerPage=1&page=0`,
         },
       ],
