@@ -35,12 +35,14 @@ export function indexLinkedInListMetrics(
 ): Map<string, Record<string, number>> {
   const index = new Map<string, Record<string, number>>();
   for (const item of items) {
-    const id = typeof item.id === 'string' ? item.id : undefined;
-    if (!id) continue;
     const patch = metricsPatchFromNormalized(extractLinkedInMetrics(item));
     if (Object.keys(patch).length === 0) continue;
-    for (const key of providerPostIdAliases(id)) {
-      if (!index.has(key)) index.set(key, patch);
+
+    const ids = [item.id, item.social_id].filter((v): v is string => typeof v === 'string' && v.length > 0);
+    for (const id of ids) {
+      for (const key of providerPostIdAliases(id)) {
+        if (!index.has(key)) index.set(key, patch);
+      }
     }
   }
   return index;
@@ -154,22 +156,29 @@ export async function backfillLinkedInMetricsFromPostList(
       continue;
     }
 
-    const listItem = listResult.rawItems.find(
-      (item) => item.id && providerPostIdsMatch(item.id, job.provider_post_id),
-    );
+    const listItem = listResult.rawItems.find((item) => {
+      if (item.id && providerPostIdsMatch(item.id, job.provider_post_id)) return true;
+      const socialId = (item as { social_id?: unknown }).social_id;
+      return typeof socialId === 'string' && providerPostIdsMatch(socialId, job.provider_post_id);
+    });
     const publishedAt = listItem ? extractLinkedInPublishedAt(listItem) : undefined;
 
     const postPatch: Record<string, string | number> = { ...patch };
     if (publishedAt) postPatch.posted_date = publishedAt.split('T')[0];
 
-    const { error: updErr } = await client.database
+    const { data: updatedRows, error: updErr } = await client.database
       .from('posts')
       .update(postPatch)
       .eq('id', job.post_id)
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .select('id');
 
     if (updErr) {
       logError('[analytics-sync] list backfill update failed', { postId: job.post_id }, updErr);
+      continue;
+    }
+    if (!updatedRows || updatedRows.length === 0) {
+      logError('[analytics-sync] list backfill matched 0 rows (RLS?)', { postId: job.post_id, userId });
       continue;
     }
     updated += 1;

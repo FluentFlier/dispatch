@@ -1,37 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@insforge/sdk';
-import { decryptToken } from '@/lib/crypto';
-import { fetchTweetMetrics, type NormalizedMetrics } from '@/lib/platforms/twitter-metrics';
-import { fetchInstagramMetrics } from '@/lib/platforms/instagram-metrics';
-import { fetchLinkedInMetrics } from '@/lib/platforms/linkedin-metrics';
-import { resolveUnipileTarget } from '@/lib/onboarding/import-posts';
+import { syncUserPostMetrics } from '@/lib/analytics/sync-user-metrics';
 import { logError, logInfo } from '@/lib/logger';
 
 /**
  * Cron endpoint: refresh real post metrics from the platforms.
  *
- * WHY: analytics used to rely on hand-entered numbers. This pulls live metrics
- * for recently published posts (X + Instagram) and writes them onto the
- * existing posts.{views,likes,saves,comments,shares} columns, so Performance
- * and the best-time engine run on real data.
- *
- * X and Instagram use their own APIs (decrypted OAuth token). LinkedIn goes
- * through the user's connected Unipile account instead — LinkedIn's official
- * API hides post metrics, but Unipile exposes impressions/reactions/reposts.
- * Threads is deferred. Protected by CRON_SECRET.
+ * Delegates to syncUserPostMetrics (list backfill + capped per-post GETs) so
+ * cron and the analytics page share one implementation.
+ * Protected by CRON_SECRET.
  */
 
-/** Only pull metrics for posts published within this window (days). */
-const LOOKBACK_DAYS = 14;
-const SUPPORTED = new Set(['twitter', 'instagram', 'linkedin']);
-
-interface PublishJobRow {
-  post_id: string;
-  user_id: string;
-  platform: string;
-  provider_post_id: string | null;
-  updated_at: string;
-}
+const MAX_USERS = 40;
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization');
@@ -47,151 +27,42 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const admin = createClient({ baseUrl: url, anonKey: serviceKey, isServerMode: true });
-  const since = new Date(Date.now() - LOOKBACK_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
-  // Recently published jobs that carry a platform post id we can look up.
+  // Distinct users with published jobs that have a provider post id.
   const { data: jobs, error } = await admin.database
     .from('publish_jobs')
-    .select('post_id, user_id, platform, provider_post_id, updated_at')
+    .select('user_id')
     .eq('status', 'published')
-    .gte('updated_at', since)
-    .not('provider_post_id', 'is', null);
+    .not('provider_post_id', 'is', null)
+    .limit(500);
 
   if (error) {
     logError('[metrics-sync] Failed to load publish_jobs', undefined, error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  // Cache one decrypted token per user+platform to avoid re-querying/decrypting.
-  const tokenCache = new Map<string, string | null>();
-  async function getToken(userId: string, platform: string): Promise<string | null> {
-    const cacheKey = `${userId}:${platform}`;
-    if (tokenCache.has(cacheKey)) return tokenCache.get(cacheKey) ?? null;
-    const { data: account } = await admin.database
-      .from('social_accounts')
-      .select('access_token')
-      .eq('user_id', userId)
-      .eq('platform', platform)
-      .maybeSingle();
-    let token: string | null = null;
-    if (account?.access_token) {
-      try {
-        token = decryptToken(account.access_token);
-      } catch (e) {
-        logError('[metrics-sync] Token decrypt failed', { userId, platform }, e);
-      }
-    }
-    tokenCache.set(cacheKey, token);
-    return token;
-  }
-
-  // LinkedIn metrics go through Unipile, keyed by the connected account id —
-  // there is no OAuth token to decrypt on that path.
-  const unipileCache = new Map<string, string | null>();
-  async function getUnipileAccount(userId: string): Promise<string | null> {
-    if (unipileCache.has(userId)) return unipileCache.get(userId) ?? null;
-    const { data: account } = await admin.database
-      .from('social_accounts')
-      .select('unipile_account_id, account_id')
-      .eq('user_id', userId)
-      .eq('platform', 'linkedin')
-      .not('unipile_account_id', 'is', null)
-      .limit(1)
-      .maybeSingle();
-    const row = account as { unipile_account_id: string; account_id: string | null } | null;
-    if (!row?.unipile_account_id) {
-      unipileCache.set(userId, null);
-      return null;
-    }
-
-    // Self-heal a rotated unipile_account_id, exactly as the publish/import
-    // paths do. LinkedIn re-issues account.id on every credential re-auth, so
-    // the id cached in social_accounts eventually 404s ("Account not found") —
-    // which is why LinkedIn metrics silently came back empty. Recover the live
-    // id by matching the STABLE identity (account_id) against the account list,
-    // then persist it so the engagement-sync/comments paths heal for free.
-    let healedId: string = row.unipile_account_id;
-    try {
-      const target = await resolveUnipileTarget(row.unipile_account_id, row.account_id, 'linkedin');
-      if (target?.unipileAccountId) {
-        healedId = target.unipileAccountId;
-        if (target.refreshed) {
-          await admin.database
-            .from('social_accounts')
-            .update({ unipile_account_id: healedId })
-            .eq('user_id', userId)
-            .eq('platform', 'linkedin');
-          logInfo('[metrics-sync] Healed rotated Unipile account id', { userId });
-        }
-      }
-    } catch (e) {
-      logError('[metrics-sync] Unipile account resolve failed', { userId }, e);
-    }
-
-    unipileCache.set(userId, healedId);
-    return healedId;
-  }
+  const userIds = Array.from(
+    new Set(((jobs ?? []) as Array<{ user_id: string }>).map((j) => j.user_id).filter(Boolean)),
+  ).slice(0, MAX_USERS);
 
   let updated = 0;
   let skipped = 0;
   let failed = 0;
+  let total = 0;
 
-  for (const job of (jobs ?? []) as PublishJobRow[]) {
-    if (!SUPPORTED.has(job.platform) || !job.provider_post_id) {
-      skipped += 1;
-      continue;
-    }
+  for (const userId of userIds) {
     try {
-      let metrics: NormalizedMetrics = {};
-      if (job.platform === 'linkedin') {
-        const unipileAccountId = await getUnipileAccount(job.user_id);
-        if (!unipileAccountId) {
-          skipped += 1;
-          continue;
-        }
-        metrics = await fetchLinkedInMetrics(unipileAccountId, job.provider_post_id);
-      } else {
-        const token = await getToken(job.user_id, job.platform);
-        if (!token) {
-          skipped += 1;
-          continue;
-        }
-        if (job.platform === 'twitter') {
-          metrics = await fetchTweetMetrics(token, job.provider_post_id);
-        } else if (job.platform === 'instagram') {
-          metrics = await fetchInstagramMetrics(token, job.provider_post_id);
-        }
-      }
-
-      // Only write metrics we actually received (never zero-out unknowns).
-      const patch: Record<string, number> = {};
-      if (typeof metrics.views === 'number') patch.views = metrics.views;
-      if (typeof metrics.likes === 'number') patch.likes = metrics.likes;
-      if (typeof metrics.saves === 'number') patch.saves = metrics.saves;
-      if (typeof metrics.comments === 'number') patch.comments = metrics.comments;
-      if (typeof metrics.shares === 'number') patch.shares = metrics.shares;
-
-      if (Object.keys(patch).length === 0) {
-        skipped += 1;
-        continue;
-      }
-
-      const { error: updErr } = await admin.database
-        .from('posts')
-        .update(patch)
-        .eq('id', job.post_id);
-      if (updErr) {
-        failed += 1;
-        logError('[metrics-sync] Post update failed', { postId: job.post_id }, updErr);
-        continue;
-      }
-      updated += 1;
+      const result = await syncUserPostMetrics(admin, userId);
+      updated += result.updated;
+      skipped += result.skipped;
+      failed += result.failed;
+      total += result.total;
     } catch (e) {
       failed += 1;
-      logError('[metrics-sync] Job failed', { postId: job.post_id, platform: job.platform }, e);
+      logError('[metrics-sync] user sync failed', { userId }, e);
     }
   }
 
-  logInfo('[metrics-sync] Complete', { updated, skipped, failed, total: jobs?.length ?? 0 });
-  return NextResponse.json({ updated, skipped, failed, total: jobs?.length ?? 0 });
+  logInfo('[metrics-sync] Complete', { users: userIds.length, updated, skipped, failed, total });
+  return NextResponse.json({ users: userIds.length, updated, skipped, failed, total });
 }

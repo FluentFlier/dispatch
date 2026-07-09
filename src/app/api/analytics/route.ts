@@ -129,8 +129,9 @@ export async function GET(): Promise<NextResponse> {
           rawPosts = refetch.data as Post[];
         }
       }
-    } catch {
-      // Non-fatal: return whatever we already have.
+    } catch (err) {
+      // Non-fatal: return whatever we already have, but log so blank analytics is diagnosable.
+      console.error('[analytics] auto-sync failed', err instanceof Error ? err.message : err);
     }
   }
 
