@@ -167,8 +167,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     const settings = await getDirectorySettings(client, workspaceId);
 
+    // When the user asked to search, don't trust the model's phrasing — it tends
+    // to promise "I'll pull the list, give me a moment", which reads as broken
+    // because nothing auto-runs (discovery is a button now). Force a deterministic
+    // CTA reply so the message always matches the "Find leads now" button.
+    const assistantMessage = suggestRun
+      ? 'Your ICP is set. Hit "Find leads now" below and I\'ll pull matching leads.'
+      : intent.reply || 'Done.';
+
     return NextResponse.json({
-      assistantMessage: intent.reply || 'Done.',
+      assistantMessage,
       settings,
       applied,
       suggestRun,
