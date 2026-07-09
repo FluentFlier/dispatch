@@ -7,7 +7,6 @@ import { updateDirectorySettings, getDirectorySettings } from '@/lib/signals/lea
 import { putBrainPage } from '@/lib/brain/pages';
 import { BRAIN_SLUG } from '@/lib/brain/types';
 import { parseIcpDescription } from '@/lib/signals/icp/parse-description';
-import { syncWorkspaceDirectory } from '@/lib/signals/ingest/sync-directory';
 import { chatCompletion, LlmError } from '@/lib/llm';
 import { errorResponse } from '@/lib/api-errors';
 
@@ -70,9 +69,11 @@ function extractJson(raw: string): ChatIntent | null {
  *
  * Conversational counterpart to POST /api/leads/icp. One LLM call classifies the
  * turn — refine the ICP, run discovery, or just answer — then reuses the same
- * parse/persist/discover primitives so the chat and one-shot flows stay in sync.
+ * parse/persist primitives so the chat and one-shot flows stay in sync. Discovery
+ * is NOT run here (it would block the reply for tens of seconds); when the user
+ * asks to search we set `suggestRun` and the UI triggers the streamed scrape.
  * Returns the shape IcpChat.tsx consumes: { assistantMessage, settings, applied,
- * discoveryRan, sync }.
+ * suggestRun }.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -102,7 +103,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       'Given the current ICP and the latest message, decide the intent and reply conversationally.',
       'Respond with ONLY a JSON object, no prose, with exactly these keys:',
       '{"reply": string, "icp_description": string, "run_discovery": boolean}',
-      '- reply: 1-3 short sentences to the user, warm and concrete.',
+      '- reply: 1-3 short sentences to the user, warm and concrete. If run_discovery is true, do',
+      '  NOT say you are searching or that you found leads — you cannot search from here. Instead',
+      '  confirm the ICP looks ready and tell them to hit the "Find leads now" button to start.',
       '- icp_description: if the user is defining or CHANGING their ICP, return the FULL updated brief',
       '  (merge their change into the current ICP). If they are only asking to search or just chatting,',
       '  return an empty string so the saved ICP is left unchanged.',
@@ -152,12 +155,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       applied = true;
     }
 
-    let sync = null;
-    let discoveryRan = false;
-    if (intent.run_discovery) {
-      sync = await syncWorkspaceDirectory(client, workspaceId);
-      discoveryRan = true;
-    }
+    // Discovery is intentionally NOT run here. The assistant's job is to define
+    // and persist the ICP — not to fire the scrape engine inside a chat request.
+    // A full sync (directory scrape + a 170s-capped agent run + per-lead resolve +
+    // per-lead LLM scoring) takes tens of seconds to minutes and would block the
+    // reply, which is why the assistant used to "hang for a minute". When the user
+    // asks to find leads we return `suggestRun` so the UI can trigger the existing
+    // streamed /api/leads/sync (progress bar, non-blocking) instead of running it
+    // synchronously here.
+    const suggestRun = intent.run_discovery;
 
     const settings = await getDirectorySettings(client, workspaceId);
 
@@ -165,12 +171,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       assistantMessage: intent.reply || 'Done.',
       settings,
       applied,
-      discoveryRan,
-      sync,
+      suggestRun,
     });
   } catch (err) {
-    // A quota/credit failure from ICP parsing or discovery is our provider being
-    // out of credits — surface it honestly instead of a generic 500.
+    // A quota/credit failure from the classify or ICP-parse LLM call is our
+    // provider being out of credits — surface it honestly instead of a generic 500.
     if (isLlmUnavailable(err)) return llmBusyResponse();
     return errorResponse('Could not process ICP chat.', 500, err);
   }

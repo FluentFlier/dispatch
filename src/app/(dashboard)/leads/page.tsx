@@ -865,7 +865,13 @@ export default function LeadsPage() {
           <IcpChat
             settings={settings}
             onSettingsSaved={setSettings}
-            onDiscoveryComplete={() => void loadBootstrap()}
+            onRunScrape={() => {
+              // Hand off to the streamed scrape and switch to the feed so the
+              // user sees the live progress bar instead of a blocked chat.
+              setView('feed');
+              void handleScrape();
+            }}
+            scraping={scraping}
             toast={toast}
           />
           <SignalsSetup />

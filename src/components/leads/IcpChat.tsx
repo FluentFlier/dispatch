@@ -26,19 +26,29 @@ function welcomeMessage(hasIcp: boolean): string {
 interface IcpChatProps {
   settings: DirectorySettingsRow | null;
   onSettingsSaved?: (s: DirectorySettingsRow) => void;
-  onDiscoveryComplete?: () => void;
+  /**
+   * Trigger the actual lead scrape. The assistant never runs discovery itself
+   * (that would block the chat for tens of seconds); it only sets up the ICP and
+   * asks the parent to run the streamed /api/leads/sync via this callback.
+   */
+  onRunScrape?: () => void;
+  /** True while a scrape started via onRunScrape is in flight (disables the CTA). */
+  scraping?: boolean;
   toast?: (message: string, type?: 'success' | 'error') => void;
   /** Tighter layout for the advanced drawer. */
   compact?: boolean;
 }
 
 /**
- * Conversational ICP setup — describe, refine, and trigger discovery in one thread.
+ * Conversational ICP setup — describe and refine the ICP. When the user asks to
+ * find leads, the assistant confirms and surfaces a "Find leads now" button that
+ * hands off to the parent's scrape (never runs the engine inside the chat).
  */
 export function IcpChat({
   settings,
   onSettingsSaved,
-  onDiscoveryComplete,
+  onRunScrape,
+  scraping = false,
   toast,
   compact = false,
 }: IcpChatProps) {
@@ -62,6 +72,9 @@ export function IcpChat({
   });
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  // Set when the assistant decides the user wants to search now — surfaces the
+  // "Find leads now" CTA. The chat itself never runs discovery.
+  const [pendingRun, setPendingRun] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const skipInitialScroll = useRef(true);
@@ -103,6 +116,9 @@ export function IcpChat({
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setLoading(true);
+    // A new turn supersedes any prior "ready to search" prompt until the
+    // assistant re-confirms (e.g. the user just changed the ICP again).
+    setPendingRun(false);
 
     try {
       const res = await fetch('/api/leads/icp/chat', {
@@ -119,25 +135,12 @@ export function IcpChat({
       ]);
 
       if (data.settings) onSettingsSaved?.(data.settings as DirectorySettingsRow);
-
-      if (data.applied) {
-        const inserted = (data.sync as { inserted?: number } | null)?.inserted ?? 0;
-        if (data.discoveryRan) {
-          toast?.(
-            inserted > 0 ? `ICP updated — ${inserted} new leads found.` : 'ICP updated — discovery ran.',
-            'success',
-          );
-          onDiscoveryComplete?.();
-        } else {
-          toast?.('ICP updated.', 'success');
-        }
-      } else if (data.discoveryRan) {
-        const inserted = (data.sync as { inserted?: number } | null)?.inserted ?? 0;
-        toast?.(
-          inserted > 0 ? `Found ${inserted} new leads.` : 'Discovery ran with your current ICP.',
-          'success',
-        );
-        onDiscoveryComplete?.();
+      if (data.applied) toast?.('ICP updated.', 'success');
+      // The assistant asked to search: surface the CTA (it never runs the scrape
+      // itself). If the parent didn't wire onRunScrape, fall back to a toast hint.
+      if (data.suggestRun) {
+        if (onRunScrape) setPendingRun(true);
+        else toast?.('ICP ready — use "Scrape now" to find leads.', 'success');
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not send message.';
@@ -158,7 +161,7 @@ export function IcpChat({
       // (the chat lives inside taller surfaces — leads setup, the GTM drawer).
       inputRef.current?.focus({ preventScroll: true });
     }
-  }, [input, loading, messages, onDiscoveryComplete, onSettingsSaved, toast]);
+  }, [input, loading, messages, onRunScrape, onSettingsSaved, toast]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -236,6 +239,23 @@ export function IcpChat({
           </div>
         )}
       </div>
+
+      {pendingRun && onRunScrape && (
+        <div className="px-4 pb-2">
+          <button
+            type="button"
+            disabled={scraping}
+            onClick={() => {
+              onRunScrape();
+              setPendingRun(false);
+            }}
+            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-accent-primary px-3 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:opacity-50 transition-colors"
+          >
+            <Sparkles className="h-4 w-4" />
+            {scraping ? 'Searching…' : 'Find leads now'}
+          </button>
+        </div>
+      )}
 
       {settings?.icp_description?.trim() && (
         <div className="px-4 pb-2">
