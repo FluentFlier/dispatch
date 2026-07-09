@@ -130,10 +130,13 @@ export default function AnalyticsPage() {
         return;
       }
       const updated = (data as { updated?: number }).updated ?? 0;
+      const reason = (data as { reason?: string }).reason;
       setSyncMessage(
         updated > 0
           ? `Synced stats for ${updated} post${updated === 1 ? '' : 's'} from LinkedIn/X/Instagram.`
-          : 'No new stats from the platforms yet. Log LinkedIn impressions manually above.',
+          : reason
+            ? reason
+            : 'No new stats from the platforms yet. Log LinkedIn impressions manually above.',
       );
       await fetchData();
     } catch {

@@ -80,16 +80,22 @@ function urnTail(value?: string): string | null {
 
 type UnipileIm = NonNullable<NonNullable<UnipileFullAccount['connection_params']>['im']>;
 
-/** Extract every candidate provider user id from an account's connection_params.im. */
+/**
+ * Extract every candidate provider user id from an account's connection_params.im.
+ *
+ * Prefer LinkedIn member ids (ACo…/ADo…) over vanity publicIdentifiers — Unipile's
+ * GET /users/{id}/posts often 422s ("invalid_recipient") on vanity slugs even when
+ * the profile is valid, which previously made analytics list-backfill return empty.
+ */
 function imToProviderIds(im: UnipileIm | undefined, storedAccountId: string | null): string[] {
   return uniq([
-    im?.publicIdentifier,
-    im?.memberId,
     im?.id,
+    im?.memberId,
     urnTail(im?.objectUrn),
     im?.objectUrn,
     urnTail(im?.entityUrn),
     im?.entityUrn,
+    im?.publicIdentifier,
     storedAccountId,
   ]);
 }

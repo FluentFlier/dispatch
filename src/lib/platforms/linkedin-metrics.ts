@@ -31,7 +31,7 @@ function readCount(...values: unknown[]): number | undefined {
 export function extractLinkedInPublishedAt(payload: unknown): string | undefined {
   if (!payload || typeof payload !== 'object') return undefined;
   const root = payload as Record<string, unknown>;
-  for (const key of ['parsed_datetime', 'created_at']) {
+  for (const key of ['parsed_datetime', 'created_at', 'date']) {
     const v = root[key];
     if (typeof v === 'string' && !Number.isNaN(new Date(v).getTime())) return v;
   }
@@ -56,11 +56,38 @@ export function extractLinkedInMetrics(payload: unknown): NormalizedMetrics {
 
   return {
     // LinkedIn "impressions" are our normalized "views".
-    views: readCount(analytics.impressions, root.impressions_counter, root.views_count),
-    likes: readCount(analytics.reactions, root.reaction_counter, root.reactions_counter, root.like_count),
-    comments: readCount(analytics.comments, root.comment_counter, root.comments_count),
-    // Reposts are the closest analogue to "shares".
-    shares: readCount(analytics.reposts, root.repost_counter, root.reposts_count),
+    // Unipile v1 uses flat *_counter + analytics.impressions; v2 renames to
+    // analytics.impressions_counter / reactions_counter / comments_counter.
+    views: readCount(
+      analytics.impressions,
+      analytics.impressions_counter,
+      analytics.users_reached_counter,
+      root.impressions_counter,
+      root.views_count,
+    ),
+    likes: readCount(
+      analytics.reactions,
+      analytics.reactions_counter,
+      root.reaction_counter,
+      root.reactions_counter,
+      root.like_count,
+    ),
+    comments: readCount(
+      analytics.comments,
+      analytics.comments_counter,
+      root.comment_counter,
+      root.comments_counter,
+      root.comments_count,
+    ),
+    // Reposts are the closest analogue to "shares" (v2 typo: resposts_counter).
+    shares: readCount(
+      analytics.reposts,
+      analytics.reposts_counter,
+      root.repost_counter,
+      root.reposts_counter,
+      root.reposts_count,
+      root.resposts_counter,
+    ),
   };
 }
 

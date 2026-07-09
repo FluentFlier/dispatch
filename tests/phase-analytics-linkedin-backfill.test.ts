@@ -42,5 +42,20 @@ describe('linkedin metrics sync helpers', () => {
         comments: 3,
       });
     });
+
+    it('indexes social_id aliases when list id is numeric-only', () => {
+      const index = indexLinkedInListMetrics([
+        {
+          id: '7480006348492013568',
+          social_id: 'urn:li:ugcPost:7480006077112020993',
+          impressions_counter: 559,
+          reaction_counter: 7,
+          comment_counter: 0,
+        },
+      ]);
+
+      expect(lookupMetricsPatch(index, '7480006348492013568')?.views).toBe(559);
+      expect(lookupMetricsPatch(index, 'urn:li:ugcPost:7480006077112020993')?.likes).toBe(7);
+    });
   });
 });

@@ -257,6 +257,19 @@ describe('Phase: LinkedIn Engagement Pipeline', () => {
       ).toEqual({ views: 900, likes: 30, comments: 5, shares: 2 });
     });
 
+    it('should read Unipile v2 analytics.*_counter field names', () => {
+      expect(
+        extractLinkedInMetrics({
+          analytics: {
+            impressions_counter: 1200,
+            reactions_counter: 45,
+            comments_counter: 8,
+            reposts_counter: 3,
+          },
+        }),
+      ).toEqual({ views: 1200, likes: 45, comments: 8, shares: 3 });
+    });
+
     it('should leave missing fields undefined so stored values are never zeroed', () => {
       const metrics = extractLinkedInMetrics({ analytics: { impressions: 100 } });
       expect(metrics.views).toBe(100);
