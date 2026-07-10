@@ -76,8 +76,17 @@ export async function POST(
 
   const client = getServiceClient();
 
-  // Feature flag check.
+  // Feature flag check. The caller (/answers or /auto-draft) already flipped the
+  // capture to 'drafting' before firing this route, and the 3s detail poll waits
+  // on that. If we skip here without reverting, the capture is stranded at
+  // 'drafting' and the poll spins forever. Revert to 'questions_ready' so the
+  // user can retry once the flag is on.
   if (!await isEnabled(client, 'layer1_draft_generation')) {
+    await client.database
+      .from('event_captures')
+      .update({ status: 'questions_ready', updated_at: new Date().toISOString() })
+      .eq('id', params.id)
+      .eq('status', 'drafting');
     return NextResponse.json({ skipped: true, reason: 'flag_disabled' });
   }
 
