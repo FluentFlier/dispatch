@@ -270,31 +270,55 @@ Return ONLY the final post.`;
     const evalContentType =
       contentType === 'reply' || contentType === 'comment' ? contentType : 'post';
 
+    let lastActionWasRevise = false;
+
     for (let i = 0; i < maxIterations; i++) {
       iterations = i + 1;
       evaluation = await evaluateDraft(text, profile, fullContext || undefined, evalContentType);
+      lastActionWasRevise = false;
 
+      // Parse glitch (not a real quality failure) — keep the draft, stop revising.
+      if (evaluation.parse_error) break;
       if (evaluationPasses(evaluation)) break;
 
-      revised = i > 0;
-      const revisePrompt = `Rewrite from scratch. Previous draft failed voice QA.
+      // Revise IN PLACE from the current best draft. Rewriting from scratch here
+      // threw away the hook + humanize + voice work already applied, so the hardest
+      // drafts got the least polish. Keep topic/facts/structure/hook; fix only the
+      // notes.
+      const revisePrompt = `Revise the draft below so it sounds more like the creator. Keep the topic, facts, overall structure, and the opening hook. Change ONLY what the revision notes call out. Do not rewrite from scratch.
 
 ORIGINAL REQUEST:
 ${input.userPrompt}
 
+CURRENT DRAFT:
+---
+${text}
+---
+
 REVISION NOTES:
 ${evaluation.revision_notes || 'Sound more like the creator. Less generic.'}
 
-Return ONLY the new text.`;
+Return ONLY the revised post.`;
 
       const voiceSystem = buildSystemPrompt(profile, fullContext || undefined);
       text = stripEmDashes(await chatCompletion(voiceSystem, revisePrompt, { temperature: 0.7 }));
+      revised = true;
+      lastActionWasRevise = true;
 
       // Re-humanize after revise if slop crept back in
       if (evaluation.ai_slop > 3) {
         const reHumanized = await humanizePipeline(text, { profile, contextAdditions: fullContext, skipAudit: true });
         text = reHumanized.text;
       }
+    }
+
+    // If the loop exited right after a revise (max iterations reached), the last
+    // rewrite was never scored — the reported score would reflect the PREVIOUS
+    // draft, not the text we return. Re-evaluate the final draft so score matches
+    // output. A parse glitch on this final pass keeps the prior evaluation.
+    if (lastActionWasRevise) {
+      const finalEval = await evaluateDraft(text, profile, fullContext || undefined, evalContentType);
+      if (!finalEval.parse_error) evaluation = finalEval;
     }
     stagesCompleted.push('evaluate');
   }
