@@ -1,20 +1,10 @@
 /**
- * Splits voice context for the substance stages (Base + Hook).
- *
- * These stages set the post's actual content, so they need both the factual
- * grounding (facts/memory/story bank/event specifics) AND the voice signal
- * (vocabulary fingerprint, structural patterns, voice examples). Drafting the
- * substance generic and only brushing voice on at Stage 4 averages toward
- * generic output, so the fingerprint + examples are fed here too.
- *
- * The Voice stage (Stage 4) still receives the FULL context string, so nothing
- * is lost there; this only widens what the earlier stages are allowed to see.
+ * Splits the voice context string (built by voice-context.ts ::
+ * buildVoiceContextAdditions) into labeled sections so each pipeline stage can
+ * see exactly the sections it should. Sections are delimited by KNOWN header
+ * lines, never by blank lines - section bodies contain their own `\n\n`.
  */
 
-// Every known section header emitted into `contextAdditions` (see
-// voice-context.ts :: buildVoiceContextAdditions + the appended story-bank / L4
-// blocks). Used to find true section boundaries. Order does not matter; matched
-// by prefix on a line.
 const KNOWN_SECTION_HEADERS = [
   'USER CONTEXT:',
   'BACKGROUND FACTS',
@@ -36,52 +26,79 @@ const SUBSTANCE_ALLOWED_HEADERS = [
   'CREATOR BRAIN',
   'SEMANTIC MEMORY',
   'UNUSED STORY BANK',
-  // Voice signal — fed into substance so the draft sounds like the creator from
-  // the first pass, not only after the late Stage 4 voice rewrite.
   'VOCABULARY FINGERPRINT:',
   'STRUCTURAL PATTERNS:',
   'VOICE EXAMPLES',
-  // The user's own quality baseline should target the draft from the first pass,
-  // not only nudge the late voice rewrite.
   'PERFORMANCE BASELINE:',
 ] as const;
 
-function isSectionHeaderLine(line: string): boolean {
-  return KNOWN_SECTION_HEADERS.some((h) => line.startsWith(h));
+/**
+ * The strongest voice-cloning signal: the creator's measured vocabulary,
+ * structure, and real example posts. Consumed by the evaluator (judge against
+ * the real voice), buildSystemPrompt (authoritative block), and compact mode.
+ */
+export const VOICE_EVIDENCE_HEADERS = [
+  'VOCABULARY FINGERPRINT:',
+  'STRUCTURAL PATTERNS:',
+  'VOICE EXAMPLES',
+] as const;
+
+interface Section {
+  header: string;
+  content: string[];
 }
 
-function isAllowedHeaderLine(line: string): boolean {
-  return SUBSTANCE_ALLOWED_HEADERS.some((h) => line.startsWith(h));
-}
-
-export function substanceContextOnly(additions?: string): string | undefined {
-  if (!additions?.trim()) return undefined;
-
-  // Section by KNOWN HEADERS, not by blank-line boundaries. Section bodies (voice
-  // examples, multi-paragraph facts) contain their own `\n\n`, so splitting on
-  // `\n\n` over-fragments and drops everything after the first paragraph of each
-  // section (break 27). Walk lines instead: a section runs from one header line to
-  // the next, keeping the whole body intact.
+function parseSections(additions: string): Section[] {
   const lines = additions.split('\n');
-  const sections: Array<{ header: string; content: string[] }> = [];
-  let current: { header: string; content: string[] } | null = null;
+  const sections: Section[] = [];
+  let current: Section | null = null;
 
   for (const line of lines) {
-    if (isSectionHeaderLine(line)) {
+    if (KNOWN_SECTION_HEADERS.some((h) => line.startsWith(h))) {
       current = { header: line, content: [line] };
       sections.push(current);
     } else if (current) {
       current.content.push(line);
     }
-    // Lines before the first recognized header (none in practice) are dropped —
-    // they belong to no allow-listed section.
+    // Lines before the first recognized header belong to no section - dropped.
   }
+  return sections;
+}
 
-  const kept = sections
-    .filter((s) => isAllowedHeaderLine(s.header))
-    // Trim trailing blank lines a section may have accumulated before the next
-    // header so re-joining stays clean.
-    .map((s) => s.content.join('\n').replace(/\n+$/, ''));
+function joinSections(sections: Section[]): string | undefined {
+  if (sections.length === 0) return undefined;
+  return sections
+    .map((s) => s.content.join('\n').replace(/\n+$/, ''))
+    .join('\n\n');
+}
 
-  return kept.length > 0 ? kept.join('\n\n') : undefined;
+function filterByHeaders(
+  additions: string | undefined,
+  headerPrefixes: readonly string[],
+  mode: 'keep' | 'strip',
+): string | undefined {
+  if (!additions?.trim()) return undefined;
+  const sections = parseSections(additions).filter((s) => {
+    const matches = headerPrefixes.some((h) => s.header.startsWith(h));
+    return mode === 'keep' ? matches : !matches;
+  });
+  return joinSections(sections);
+}
+
+/** Sections the substance stages (Base + Hook) may see. */
+export function substanceContextOnly(additions?: string): string | undefined {
+  return filterByHeaders(additions, SUBSTANCE_ALLOWED_HEADERS, 'keep');
+}
+
+/** Only the fingerprint + structural + example sections. */
+export function voiceEvidenceOnly(additions?: string): string | undefined {
+  return filterByHeaders(additions, VOICE_EVIDENCE_HEADERS, 'keep');
+}
+
+/** Everything EXCEPT the named sections. */
+export function stripSections(
+  additions: string | undefined,
+  headerPrefixes: readonly string[],
+): string | undefined {
+  return filterByHeaders(additions, headerPrefixes, 'strip');
 }
