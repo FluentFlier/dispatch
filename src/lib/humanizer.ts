@@ -15,8 +15,6 @@ export type HumanizePass = 'pre_clean' | 'clean' | 'audit' | 'voice';
 export interface HumanizePipelineResult {
   text: string;
   passes: HumanizePass[];
-  aiScoreBefore?: number;
-  aiScoreAfter?: number;
 }
 
 /**

@@ -49,8 +49,6 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({
       text: result.text,
       passes: result.passes,
-      ai_score_before: result.aiScoreBefore,
-      ai_score_after: result.aiScoreAfter,
     });
   } catch (err) {
     return errorResponse('Humanization failed.', 500, err);
