@@ -92,7 +92,7 @@ async function callGenerate(
   platform: DashboardPlatform,
   useVoice: boolean,
   mentions: string[],
-): Promise<{ text: string; voiceMetrics: GenerateVoiceMetrics }> {
+): Promise<{ text: string; voiceMetrics: GenerateVoiceMetrics; completeness: { starved?: boolean; voiceSource?: string } | null }> {
   const res = await fetchWithAuth('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -122,6 +122,7 @@ async function callGenerate(
       pipeline_stages: data.pipeline_stages,
       humanize_passes: data.humanize_passes,
     },
+    completeness: data.context_completeness ?? null,
   };
 }
 
@@ -195,6 +196,7 @@ export function ScriptGenerator({
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [completeness, setCompleteness] = useState<{ starved?: boolean; voiceSource?: string } | null>(null);
   const autoGenTriggered = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -276,6 +278,7 @@ export function ScriptGenerator({
         voiceMetrics: result.voiceMetrics,
       };
       setMessages((prev) => [...prev, assistantMsg]);
+      setCompleteness(useVoice ? result.completeness : null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Something went wrong');
       setMessages((prev) => prev.filter((m) => m.id !== userMsg.id));
@@ -342,6 +345,7 @@ export function ScriptGenerator({
                     loading={false}
                     sourcePlatform={platform}
                     voiceMetrics={msg.voiceMetrics}
+                    completeness={completeness}
                     onTextUpdate={updateDraft}
                     variant="simple"
                     savePillar={pillar}
