@@ -9,12 +9,22 @@ import { ALL_TOP_HOOKS, HOOK_PATTERNS, getHookPattern, type HookVertical } from 
 
 const VALID_PLATFORMS = new Set<string>(['twitter', 'linkedin', 'instagram', 'threads']);
 
+export interface ComposeHintOptions {
+  /**
+   * The creator's own opening style (structural_patterns.hook_pattern from
+   * Voice Lab). When present it REPLACES the generic viral hook templates -
+   * generic hooks homogenize output across users (audit P0-3).
+   */
+  creatorHookPattern?: string;
+}
+
 /**
  * Composable hints appended to the voice pipeline system context.
  */
 export function buildVoiceComposeHints(
   platform?: string,
   contentType: VoiceContentType = 'post',
+  options: ComposeHintOptions = {},
 ): string {
   const parts: string[] = [GHOSTWRITER_PRINCIPLES];
 
@@ -24,9 +34,15 @@ export function buildVoiceComposeHints(
 
   parts.push(`CONTENT TYPE: ${CONTENT_TYPE_HINTS[contentType]}`);
 
-  // High-converting hook patterns (extracted via gstack from top performers)
-  parts.push(`HIGH-CONVERTING HOOK PATTERNS (use these structures):
-${ALL_TOP_HOOKS.map((h, i) => `${i + 1}. ${h}`).join('\n')}`);
+  const creatorPattern = options.creatorHookPattern?.trim();
+  if (creatorPattern) {
+    parts.push(
+      `OPENING (authoritative): Open the post the way THIS creator opens: ${creatorPattern}\nDo not use generic viral hook templates.`,
+    );
+  } else {
+    parts.push(`HOOK PATTERNS (optional inspiration - adapt the structure to this topic, never copy topics):
+${ALL_TOP_HOOKS.slice(0, 5).map((h, i) => `${i + 1}. ${h}`).join('\n')}`);
+  }
 
   return parts.join('\n\n');
 }

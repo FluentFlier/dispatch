@@ -45,6 +45,8 @@ export interface ContentPipelineInput {
   vocabulary?: VocabularyFingerprint;
   /** Parsed structural patterns (voice-on) - drives creator-first opening style. */
   structural?: StructuralPatterns;
+  /** Run the learned-hook rewrite stage even when the creator has their own opening style. */
+  forceHooks?: boolean;
 }
 
 export interface ContentPipelineResult {
@@ -78,7 +80,8 @@ Rewrite ONLY the opening and tighten structure using the hook examples provided.
 - First 1-2 lines must stop the scroll (adapt hook STRUCTURE, not copy topics)
 - Keep all facts and body content from the draft
 - Do not add generic AI phrasing
-- Plain text only, no em dashes`;
+- Plain text only, no em dashes
+- The creator's own voice and opening style win on any conflict with the examples`;
 
 function stripEmDashes(text: string): string {
   return text.replace(/—/g, ' - ').replace(/–/g, '-');
@@ -138,7 +141,9 @@ async function runBaseStage(
   input: ContentPipelineInput,
   substanceContext: string | undefined,
 ): Promise<string> {
-  const composeHints = buildVoiceComposeHints(input.platform, input.contentType ?? 'post');
+  const composeHints = buildVoiceComposeHints(input.platform, input.contentType ?? 'post', {
+    creatorHookPattern: input.structural?.hook_pattern,
+  });
   const mentionHint =
     input.mentions && input.mentions.length > 0
       ? `Include these @mentions naturally where relevant: ${input.mentions.map((m) => (m.startsWith('@') ? m : `@${m}`)).join(', ')}`
@@ -237,11 +242,16 @@ export async function runContentPipeline(
   }
 
   // --- Stage 2: Hooks ---
+  // The creator's own opening style (hook_pattern) is already instructed in the
+  // base stage. Rewriting the opener from OTHER creators' hooks on top of it
+  // homogenizes output (audit P0-3) - so the learned-hook stage only runs when
+  // the creator has no measured opening style, or the caller forces it.
   let usedHookIds: string[] | undefined;
   let hookExplanations: ContentPipelineResult['hookExplanations'];
-  if (!input.skipHooks) {
+  const hasOwnOpeningStyle = Boolean(input.structural?.hook_pattern?.trim());
+  if (!input.skipHooks && (!hasOwnOpeningStyle || input.forceHooks)) {
     const vertical = topWeightedVertical(profile);
-    const resolved = await getBestHooksForGeneration(input.hooksClient, vertical, 6);
+    const resolved = await getBestHooksForGeneration(input.hooksClient, vertical, 3);
     usedHookIds = resolved.hooks.map((h) => h.id);
     hookExplanations = resolved.explanations;
     text = await runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model);
