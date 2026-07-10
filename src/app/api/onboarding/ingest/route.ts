@@ -256,6 +256,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
         requireLinkedInIntel: linkedinConnected && !degraded,
         requireWebIntel: Boolean(creatorIntel.web) && !degraded,
       },
+      degraded ? 'fallback' : 'imported',
     );
 
     // One connected account must always get the user into the app. If the brain
@@ -355,6 +356,7 @@ async function persistOnboardingVoice(
   analysisSamples: VoiceSample[],
   creatorIntel: CreatorIntelBundle,
   verifyOptions: { requireLinkedInIntel: boolean; requireWebIntel: boolean },
+  voiceSource: 'fallback' | 'imported',
 ): Promise<OnboardingBrainCheck> {
   const bioFacts = creatorIntel.bioFacts || baseline.voiceSummary;
 
@@ -403,6 +405,7 @@ async function persistOnboardingVoice(
     { key: 'creator_intel_twitter', value: JSON.stringify(creatorIntel.twitter) },
     { key: 'creator_intel_web', value: JSON.stringify(creatorIntel.web) },
     { key: 'creator_bio_facts', value: bioFacts },
+    { key: 'voice_source', value: voiceSource },
   ];
 
   for (const setting of settings) {
