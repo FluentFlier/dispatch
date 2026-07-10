@@ -65,6 +65,9 @@ describe('auto-generate score persistence (break 28)', () => {
     expect(res.status).toBe(200);
     expect(insertedPayload?.ai_score).toBe(0);         // was null under `|| null`
     expect(insertedPayload?.voice_match_score).toBe(0);
+    // Derived confidence must also map a genuine 0 score to 0.0, not null.
+    const body = await res.json();
+    expect(body.generated.confidence).toBe(0);
   });
 
   it('still stores a normal score unchanged', async () => {
