@@ -107,8 +107,9 @@ Return ONLY the post text, ready to publish.`;
       hook,
       hashtags: null as string | null,
       // Derive a confidence signal from the voice match score so downstream
-      // consumers keep a 0-1 field.
-      confidence: result.voice_match_score ? result.voice_match_score / 100 : null,
+      // consumers keep a 0-1 field. != null (not truthy) so a genuine 0 score maps
+      // to 0.0, not null (same falsy-zero class as the persisted score fields).
+      confidence: result.voice_match_score != null ? result.voice_match_score / 100 : null,
       reasoning: `Generated via voice pipeline (${result.stagesCompleted?.join(' -> ') ?? 'base'})`,
     };
 
