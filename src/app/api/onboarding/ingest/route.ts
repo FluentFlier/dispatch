@@ -15,7 +15,7 @@ import { buildCreatorBaseline, type CreatorBaseline } from '@/lib/onboarding/bas
 import { synthesizePersonaFromAnalysis, type OnboardingPersona } from '@/lib/onboarding/synthesize-voice';
 import { analyzeVoiceSamples } from '@/lib/voice-lab/analyze-samples';
 import { importVoiceSamplesFromEmail } from '@/lib/voice-lab/import-from-email';
-import { selectBalancedVoiceSamples } from '@/lib/voice-lab/select-voice-samples';
+import { selectBalancedVoiceSamples, curateSamplePosts } from '@/lib/voice-lab/select-voice-samples';
 import { persistImportedPosts } from '@/lib/voice-lab/persist-imported-posts';
 import { gatherCreatorIntel, type CreatorIntelBundle } from '@/lib/onboarding/creator-intel';
 import { syncBrainVoiceLab, syncCreatorBrainFull } from '@/lib/brain/sync';
@@ -256,6 +256,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
         requireLinkedInIntel: linkedinConnected && !degraded,
         requireWebIntel: Boolean(creatorIntel.web) && !degraded,
       },
+      degraded ? 'fallback' : 'imported',
     );
 
     // One connected account must always get the user into the app. If the brain
@@ -355,6 +356,7 @@ async function persistOnboardingVoice(
   analysisSamples: VoiceSample[],
   creatorIntel: CreatorIntelBundle,
   verifyOptions: { requireLinkedInIntel: boolean; requireWebIntel: boolean },
+  voiceSource: 'fallback' | 'imported',
 ): Promise<OnboardingBrainCheck> {
   const bioFacts = creatorIntel.bioFacts || baseline.voiceSummary;
 
@@ -396,13 +398,14 @@ async function persistOnboardingVoice(
     { key: 'vocabulary_fingerprint', value: JSON.stringify(persona.vocabulary_fingerprint) },
     { key: 'structural_patterns', value: JSON.stringify(persona.structural_patterns) },
     { key: 'persona_prompt_export', value: persona.exportable_prompt },
-    { key: 'sample_posts', value: JSON.stringify(postSamples.slice(0, 10)) },
+    { key: 'sample_posts', value: JSON.stringify(curateSamplePosts(postSamples, 10)) },
     { key: 'sample_emails', value: JSON.stringify(emailSamples.slice(0, 8)) },
     { key: 'voice_analysis_samples', value: JSON.stringify(analysisSamples.slice(0, 12)) },
     { key: 'creator_intel_linkedin', value: JSON.stringify(creatorIntel.linkedin) },
     { key: 'creator_intel_twitter', value: JSON.stringify(creatorIntel.twitter) },
     { key: 'creator_intel_web', value: JSON.stringify(creatorIntel.web) },
     { key: 'creator_bio_facts', value: bioFacts },
+    { key: 'voice_source', value: voiceSource },
   ];
 
   for (const setting of settings) {

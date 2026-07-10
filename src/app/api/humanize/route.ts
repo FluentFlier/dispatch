@@ -37,7 +37,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const client = getServerClient();
   const workspaceId = await getActiveWorkspaceId(user.id);
-  const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {
+  const { profile, contextAdditions, vocabulary } = await loadCreatorVoiceContext(client, user.id, {
     workspaceId: workspaceId ?? undefined,
   });
 
@@ -45,12 +45,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const result = await humanizePipeline(parsed.data.text, {
       profile,
       contextAdditions: contextAdditions || undefined,
+      vocabulary,
     });
     return NextResponse.json({
       text: result.text,
       passes: result.passes,
-      ai_score_before: result.aiScoreBefore,
-      ai_score_after: result.aiScoreAfter,
     });
   } catch (err) {
     return errorResponse('Humanization failed.', 500, err);

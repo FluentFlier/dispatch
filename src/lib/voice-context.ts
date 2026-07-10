@@ -37,6 +37,8 @@ export interface ContextCompleteness {
   semanticMemory: boolean;
   storyBank: boolean;
   l4Metrics: boolean;
+  /** How the persisted voice was produced. 'fallback' = generic default, not a captured voice. */
+  voiceSource?: 'fallback' | 'imported';
   starved: boolean;
 }
 
@@ -44,6 +46,10 @@ export interface CreatorVoiceContext {
   profile: CreatorProfileForPrompt | null;
   contextAdditions: string;
   completeness: ContextCompleteness;
+  /** Parsed fingerprint - lets pipeline stages use PRESERVE lists without re-parsing prompt text. */
+  vocabulary?: VocabularyFingerprint;
+  /** Parsed structural patterns - lets the pipeline use the creator's own hook_pattern. */
+  structural?: StructuralPatterns;
 }
 
 interface LoadVoiceContextOptions {
@@ -224,7 +230,7 @@ export async function loadCreatorVoiceContext(
   userId: string,
   options: LoadVoiceContextOptions = {},
 ): Promise<CreatorVoiceContext> {
-  const maxSamples = options.maxSamples ?? 3;
+  const maxSamples = options.maxSamples ?? 5;
   let profile: CreatorProfileForPrompt | null = null;
   let bioFacts: string | undefined;
   let vocabulary: VocabularyFingerprint | undefined;
@@ -232,6 +238,7 @@ export async function loadCreatorVoiceContext(
   let samplePosts: VoiceSample[] | undefined;
   let emailSamples: VoiceSample[] | undefined;
   let userContext: string | undefined;
+  let voiceSource: 'fallback' | 'imported' | undefined;
 
   try {
     let profileQuery = client.database
@@ -244,7 +251,7 @@ export async function loadCreatorVoiceContext(
       .from('user_settings')
       .select('key, value')
       .eq('user_id', userId)
-      .in('key', ['context_additions', 'vocabulary_fingerprint', 'structural_patterns', 'sample_posts', 'sample_emails', 'voice_analysis_samples', 'persona_prompt_export']);
+      .in('key', ['context_additions', 'vocabulary_fingerprint', 'structural_patterns', 'sample_posts', 'sample_emails', 'voice_analysis_samples', 'persona_prompt_export', 'voice_source']);
     if (options.workspaceId) settingsQuery = settingsQuery.eq('workspace_id', options.workspaceId);
 
     const [{ data: profileRow }, { data: settingsRows }] = await Promise.all([
@@ -291,6 +298,9 @@ export async function loadCreatorVoiceContext(
             if (!samplePosts?.length) {
               samplePosts = parseJsonSetting<VoiceSample[]>(row.value);
             }
+            break;
+          case 'voice_source':
+            voiceSource = row.value === 'fallback' || row.value === 'imported' ? row.value : undefined;
             break;
           default:
             break;
@@ -407,19 +417,27 @@ export async function loadCreatorVoiceContext(
     }
   }
 
+  // A fingerprint only counts when it has CONTENT: the onboarding fallback
+  // persona writes empty uses_often/signature_phrases arrays, which is a
+  // placeholder, not a captured voice (audit P1-4).
+  const hasRealFingerprint = Boolean(
+    vocabulary?.uses_often?.length || vocabulary?.signature_phrases?.length,
+  );
+
   // Completeness signal: which sources actually landed content. `starved` fires
   // when the two strongest voice signals (fingerprint + examples) are BOTH absent,
   // which almost always means Voice Lab onboarding never ran for this workspace.
   const completeness: ContextCompleteness = {
     profile: !!profile,
-    fingerprint: !!vocabulary,
+    fingerprint: hasRealFingerprint,
     structural: !!structural,
     voiceExamples: !!samplePosts?.length,
     brain: !!brainSnippets?.length,
     semanticMemory: !!memorySnippets?.length,
     storyBank: storyBankUsed,
     l4Metrics: l4MetricsUsed,
-    starved: !vocabulary && !samplePosts?.length,
+    voiceSource,
+    starved: !hasRealFingerprint && !samplePosts?.length,
   };
 
   if (completeness.starved) {
@@ -430,5 +448,5 @@ export async function loadCreatorVoiceContext(
     });
   }
 
-  return { profile, contextAdditions, completeness };
+  return { profile, contextAdditions, completeness, vocabulary, structural };
 }

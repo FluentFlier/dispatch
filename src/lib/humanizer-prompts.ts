@@ -19,6 +19,7 @@ DETECT AND FIX these AI writing patterns:
 
 RULES:
 - Keep ALL facts, names, numbers, and core message intact
+- Edit conservatively: change ONLY sentences that contain a violation above; keep every other sentence exactly as written, including line breaks
 - Do NOT add a title/headline if there wasn't one
 - Do NOT change the subject or topic
 - Vary sentence length naturally; use contractions where natural
@@ -40,6 +41,8 @@ Read the draft. If ANY of these remain, rewrite to fix them:
 - Em dashes (replace with commas or periods)
 
 If it already sounds like a real person wrote it quickly, return it unchanged.
+
+Fix by minimal edit: touch only the offending words or sentences. Never rewrite the whole draft. Keep the paragraph breaks exactly as they are.
 
 RULES:
 - Keep facts and topic identical

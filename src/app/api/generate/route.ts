@@ -50,13 +50,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     signalBlock = formatSignalTopicsBlock(topics);
   }
 
-  const { profile, contextAdditions, completeness } = useVoice
+  const { profile, contextAdditions, completeness, vocabulary, structural } = useVoice
     ? await loadCreatorVoiceContext(client, user.id, {
         memoryQuery: parsed.data.topic ?? parsed.data.prompt.slice(0, 200),
         workspaceId: workspaceId ?? undefined,
         platform: parsed.data.platform,
       })
-    : { profile: null, contextAdditions: '', completeness: undefined };
+    : { profile: null, contextAdditions: '', completeness: undefined, vocabulary: undefined, structural: undefined };
 
   const mergedContext = [contextAdditions, signalBlock].filter(Boolean).join('\n') || undefined;
 
@@ -72,6 +72,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       useVoice,
       mentions: parsed.data.mentions,
       hooksClient: client,
+      vocabulary,
+      structural,
     });
 
     void trackEvent('generation_complete', {

@@ -1,6 +1,8 @@
 ﻿import { type CreatorProfileForPrompt } from '@/lib/ai';
 import { chatCompletion } from '@/lib/llm';
 import { parseLlmJson } from '@/lib/llm-json';
+import { resolveModel } from '@/lib/ai-tiers';
+import { voiceEvidenceOnly } from '@/lib/content-pipeline/context-split';
 
 /** Mirrors Imagine Content Writer internal matrix (1-10 each). */
 export interface VoiceEvaluationMatrix {
@@ -45,13 +47,13 @@ Scoring guide:
 
 const PASS_THRESHOLD = 8;
 
-export function evaluationPasses(matrix: VoiceEvaluationMatrix): boolean {
+export function evaluationPasses(matrix: VoiceEvaluationMatrix, threshold = PASS_THRESHOLD): boolean {
   return (
-    matrix.persona_fidelity >= PASS_THRESHOLD &&
-    matrix.uniqueness >= PASS_THRESHOLD &&
-    matrix.specificity >= PASS_THRESHOLD &&
-    matrix.so_what >= PASS_THRESHOLD &&
-    matrix.pain_resonance >= PASS_THRESHOLD &&
+    matrix.persona_fidelity >= threshold &&
+    matrix.uniqueness >= threshold &&
+    matrix.specificity >= threshold &&
+    matrix.so_what >= threshold &&
+    matrix.pain_resonance >= threshold &&
     matrix.ai_slop <= 3
   );
 }
@@ -61,13 +63,22 @@ export async function evaluateDraft(
   profile: CreatorProfileForPrompt | null,
   contextAdditions?: string,
   contentType: 'post' | 'reply' | 'comment' = 'post',
+  passThreshold = PASS_THRESHOLD,
 ): Promise<VoiceEvaluationMatrix> {
+  // The judge must see the creator's REAL voice - fingerprint, structural
+  // patterns, and example posts - or persona_fidelity is scored against an
+  // imagined creator and revision notes push the draft AWAY from the actual
+  // voice (audit P0-1). Brain/memory/story sections stay out: they are facts,
+  // not voice, and only dilute a small judge model.
+  const voiceEvidence = voiceEvidenceOnly(contextAdditions);
+
   const prompt = `Content type: ${contentType}
 
 CREATOR VOICE:
 ${profile?.voice_description ?? 'Not set'}
 ${profile?.voice_rules ? `RULES:\n${profile.voice_rules}` : ''}
 ${profile?.bio_facts ? `FACTS:\n${profile.bio_facts}` : ''}
+${voiceEvidence ? `\nVOICE EVIDENCE (the creator's real vocabulary, patterns, and example posts - judge persona_fidelity against THIS, not against a generic idea of them):\n${voiceEvidence}` : ''}
 
 DRAFT:
 ---
@@ -91,9 +102,17 @@ ${draft}
   };
 
   try {
-    const raw = await chatCompletion(EVALUATOR_PROMPT, prompt);
+    const raw = await chatCompletion(EVALUATOR_PROMPT, prompt, {
+      temperature: 0.2,
+      maxTokens: 400,
+      responseFormat: 'json',
+      model: resolveModel('fast'),
+    });
     const parsed = parseLlmJson<Partial<VoiceEvaluationMatrix>>(raw);
-    if (!parsed) return skip;
+    if (!parsed) {
+      console.warn('[voice-evaluator] parse_error: evaluator output unparseable, skipping revision');
+      return skip;
+    }
 
     const matrix: VoiceEvaluationMatrix = {
       persona_fidelity: parsed.persona_fidelity ?? 7,
@@ -105,10 +124,11 @@ ${draft}
       revision_notes: parsed.revision_notes ?? '',
       pass: false,
     };
-    matrix.pass = evaluationPasses(matrix);
+    matrix.pass = evaluationPasses(matrix, passThreshold);
     return matrix;
-  } catch {
+  } catch (err) {
     // Transient LLM/network error — also skip revision rather than nuke the draft.
+    console.warn('[voice-evaluator] evaluation call failed, skipping revision', err);
     return skip;
   }
 }

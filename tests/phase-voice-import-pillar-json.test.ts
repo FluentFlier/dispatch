@@ -105,11 +105,11 @@ describe('Phase: Voice Import — persistImportedPosts', () => {
 // /api/voice-lab/analyze — malformed-JSON resilience
 // ---------------------------------------------------------------------------
 
-vi.mock('@/lib/ai', () => ({ generateContent: vi.fn() }));
+vi.mock('@/lib/llm', () => ({ chatCompletion: vi.fn() }));
 vi.mock('@/lib/ai-guard', () => ({ guardAiRequest: vi.fn().mockResolvedValue({ ok: true }) }));
 
 import { getAuthenticatedUser } from '@/lib/insforge/server';
-import { generateContent } from '@/lib/ai';
+import { chatCompletion } from '@/lib/llm';
 import { NextRequest } from 'next/server';
 
 const VALID_JSON = JSON.stringify({ analysis: { tone: 'punchy' }, voice_summary: 'x', voice_rules: [] });
@@ -130,28 +130,28 @@ describe('Phase: Voice Import — analyze route', () => {
   });
 
   it('returns 200 on well-formed model JSON (single call)', async () => {
-    (generateContent as ReturnType<typeof vi.fn>).mockResolvedValue(VALID_JSON);
+    (chatCompletion as ReturnType<typeof vi.fn>).mockResolvedValue(VALID_JSON);
     const { POST } = await import('@/app/api/voice-lab/analyze/route');
     const res = await POST(analyzeRequest());
     expect(res.status).toBe(200);
-    expect(generateContent).toHaveBeenCalledTimes(1);
+    expect(chatCompletion).toHaveBeenCalledTimes(1);
   });
 
   it('retries once and succeeds when the first response is malformed', async () => {
-    (generateContent as ReturnType<typeof vi.fn>)
+    (chatCompletion as ReturnType<typeof vi.fn>)
       .mockResolvedValueOnce(MALFORMED_JSON)
       .mockResolvedValueOnce(VALID_JSON);
     const { POST } = await import('@/app/api/voice-lab/analyze/route');
     const res = await POST(analyzeRequest());
     expect(res.status).toBe(200);
-    expect(generateContent).toHaveBeenCalledTimes(2);
+    expect(chatCompletion).toHaveBeenCalledTimes(2);
   });
 
   it('returns 500 (not a raw crash) when both attempts are malformed', async () => {
-    (generateContent as ReturnType<typeof vi.fn>).mockResolvedValue(MALFORMED_JSON);
+    (chatCompletion as ReturnType<typeof vi.fn>).mockResolvedValue(MALFORMED_JSON);
     const { POST } = await import('@/app/api/voice-lab/analyze/route');
     const res = await POST(analyzeRequest());
     expect(res.status).toBe(500);
-    expect(generateContent).toHaveBeenCalledTimes(2);
+    expect(chatCompletion).toHaveBeenCalledTimes(2);
   });
 });

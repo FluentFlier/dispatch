@@ -36,7 +36,7 @@ async function callGenerate(
   prompt: string,
   platform: DashboardPlatform,
   useVoice: boolean,
-): Promise<{ text: string; voiceMetrics: GenerateVoiceMetrics }> {
+): Promise<{ text: string; voiceMetrics: GenerateVoiceMetrics; completeness: { starved?: boolean; voiceSource?: string } | null }> {
   const res = await fetchWithAuth('/api/generate', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -56,6 +56,7 @@ async function callGenerate(
       revised: data.revised,
       evaluation: data.evaluation,
     },
+    completeness: data.context_completeness ?? null,
   };
 }
 
@@ -73,6 +74,7 @@ export function VoiceCapture() {
   const [platform, setPlatform] = useState<DashboardPlatform>('linkedin');
   const [output, setOutput] = useState('');
   const [voiceMetrics, setVoiceMetrics] = useState<GenerateVoiceMetrics | undefined>();
+  const [completeness, setCompleteness] = useState<{ starved?: boolean; voiceSource?: string } | null>(null);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
 
@@ -138,6 +140,7 @@ export function VoiceCapture() {
     setTranscript('');
     setOutput('');
     setVoiceMetrics(undefined);
+    setCompleteness(null);
     setError('');
     setRecState('idle');
   };
@@ -148,10 +151,12 @@ export function VoiceCapture() {
     setError('');
     setOutput('');
     setVoiceMetrics(undefined);
+    setCompleteness(null);
     try {
       const result = await callGenerate(transcript.trim(), platform, useVoice);
       setOutput(result.text);
       setVoiceMetrics(result.voiceMetrics);
+      setCompleteness(useVoice ? result.completeness : null);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Generation failed');
     } finally {
@@ -258,6 +263,7 @@ export function VoiceCapture() {
         loading={generating}
         sourcePlatform={platform}
         voiceMetrics={voiceMetrics}
+        completeness={completeness}
         onTextUpdate={(newText) => setOutput(newText)}
       />
     </div>

@@ -14,7 +14,7 @@
  * chatCompletion call order (hooks + humanize mocked out): [0]=base, [1]=voice,
  * [2..]=revise. runHookStage returns baseText without an LLM call when hooks=[].
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 const chatCompletion = vi.fn();
 vi.mock('@/lib/llm', () => ({
@@ -66,6 +66,16 @@ beforeEach(() => {
   chatCompletion.mockReset();
   chatCompletion.mockResolvedValue('a draft');
   evaluateDraft.mockReset();
+  // This suite exercises the FULL 5-stage pipeline (base/voice/revise call
+  // order, revise-in-place, re-evaluate on final iteration). Task 11 added a
+  // compact 2-call auto-route for small models that activates by default when
+  // LLM_MODEL is unset (the test env default) - force full mode so these
+  // assertions keep testing the pipeline they were written for.
+  process.env.LLM_PIPELINE_MODE = 'full';
+});
+
+afterEach(() => {
+  delete process.env.LLM_PIPELINE_MODE;
 });
 
 describe('Pipeline wiring guarantees', () => {

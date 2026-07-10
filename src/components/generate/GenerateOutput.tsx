@@ -96,6 +96,8 @@ interface GenerateOutputProps {
   loading: boolean;
   sourcePlatform?: DashboardPlatform;
   voiceMetrics?: GenerateVoiceMetrics;
+  /** context_completeness from /api/generate - drives the "default voice" warning. */
+  completeness?: { starved?: boolean; voiceSource?: string } | null;
   children?: React.ReactNode;
   onTextUpdate?: (newText: string) => void;
   /** Simple = creator flow: edit, viral score, post/save/copy only */
@@ -217,6 +219,7 @@ export function GenerateOutput({
   loading,
   sourcePlatform,
   voiceMetrics,
+  completeness,
   children,
   onTextUpdate,
   variant = 'full',
@@ -403,6 +406,15 @@ export function GenerateOutput({
               View post
             </a>
           )}
+        </div>
+      )}
+      {completeness && (completeness.starved || completeness.voiceSource === 'fallback') && (
+        <div className="rounded-lg border border-flame/30 bg-flame/5 px-4 py-3">
+          <p className="font-body text-[13px] text-flame">
+            Voice profile incomplete: this draft used a default voice, not yours.
+            Re-run the import in Voice Lab or paste a few of your posts so
+            generations match how you actually write.
+          </p>
         </div>
       )}
       {showVoiceMetrics && <VoiceMetricsPanel metrics={voiceMetrics} />}

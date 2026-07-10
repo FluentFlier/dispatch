@@ -7,7 +7,11 @@ import { buildVoiceComposeHints, type VoiceContentType } from '@/lib/voice-promp
 import { getBestHooksForGeneration } from '@/lib/hooks-intelligence/resolve-hooks';
 import { PILLAR_TO_VERTICAL, type HookVertical } from '@/lib/hooks-intelligence/types';
 import { profilePillarWeights } from '@/lib/pillars';
-import { substanceContextOnly } from '@/lib/content-pipeline/context-split';
+import { substanceContextOnly, stripSections } from '@/lib/content-pipeline/context-split';
+import type { VocabularyFingerprint, StructuralPatterns } from '@/lib/voice-context';
+import { finalizeResult, stripEmDashes } from './finalize';
+export { stripMarkdownFormatting } from './finalize';
+import { isCompactMode, runCompactPipeline } from './compact';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -40,6 +44,12 @@ export interface ContentPipelineInput {
   model?: string;
   /** Optional InsForge client for DB-learned hook retrieval. */
   hooksClient?: InsforgeClient;
+  /** Parsed creator fingerprint (voice-on) - drives PRESERVE lists in humanize passes. */
+  vocabulary?: VocabularyFingerprint;
+  /** Parsed structural patterns (voice-on) - drives creator-first opening style. */
+  structural?: StructuralPatterns;
+  /** Run the learned-hook rewrite stage even when the creator has their own opening style. */
+  forceHooks?: boolean;
 }
 
 export interface ContentPipelineResult {
@@ -73,43 +83,8 @@ Rewrite ONLY the opening and tighten structure using the hook examples provided.
 - First 1-2 lines must stop the scroll (adapt hook STRUCTURE, not copy topics)
 - Keep all facts and body content from the draft
 - Do not add generic AI phrasing
-- Plain text only, no em dashes`;
-
-function stripEmDashes(text: string): string {
-  return text.replace(/—/g, ' - ').replace(/–/g, '-');
-}
-
-/**
- * Final formatting guard. The stage prompts all say "plain text, no markdown",
- * but LLMs still leak emphasis markers, headings, and code fences — which
- * LinkedIn and X render literally (**bold**, ## Heading), making a post look
- * broken. Strip the markdown syntax while keeping the words. Runs once at the
- * finalize choke point so every return path is clean. Conservative on purpose:
- * leaves single underscores (snake_case), list dashes, and normal punctuation
- * untouched — it only removes syntax that renders as noise on social.
- */
-export function stripMarkdownFormatting(text: string): string {
-  return (
-    text
-      // Fenced code blocks: keep the inner code, drop the ``` fences.
-      .replace(/```[a-zA-Z0-9]*\n?([\s\S]*?)```/g, '$1')
-      // Inline code: `x` -> x
-      .replace(/`([^`\n]+)`/g, '$1')
-      // Bold/italic: **x** __x__ ***x*** -> x
-      .replace(/\*\*\*([^*\n]+)\*\*\*/g, '$1')
-      .replace(/\*\*([^*\n]+)\*\*/g, '$1')
-      .replace(/__([^_\n]+)__/g, '$1')
-      // Single-asterisk italic: *x* -> x (guard against bare/list asterisks)
-      .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![*\w])/g, '$1$2')
-      // ATX headings at line start: "## Title" -> "Title"
-      .replace(/^#{1,6}[ \t]+/gm, '')
-      // Blockquote markers at line start: "> quote" -> "quote"
-      .replace(/^[ \t]*>[ \t]?/gm, '')
-      // Collapse runs of blank lines the stripping may have opened up.
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-  );
-}
+- Plain text only, no em dashes
+- The creator's own voice and opening style win on any conflict with the examples`;
 
 function topWeightedVertical(profile: CreatorProfileForPrompt | null): HookVertical | undefined {
   const weights = profilePillarWeights(profile?.content_pillars);
@@ -133,7 +108,9 @@ async function runBaseStage(
   input: ContentPipelineInput,
   substanceContext: string | undefined,
 ): Promise<string> {
-  const composeHints = buildVoiceComposeHints(input.platform, input.contentType ?? 'post');
+  const composeHints = buildVoiceComposeHints(input.platform, input.contentType ?? 'post', {
+    creatorHookPattern: input.structural?.hook_pattern,
+  });
   const mentionHint =
     input.mentions && input.mentions.length > 0
       ? `Include these @mentions naturally where relevant: ${input.mentions.map((m) => (m.startsWith('@') ? m : `@${m}`)).join(', ')}`
@@ -152,7 +129,7 @@ async function runBaseStage(
     : `${BASE_SYSTEM}\n\n${merged}`;
 
   return stripEmDashes(
-    await chatCompletion(system, input.userPrompt, { temperature: 0.75, model: input.model }),
+    await chatCompletion(system, input.userPrompt, { temperature: 0.75, maxTokens: 1200, model: input.model }),
   );
 }
 
@@ -177,7 +154,7 @@ async function runHookStage(
     : HOOK_SYSTEM;
   const prompt = `ORIGINAL REQUEST:\n${userPrompt}\n\nBASE DRAFT:\n---\n${baseText}\n---\n\nHOOK EXAMPLES (adapt structure to this topic):\n${examples}\n\nRewrite with a stronger hook opening. Return ONLY the full post.`;
 
-  return stripEmDashes(await chatCompletion(system, prompt, { temperature: 0.7, model }));
+  return stripEmDashes(await chatCompletion(system, prompt, { temperature: 0.7, maxTokens: 1200, model }));
 }
 
 /**
@@ -198,15 +175,34 @@ export async function runContentPipeline(
   const substanceContext = substanceContextOnly(input.contextAdditions);
   const fullContext = input.contextAdditions;
 
+  const contentType = input.contentType ?? 'post';
+  const isProse = contentType === 'post' || contentType === 'reply' || contentType === 'comment';
+
+  // Small models can't survive the full 6-11 rewrite chain - route prose to
+  // the 2-call compact pipeline (env LLM_PIPELINE_MODE overrides detection).
+  if (isProse && isCompactMode(input.model)) {
+    return runCompactPipeline(input);
+  }
+
   // --- Stage 1: Base ---
   let text = await runBaseStage(input, substanceContext);
   stagesCompleted.push('base');
 
-  const contentType = input.contentType ?? 'post';
-  const isProse = contentType === 'post' || contentType === 'reply' || contentType === 'comment';
-
-  // Voice-off: substance only (optional humanize for outreach).
+  // Voice-off: substance + humanize. "No voice" must still read like a human
+  // wrote it - the base draft alone carries every LLM tell, so prose always
+  // gets the anti-slop pass (fast mode keeps its speed contract and skips it
+  // unless the caller asks).
   if (!useVoice) {
+    if (isProse && !input.fast) {
+      const h = await humanizePipeline(text, {
+        skipVoice: true,
+        skipAudit: false,
+        vocabulary: input.vocabulary,
+      });
+      text = h.text;
+      stagesCompleted.push('humanize');
+      return finalizeResult(text, undefined, false, [], stagesCompleted, h.passes, undefined);
+    }
     if (input.humanizeAlways) {
       const h = await humanizePipeline(text, { skipVoice: true, skipAudit: true });
       text = h.text;
@@ -232,11 +228,16 @@ export async function runContentPipeline(
   }
 
   // --- Stage 2: Hooks ---
+  // The creator's own opening style (hook_pattern) is already instructed in the
+  // base stage. Rewriting the opener from OTHER creators' hooks on top of it
+  // homogenizes output (audit P0-3) - so the learned-hook stage only runs when
+  // the creator has no measured opening style, or the caller forces it.
   let usedHookIds: string[] | undefined;
   let hookExplanations: ContentPipelineResult['hookExplanations'];
-  if (!input.skipHooks) {
+  const hasOwnOpeningStyle = Boolean(input.structural?.hook_pattern?.trim());
+  if (!input.skipHooks && (!hasOwnOpeningStyle || input.forceHooks)) {
     const vertical = topWeightedVertical(profile);
-    const resolved = await getBestHooksForGeneration(input.hooksClient, vertical, 6);
+    const resolved = await getBestHooksForGeneration(input.hooksClient, vertical, 3);
     usedHookIds = resolved.hooks.map((h) => h.id);
     hookExplanations = resolved.explanations;
     text = await runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model);
@@ -252,15 +253,22 @@ export async function runContentPipeline(
       profile: null,
       skipVoice: true,
       skipAudit: false,
+      vocabulary: input.vocabulary,
     });
     text = humanized.text;
     humanizePasses = humanized.passes;
     stagesCompleted.push('humanize');
   }
 
+  // EMAIL VOICE is a 1:1 register (greetings, sign-offs, warmth) - useful for
+  // replies/comments, wrong for public posts. Keep it out of the post rewrite
+  // so email tone can't bleed in.
+  const voiceStageContext =
+    contentType === 'post' ? stripSections(fullContext, ['EMAIL VOICE']) : fullContext;
+
   // --- Stage 4: Voice ---
   if (useVoice && profile) {
-    const voiceSystem = buildSystemPrompt(profile, fullContext || undefined);
+    const voiceSystem = buildSystemPrompt(profile, voiceStageContext || undefined);
     const voicePrompt = `Apply this creator's voice to the draft below. Keep topic and facts identical.
 
 ORIGINAL REQUEST:
@@ -273,7 +281,7 @@ ${text}
 
 Return ONLY the final post.`;
 
-    text = stripEmDashes(await chatCompletion(voiceSystem, voicePrompt, { temperature: 0.68, model: input.model }));
+    text = stripEmDashes(await chatCompletion(voiceSystem, voicePrompt, { temperature: 0.68, maxTokens: 1200, model: input.model }));
     stagesCompleted.push('voice');
   }
 
@@ -291,7 +299,7 @@ Return ONLY the final post.`;
 
     for (let i = 0; i < maxIterations; i++) {
       iterations = i + 1;
-      evaluation = await evaluateDraft(text, profile, fullContext || undefined, evalContentType);
+      evaluation = await evaluateDraft(text, profile, voiceStageContext || undefined, evalContentType);
       lastActionWasRevise = false;
 
       // Parse glitch (not a real quality failure) — keep the draft, stop revising.
@@ -317,14 +325,19 @@ ${evaluation.revision_notes || 'Sound more like the creator. Less generic.'}
 
 Return ONLY the revised post.`;
 
-      const voiceSystem = buildSystemPrompt(profile, fullContext || undefined);
-      text = stripEmDashes(await chatCompletion(voiceSystem, revisePrompt, { temperature: 0.7, model: input.model }));
+      const voiceSystem = buildSystemPrompt(profile, voiceStageContext || undefined);
+      text = stripEmDashes(await chatCompletion(voiceSystem, revisePrompt, { temperature: 0.7, maxTokens: 1200, model: input.model }));
       revised = true;
       lastActionWasRevise = true;
 
       // Re-humanize after revise if slop crept back in
       if (evaluation.ai_slop > 3) {
-        const reHumanized = await humanizePipeline(text, { profile, contextAdditions: fullContext, skipAudit: true });
+        const reHumanized = await humanizePipeline(text, {
+          profile,
+          contextAdditions: voiceStageContext,
+          skipAudit: true,
+          vocabulary: input.vocabulary,
+        });
         text = reHumanized.text;
       }
     }
@@ -334,7 +347,7 @@ Return ONLY the revised post.`;
     // draft, not the text we return. Re-evaluate the final draft so score matches
     // output. A parse glitch on this final pass keeps the prior evaluation.
     if (lastActionWasRevise) {
-      const finalEval = await evaluateDraft(text, profile, fullContext || undefined, evalContentType);
+      const finalEval = await evaluateDraft(text, profile, voiceStageContext || undefined, evalContentType);
       if (!finalEval.parse_error) evaluation = finalEval;
     }
     stagesCompleted.push('evaluate');
@@ -351,39 +364,4 @@ Return ONLY the revised post.`;
     iterations,
     hookExplanations,
   );
-}
-
-function finalizeResult(
-  text: string,
-  evaluation: VoiceEvaluationMatrix | undefined,
-  revised: boolean,
-  flags: string[],
-  stagesCompleted: PipelineStage[],
-  humanizePasses: string[] | undefined,
-  usedHookIds: string[] | undefined,
-  iterations = 0,
-  hookExplanations?: ContentPipelineResult['hookExplanations'],
-): ContentPipelineResult {
-  const voice_match_score = evaluation
-    ? Math.round((evaluation.persona_fidelity / 10) * 100)
-    : 0;
-  const ai_score = evaluation ? evaluation.ai_slop * 10 : 0;
-
-  // Single guarantee that no markdown/em-dash noise reaches the client, whatever
-  // path produced this draft (fast, voice-off, hooks, revise loop).
-  const cleanText = stripMarkdownFormatting(stripEmDashes(text));
-
-  return {
-    text: cleanText,
-    voice_match_score,
-    ai_score,
-    revised,
-    flags,
-    evaluation,
-    iterations,
-    usedHookIds,
-    hookExplanations,
-    stagesCompleted,
-    humanizePasses,
-  };
 }

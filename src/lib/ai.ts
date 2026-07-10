@@ -1,4 +1,5 @@
 import { chatCompletion } from '@/lib/llm';
+import { voiceEvidenceOnly, stripSections, VOICE_EVIDENCE_HEADERS } from '@/lib/content-pipeline/context-split';
 
 /**
  * Default template used to seed new creator profiles during onboarding.
@@ -94,9 +95,23 @@ export function buildSystemPrompt(
   }
 
   if (contextAdditions) {
-    parts.push(
-      `\nADDITIONAL CONTEXT (reference only — the VOICE RULES above are authoritative; do not introduce companies, products, or claims that are not in this creator's profile):\n${contextAdditions}`,
-    );
+    // Voice evidence (fingerprint, structural patterns, real example posts) is
+    // the strongest cloning signal the model gets - stronger than any abstract
+    // rule list. Labeling it "reference only" told small models to ignore it
+    // (audit P1-2). Split it out as authoritative; everything else stays
+    // reference-only so brain/memory facts can't hijack the post.
+    const voiceEvidence = voiceEvidenceOnly(contextAdditions);
+    const reference = stripSections(contextAdditions, VOICE_EVIDENCE_HEADERS);
+    if (voiceEvidence) {
+      parts.push(
+        `\nVOICE EVIDENCE (authoritative - this is how ${profile.display_name} actually writes; match the vocabulary, rhythm, sentence framing, and structure exactly):\n${voiceEvidence}`,
+      );
+    }
+    if (reference) {
+      parts.push(
+        `\nADDITIONAL CONTEXT (reference only — the VOICE RULES above are authoritative; do not introduce companies, products, or claims that are not in this creator's profile):\n${reference}`,
+      );
+    }
   }
 
   return parts.join('\n');

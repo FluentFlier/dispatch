@@ -5,7 +5,7 @@
  * off, the creator profile must NOT reach the prompt and the voice-QA loop is
  * skipped; when on (default), the profile is used and evaluation runs.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('@/lib/llm', () => ({
   chatCompletion: vi.fn().mockResolvedValue('a generated draft'),
@@ -43,7 +43,19 @@ const PROFILE = {
   content_pillars: '[]',
 } as never;
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+  // This suite asserts full-pipeline stage lists (['base'], ['base','voice',...])
+  // via the real runContentPipeline. Task 11's compact auto-route activates by
+  // default when LLM_MODEL is unset (the test env default) and its
+  // '@/lib/voice-prompts' mock here is partial, so force full mode to keep
+  // exercising the pipeline this suite was written for.
+  process.env.LLM_PIPELINE_MODE = 'full';
+});
+
+afterEach(() => {
+  delete process.env.LLM_PIPELINE_MODE;
+});
 
 describe('Phase: Voice Toggle', () => {
   it('drops the profile and skips voice QA when useVoice is false', async () => {
@@ -52,10 +64,13 @@ describe('Phase: Voice Toggle', () => {
       profile: PROFILE,
       useVoice: false,
     });
-    // Base stage uses neutral strategist prompt — not buildSystemPrompt.
+    // Base stage uses neutral strategist prompt, not buildSystemPrompt, and the
+    // voice-QA loop stays off. Voice-off prose still runs the humanize pass so
+    // the opt-out output still reads like a human wrote it (not raw LLM slop),
+    // so the stage list is base + humanize.
     expect(buildSystemPrompt).not.toHaveBeenCalled();
     expect(evaluateDraft).not.toHaveBeenCalled();
-    expect(res.stagesCompleted).toEqual(['base']);
+    expect(res.stagesCompleted).toEqual(['base', 'humanize']);
     expect(res.text).toBe('a generated draft');
     expect(res.voice_match_score).toBe(0);
   });
