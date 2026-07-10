@@ -306,6 +306,14 @@ Return ONLY the post text.`;
       // Do NOT swallow: reporting ok:true here means the UI shows "drafted" while
       // no post exists (the pillar NOT-NULL failure looked exactly like this).
       console.error('[event-capture/process] Post insert error', insertError);
+      // Revert 'drafting' -> 'questions_ready' so the 3s detail poll stops and the
+      // user can retry, instead of stranding forever (this route is fire-and-forget,
+      // so a 500 never reaches the caller's .catch). Same fix as the flag-skip exit.
+      await client.database
+        .from('event_captures')
+        .update({ status: 'questions_ready', updated_at: new Date().toISOString() })
+        .eq('id', params.id)
+        .eq('status', 'drafting');
       return NextResponse.json(
         { ok: false, error: 'Could not save the generated draft.', detail: insertError.message },
         { status: 500 },
@@ -322,14 +330,38 @@ Return ONLY the post text.`;
       console.warn('[event-capture/process] Platform generation failed', reason);
     });
 
+  // No draft was produced (every platform generation failed or was budget-blocked).
+  // Do NOT mark 'drafted' with zero posts — that leaves the inbox showing a done
+  // capture with nothing in it. Revert so the capture stays actionable + retryable.
+  if (insertedPosts.length === 0) {
+    await client.database
+      .from('event_captures')
+      .update({ status: 'questions_ready', updated_at: new Date().toISOString() })
+      .eq('id', params.id)
+      .eq('status', 'drafting');
+    return NextResponse.json(
+      { ok: false, error: 'No drafts could be generated.', draftsGenerated: 0 },
+      { status: 502 },
+    );
+  }
+
   // --- Update capture to 'drafted' ---
-  await client.database
+  const { error: statusError } = await client.database
     .from('event_captures')
     .update({
       status: 'drafted',
       updated_at: new Date().toISOString(),
     })
     .eq('id', params.id);
+
+  if (statusError) {
+    // Drafts DO exist but the status flip failed, so the 3s poll would spin on
+    // 'drafting'. Log loudly (the row is recoverable — primaryPostId is returned).
+    console.error('[event-capture/process] Failed to mark capture drafted (drafts exist)', {
+      id: params.id,
+      statusError,
+    });
+  }
 
   return NextResponse.json({
     ok: true,
