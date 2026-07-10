@@ -1,5 +1,6 @@
 import { generateContent } from '@/lib/ai';
 import { resolveModel } from '@/lib/ai-tiers';
+import { parseLlmJson } from '@/lib/llm-json';
 
 // --- Types ---
 
@@ -39,38 +40,8 @@ Rules:
 - No em dashes. No markdown. Plain text values only.`;
 
 // --- Defensive JSON extraction ---
-
-/**
- * Extracts the first balanced top-level {...} object from arbitrary model output.
- * Handles markdown code fences and trailing prose that free models often add.
- * Returns the JSON substring, or null if no balanced object is found.
- */
-function extractJsonObject(text: string): string | null {
-  const cleaned = text.replace(/```(?:json)?/gi, '');
-  const start = cleaned.indexOf('{');
-  if (start === -1) return null;
-
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let i = start; i < cleaned.length; i++) {
-    const ch = cleaned[i];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (ch === '\\') escaped = true;
-      else if (ch === '"') inString = false;
-      continue;
-    }
-    if (ch === '"') inString = true;
-    else if (ch === '{') depth++;
-    else if (ch === '}') {
-      depth--;
-      if (depth === 0) return cleaned.slice(start, i + 1);
-    }
-  }
-  return null;
-}
+// Parsing is standardized on the shared parseLlmJson (see break 23); this file
+// previously carried a byte-identical private copy of the balanced-brace extractor.
 
 /** Dedupes strings case-insensitively, trims, drops empties, and caps length. */
 function cleanStringList(value: unknown, cap: number): string[] {
@@ -118,18 +89,10 @@ function cleanSpeakers(value: unknown): ResearchFacts['speakers'] {
  * Exported for direct unit testing of the parser without an LLM call.
  */
 export function parseResearchFactsJson(raw: string): ResearchFacts | null {
-  const jsonText = extractJsonObject(raw);
-  if (!jsonText) return null;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(jsonText);
-  } catch {
-    return null;
-  }
+  const parsed = parseLlmJson<Record<string, unknown>>(raw);
   if (!parsed || typeof parsed !== 'object') return null;
 
-  const obj = parsed as Record<string, unknown>;
+  const obj = parsed;
   return {
     summary: typeof obj.summary === 'string' ? obj.summary.trim() : '',
     speakers: cleanSpeakers(obj.speakers),

@@ -102,7 +102,11 @@ export async function putBrainPage(
 
   const { data, error } = await client.database
     .from('creator_brain_pages')
-    .upsert(upsertPayload, { onConflict: 'user_id,slug' })
+    // Workspace-scoped conflict target (break 21). Matches the composite unique
+    // constraint creator_brain_pages_user_ws_slug_key (UNIQUE NULLS NOT DISTINCT
+    // on user_id, workspace_id, slug), so a user in two workspaces holds distinct
+    // same-slug pages instead of the second silently overwriting the first.
+    .upsert(upsertPayload, { onConflict: 'user_id,workspace_id,slug' })
     .select('id, user_id, slug, title, tags, body, updated_at')
     .single();
 

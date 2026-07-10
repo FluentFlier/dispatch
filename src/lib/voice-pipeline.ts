@@ -1,5 +1,6 @@
 ﻿import type { createClient } from '@insforge/sdk';
 import { runContentPipeline, type ContentPipelineInput, type ContentPipelineResult } from '@/lib/content-pipeline';
+import { resolveModel } from '@/lib/ai-tiers';
 import type { VoiceContentType } from '@/lib/voice-prompts';
 import type { CreatorProfileForPrompt } from '@/lib/ai';
 import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
@@ -44,6 +45,13 @@ export interface VoicePipelineResult {
 export async function generateWithVoicePipeline(
   input: VoicePipelineInput,
 ): Promise<VoicePipelineResult> {
+  // preferOpenAi asks for a higher-quality model on this call. Map it to the
+  // existing 'smart' model tier (LLM_MODEL_SMART) via the same resolver every
+  // other call site uses - no new env knob. Unconfigured (testing) -> undefined,
+  // so chatCompletion falls back to the global LLM_MODEL (Groq/HF). This replaces
+  // the previously-dead param that never reached chatCompletion.
+  const model = input.preferOpenAi ? resolveModel('smart') : undefined;
+
   const pipelineInput: ContentPipelineInput = {
     userPrompt: input.userPrompt,
     profile: input.profile,
@@ -57,6 +65,7 @@ export async function generateWithVoicePipeline(
     humanizeAlways: input.humanizeAlways,
     maxIterations: input.maxIterations,
     mentions: input.mentions,
+    model,
     hooksClient: input.hooksClient,
   };
 

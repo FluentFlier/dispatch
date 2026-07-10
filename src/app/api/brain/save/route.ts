@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getBrainPage, putBrainPage } from '@/lib/brain/pages';
 import { BRAIN_SLUG } from '@/lib/brain/types';
+import { getActiveWorkspaceId } from '@/lib/workspace';
 
 const SaveSchema = z.object({
   content: z.string().trim().min(1).max(2000),
@@ -33,9 +34,13 @@ export async function POST(req: Request): Promise<NextResponse> {
 
   const { content, type, source } = parsed.data;
   const client = getServerClient();
+  // Scope the write to the active workspace so it matches the workspace-scoped
+  // read in retrieveBrainContext. Without this, refs saved from Ideas/Analytics
+  // landed on the unscoped page and were invisible to workspace-scoped drafts.
+  const workspaceId = (await getActiveWorkspaceId(user.id)) ?? undefined;
 
   try {
-    const existing = await getBrainPage(client, user.id, BRAIN_SLUG.savedReferences);
+    const existing = await getBrainPage(client, user.id, BRAIN_SLUG.savedReferences, workspaceId);
     const entry = `- ${content}${source ? ` (${source})` : ''}`;
     const nextBody = existing?.body
       ? `${existing.body}\n${entry}`
@@ -46,6 +51,7 @@ export async function POST(req: Request): Promise<NextResponse> {
       title: 'Saved references',
       tags: ['saved', type ?? 'reference'],
       body: nextBody,
+      workspaceId,
     });
 
     return NextResponse.json({ ok: true });

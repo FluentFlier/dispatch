@@ -1,5 +1,6 @@
 ﻿import { type CreatorProfileForPrompt } from '@/lib/ai';
 import { chatCompletion } from '@/lib/llm';
+import { parseLlmJson } from '@/lib/llm-json';
 
 /** Mirrors Imagine Content Writer internal matrix (1-10 each). */
 export interface VoiceEvaluationMatrix {
@@ -11,6 +12,13 @@ export interface VoiceEvaluationMatrix {
   ai_slop: number;
   revision_notes: string;
   pass: boolean;
+  /**
+   * True when the evaluator response could not be parsed. This is a transient
+   * LLM/JSON glitch, NOT a quality judgment, so the pipeline must treat it as
+   * "skip revision" and keep the current draft rather than forcing a destructive
+   * from-scratch rewrite off a fake failing score.
+   */
+  parse_error?: boolean;
 }
 
 const EVALUATOR_PROMPT = `You evaluate social content drafts for a specific creator.
@@ -66,23 +74,27 @@ DRAFT:
 ${draft}
 ---`;
 
-  const fallback: VoiceEvaluationMatrix = {
-    persona_fidelity: 7,
-    uniqueness: 7,
-    specificity: 7,
-    so_what: 7,
-    pain_resonance: 7,
-    ai_slop: 4,
+  // Parse failure is not a quality signal. Return a neutral "skip revision"
+  // outcome (pass=true so the pipeline stops, parse_error=true so callers can
+  // tell it apart from a genuine pass) instead of a fake failing score that
+  // would trigger a destructive from-scratch rewrite.
+  const skip: VoiceEvaluationMatrix = {
+    persona_fidelity: 8,
+    uniqueness: 8,
+    specificity: 8,
+    so_what: 8,
+    pain_resonance: 8,
+    ai_slop: 3,
     revision_notes: '',
-    pass: false,
+    pass: true,
+    parse_error: true,
   };
 
   try {
     const raw = await chatCompletion(EVALUATOR_PROMPT, prompt);
-    const jsonMatch = raw.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) return fallback;
+    const parsed = parseLlmJson<Partial<VoiceEvaluationMatrix>>(raw);
+    if (!parsed) return skip;
 
-    const parsed = JSON.parse(jsonMatch[0]) as Partial<VoiceEvaluationMatrix>;
     const matrix: VoiceEvaluationMatrix = {
       persona_fidelity: parsed.persona_fidelity ?? 7,
       uniqueness: parsed.uniqueness ?? 7,
@@ -96,6 +108,7 @@ ${draft}
     matrix.pass = evaluationPasses(matrix);
     return matrix;
   } catch {
-    return fallback;
+    // Transient LLM/network error — also skip revision rather than nuke the draft.
+    return skip;
   }
 }

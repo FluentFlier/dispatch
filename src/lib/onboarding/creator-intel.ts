@@ -1,4 +1,5 @@
 import { generateContent } from '@/lib/ai';
+import { parseLlmJson } from '@/lib/llm-json';
 import { serperSearch, jinaRead } from '@/lib/event-capture/research';
 import { parseLinkedInPublicIdentifier } from '@/lib/signals/outreach/unipile-linkedin';
 import { unipoleFetch } from '@/lib/social/unipile';
@@ -243,33 +244,6 @@ Return ONLY valid JSON:
 }
 Use ONLY facts present in the input. No em dashes. Plain text.`;
 
-function extractJsonObject(text: string): string | null {
-  const cleaned = text.replace(/```(?:json)?/gi, '');
-  const start = cleaned.indexOf('{');
-  if (start === -1) return null;
-
-  let depth = 0;
-  let inString = false;
-  let escaped = false;
-
-  for (let i = start; i < cleaned.length; i++) {
-    const ch = cleaned[i];
-    if (inString) {
-      if (escaped) escaped = false;
-      else if (ch === '\\') escaped = true;
-      else if (ch === '"') inString = false;
-      continue;
-    }
-    if (ch === '"') inString = true;
-    else if (ch === '{') depth++;
-    else if (ch === '}') {
-      depth--;
-      if (depth === 0) return cleaned.slice(start, i + 1);
-    }
-  }
-  return null;
-}
-
 function cleanStringList(value: unknown, cap: number): string[] {
   if (!Array.isArray(value)) return [];
   const seen = new Set<string>();
@@ -293,22 +267,10 @@ async function extractCreatorWebFacts(
 ): Promise<Omit<CreatorWebIntel, 'queries' | 'sources'>> {
   const prompt = `Profile context:\n${profileContext}\n\nWeb + profile text:\n${combinedText.slice(0, MAX_WEB_CHARS)}`;
   const result = await generateContent(prompt, undefined, WEB_FACTS_PROMPT);
-  const jsonText = extractJsonObject(result);
-  if (!jsonText) {
-    return {
-      bioSummary: profileContext.slice(0, 500),
-      expertise: [],
-      companies: [],
-      topics: [],
-      proofPoints: [],
-      notableWork: [],
-    };
-  }
-
-  let parsed: Record<string, unknown>;
-  try {
-    parsed = JSON.parse(jsonText) as Record<string, unknown>;
-  } catch {
+  // Standardized on the shared parseLlmJson (break 23) — was a byte-identical
+  // private extractor + JSON.parse. Returns null on no-JSON or parse failure.
+  const parsed = parseLlmJson<Record<string, unknown>>(result);
+  if (!parsed) {
     return {
       bioSummary: profileContext.slice(0, 500),
       expertise: [],
