@@ -157,8 +157,6 @@ export async function humanizePipeline(
   options: HumanizePipelineOptions = {},
 ): Promise<HumanizePipelineResult> {
   const passes: HumanizePass[] = [];
-  let scoreBefore: number | undefined;
-  let scoreAfter: number | undefined;
 
   const preserve = [
     ...(options.vocabulary?.uses_often ?? []),
@@ -167,12 +165,6 @@ export async function humanizePipeline(
 
   let working = deterministicPreClean(text, preserve);
   passes.push('pre_clean');
-
-  try {
-    scoreBefore = (await aiScore(working)).score;
-  } catch {
-    // scoring optional
-  }
 
   working = await humanizeClean(working, preserve);
   passes.push('clean');
@@ -187,13 +179,7 @@ export async function humanizePipeline(
     passes.push('voice');
   }
 
-  try {
-    scoreAfter = (await aiScore(working)).score;
-  } catch {
-    // scoring optional
-  }
-
-  return { text: working, passes, aiScoreBefore: scoreBefore, aiScoreAfter: scoreAfter };
+  return { text: working, passes };
 }
 
 /**

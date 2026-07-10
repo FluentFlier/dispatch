@@ -129,7 +129,7 @@ async function runBaseStage(
     : `${BASE_SYSTEM}\n\n${merged}`;
 
   return stripEmDashes(
-    await chatCompletion(system, input.userPrompt, { temperature: 0.75, model: input.model }),
+    await chatCompletion(system, input.userPrompt, { temperature: 0.75, maxTokens: 1200, model: input.model }),
   );
 }
 
@@ -154,7 +154,7 @@ async function runHookStage(
     : HOOK_SYSTEM;
   const prompt = `ORIGINAL REQUEST:\n${userPrompt}\n\nBASE DRAFT:\n---\n${baseText}\n---\n\nHOOK EXAMPLES (adapt structure to this topic):\n${examples}\n\nRewrite with a stronger hook opening. Return ONLY the full post.`;
 
-  return stripEmDashes(await chatCompletion(system, prompt, { temperature: 0.7, model }));
+  return stripEmDashes(await chatCompletion(system, prompt, { temperature: 0.7, maxTokens: 1200, model }));
 }
 
 /**
@@ -281,7 +281,7 @@ ${text}
 
 Return ONLY the final post.`;
 
-    text = stripEmDashes(await chatCompletion(voiceSystem, voicePrompt, { temperature: 0.68, model: input.model }));
+    text = stripEmDashes(await chatCompletion(voiceSystem, voicePrompt, { temperature: 0.68, maxTokens: 1200, model: input.model }));
     stagesCompleted.push('voice');
   }
 
@@ -326,7 +326,7 @@ ${evaluation.revision_notes || 'Sound more like the creator. Less generic.'}
 Return ONLY the revised post.`;
 
       const voiceSystem = buildSystemPrompt(profile, voiceStageContext || undefined);
-      text = stripEmDashes(await chatCompletion(voiceSystem, revisePrompt, { temperature: 0.7, model: input.model }));
+      text = stripEmDashes(await chatCompletion(voiceSystem, revisePrompt, { temperature: 0.7, maxTokens: 1200, model: input.model }));
       revised = true;
       lastActionWasRevise = true;
 
