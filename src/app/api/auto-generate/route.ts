@@ -1,7 +1,8 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { generateContent, buildSystemPrompt } from '@/lib/ai';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
+import { getActiveWorkspaceId } from '@/lib/workspace';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
@@ -39,9 +40,15 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 
   const client = getServerClient();
+  const workspaceId = await getActiveWorkspaceId(user.id);
 
+  // Full context (workspace + platform) so trend/reply/scheduled posts get the
+  // same story bank, L4 baseline, and signals as manual drafts — not a thinned,
+  // user-only lookup.
   const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {
     memoryQuery: topic ?? context,
+    workspaceId: workspaceId ?? undefined,
+    platform,
   });
 
   // Check auto-publish setting
@@ -78,45 +85,53 @@ ${context ? `Additional context: ${context}` : ''}
 Platform rules: ${platformGuide[platform]}
 Content type: ${typeGuide[type]}
 
-Return JSON:
-{
-  "content": "The full post text ready to publish",
-  "hook": "The first line/hook",
-  "hashtags": "Space-separated hashtags if applicable",
-  "confidence": 0.0-1.0,
-  "reasoning": "Why this content works for this creator and moment"
-}`;
+Return ONLY the post text, ready to publish.`;
 
   try {
-    const taskContext = [
-      `You are generating a ${type} post for ${platform}.`,
+    // Route through the full voice pipeline (base -> hooks -> humanize -> voice ->
+    // evaluate) so trend/reply/scheduled posts get the same voice QA as manual
+    // drafts, instead of a single ungated generateContent call.
+    const result = await generateWithVoicePipeline({
+      userPrompt: prompt,
+      profile,
       contextAdditions,
-    ]
-      .filter(Boolean)
-      .join('\n\n');
-    const systemPrompt = buildSystemPrompt(profile, taskContext);
-    const result = await generateContent(prompt, undefined, systemPrompt, profile);
+      platform,
+      contentType: type === 'reply' ? 'reply' : 'post',
+      hooksClient: client,
+    });
 
-    const jsonMatch = result.match(/\{[\s\S]*\}/);
-    if (!jsonMatch) {
-      return NextResponse.json({ error: 'Failed to parse generated content' }, { status: 500 });
-    }
-
-    const generated = JSON.parse(jsonMatch[0]);
+    const content = result.text.trim();
+    const hook = content.split('\n').find((l) => l.trim())?.trim() ?? (topic ?? 'Auto-generated post');
+    const generated = {
+      content,
+      hook,
+      hashtags: null as string | null,
+      // Derive a confidence signal from the voice match score so downstream
+      // consumers keep a 0-1 field.
+      confidence: result.voice_match_score ? result.voice_match_score / 100 : null,
+      reasoning: `Generated via voice pipeline (${result.stagesCompleted?.join(' -> ') ?? 'base'})`,
+    };
 
     // Store in auto_generated_posts queue
     const { data: savedPost, error: saveError } = await client.database
       .from('posts')
       .insert([{
         user_id: user.id,
-        title: generated.hook || topic || 'Auto-generated post',
+        workspace_id: workspaceId ?? null,
+        title: hook.slice(0, 80),
         pillar: profile?.content_pillars?.[0]?.name || 'general',
         platform,
         status: shouldAutoPublish ? 'edited' : 'scripted',
-        script: generated.content,
-        caption: generated.content,
-        hashtags: generated.hashtags || null,
-        hook: generated.hook,
+        script: content,
+        caption: content,
+        hashtags: null,
+        hook,
+        // Persist voice scores so these posts feed the same flywheel as the rest.
+        voice_match_score: result.voice_match_score || null,
+        ai_score: result.ai_score || null,
+        voice_evaluation: result.evaluation ?? null,
+        used_hook_ids: result.usedHookIds ?? [],
+        pipeline_stages: result.stagesCompleted ?? [],
         notes: JSON.stringify({
           auto_generated: true,
           type,

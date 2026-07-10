@@ -185,6 +185,10 @@ export async function POST(
       }
 
       const platformLabel = platform === 'twitter' ? 'Twitter/X' : 'LinkedIn';
+      // The pipeline gates PLATFORM_PLAYBOOKS on lowercase enums (linkedin|twitter).
+      // Pass the enum (mapping x -> twitter), not the human label, or the playbook
+      // is silently skipped for event drafts. The label is only for the task hint.
+      const platformEnum = platform === 'x' || platform === 'twitter' ? 'twitter' : 'linkedin';
       const charLimit = PLATFORM_LIMITS[platform] ?? 3000;
 
       // Load best hooks for event recap context, anchored to the creator's
@@ -214,7 +218,7 @@ Return ONLY the post text.`;
         userPrompt,
         profile,
         contextAdditions,
-        platform: platformLabel,
+        platform: platformEnum,
         contentType: 'post',
         fast: false,
       });

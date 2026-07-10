@@ -44,6 +44,13 @@ export interface VoicePipelineResult {
 export async function generateWithVoicePipeline(
   input: VoicePipelineInput,
 ): Promise<VoicePipelineResult> {
+  // preferOpenAi asks for a higher-quality model on this call. There is no direct
+  // OpenAI provider wired; map it to an optional premium model env so the flag has
+  // real effect where one is configured, and is a graceful no-op otherwise. This
+  // replaces the previously-dead param that never reached chatCompletion.
+  const premiumModel = process.env.LLM_PREMIUM_MODEL?.trim();
+  const model = input.preferOpenAi && premiumModel ? premiumModel : undefined;
+
   const pipelineInput: ContentPipelineInput = {
     userPrompt: input.userPrompt,
     profile: input.profile,
@@ -57,6 +64,7 @@ export async function generateWithVoicePipeline(
     humanizeAlways: input.humanizeAlways,
     maxIterations: input.maxIterations,
     mentions: input.mentions,
+    model,
     hooksClient: input.hooksClient,
   };
 

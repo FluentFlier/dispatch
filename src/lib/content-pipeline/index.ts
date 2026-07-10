@@ -32,6 +32,12 @@ export interface ContentPipelineInput {
   maxIterations?: number;
   /** LinkedIn/X @mentions to weave into the draft naturally. */
   mentions?: string[];
+  /**
+   * Optional per-call model override for the generation stages (base/hook/voice/
+   * revise). Lets a caller request a higher-quality model than the env default
+   * for a specific draft. No-op when undefined (uses env LLM_MODEL).
+   */
+  model?: string;
   /** Optional InsForge client for DB-learned hook retrieval. */
   hooksClient?: InsforgeClient;
 }
@@ -137,11 +143,17 @@ async function runBaseStage(
     : undefined;
 
   const merged = [composeHints, taskHint, mentionHint, substanceContext].filter(Boolean).join('\n\n');
+  // Even with a systemOverride, keep the merged block (task hint, @mentions,
+  // substance context). Previously the override replaced everything but
+  // composeHints, so override callers silently lost their mentions and drafted
+  // with no substance grounding.
   const system = input.systemOverride
-    ? `${input.systemOverride}\n\n${composeHints}`
+    ? `${input.systemOverride}\n\n${merged}`
     : `${BASE_SYSTEM}\n\n${merged}`;
 
-  return stripEmDashes(await chatCompletion(system, input.userPrompt, { temperature: 0.75 }));
+  return stripEmDashes(
+    await chatCompletion(system, input.userPrompt, { temperature: 0.75, model: input.model }),
+  );
 }
 
 /**
@@ -152,6 +164,7 @@ async function runHookStage(
   hooks: Array<{ id: string; text: string; author: string }>,
   userPrompt: string,
   substanceContext: string | undefined,
+  model: string | undefined,
 ): Promise<string> {
   if (hooks.length === 0) return baseText;
 
@@ -164,7 +177,7 @@ async function runHookStage(
     : HOOK_SYSTEM;
   const prompt = `ORIGINAL REQUEST:\n${userPrompt}\n\nBASE DRAFT:\n---\n${baseText}\n---\n\nHOOK EXAMPLES (adapt structure to this topic):\n${examples}\n\nRewrite with a stronger hook opening. Return ONLY the full post.`;
 
-  return stripEmDashes(await chatCompletion(system, prompt, { temperature: 0.7 }));
+  return stripEmDashes(await chatCompletion(system, prompt, { temperature: 0.7, model }));
 }
 
 /**
@@ -222,7 +235,7 @@ export async function runContentPipeline(
     const resolved = await getBestHooksForGeneration(input.hooksClient, vertical, 6);
     usedHookIds = resolved.hooks.map((h) => h.id);
     hookExplanations = resolved.explanations;
-    text = await runHookStage(text, resolved.hooks, input.userPrompt, substanceContext);
+    text = await runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model);
     stagesCompleted.push('hooks');
   }
 
@@ -256,7 +269,7 @@ ${text}
 
 Return ONLY the final post.`;
 
-    text = stripEmDashes(await chatCompletion(voiceSystem, voicePrompt, { temperature: 0.68 }));
+    text = stripEmDashes(await chatCompletion(voiceSystem, voicePrompt, { temperature: 0.68, model: input.model }));
     stagesCompleted.push('voice');
   }
 
@@ -301,7 +314,7 @@ ${evaluation.revision_notes || 'Sound more like the creator. Less generic.'}
 Return ONLY the revised post.`;
 
       const voiceSystem = buildSystemPrompt(profile, fullContext || undefined);
-      text = stripEmDashes(await chatCompletion(voiceSystem, revisePrompt, { temperature: 0.7 }));
+      text = stripEmDashes(await chatCompletion(voiceSystem, revisePrompt, { temperature: 0.7, model: input.model }));
       revised = true;
       lastActionWasRevise = true;
 
