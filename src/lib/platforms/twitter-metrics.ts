@@ -11,6 +11,8 @@ export interface NormalizedMetrics {
   saves?: number;
   comments?: number;
   shares?: number;
+  /** Followers gained attributed to this post (LinkedIn analytics). */
+  follows?: number;
 }
 
 /** Shape of X API v2 `public_metrics` (all optional across access tiers). */

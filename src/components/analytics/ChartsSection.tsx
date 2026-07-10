@@ -63,6 +63,7 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
     comments: p.comments ?? 0,
   }));
 
+  // LinkedIn often hides impressions — only chart views when we actually have them.
   const viewsData = sorted
     .filter((p) => (p.views ?? 0) > 0)
     .map((p) => ({
@@ -77,12 +78,22 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
       saves: p.saves ?? 0,
     }));
 
-  const followsData = [...posts]
+  // Prefer follows_gained; fall back to engagement over time so the timeline
+  // isn't blank when LinkedIn doesn't attribute follower growth per post.
+  const followsRaw = [...posts]
     .filter((p) => p.posted_date && (p.follows_gained ?? 0) > 0)
     .sort((a, b) => new Date(a.posted_date!).getTime() - new Date(b.posted_date!).getTime())
     .map((p) => ({
       date: new Date(p.posted_date!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       follows: p.follows_gained ?? 0,
+    }));
+
+  const engagementOverTime = [...posts]
+    .filter((p) => p.posted_date && postEngagementScore(p) > 0)
+    .sort((a, b) => new Date(a.posted_date!).getTime() - new Date(b.posted_date!).getTime())
+    .map((p) => ({
+      date: new Date(p.posted_date!).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      engagement: postEngagementScore(p),
     }));
 
   const pillarMap: Record<string, { total: number; count: number }> = {};
@@ -123,7 +134,7 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
         <>
           {engagementData.some((d) => d.engagement > 0) && (
             <div>
-              <h3 className="section-label mb-3">Engagement by post (all {sorted.length} posts)</h3>
+              <h3 className="section-label mb-3">Engagement by post (likes + comments + shares)</h3>
               <div className="bg-bg-secondary border border-border rounded-lg p-4 overflow-x-auto">
                 <ResponsiveContainer width="100%" height={chartHeight}>
                   <BarChart data={engagementData} layout="vertical" margin={{ left: 8, right: 16 }}>
@@ -211,12 +222,12 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
             </div>
           )}
 
-          {followsData.length > 0 && (
+          {followsRaw.length > 0 ? (
             <div>
               <h3 className="section-label mb-3">Follows gained over time</h3>
               <div className="bg-bg-secondary border border-border rounded-lg p-4">
                 <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={followsData}>
+                  <LineChart data={followsRaw}>
                     <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
                     <XAxis dataKey="date" tick={{ fill: CHART_COLORS.text, fontSize: 11 }} />
                     <YAxis tick={{ fill: CHART_COLORS.text, fontSize: 11 }} />
@@ -226,7 +237,22 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
                 </ResponsiveContainer>
               </div>
             </div>
-          )}
+          ) : engagementOverTime.length > 0 ? (
+            <div>
+              <h3 className="section-label mb-3">Engagement over time</h3>
+              <div className="bg-bg-secondary border border-border rounded-lg p-4">
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={engagementOverTime}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={CHART_COLORS.grid} />
+                    <XAxis dataKey="date" tick={{ fill: CHART_COLORS.text, fontSize: 11 }} />
+                    <YAxis tick={{ fill: CHART_COLORS.text, fontSize: 11 }} />
+                    <Tooltip contentStyle={CHART_TOOLTIP} />
+                    <Line type="monotone" dataKey="engagement" stroke={CHART_COLORS.green} strokeWidth={2} dot={{ fill: CHART_COLORS.green }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+          ) : null}
 
           {Object.keys(pillarMap).length > 0 && (
             <div>
