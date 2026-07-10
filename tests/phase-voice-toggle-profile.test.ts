@@ -64,10 +64,13 @@ describe('Phase: Voice Toggle', () => {
       profile: PROFILE,
       useVoice: false,
     });
-    // Base stage uses neutral strategist prompt — not buildSystemPrompt.
+    // Base stage uses neutral strategist prompt, not buildSystemPrompt, and the
+    // voice-QA loop stays off. Voice-off prose still runs the humanize pass so
+    // the opt-out output still reads like a human wrote it (not raw LLM slop),
+    // so the stage list is base + humanize.
     expect(buildSystemPrompt).not.toHaveBeenCalled();
     expect(evaluateDraft).not.toHaveBeenCalled();
-    expect(res.stagesCompleted).toEqual(['base']);
+    expect(res.stagesCompleted).toEqual(['base', 'humanize']);
     expect(res.text).toBe('a generated draft');
     expect(res.voice_match_score).toBe(0);
   });
