@@ -23,9 +23,27 @@ export interface VoiceSample {
   platform?: string;
 }
 
+/**
+ * Which context sources actually resolved with content for this load. Lets the
+ * caller (and UI) react to a starved prompt instead of silently generating on
+ * near-empty context. `starved` is a coarse "onboarding likely incomplete" flag.
+ */
+export interface ContextCompleteness {
+  profile: boolean;
+  fingerprint: boolean;
+  structural: boolean;
+  voiceExamples: boolean;
+  brain: boolean;
+  semanticMemory: boolean;
+  storyBank: boolean;
+  l4Metrics: boolean;
+  starved: boolean;
+}
+
 export interface CreatorVoiceContext {
   profile: CreatorProfileForPrompt | null;
   contextAdditions: string;
+  completeness: ContextCompleteness;
 }
 
 interface LoadVoiceContextOptions {
@@ -243,8 +261,14 @@ export async function loadCreatorVoiceContext(
         }
       }
     }
-  } catch {
-    // Profile and settings optional
+  } catch (err) {
+    // Profile and settings optional, but a THROW here (vs. an empty result) is a
+    // real failure worth surfacing — it starves every downstream stage.
+    console.warn('[voice-context] profile/settings load failed', {
+      userId,
+      workspaceId: options.workspaceId,
+      err,
+    });
   }
 
   if (samplePosts && samplePosts.length > maxSamples) {
@@ -269,8 +293,10 @@ export async function loadCreatorVoiceContext(
       if (brain.length > 0) {
         brainSnippets = brain;
       }
-    } catch {
-      // Brain table may not exist until migration applied
+    } catch (err) {
+      // Brain table may not exist until migration applied — log so a persistent
+      // failure is visible instead of silently thinning the prompt.
+      console.warn('[voice-context] brain retrieval failed', { userId, err });
     }
   }
 
@@ -286,8 +312,9 @@ export async function loadCreatorVoiceContext(
       if (snippets.length > 0) {
         memorySnippets = snippets;
       }
-    } catch {
-      // Supermemory optional enhancement
+    } catch (err) {
+      // Supermemory optional enhancement — log so an auth/quota failure is visible.
+      console.warn('[voice-context] supermemory search failed', { userId, err });
     }
   }
 
@@ -303,6 +330,7 @@ export async function loadCreatorVoiceContext(
   });
 
   // L3: inject unused Story Bank angles so captured memories inform new drafts
+  let storyBankUsed = false;
   if (options.workspaceId && !options.lightweight) {
     try {
       const { data: storyRows } = await client.database
@@ -316,16 +344,22 @@ export async function loadCreatorVoiceContext(
         .limit(3);
 
       if (storyRows?.length) {
+        storyBankUsed = true;
         contextAdditions +=
           '\n\nUNUSED STORY BANK ANGLES (consider weaving into this draft):\n' +
           storyRows.map((s, i) => `${i + 1}. ${s.mined_angle}`).join('\n');
       }
-    } catch {
-      // Story bank optional
+    } catch (err) {
+      // Story bank optional — log the failure rather than dropping the angles silently.
+      console.warn('[voice-context] story bank load failed', {
+        workspaceId: options.workspaceId,
+        err,
+      });
     }
   }
 
   // L4: inject voice quality baseline so generation targets the user's own standard
+  let l4MetricsUsed = false;
   if (options.workspaceId && options.platform && !options.lightweight) {
     try {
       const { data: metrics } = await client.database
@@ -336,16 +370,45 @@ export async function loadCreatorVoiceContext(
         .maybeSingle();
 
       if (metrics && Number(metrics.post_count) >= 3) {
+        l4MetricsUsed = true;
         contextAdditions +=
           `\n\nYour recent ${options.platform} performance: ` +
           `${Number(metrics.avg_voice_match_score).toFixed(0)}/100 voice match, ` +
           `${Number(metrics.avg_ai_score).toFixed(0)}/100 AI detection ` +
           `(${metrics.post_count} posts). Maintain or beat these scores.`;
       }
-    } catch {
-      // Metrics optional
+    } catch (err) {
+      // Metrics optional — log so a persistent read failure is visible.
+      console.warn('[voice-context] L4 metrics load failed', {
+        workspaceId: options.workspaceId,
+        platform: options.platform,
+        err,
+      });
     }
   }
 
-  return { profile, contextAdditions };
+  // Completeness signal: which sources actually landed content. `starved` fires
+  // when the two strongest voice signals (fingerprint + examples) are BOTH absent,
+  // which almost always means Voice Lab onboarding never ran for this workspace.
+  const completeness: ContextCompleteness = {
+    profile: !!profile,
+    fingerprint: !!vocabulary,
+    structural: !!structural,
+    voiceExamples: !!samplePosts?.length,
+    brain: !!brainSnippets?.length,
+    semanticMemory: !!memorySnippets?.length,
+    storyBank: storyBankUsed,
+    l4Metrics: l4MetricsUsed,
+    starved: !vocabulary && !samplePosts?.length,
+  };
+
+  if (completeness.starved) {
+    console.warn('[voice-context] starved prompt: no fingerprint or voice examples', {
+      userId,
+      workspaceId: options.workspaceId,
+      hasProfile: completeness.profile,
+    });
+  }
+
+  return { profile, contextAdditions, completeness };
 }

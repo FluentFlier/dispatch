@@ -5,6 +5,8 @@ import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { generateWithVoicePipeline, type VoicePipelineResult } from '@/lib/voice-pipeline';
 import { getBestHooksForContext } from '@/lib/hooks-intelligence';
+import { PILLAR_TO_VERTICAL } from '@/lib/hooks-intelligence/types';
+import { profilePillarWeights } from '@/lib/pillars';
 import { buildQuestionsAndAnswers, resolvePostPillar } from '@/lib/event-capture/draft-context';
 
 interface RouteParams {
@@ -22,6 +24,7 @@ interface EventCaptureForProcess {
   end_time: string;
   event_type: string;
   is_public_event: boolean;
+  attendees: Array<{ name: string }> | null;
   questions: string[] | null;
   answers: Record<string, string> | null;
 }
@@ -82,7 +85,7 @@ export async function POST(
   const { data: captureData } = await client.database
     .from('event_captures')
     .select(
-      'id, workspace_id, user_id, title, description, location, start_time, end_time, event_type, is_public_event, questions, answers',
+      'id, workspace_id, user_id, title, description, location, start_time, end_time, event_type, is_public_event, attendees, questions, answers',
     )
     .eq('id', params.id)
     .single();
@@ -146,6 +149,27 @@ export async function POST(
     ? `\nKey topics covered: ${research.key_topics.join(', ')}`
     : '';
 
+  // Specific, name-level details captured at ingest/enrich but never reaching the
+  // model before: who was there, what the event was about, what was announced.
+  const attendeesContext = capture.attendees?.length
+    ? `\nPeople there: ${capture.attendees.map((a) => a.name).filter(Boolean).join(', ')}`
+    : '';
+
+  const descriptionContext = capture.description?.trim()
+    ? `\nEvent description: ${capture.description.trim().slice(0, 500)}`
+    : '';
+
+  const announcementsContext = research?.key_announcements?.length
+    ? `\nKey announcements: ${research.key_announcements.join('; ')}`
+    : '';
+
+  // Derive the creator's top hook vertical so event-recap hooks are anchored to
+  // their niche instead of being fetched with an undefined vertical (which
+  // silently returned an empty set).
+  const pillarWeights = profilePillarWeights(profile?.content_pillars);
+  const topPillar = Object.entries(pillarWeights).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const eventVertical = topPillar ? PILLAR_TO_VERTICAL[topPillar] : undefined;
+
   // --- Generate drafts in parallel for each connected platform ---
   interface PlatformDraft {
     platform: string;
@@ -163,8 +187,9 @@ export async function POST(
       const platformLabel = platform === 'twitter' ? 'Twitter/X' : 'LinkedIn';
       const charLimit = PLATFORM_LIMITS[platform] ?? 3000;
 
-      // Load best hooks for event recap context.
-      const hooks = getBestHooksForContext(undefined as any, 4);
+      // Load best hooks for event recap context, anchored to the creator's
+      // top vertical (was called with an undefined vertical before).
+      const hooks = getBestHooksForContext(eventVertical, 4);
       const hookExamples = hooks.length
         ? `\nHigh-converting hook structures to adapt:\n${hooks.map((h, i) => `${i + 1}. "${h.text}"`).join('\n')}`
         : '';
@@ -173,7 +198,7 @@ export async function POST(
 
 Event: ${capture.title}
 Date: ${new Date(capture.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}${capture.location ? '\nLocation: ' + capture.location : ''}
-Type: ${capture.event_type}${speakersContext}${topicsContext}${researchContext}
+Type: ${capture.event_type}${descriptionContext}${attendeesContext}${speakersContext}${topicsContext}${announcementsContext}${researchContext}
 
 ${questionsAndAnswers ? 'What happened / key insights:\n' + questionsAndAnswers : ''}${hookExamples}
 
