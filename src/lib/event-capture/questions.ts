@@ -60,15 +60,36 @@ ${pillarContext}${researchContext}
 
 Generate 5 questions to help capture the key moments and insights from this event.`;
 
-  const raw = await generateContent(userPrompt, undefined, systemPrompt, ctx.profile ?? null);
+  const parseLines = (raw: string): string[] =>
+    raw
+      .split('\n')
+      .map((line) => line.replace(/^\d+[.)]\s*/, '').trim())
+      .filter((line) => line.length > 0);
 
-  // Parse lines — filter blanks and numbering artifacts.
-  const lines = raw
-    .split('\n')
-    .map((line) => line.replace(/^\d+[.)]\s*/, '').trim())
-    .filter((line) => line.length > 0);
+  let lines = parseLines(
+    await generateContent(userPrompt, undefined, systemPrompt, ctx.profile ?? null),
+  );
 
-  // Guarantee exactly 5 questions. Pad with generic fallbacks if Haiku returns fewer.
+  // If the model returned fewer than 5 event-specific questions, retry ONCE with
+  // an explicit count reminder before falling back to generic filler. This cuts
+  // how often the user ends up answering boilerplate.
+  if (lines.length < 5) {
+    const retry = parseLines(
+      await generateContent(
+        `${userPrompt}\n\nYou returned too few. Return EXACTLY 5 event-specific questions, one per line.`,
+        undefined,
+        systemPrompt,
+        ctx.profile ?? null,
+      ),
+    );
+    for (const q of retry) {
+      if (lines.length >= 5) break;
+      if (!lines.includes(q)) lines.push(q);
+    }
+  }
+
+  // Guarantee exactly 5 questions. Pad with generic fallbacks if the model still
+  // returns fewer after the retry.
   const fallbacks = [
     'What was the most surprising thing you learned?',
     'What one idea will you act on this week?',

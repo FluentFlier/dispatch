@@ -137,8 +137,18 @@ export async function POST(
   // Index-keyed pairing carries the user's answers into the written post.
   const questionsAndAnswers = buildQuestionsAndAnswers(capture.questions, capture.answers);
 
+  // When structured extraction failed (no speakers/topics/announcements), the
+  // raw_text is just noisy SERP filler and the summary silently degraded to the
+  // title. Label it as unverified so the model does not present it as fact —
+  // instead of thin research looking identical to a rich, successful enrichment.
+  const researchIsThin =
+    !!research &&
+    !(research.speakers?.length || research.key_topics?.length || research.key_announcements?.length);
+
   const researchContext = research?.raw_text
-    ? `\nEvent research:\n${research.raw_text.slice(0, 2000)}`
+    ? `\n${researchIsThin
+        ? 'Unverified web snippets (may be noisy - rely on the answers above and do not state these as facts unless corroborated)'
+        : 'Event research'}:\n${research.raw_text.slice(0, 2000)}`
     : '';
 
   const speakersContext = research?.speakers?.length
