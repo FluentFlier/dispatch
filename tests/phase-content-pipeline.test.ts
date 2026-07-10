@@ -18,16 +18,21 @@ describe('Phase: Content pipeline + humanizer', () => {
   });
 
   describe('substanceContextOnly', () => {
-    it('should keep facts/brain but strip voice examples', () => {
+    it('feeds facts + voice signal to substance but withholds email voice', () => {
       const full = [
         'BACKGROUND FACTS (use specific details, never genericize):\nBuilt 3 startups',
+        'VOCABULARY FINGERPRINT:\nWords/phrases they use often: shipped, honestly',
         'VOICE EXAMPLES (match rhythm):\nExample 1: hello world',
         'EMAIL VOICE (how they write 1:1):\nEmail 1: hey team',
       ].join('\n\n');
 
       const substance = substanceContextOnly(full);
+      // Facts + voice signal reach the Base/Hook stage so the draft sounds like
+      // the creator from the first pass, not only after the late Stage 4 rewrite.
       expect(substance).toContain('BACKGROUND FACTS');
-      expect(substance).not.toContain('VOICE EXAMPLES');
+      expect(substance).toContain('VOCABULARY FINGERPRINT');
+      expect(substance).toContain('VOICE EXAMPLES');
+      // Email voice stays out — it is a 1:1 register, not for public posts.
       expect(substance).not.toContain('EMAIL VOICE');
     });
   });
