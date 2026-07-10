@@ -36,7 +36,7 @@ export function isCompactMode(modelOverride?: string): boolean {
   if (mode === 'compact') return true;
   if (mode === 'full') return false;
   const model =
-    modelOverride ?? process.env.LLM_MODEL?.trim() ?? 'meta-llama/Llama-3.1-8B-Instruct';
+    modelOverride || process.env.LLM_MODEL?.trim() || 'meta-llama/Llama-3.1-8B-Instruct';
   return SMALL_MODEL_RE.test(model);
 }
 
