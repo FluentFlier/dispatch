@@ -228,7 +228,7 @@ export async function loadCreatorVoiceContext(
   userId: string,
   options: LoadVoiceContextOptions = {},
 ): Promise<CreatorVoiceContext> {
-  const maxSamples = options.maxSamples ?? 3;
+  const maxSamples = options.maxSamples ?? 5;
   let profile: CreatorProfileForPrompt | null = null;
   let bioFacts: string | undefined;
   let vocabulary: VocabularyFingerprint | undefined;
