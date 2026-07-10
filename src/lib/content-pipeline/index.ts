@@ -151,13 +151,20 @@ async function runHookStage(
   baseText: string,
   hooks: Array<{ id: string; text: string; author: string }>,
   userPrompt: string,
+  substanceContext: string | undefined,
 ): Promise<string> {
   if (hooks.length === 0) return baseText;
 
   const examples = formatHookExamples(hooks);
+  // Give the hook stage the same voice signal the base stage got. The structural
+  // patterns (how they open) and fingerprint let the opener match the creator's
+  // own style instead of a generic scroll-stopper.
+  const system = substanceContext
+    ? `${HOOK_SYSTEM}\n\n${substanceContext}`
+    : HOOK_SYSTEM;
   const prompt = `ORIGINAL REQUEST:\n${userPrompt}\n\nBASE DRAFT:\n---\n${baseText}\n---\n\nHOOK EXAMPLES (adapt structure to this topic):\n${examples}\n\nRewrite with a stronger hook opening. Return ONLY the full post.`;
 
-  return stripEmDashes(await chatCompletion(HOOK_SYSTEM, prompt, { temperature: 0.7 }));
+  return stripEmDashes(await chatCompletion(system, prompt, { temperature: 0.7 }));
 }
 
 /**
@@ -215,7 +222,7 @@ export async function runContentPipeline(
     const resolved = await getBestHooksForGeneration(input.hooksClient, vertical, 6);
     usedHookIds = resolved.hooks.map((h) => h.id);
     hookExplanations = resolved.explanations;
-    text = await runHookStage(text, resolved.hooks, input.userPrompt);
+    text = await runHookStage(text, resolved.hooks, input.userPrompt, substanceContext);
     stagesCompleted.push('hooks');
   }
 
