@@ -279,26 +279,62 @@ describe('Voice pipeline end-to-end stress test', () => {
       return (base + 'x'.repeat(Math.max(0, len - base.length))).slice(0, len);
     }
 
-    const lengths = [100, 100, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375];
-    const samples = lengths.map((len, i) => ({
-      content: i === 1 ? padded('unique post 0 opening line', 100) : padded(`unique post ${i} opening line`, len),
-      platform: 'linkedin',
-    }));
-    // samples[0] and samples[1] are exact near-duplicates (same content, same
-    // length) - the curator must collapse them to one.
+    // The near-duplicate pair are the two LONGEST posts in the fixture (400
+    // chars each) and share an identical first-80-char head, so they hash to
+    // the same dedupe key (content.trim().toLowerCase().slice(0, 80)). Their
+    // tails differ, so this is a near-duplicate, not a byte-identical one.
+    // Because they are the longest posts, a build with the dedupe filter
+    // removed would keep both copies at the very top of the longest-first
+    // sort and both would survive the cap-at-10 slice. With dedupe intact,
+    // only one copy survives.
+    const duplicateHead = padded('recurring keynote opening about how our team scaled growth', 80);
+    const duplicateContentA = duplicateHead + 'first variant closes with a note on hiring plans for next quarter.'.padEnd(320, 'x').slice(0, 320);
+    const duplicateContentB = duplicateHead + 'second variant closes with a note on roadmap priorities instead.'.padEnd(320, 'x').slice(0, 320);
+
+    // Eight other distinct posts, all shorter than the duplicate pair, so
+    // longest-first order and the cap are still exercised across a real
+    // spread of lengths.
+    const singleLengths = [150, 300, 200, 350, 175, 250, 225, 275];
+    const singles = singleLengths.map((len, i) =>
+      padded(`unique post ${String.fromCharCode(65 + i)} opening line`, len),
+    );
+
+    const samples = [
+      { content: duplicateContentA, platform: 'linkedin' },
+      { content: singles[0], platform: 'linkedin' },
+      { content: singles[1], platform: 'linkedin' },
+      { content: duplicateContentB, platform: 'linkedin' },
+      { content: singles[2], platform: 'linkedin' },
+      { content: singles[3], platform: 'linkedin' },
+      { content: singles[4], platform: 'linkedin' },
+      { content: singles[5], platform: 'linkedin' },
+      { content: singles[6], platform: 'linkedin' },
+      { content: singles[7], platform: 'linkedin' },
+    ];
+    const duplicatesRemoved = 1;
 
     const curated = curateSamplePosts(samples, 10);
 
-    expect(curated.length).toBe(10);
+    // Capped at 10.
+    expect(curated.length).toBeLessThanOrEqual(10);
+    // Exact count: 9 distinct posts survive dedupe and none get cut by the
+    // cap, so output length is input length minus duplicates removed. A
+    // build without the dedupe filter would keep both duplicate copies
+    // (10 raw posts all pass the substance filter), hit the cap-at-10
+    // ceiling, and produce a longer, differently composed top-10 - this
+    // assertion fails against that build.
+    expect(curated.length).toBe(samples.length - duplicatesRemoved);
+
     // Longest first.
     for (let i = 1; i < curated.length; i++) {
       expect(curated[i - 1].content.length).toBeGreaterThanOrEqual(curated[i].content.length);
     }
-    // The duplicate pair collapsed: only one instance of the length-100 content
-    // survives anywhere in the output (and given the cap it is dropped entirely,
-    // since it is the shortest of the 11 deduped candidates).
-    const duplicateContent = padded('unique post 0 opening line', 100);
-    const occurrences = curated.filter((s) => s.content === duplicateContent).length;
+
+    // The near-duplicate pair collapsed to one: at most one post whose
+    // content starts with the shared 80-char head may appear in the output.
+    // This fails if the dedupe filter is removed, since both 400-char
+    // copies are the longest posts and both survive the cap.
+    const occurrences = curated.filter((s) => s.content.startsWith(duplicateHead)).length;
     expect(occurrences).toBeLessThanOrEqual(1);
   });
 });
