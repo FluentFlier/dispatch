@@ -10,9 +10,14 @@ import type { NormalizedMetrics } from '@/lib/platforms/twitter-metrics';
 import { HttpStatusError, retryWithBackoff, throwIfNotOk } from '@/lib/social/reliability';
 import { buildPostIdCandidates } from '@/lib/engagement/unipile-reactions';
 
+/**
+ * Read the first usable count. LinkedIn/Unipile often return `0` for
+ * impressions/followers when the metric is hidden — treat bare zeros as
+ * "missing" so we never overwrite real engagement with a fake zero view count.
+ */
 function readCount(...values: unknown[]): number | undefined {
   for (const v of values) {
-    if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return v;
+    if (typeof v === 'number' && Number.isFinite(v) && v > 0) return v;
     if (Array.isArray(v)) {
       let sum = 0;
       for (const item of v) {
@@ -87,6 +92,11 @@ export function extractLinkedInMetrics(payload: unknown): NormalizedMetrics {
       root.reposts_counter,
       root.reposts_count,
       root.resposts_counter,
+    ),
+    follows: readCount(
+      analytics.followers_gained_from_this_post,
+      analytics.followers_gained_from_this_post_counter,
+      root.followers_gained_from_this_post,
     ),
   };
 }

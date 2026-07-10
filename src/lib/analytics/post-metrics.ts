@@ -123,10 +123,13 @@ export function resolvePublishedAt(
 
 export function metricsPatchFromNormalized(metrics: NormalizedMetrics): Record<string, number> {
   const patch: Record<string, number> = {};
-  if (typeof metrics.views === 'number') patch.views = metrics.views;
+  if (typeof metrics.views === 'number' && metrics.views > 0) patch.views = metrics.views;
   if (typeof metrics.likes === 'number') patch.likes = metrics.likes;
   if (typeof metrics.saves === 'number') patch.saves = metrics.saves;
   if (typeof metrics.comments === 'number') patch.comments = metrics.comments;
   if (typeof metrics.shares === 'number') patch.shares = metrics.shares;
+  if (typeof metrics.follows === 'number' && metrics.follows > 0) {
+    patch.follows_gained = metrics.follows;
+  }
   return patch;
 }

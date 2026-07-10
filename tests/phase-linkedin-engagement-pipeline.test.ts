@@ -278,6 +278,26 @@ describe('Phase: LinkedIn Engagement Pipeline', () => {
       expect(metrics.shares).toBeUndefined();
     });
 
+    it('should ignore zero impressions (LinkedIn often hides them as 0)', () => {
+      const metrics = extractLinkedInMetrics({
+        impressions_counter: 0,
+        reaction_counter: 93,
+        comment_counter: 4,
+      });
+      expect(metrics.views).toBeUndefined();
+      expect(metrics.likes).toBe(93);
+      expect(metrics.comments).toBe(4);
+    });
+
+    it('should map followers_gained_from_this_post onto follows', () => {
+      expect(
+        extractLinkedInMetrics({
+          analytics: { followers_gained_from_this_post: 12, impressions: 500 },
+          reaction_counter: 3,
+        }),
+      ).toMatchObject({ views: 500, likes: 3, follows: 12 });
+    });
+
     it('should return empty metrics for malformed payloads', () => {
       expect(extractLinkedInMetrics(null)).toEqual({});
       expect(extractLinkedInMetrics({ analytics: { impressions: -5 } })).toEqual({
@@ -285,6 +305,7 @@ describe('Phase: LinkedIn Engagement Pipeline', () => {
         likes: undefined,
         comments: undefined,
         shares: undefined,
+        follows: undefined,
       });
     });
   });
