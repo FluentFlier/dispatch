@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
 import { isEnabled } from '@/lib/feature-flags';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
-import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { loadCreatorVoiceContext, fetchL4BaselineBlock } from '@/lib/voice-context';
 import { generateWithVoicePipeline, type VoicePipelineResult } from '@/lib/voice-pipeline';
 import { getBestHooksForContext } from '@/lib/hooks-intelligence';
 import { PILLAR_TO_VERTICAL } from '@/lib/hooks-intelligence/types';
@@ -239,10 +239,15 @@ Rules for ${platformLabel}:
 - End with a clear takeaway or question to readers
 Return ONLY the post text.`;
 
+      // Context is loaded once (no platform), so append this platform's L4 quality
+      // baseline per draft (break 25) — cheap single-row fetch, not a full reload.
+      const l4Block = await fetchL4BaselineBlock(client, capture.workspace_id, platformEnum);
+      const draftContext = l4Block ? `${contextAdditions}${l4Block}` : contextAdditions;
+
       const pipelineResult = await generateWithVoicePipeline({
         userPrompt,
         profile,
-        contextAdditions,
+        contextAdditions: draftContext,
         platform: platformEnum,
         contentType: 'post',
         fast: false,

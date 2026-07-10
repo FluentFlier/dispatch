@@ -134,8 +134,9 @@ describe('Pipeline wiring guarantees', () => {
     expect(chatCompletion).toHaveBeenCalledTimes(2); // base + voice, NO revise
   });
 
-  it('break 11: preferOpenAi threads a model override into every generation stage', async () => {
-    vi.stubEnv('LLM_PREMIUM_MODEL', 'premium-model');
+  it('break 11: preferOpenAi threads the smart model tier into every generation stage', async () => {
+    // preferOpenAi maps to the existing 'smart' tier (LLM_MODEL_SMART), not a new env.
+    vi.stubEnv('LLM_MODEL_SMART', 'smart-model');
     evaluateDraft.mockResolvedValueOnce(fail).mockResolvedValue(pass);
     await generateWithVoicePipeline({
       userPrompt: 'x',
@@ -144,9 +145,9 @@ describe('Pipeline wiring guarantees', () => {
       preferOpenAi: true,
     });
 
-    // base(0), voice(1), revise(2) all carry { model: 'premium-model' }.
+    // base(0), voice(1), revise(2) all carry { model: 'smart-model' }.
     for (const call of chatCompletion.mock.calls) {
-      expect((call[2] as { model?: string })?.model).toBe('premium-model');
+      expect((call[2] as { model?: string })?.model).toBe('smart-model');
     }
     vi.unstubAllEnvs();
   });

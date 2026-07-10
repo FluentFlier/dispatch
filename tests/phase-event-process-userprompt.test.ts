@@ -15,12 +15,14 @@ vi.mock('@/lib/voice-pipeline', () => ({
 }));
 vi.mock('@/lib/feature-flags', () => ({ isEnabled: vi.fn().mockResolvedValue(true) }));
 vi.mock('@/lib/ai-budget', () => ({ checkAndIncrementUsage: vi.fn().mockResolvedValue('ok') }));
+const fetchL4BaselineBlock = vi.fn().mockResolvedValue('');
 vi.mock('@/lib/voice-context', () => ({
   loadCreatorVoiceContext: vi.fn().mockResolvedValue({
     profile: { display_name: 'Ani', content_pillars: [] },
-    contextAdditions: '',
+    contextAdditions: 'BACKGROUND FACTS:\nfounder',
     completeness: {},
   }),
+  fetchL4BaselineBlock: (...a: unknown[]) => fetchL4BaselineBlock(...a),
 }));
 vi.mock('@/lib/hooks-intelligence', () => ({ getBestHooksForContext: vi.fn().mockReturnValue([]) }));
 
@@ -76,6 +78,7 @@ function req() {
 
 beforeEach(() => {
   vi.stubEnv('CRON_SECRET', 'test-secret');
+  fetchL4BaselineBlock.mockReset().mockResolvedValue('');
   genPipeline.mockReset().mockResolvedValue({
     text: 'a generated post', voice_match_score: 80, ai_score: 20, revised: false,
     iterations: 1, evaluation: {}, stagesCompleted: ['base'], usedHookIds: [], flags: [],
@@ -120,5 +123,22 @@ describe('event /process userPrompt assembly', () => {
     expect(input.userPrompt).toContain('Unverified web snippets'); // break 16 relabel
     // Thin summary is NOT presented as a confident fact lead.
     expect(input.userPrompt).not.toContain('What this event was about');
+  });
+
+  it('break 25: appends the per-platform L4 baseline to the draft context', async () => {
+    getServiceClient.mockReturnValue(makeClient({
+      summary: 's', speakers: [{ name: 'x' }], key_topics: ['t'], key_announcements: ['a'],
+      sources: [], raw_text: 'r',
+    }));
+    fetchL4BaselineBlock.mockResolvedValue('\n\nPERFORMANCE BASELINE:\nYour recent linkedin performance: 82/100 voice match.');
+
+    const res = await POST(req(), { params: { id: 'cap-1' } });
+    expect(res.status).toBe(200);
+
+    // Fetched for the lowercase platform enum and folded into the draft context.
+    expect(fetchL4BaselineBlock).toHaveBeenCalledWith(expect.anything(), 'ws-1', 'linkedin');
+    const input = genPipeline.mock.calls[0][0] as { contextAdditions: string };
+    expect(input.contextAdditions).toContain('PERFORMANCE BASELINE:');
+    expect(input.contextAdditions).toContain('BACKGROUND FACTS:'); // base context preserved
   });
 });

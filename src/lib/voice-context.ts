@@ -180,6 +180,42 @@ export function buildVoiceContextAdditions({
 }
 
 /**
+ * Fetches the L4 voice-quality baseline block for one workspace + platform, or ''
+ * when there is no baseline yet (< 3 scored posts). Exported so generation paths
+ * that draft per-platform (event capture loops over connected platforms) can
+ * inject the platform-correct baseline without a full second context load.
+ * Single source of truth for the "PERFORMANCE BASELINE:" block — the stable prefix
+ * lets the substance allow-list pass it to the Base/Hook stage (break 24).
+ */
+export async function fetchL4BaselineBlock(
+  client: InsforgeClient,
+  workspaceId: string,
+  platform: string,
+): Promise<string> {
+  try {
+    const { data: metrics } = await client.database
+      .from('workspace_voice_metrics')
+      .select('avg_voice_match_score, avg_ai_score, post_count')
+      .eq('workspace_id', workspaceId)
+      .eq('platform', platform)
+      .maybeSingle();
+
+    if (metrics && Number(metrics.post_count) >= 3) {
+      return (
+        `\n\nPERFORMANCE BASELINE:\nYour recent ${platform} performance: ` +
+        `${Number(metrics.avg_voice_match_score).toFixed(0)}/100 voice match, ` +
+        `${Number(metrics.avg_ai_score).toFixed(0)}/100 AI detection ` +
+        `(${metrics.post_count} posts). Maintain or beat these scores.`
+      );
+    }
+  } catch (err) {
+    // Metrics optional — log so a persistent read failure is visible.
+    console.warn('[voice-context] L4 metrics load failed', { workspaceId, platform, err });
+  }
+  return '';
+}
+
+/**
  * Loads creator profile + Voice Lab settings + optional semantic memory into one context object.
  * All generation routes should use this instead of ad-hoc profile queries.
  */
@@ -364,32 +400,10 @@ export async function loadCreatorVoiceContext(
   // L4: inject voice quality baseline so generation targets the user's own standard
   let l4MetricsUsed = false;
   if (options.workspaceId && options.platform && !options.lightweight) {
-    try {
-      const { data: metrics } = await client.database
-        .from('workspace_voice_metrics')
-        .select('avg_voice_match_score, avg_ai_score, post_count')
-        .eq('workspace_id', options.workspaceId)
-        .eq('platform', options.platform)
-        .maybeSingle();
-
-      if (metrics && Number(metrics.post_count) >= 3) {
-        l4MetricsUsed = true;
-        // Stable "PERFORMANCE BASELINE:" prefix so the substance allow-list can
-        // let this baseline shape the draft from the first pass (break 24), not
-        // only the late Stage 4 voice rewrite.
-        contextAdditions +=
-          `\n\nPERFORMANCE BASELINE:\nYour recent ${options.platform} performance: ` +
-          `${Number(metrics.avg_voice_match_score).toFixed(0)}/100 voice match, ` +
-          `${Number(metrics.avg_ai_score).toFixed(0)}/100 AI detection ` +
-          `(${metrics.post_count} posts). Maintain or beat these scores.`;
-      }
-    } catch (err) {
-      // Metrics optional — log so a persistent read failure is visible.
-      console.warn('[voice-context] L4 metrics load failed', {
-        workspaceId: options.workspaceId,
-        platform: options.platform,
-        err,
-      });
+    const block = await fetchL4BaselineBlock(client, options.workspaceId, options.platform);
+    if (block) {
+      l4MetricsUsed = true;
+      contextAdditions += block;
     }
   }
 
