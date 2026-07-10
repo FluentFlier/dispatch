@@ -374,8 +374,11 @@ export async function loadCreatorVoiceContext(
 
       if (metrics && Number(metrics.post_count) >= 3) {
         l4MetricsUsed = true;
+        // Stable "PERFORMANCE BASELINE:" prefix so the substance allow-list can
+        // let this baseline shape the draft from the first pass (break 24), not
+        // only the late Stage 4 voice rewrite.
         contextAdditions +=
-          `\n\nYour recent ${options.platform} performance: ` +
+          `\n\nPERFORMANCE BASELINE:\nYour recent ${options.platform} performance: ` +
           `${Number(metrics.avg_voice_match_score).toFixed(0)}/100 voice match, ` +
           `${Number(metrics.avg_ai_score).toFixed(0)}/100 AI detection ` +
           `(${metrics.post_count} posts). Maintain or beat these scores.`;

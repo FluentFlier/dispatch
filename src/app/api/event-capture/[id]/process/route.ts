@@ -154,6 +154,12 @@ export async function POST(
     !!research &&
     !(research.speakers?.length || research.key_topics?.length || research.key_announcements?.length);
 
+  // Prefer the clean extracted summary (was a dead select) as the research lead
+  // when enrichment actually succeeded; the raw_text follows as supporting detail.
+  const summaryContext = research?.summary && !researchIsThin
+    ? `\nWhat this event was about: ${research.summary}`
+    : '';
+
   const researchContext = research?.raw_text
     ? `\n${researchIsThin
         ? 'Unverified web snippets (may be noisy - rely on the answers above and do not state these as facts unless corroborated)'
@@ -221,7 +227,7 @@ export async function POST(
 
 Event: ${capture.title}
 Date: ${new Date(capture.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}${capture.location ? '\nLocation: ' + capture.location : ''}
-Type: ${capture.event_type}${descriptionContext}${attendeesContext}${speakersContext}${topicsContext}${announcementsContext}${researchContext}
+Type: ${capture.event_type}${descriptionContext}${summaryContext}${attendeesContext}${speakersContext}${topicsContext}${announcementsContext}${researchContext}
 
 ${questionsAndAnswers ? 'What happened / key insights:\n' + questionsAndAnswers : ''}${hookExamples}
 

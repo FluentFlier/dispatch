@@ -24,7 +24,10 @@ export function substanceContextOnly(additions?: string): string | undefined {
     // from the first pass, not only after the late Stage 4 voice rewrite.
     s.startsWith('VOCABULARY FINGERPRINT:') ||
     s.startsWith('STRUCTURAL PATTERNS:') ||
-    s.startsWith('VOICE EXAMPLES'),
+    s.startsWith('VOICE EXAMPLES') ||
+    // The user's own quality baseline should target the draft from the first
+    // pass, not only nudge the late voice rewrite.
+    s.startsWith('PERFORMANCE BASELINE:'),
   );
 
   return kept.length > 0 ? kept.join('\n\n') : undefined;
