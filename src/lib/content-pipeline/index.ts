@@ -7,7 +7,7 @@ import { buildVoiceComposeHints, type VoiceContentType } from '@/lib/voice-promp
 import { getBestHooksForGeneration } from '@/lib/hooks-intelligence/resolve-hooks';
 import { PILLAR_TO_VERTICAL, type HookVertical } from '@/lib/hooks-intelligence/types';
 import { profilePillarWeights } from '@/lib/pillars';
-import { substanceContextOnly } from '@/lib/content-pipeline/context-split';
+import { substanceContextOnly, stripSections } from '@/lib/content-pipeline/context-split';
 import type { VocabularyFingerprint, StructuralPatterns } from '@/lib/voice-context';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -274,9 +274,15 @@ export async function runContentPipeline(
     stagesCompleted.push('humanize');
   }
 
+  // EMAIL VOICE is a 1:1 register (greetings, sign-offs, warmth) - useful for
+  // replies/comments, wrong for public posts. Keep it out of the post rewrite
+  // so email tone can't bleed in.
+  const voiceStageContext =
+    contentType === 'post' ? stripSections(fullContext, ['EMAIL VOICE']) : fullContext;
+
   // --- Stage 4: Voice ---
   if (useVoice && profile) {
-    const voiceSystem = buildSystemPrompt(profile, fullContext || undefined);
+    const voiceSystem = buildSystemPrompt(profile, voiceStageContext || undefined);
     const voicePrompt = `Apply this creator's voice to the draft below. Keep topic and facts identical.
 
 ORIGINAL REQUEST:
@@ -307,7 +313,7 @@ Return ONLY the final post.`;
 
     for (let i = 0; i < maxIterations; i++) {
       iterations = i + 1;
-      evaluation = await evaluateDraft(text, profile, fullContext || undefined, evalContentType);
+      evaluation = await evaluateDraft(text, profile, voiceStageContext || undefined, evalContentType);
       lastActionWasRevise = false;
 
       // Parse glitch (not a real quality failure) — keep the draft, stop revising.
@@ -333,7 +339,7 @@ ${evaluation.revision_notes || 'Sound more like the creator. Less generic.'}
 
 Return ONLY the revised post.`;
 
-      const voiceSystem = buildSystemPrompt(profile, fullContext || undefined);
+      const voiceSystem = buildSystemPrompt(profile, voiceStageContext || undefined);
       text = stripEmDashes(await chatCompletion(voiceSystem, revisePrompt, { temperature: 0.7, model: input.model }));
       revised = true;
       lastActionWasRevise = true;
@@ -355,7 +361,7 @@ Return ONLY the revised post.`;
     // draft, not the text we return. Re-evaluate the final draft so score matches
     // output. A parse glitch on this final pass keeps the prior evaluation.
     if (lastActionWasRevise) {
-      const finalEval = await evaluateDraft(text, profile, fullContext || undefined, evalContentType);
+      const finalEval = await evaluateDraft(text, profile, voiceStageContext || undefined, evalContentType);
       if (!finalEval.parse_error) evaluation = finalEval;
     }
     stagesCompleted.push('evaluate');
