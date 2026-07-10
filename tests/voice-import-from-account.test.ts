@@ -16,6 +16,10 @@ vi.mock('@/lib/workspace', () => ({
 vi.mock('@/lib/social/unipile', () => ({
   unipoleFetch: vi.fn(),
   fetchUnipileAccountDetails: vi.fn(),
+  // resolveUnipileTarget (import-posts.ts) falls back to listUnipileAccounts when
+  // the fast fetchUnipileAccountDetails path returns null. The mock must expose it
+  // or the whole module mock throws "No listUnipileAccounts export".
+  listUnipileAccounts: vi.fn(),
   mapPlatform: vi.fn(),
 }));
 vi.mock('@/lib/social/sync-unipile-accounts', () => {
@@ -37,7 +41,7 @@ vi.mock('@/lib/social/sync-unipile-accounts', () => {
 
 import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
 import { backfillNullWorkspaceSocialAccounts, ensureActiveWorkspaceId } from '@/lib/workspace';
-import { unipoleFetch, fetchUnipileAccountDetails } from '@/lib/social/unipile';
+import { unipoleFetch, fetchUnipileAccountDetails, listUnipileAccounts } from '@/lib/social/unipile';
 import {
   syncUnipileAccountsForUser,
   UnipileAccountsSyncError,
@@ -118,7 +122,16 @@ describe('POST /api/voice-lab/import-from-account', () => {
     (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
     (getServerClient as ReturnType<typeof vi.fn>).mockReturnValue(mockServerClient());
     (getServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockServerClient());
-    (fetchUnipileAccountDetails as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    // Fast path: a live account resolves directly, so providerUserIds derive from
+    // the stored account_id (imToProviderIds always includes storedAccountId).
+    (fetchUnipileAccountDetails as ReturnType<typeof vi.fn>).mockResolvedValue({
+      connection_params: { im: {} },
+    });
+    // Stale-id fallback list (used only when fetchUnipileAccountDetails returns null).
+    (listUnipileAccounts as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'unipile_abc123', type: 'linkedin', connection_params: { im: { id: 'ACoAABcDEFgH' } } },
+      { id: 'unipile_abc123', type: 'twitter', connection_params: { im: { id: 'ACoAABcDEFgH' } } },
+    ]);
     (syncUnipileAccountsForUser as ReturnType<typeof vi.fn>).mockResolvedValue({ synced: 0, workspaceId: 'ws_123' });
     (unipoleFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
