@@ -307,7 +307,10 @@ export async function loadCreatorVoiceContext(
     process.env.SUPERMEMORY_API_KEY
   ) {
     try {
-      const results = await searchUserContext(userId, options.memoryQuery.trim(), 3);
+      // Pass workspaceId so the READ tag (workspace_${ws}) matches the WRITE tag
+      // used by onboarding persona + published-post storage. Without it the search
+      // fell back to user_${userId} and never found workspace-scoped memories.
+      const results = await searchUserContext(userId, options.memoryQuery.trim(), 3, options.workspaceId);
       const snippets = results.map((r) => r.content).filter((c): c is string => Boolean(c));
       if (snippets.length > 0) {
         memorySnippets = snippets;
