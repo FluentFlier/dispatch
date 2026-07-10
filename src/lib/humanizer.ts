@@ -2,6 +2,7 @@ import { generateContent } from './ai';
 import type { CreatorProfileForPrompt } from './ai';
 import { chatCompletion } from './llm';
 import { HfInference } from '@huggingface/inference';
+import type { VocabularyFingerprint } from './voice-context';
 import {
   HUMANIZE_AUDIT_PROMPT,
   HUMANIZE_CLEAN_PROMPT,
@@ -54,14 +55,22 @@ const AI_WORD_REPLACEMENTS: Array<[RegExp, string]> = [
 ];
 
 /**
- * Zero-LLM pass: strip obvious AI vocabulary and em dashes before expensive rewrites.
+ * Zero-LLM pass: strip obvious AI vocabulary and em dashes before expensive
+ * rewrites. `preserve` protects the creator's own words (uses_often /
+ * signature_phrases) - if THEY genuinely say "robust", we keep it.
+ * Whitespace: collapse runs of spaces/tabs only; paragraph breaks (\n\n) are
+ * layout on LinkedIn/X and must survive.
  */
-export function deterministicPreClean(text: string): string {
+export function deterministicPreClean(text: string, preserve: string[] = []): string {
+  const keep = new Set(preserve.map((w) => w.toLowerCase().trim()).filter(Boolean));
   let out = text.replace(/—/g, ' - ').replace(/–/g, '-');
   for (const [re, replacement] of AI_WORD_REPLACEMENTS) {
-    out = out.replace(re, replacement);
+    out = out.replace(re, (match) => (keep.has(match.toLowerCase()) ? match : replacement));
   }
-  return out.replace(/\s{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
+  return out
+    .replace(/[^\S\n]{2,}/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
 }
 
 function stripEmDashes(text: string): string {
@@ -73,26 +82,32 @@ function buildVoiceContextBlock(profile?: CreatorProfileForPrompt | null): strin
   return `\n\nVOICE TO MATCH:\nName: ${profile.display_name}\n${profile.bio_facts ? `Background: ${profile.bio_facts}\n` : ''}${profile.voice_description ? `Voice: ${profile.voice_description}\n` : ''}${profile.voice_rules ? `Rules: ${profile.voice_rules}` : ''}`;
 }
 
+function preserveBlock(preserve: string[]): string {
+  const items = preserve.map((w) => w.trim()).filter(Boolean);
+  if (items.length === 0) return '';
+  return `\n\nPRESERVE THESE CREATOR WORDS/PHRASES (their real voice - never remove, replace, or rephrase them): ${items.join(', ')}`;
+}
+
 /**
  * Pass 1: Remove AI patterns without applying creator voice.
  */
-export async function humanizeClean(text: string): Promise<string> {
+export async function humanizeClean(text: string, preserve: string[] = []): Promise<string> {
   const result = await generateContent(
     `Humanize this text (remove AI tells only):\n\n---\n${text}\n---`,
     undefined,
-    HUMANIZE_CLEAN_PROMPT,
+    HUMANIZE_CLEAN_PROMPT + preserveBlock(preserve),
   );
   return stripEmDashes(result.trim());
 }
 
 /**
- * Pass 2: Final audit — catch anything the first pass missed.
+ * Pass 2: Final audit - catch anything the first pass missed.
  */
-export async function humanizeAudit(text: string): Promise<string> {
+export async function humanizeAudit(text: string, preserve: string[] = []): Promise<string> {
   const result = await generateContent(
     `Audit this draft:\n\n---\n${text}\n---`,
     undefined,
-    HUMANIZE_AUDIT_PROMPT,
+    HUMANIZE_AUDIT_PROMPT + preserveBlock(preserve),
   );
   return stripEmDashes(result.trim());
 }
@@ -129,6 +144,8 @@ export interface HumanizePipelineOptions {
   skipVoice?: boolean;
   /** Skip audit pass (faster, lower quality). */
   skipAudit?: boolean;
+  /** Creator fingerprint - uses_often + signature_phrases become a PRESERVE list. */
+  vocabulary?: VocabularyFingerprint;
 }
 
 /**
@@ -143,7 +160,12 @@ export async function humanizePipeline(
   let scoreBefore: number | undefined;
   let scoreAfter: number | undefined;
 
-  let working = deterministicPreClean(text);
+  const preserve = [
+    ...(options.vocabulary?.uses_often ?? []),
+    ...(options.vocabulary?.signature_phrases ?? []),
+  ];
+
+  let working = deterministicPreClean(text, preserve);
   passes.push('pre_clean');
 
   try {
@@ -152,11 +174,11 @@ export async function humanizePipeline(
     // scoring optional
   }
 
-  working = await humanizeClean(working);
+  working = await humanizeClean(working, preserve);
   passes.push('clean');
 
   if (!options.skipAudit) {
-    working = await humanizeAudit(working);
+    working = await humanizeAudit(working, preserve);
     passes.push('audit');
   }
 
