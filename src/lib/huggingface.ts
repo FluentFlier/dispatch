@@ -81,8 +81,10 @@ export async function generateEmbeddingsHF(text: string): Promise<number[]> {
 }
 
 /**
- * Transcribes audio using NVIDIA NeMo via Hugging Face Serverless API.
- * We use nvidia/canary-1b, an excellent ASR model.
+ * Transcribes audio using Whisper via Hugging Face Serverless API.
+ * nvidia/canary-1b has no live Inference Provider (nemo lib, not router-servable) —
+ * that's why prod transcription failed. whisper-large-v3-turbo has a live
+ * hf-inference provider on the free tier.
  */
 export async function transcribeAudioHF(audioBlob: Blob): Promise<string> {
   const apiKey = process.env.HUGGINGFACE_API_KEY;
@@ -91,7 +93,7 @@ export async function transcribeAudioHF(audioBlob: Blob): Promise<string> {
   }
 
   const response = await hf.automaticSpeechRecognition({
-    model: 'nvidia/canary-1b',
+    model: 'openai/whisper-large-v3-turbo',
     data: audioBlob,
   });
 
