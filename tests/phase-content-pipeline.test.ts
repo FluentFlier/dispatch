@@ -35,6 +35,31 @@ describe('Phase: Content pipeline + humanizer', () => {
       // Email voice stays out — it is a 1:1 register, not for public posts.
       expect(substance).not.toContain('EMAIL VOICE');
     });
+
+    it('keeps whole multi-paragraph sections (break 27: no blank-line fragmentation)', () => {
+      // Real VOICE EXAMPLES / BACKGROUND FACTS bodies contain internal blank
+      // lines, so a naive split('\n\n') would drop everything after the first
+      // paragraph. The section must survive intact, and later examples too.
+      const full = [
+        'BACKGROUND FACTS (use specific details, never genericize):\nBuilt Ada.\n\nRaised a seed round.',
+        'VOICE EXAMPLES (match rhythm, tone, and structure):\n' +
+          'Example 1 (linkedin):\nWe shipped fast.\n\nHonestly it was messy.\n\n' +
+          'Example 2 (linkedin):\nHere is the thing about launches.\n\nThey never feel ready.',
+        'EMAIL VOICE (how they write 1:1):\nEmail 1:\nhey team\n\nquick update',
+      ].join('\n\n');
+
+      const substance = substanceContextOnly(full) ?? '';
+      // Later paragraphs of a kept section survive.
+      expect(substance).toContain('Raised a seed round.');
+      // Both examples and their later paragraphs survive (the core break-27 case).
+      expect(substance).toContain('Example 1 (linkedin)');
+      expect(substance).toContain('Honestly it was messy.');
+      expect(substance).toContain('Example 2 (linkedin)');
+      expect(substance).toContain('They never feel ready.');
+      // Withheld sections are still fully excluded — no leakage of their body.
+      expect(substance).not.toContain('EMAIL VOICE');
+      expect(substance).not.toContain('quick update');
+    });
   });
 
   describe('AI_SLOP_PATTERNS', () => {
