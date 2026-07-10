@@ -45,7 +45,12 @@ const HARD_RULES = `HARD RULES:
 - No em dashes anywhere. Ever.
 - No corporate speak, no "in today's world", no "game-changer", no "let's dive in".
 - Concrete details over vague claims. Talk TO the reader.
-- Use blank lines between paragraphs.`;
+- Group sentences into real paragraphs of 2-4 sentences each. Never put a single
+  sentence alone on its own line except the opening hook and the final question.
+  Do not treat "Hook/Setup/Story/Insight/CTA" labels in the instructions as a
+  cue to start a new one-sentence paragraph per label — merge them into flowing
+  prose.
+- Use one blank line between paragraphs, never between individual sentences.`;
 
 /** Keep only the first N non-empty lines of a rule list (small models drop long lists). */
 function limitLines(text: string, max: number): string {
