@@ -208,15 +208,28 @@ export async function runContentPipeline(
   const substanceContext = substanceContextOnly(input.contextAdditions);
   const fullContext = input.contextAdditions;
 
+  const contentType = input.contentType ?? 'post';
+  const isProse = contentType === 'post' || contentType === 'reply' || contentType === 'comment';
+
   // --- Stage 1: Base ---
   let text = await runBaseStage(input, substanceContext);
   stagesCompleted.push('base');
 
-  const contentType = input.contentType ?? 'post';
-  const isProse = contentType === 'post' || contentType === 'reply' || contentType === 'comment';
-
-  // Voice-off: substance only (optional humanize for outreach).
+  // Voice-off: substance + humanize. "No voice" must still read like a human
+  // wrote it - the base draft alone carries every LLM tell, so prose always
+  // gets the anti-slop pass (fast mode keeps its speed contract and skips it
+  // unless the caller asks).
   if (!useVoice) {
+    if (isProse && !input.fast) {
+      const h = await humanizePipeline(text, {
+        skipVoice: true,
+        skipAudit: false,
+        vocabulary: input.vocabulary,
+      });
+      text = h.text;
+      stagesCompleted.push('humanize');
+      return finalizeResult(text, undefined, false, [], stagesCompleted, h.passes, undefined);
+    }
     if (input.humanizeAlways) {
       const h = await humanizePipeline(text, { skipVoice: true, skipAudit: true });
       text = h.text;
