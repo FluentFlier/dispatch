@@ -127,8 +127,10 @@ Return ONLY the post text, ready to publish.`;
         hashtags: null,
         hook,
         // Persist voice scores so these posts feed the same flywheel as the rest.
-        voice_match_score: result.voice_match_score || null,
-        ai_score: result.ai_score || null,
+        // Use ?? not || so a genuine 0 (e.g. ai_slop 0 = fully human, the BEST
+        // score) is stored as 0, not nulled out of the metrics.
+        voice_match_score: result.voice_match_score ?? null,
+        ai_score: result.ai_score ?? null,
         voice_evaluation: result.evaluation ?? null,
         used_hook_ids: result.usedHookIds ?? [],
         pipeline_stages: result.stagesCompleted ?? [],

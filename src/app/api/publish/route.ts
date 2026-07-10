@@ -436,7 +436,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         .eq('id', postId)
         .maybeSingle();
 
-      if (postData?.voice_match_score && postData.voice_evaluation) {
+      // != null (not truthy) so a genuine 0 voice-match score still updates the
+      // metrics EMA instead of being silently skipped by the falsy-zero.
+      if (postData?.voice_match_score != null && postData.voice_evaluation) {
         import('@/lib/voice-metrics' as string).then((mod: Record<string, unknown>) => {
           const fn = mod['updateVoiceMetrics'] as Function;
           if (typeof fn === 'function') {

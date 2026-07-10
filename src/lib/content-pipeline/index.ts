@@ -213,7 +213,9 @@ export async function runContentPipeline(
       stagesCompleted.push('humanize');
       return finalizeResult(text, undefined, false, [], stagesCompleted, h.passes, undefined);
     }
-    return finalizeResult(text, undefined, true, [], stagesCompleted, undefined, undefined);
+    // revised=false: no revise loop runs on the voice-off path, so the draft was
+    // never revised (was mislabeled true, showing a false "(revised)" badge).
+    return finalizeResult(text, undefined, false, [], stagesCompleted, undefined, undefined);
   }
 
   // Fast mode / non-prose: base + light humanize
@@ -224,7 +226,9 @@ export async function runContentPipeline(
       stagesCompleted.push('humanize');
       return finalizeResult(text, undefined, false, [], stagesCompleted, h.passes, undefined);
     }
-    return finalizeResult(text, undefined, skipEval, [], stagesCompleted, undefined, undefined);
+    // revised=false: fast/non-prose skips the revise loop (was passing skipEval,
+    // which is true in fast mode -> a false "(revised)" badge).
+    return finalizeResult(text, undefined, false, [], stagesCompleted, undefined, undefined);
   }
 
   // --- Stage 2: Hooks ---

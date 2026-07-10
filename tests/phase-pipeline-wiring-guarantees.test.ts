@@ -134,6 +134,16 @@ describe('Pipeline wiring guarantees', () => {
     expect(chatCompletion).toHaveBeenCalledTimes(2); // base + voice, NO revise
   });
 
+  it('break 30: voice-off / fast paths report revised=false (no revise ran)', async () => {
+    evaluateDraft.mockResolvedValue(pass);
+    // Voice off -> substance only, no revise loop.
+    const off = await runContentPipeline({ userPrompt: 'x', profile: PROFILE, useVoice: false });
+    expect(off.revised).toBe(false);
+    // Fast mode -> base + light humanize, no revise loop.
+    const fast = await runContentPipeline({ userPrompt: 'x', profile: PROFILE, fast: true });
+    expect(fast.revised).toBe(false);
+  });
+
   it('break 11: preferOpenAi threads the smart model tier into every generation stage', async () => {
     // preferOpenAi maps to the existing 'smart' tier (LLM_MODEL_SMART), not a new env.
     vi.stubEnv('LLM_MODEL_SMART', 'smart-model');
