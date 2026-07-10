@@ -44,6 +44,10 @@ export interface CreatorVoiceContext {
   profile: CreatorProfileForPrompt | null;
   contextAdditions: string;
   completeness: ContextCompleteness;
+  /** Parsed fingerprint - lets pipeline stages use PRESERVE lists without re-parsing prompt text. */
+  vocabulary?: VocabularyFingerprint;
+  /** Parsed structural patterns - lets the pipeline use the creator's own hook_pattern. */
+  structural?: StructuralPatterns;
 }
 
 interface LoadVoiceContextOptions {
@@ -430,5 +434,5 @@ export async function loadCreatorVoiceContext(
     });
   }
 
-  return { profile, contextAdditions, completeness };
+  return { profile, contextAdditions, completeness, vocabulary, structural };
 }

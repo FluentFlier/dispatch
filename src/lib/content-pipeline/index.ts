@@ -8,6 +8,7 @@ import { getBestHooksForGeneration } from '@/lib/hooks-intelligence/resolve-hook
 import { PILLAR_TO_VERTICAL, type HookVertical } from '@/lib/hooks-intelligence/types';
 import { profilePillarWeights } from '@/lib/pillars';
 import { substanceContextOnly } from '@/lib/content-pipeline/context-split';
+import type { VocabularyFingerprint, StructuralPatterns } from '@/lib/voice-context';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -40,6 +41,10 @@ export interface ContentPipelineInput {
   model?: string;
   /** Optional InsForge client for DB-learned hook retrieval. */
   hooksClient?: InsforgeClient;
+  /** Parsed creator fingerprint (voice-on) - drives PRESERVE lists in humanize passes. */
+  vocabulary?: VocabularyFingerprint;
+  /** Parsed structural patterns (voice-on) - drives creator-first opening style. */
+  structural?: StructuralPatterns;
 }
 
 export interface ContentPipelineResult {
@@ -252,6 +257,7 @@ export async function runContentPipeline(
       profile: null,
       skipVoice: true,
       skipAudit: false,
+      vocabulary: input.vocabulary,
     });
     text = humanized.text;
     humanizePasses = humanized.passes;
@@ -324,7 +330,12 @@ Return ONLY the revised post.`;
 
       // Re-humanize after revise if slop crept back in
       if (evaluation.ai_slop > 3) {
-        const reHumanized = await humanizePipeline(text, { profile, contextAdditions: fullContext, skipAudit: true });
+        const reHumanized = await humanizePipeline(text, {
+          profile,
+          contextAdditions: fullContext,
+          skipAudit: true,
+          vocabulary: input.vocabulary,
+        });
         text = reHumanized.text;
       }
     }

@@ -4,6 +4,7 @@ import { resolveModel } from '@/lib/ai-tiers';
 import type { VoiceContentType } from '@/lib/voice-prompts';
 import type { CreatorProfileForPrompt } from '@/lib/ai';
 import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
+import type { VocabularyFingerprint, StructuralPatterns } from '@/lib/voice-context';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -22,6 +23,8 @@ export interface VoicePipelineInput {
   maxIterations?: number;
   mentions?: string[];
   hooksClient?: InsforgeClient;
+  vocabulary?: VocabularyFingerprint;
+  structural?: StructuralPatterns;
 }
 
 export interface VoicePipelineResult {
@@ -67,6 +70,8 @@ export async function generateWithVoicePipeline(
     mentions: input.mentions,
     model,
     hooksClient: input.hooksClient,
+    vocabulary: input.vocabulary,
+    structural: input.structural,
   };
 
   const result: ContentPipelineResult = await runContentPipeline(pipelineInput);
