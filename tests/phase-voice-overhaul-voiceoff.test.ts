@@ -11,6 +11,10 @@ vi.mock('@/lib/humanizer', () => ({
 vi.mock('@/lib/hooks-intelligence/resolve-hooks', () => ({
   getBestHooksForGeneration: vi.fn().mockResolvedValue({ hooks: [], explanations: [] }),
 }));
+vi.mock('@/lib/content-pipeline/compact', () => ({
+  isCompactMode: () => false,
+  runCompactPipeline: vi.fn(),
+}));
 
 import { runContentPipeline } from '@/lib/content-pipeline';
 

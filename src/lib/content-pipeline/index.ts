@@ -9,6 +9,9 @@ import { PILLAR_TO_VERTICAL, type HookVertical } from '@/lib/hooks-intelligence/
 import { profilePillarWeights } from '@/lib/pillars';
 import { substanceContextOnly, stripSections } from '@/lib/content-pipeline/context-split';
 import type { VocabularyFingerprint, StructuralPatterns } from '@/lib/voice-context';
+import { finalizeResult, stripEmDashes } from './finalize';
+export { stripMarkdownFormatting } from './finalize';
+import { isCompactMode, runCompactPipeline } from './compact';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -82,42 +85,6 @@ Rewrite ONLY the opening and tighten structure using the hook examples provided.
 - Do not add generic AI phrasing
 - Plain text only, no em dashes
 - The creator's own voice and opening style win on any conflict with the examples`;
-
-function stripEmDashes(text: string): string {
-  return text.replace(/—/g, ' - ').replace(/–/g, '-');
-}
-
-/**
- * Final formatting guard. The stage prompts all say "plain text, no markdown",
- * but LLMs still leak emphasis markers, headings, and code fences — which
- * LinkedIn and X render literally (**bold**, ## Heading), making a post look
- * broken. Strip the markdown syntax while keeping the words. Runs once at the
- * finalize choke point so every return path is clean. Conservative on purpose:
- * leaves single underscores (snake_case), list dashes, and normal punctuation
- * untouched — it only removes syntax that renders as noise on social.
- */
-export function stripMarkdownFormatting(text: string): string {
-  return (
-    text
-      // Fenced code blocks: keep the inner code, drop the ``` fences.
-      .replace(/```[a-zA-Z0-9]*\n?([\s\S]*?)```/g, '$1')
-      // Inline code: `x` -> x
-      .replace(/`([^`\n]+)`/g, '$1')
-      // Bold/italic: **x** __x__ ***x*** -> x
-      .replace(/\*\*\*([^*\n]+)\*\*\*/g, '$1')
-      .replace(/\*\*([^*\n]+)\*\*/g, '$1')
-      .replace(/__([^_\n]+)__/g, '$1')
-      // Single-asterisk italic: *x* -> x (guard against bare/list asterisks)
-      .replace(/(^|[^*\w])\*(?!\s)([^*\n]+?)(?<!\s)\*(?![*\w])/g, '$1$2')
-      // ATX headings at line start: "## Title" -> "Title"
-      .replace(/^#{1,6}[ \t]+/gm, '')
-      // Blockquote markers at line start: "> quote" -> "quote"
-      .replace(/^[ \t]*>[ \t]?/gm, '')
-      // Collapse runs of blank lines the stripping may have opened up.
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-  );
-}
 
 function topWeightedVertical(profile: CreatorProfileForPrompt | null): HookVertical | undefined {
   const weights = profilePillarWeights(profile?.content_pillars);
@@ -210,6 +177,12 @@ export async function runContentPipeline(
 
   const contentType = input.contentType ?? 'post';
   const isProse = contentType === 'post' || contentType === 'reply' || contentType === 'comment';
+
+  // Small models can't survive the full 6-11 rewrite chain - route prose to
+  // the 2-call compact pipeline (env LLM_PIPELINE_MODE overrides detection).
+  if (isProse && isCompactMode(input.model)) {
+    return runCompactPipeline(input);
+  }
 
   // --- Stage 1: Base ---
   let text = await runBaseStage(input, substanceContext);
@@ -391,39 +364,4 @@ Return ONLY the revised post.`;
     iterations,
     hookExplanations,
   );
-}
-
-function finalizeResult(
-  text: string,
-  evaluation: VoiceEvaluationMatrix | undefined,
-  revised: boolean,
-  flags: string[],
-  stagesCompleted: PipelineStage[],
-  humanizePasses: string[] | undefined,
-  usedHookIds: string[] | undefined,
-  iterations = 0,
-  hookExplanations?: ContentPipelineResult['hookExplanations'],
-): ContentPipelineResult {
-  const voice_match_score = evaluation
-    ? Math.round((evaluation.persona_fidelity / 10) * 100)
-    : 0;
-  const ai_score = evaluation ? evaluation.ai_slop * 10 : 0;
-
-  // Single guarantee that no markdown/em-dash noise reaches the client, whatever
-  // path produced this draft (fast, voice-off, hooks, revise loop).
-  const cleanText = stripMarkdownFormatting(stripEmDashes(text));
-
-  return {
-    text: cleanText,
-    voice_match_score,
-    ai_score,
-    revised,
-    flags,
-    evaluation,
-    iterations,
-    usedHookIds,
-    hookExplanations,
-    stagesCompleted,
-    humanizePasses,
-  };
 }
