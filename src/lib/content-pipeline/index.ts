@@ -348,7 +348,7 @@ Return ONLY the revised post.`;
       if (evaluation.ai_slop > 3) {
         const reHumanized = await humanizePipeline(text, {
           profile,
-          contextAdditions: fullContext,
+          contextAdditions: voiceStageContext,
           skipAudit: true,
           vocabulary: input.vocabulary,
         });
