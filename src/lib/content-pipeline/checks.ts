@@ -35,6 +35,14 @@ export interface Check {
   severity: CheckSeverity;
   appliesTo?: (ctx: CheckContext) => boolean;
   test: (text: string, ctx: CheckContext) => CheckResult;
+  /**
+   * Optional prompt-rule text for this check, evaluated only when the check
+   * applies to ctx. styleRulesFromChecks() below composes its output from
+   * these functions so the enforced rule and the prompted rule can never
+   * diverge again (the divergence class that caused the f3b5a5c bug).
+   * Return undefined to contribute no line for this ctx.
+   */
+  ruleText?: (ctx: CheckContext) => string | undefined;
 }
 
 const PROSE_TYPES = new Set(['post', 'reply', 'comment']);
@@ -48,6 +56,7 @@ const fail = (id: string, severity: CheckSeverity, evidence: string, fixHint: st
 // --- em_dash -------------------------------------------------------------
 const emDash: Check = {
   id: 'em_dash', severity: 'hard',
+  ruleText: () => 'No em dashes anywhere. Ever. Use a comma, period, or hyphen instead.',
   test: (text) => {
     const m = text.match(/[—–]/);
     return m
@@ -67,6 +76,7 @@ const MD_PATTERNS: Array<[RegExp, string]> = [
 ];
 const markdown: Check = {
   id: 'markdown', severity: 'hard',
+  ruleText: () => 'Plain text only. No markdown, no **bold**, no # headers, no bullet asterisks.',
   test: (text) => {
     for (const [re, label] of MD_PATTERNS) {
       const m = text.match(re);
@@ -87,6 +97,10 @@ const LENGTH_BOUNDS: Record<string, { min: number; max: number }> = {
 const platformLength: Check = {
   id: 'platform_length', severity: 'hard',
   appliesTo: (ctx) => isPost(ctx) && Boolean(ctx.platform && LENGTH_BOUNDS[ctx.platform]),
+  ruleText: (ctx) => {
+    const b = ctx.platform ? LENGTH_BOUNDS[ctx.platform] : undefined;
+    return b ? `Length for ${ctx.platform}: between ${b.min} and ${b.max} characters.` : undefined;
+  },
   test: (text, ctx) => {
     const b = LENGTH_BOUNDS[ctx.platform!];
     const len = text.length;
@@ -102,6 +116,10 @@ const platformLength: Check = {
 const mentionIntegrity: Check = {
   id: 'mention_integrity', severity: 'hard',
   appliesTo: isProse,
+  ruleText: (ctx) =>
+    ctx.mentions?.length
+      ? `Include exactly these @mentions naturally, and no others: ${ctx.mentions.map((m) => (m.startsWith('@') ? m : `@${m}`)).join(', ')}.`
+      : undefined,
   test: (text, ctx) => {
     const requested = (ctx.mentions ?? []).map((m) => m.replace(/^@+/, '').toLowerCase());
     const lower = text.toLowerCase();
@@ -134,6 +152,8 @@ const sentenceCount = (p: string) =>
 const paragraphShape: Check = {
   id: 'paragraph_shape', severity: 'hard',
   appliesTo: isPost,
+  ruleText: () =>
+    'Group sentences into real paragraphs of 2-4 sentences each. Never a run of single-sentence paragraphs; only the opening hook and the final line may stand alone. Do not treat structural labels like Hook/Setup/Story/Insight/CTA as cues for one-sentence paragraphs; merge those beats into flowing prose.',
   test: (text) => {
     const paras = text.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
     if (paras.length <= 3) return pass('paragraph_shape', 'hard');
@@ -173,9 +193,20 @@ function isCalendarYear(raw: string): boolean {
   return year >= 1900 && year <= 2099;
 }
 
+// Words that legitimately open a sentence with capitalization and should not,
+// by themselves, turn an ordinary sentence-opening bigram into a flagged
+// "proper noun" (e.g. "Every Monday", "This Tuesday", "Next Friday").
+const SENTENCE_STARTER_WHITELIST = new Set([
+  'this', 'that', 'these', 'those', 'every', 'each', 'next', 'last', 'good',
+  'happy', 'some', 'many', 'most', 'all', 'our', 'your', 'my', 'his', 'her',
+  'their', 'one', 'another', 'the',
+]);
+
 const fabricatedSpecifics: Check = {
   id: 'fabricated_specifics', severity: 'hard',
   appliesTo: isProse,
+  ruleText: () =>
+    'Never invent a specific number, statistic, name, company, test, or personal anecdote that was not given in the prompt or context. If a beat has no real fact, write honest opinion or analysis instead.',
   test: (text, ctx) => {
     const allowed = [ctx.userPrompt, ctx.sourceContext ?? '', ctx.profile?.display_name ?? '',
       (ctx.mentions ?? []).join(' ')].join(' ').toLowerCase();
@@ -194,11 +225,20 @@ const fabricatedSpecifics: Check = {
       }
     }
 
-    // Proper nouns: 2+ consecutive Capitalized words, skipping sentence starts.
-    for (const m of Array.from(text.matchAll(/(?<![.!?]\s)(?<!^)\b([A-Z][a-z]+(?: [A-Z][a-z]+)+)\b/gm))) {
+    // Proper nouns: 2+ consecutive Capitalized words. Previously any run
+    // beginning exactly at a sentence/line start was skipped outright
+    // (ambiguous capitalization), which meant a fabricated name used as its
+    // OWN opening sentence ("Sundar Pichai even called...") went undetected
+    // (Phase 1 session note - accepted fail-open, Phase 3 must close it).
+    // Fix: drop the position-based exclusion; instead skip a run only when
+    // its FIRST word is a common sentence-opener (still genuinely ambiguous
+    // capitalization - "Every Monday", "This Tuesday") - any other run is a
+    // real signal regardless of where in the sentence it appears.
+    for (const m of Array.from(text.matchAll(/\b([A-Z][a-z]+(?: [A-Z][a-z]+)+)\b/gm))) {
       const nameLower = m[1].toLowerCase();
       const words = nameLower.split(' ');
       if (words.every((w) => WORD_WHITELIST.has(w))) continue;
+      if (SENTENCE_STARTER_WHITELIST.has(words[0])) continue;
       if (!allowed.includes(nameLower)) {
         return fail('fabricated_specifics', 'hard', m[1],
           `Remove "${m[1]}" - this name does not appear in the request or provided context. Never invent people or companies.`);
@@ -211,6 +251,8 @@ const fabricatedSpecifics: Check = {
 // --- slop_phrases (soft) ----------------------------------------------------
 const slopPhrases: Check = {
   id: 'slop_phrases', severity: 'soft',
+  ruleText: () =>
+    'No corporate speak, no throat-clearing openers ("in today\'s world", "let\'s dive in"), no AI-tell vocabulary (delve, tapestry, leverage, game-changer, ever-evolving).',
   test: (text) => {
     const hits = findSlopMatches(text);
     return hits.length === 0
@@ -291,6 +333,13 @@ const hookPresent: Check = {
 // --- bait_hook (hard) ---------------------------------------------------------------
 // LinkedIn's March 2026 Authenticity Update suppresses these patterns
 // regardless of account history. Generating them is negative-value.
+//
+// Recalibration (Phase 3): the original 4-consecutive-short-line rule
+// false-positived on legitimate numbered listicles and short poems (Phase 1
+// session note). Two changes close that gap: (1) list-marker lines
+// ("1. ", "- ", "* ", "-> ") are structured content, not broetry, and reset
+// the run; (2) the run threshold is 5, not 4, and the per-line word cap is
+// tighter (broetry lines are typically 1-4 word fragments, not up to 7).
 const BAIT_RES = [
   /\bagree\?\s*$/im,
   /\bcomment\s+["'“”]?\w+["'“”]?\s+(if|for|and|below)/i,
@@ -299,9 +348,12 @@ const BAIT_RES = [
   /\b(like|comment) (this|below) (if|for)\b/i,
   /\bfollow me for more\b/i,
 ];
+const LIST_MARKER_RE = /^(\d+[.)]|[-*•]|->)\s/;
 const baitHook: Check = {
   id: 'bait_hook', severity: 'hard',
   appliesTo: isPost,
+  ruleText: () =>
+    'No engagement bait: never end the hook with "Agree?", never "Comment X for Y", never "Repost if", no one-line ladder formatting.',
   test: (text) => {
     for (const re of BAIT_RES) {
       const m = text.match(re);
@@ -312,8 +364,10 @@ const baitHook: Check = {
     let shortRun = 0;
     for (const l of lines) {
       if (l.length === 0) { shortRun = 0; continue; }
-      shortRun = l.split(/\s+/).length < 8 && /[a-z]/i.test(l) ? shortRun + 1 : 0;
-      if (shortRun >= 4) return fail('bait_hook', 'hard', lines.slice(0, 4).join(' / '),
+      if (LIST_MARKER_RE.test(l)) { shortRun = 0; continue; }
+      const words = l.split(/\s+/).length;
+      shortRun = words < 6 && /[a-z]/i.test(l) ? shortRun + 1 : 0;
+      if (shortRun >= 5) return fail('bait_hook', 'hard', lines.slice(0, 5).join(' / '),
         'Merge the one-line ladder ("broetry") into real paragraphs.');
     }
     return pass('bait_hook', 'hard');
@@ -339,31 +393,44 @@ export function hardFailures(results: CheckResult[]): CheckResult[] {
   return results.filter((r) => r.severity === 'hard' && !r.pass);
 }
 
+// Two lines have no 1:1 automated check (nothing currently measures
+// "concrete vs vague" or blank-line-only paragraph spacing) so they stay
+// fixed text. Every OTHER line is pulled from CHECKS[].ruleText, so a future
+// check change can never silently drift from the prompt again.
+const FIXED_STYLE_LINES = {
+  concreteDetails: 'Concrete details over vague claims. Talk directly to the reader, not about them.',
+  blankLineSpacing: 'Use one blank line between paragraphs, never between individual sentences.',
+};
+
 /**
  * Generates the style-rules prompt block FROM the registry. Every hard check
- * contributes its rule line; prompts and guards share one source of truth.
- * Phase 3 swaps this into BASE_SYSTEM / HOOK_SYSTEM (index.ts) and HARD_RULES
- * (compact.ts). Wording mirrors the current HARD_RULES semantics on purpose.
+ * with a ruleText contributes its rule line only when the check applies to
+ * ctx (mirroring the exact gating runChecks itself uses), so prompt and
+ * guard cannot diverge. Phase 3 wires this into BASE_SYSTEM/HOOK_SYSTEM
+ * (index.ts) and HARD_RULES (compact.ts).
  */
 export function styleRulesFromChecks(ctx: CheckContext): string {
-  const lines: string[] = [
+  const byId = new Map(CHECKS.filter((c) => c.ruleText).map((c) => [c.id, c] as const));
+  const ruleFor = (id: string): string | undefined => {
+    const c = byId.get(id);
+    if (!c) return undefined;
+    const applies = c.appliesTo ? c.appliesTo(ctx) : isProse(ctx);
+    return applies ? c.ruleText!(ctx) : undefined;
+  };
+
+  const lines = [
     'HARD RULES:',
-    '- Plain text only. No markdown, no **bold**, no # headers, no bullet asterisks.',
-    '- No em dashes anywhere. Ever. Use a comma, period, or hyphen.',
-    '- Concrete details over vague claims. Talk directly to the reader, not about them.',
-    '- Never invent a specific number, statistic, name, company, test, or personal anecdote that was not given in the prompt or context. If a beat has no real fact, write honest opinion or analysis instead.',
-    '- Group sentences into real paragraphs of 2-4 sentences each. Never a run of single-sentence paragraphs; only the opening hook and the final line may stand alone.',
-    '- Do not treat structural labels like Hook/Setup/Story/Insight/CTA as cues for one-sentence paragraphs; merge those beats into flowing prose.',
-    '- Use one blank line between paragraphs, never between individual sentences.',
-    '- No corporate speak, no throat-clearing openers ("in today\'s world", "let\'s dive in"), no AI-tell vocabulary (delve, tapestry, leverage, game-changer, ever-evolving).',
-  ];
-  if (ctx.contentType === 'post') {
-    lines.push('- No engagement bait: never end the hook with "Agree?", never "Comment X for Y", never "Repost if", no one-line ladder formatting.');
-    const b = ctx.platform ? LENGTH_BOUNDS[ctx.platform] : undefined;
-    if (b) lines.push(`- Length for ${ctx.platform}: between ${b.min} and ${b.max} characters.`);
-  }
-  if (ctx.mentions?.length) {
-    lines.push(`- Include exactly these @mentions naturally, and no others: ${ctx.mentions.map((m) => (m.startsWith('@') ? m : `@${m}`)).join(', ')}.`);
-  }
-  return lines.join('\n');
+    ruleFor('markdown'),
+    ruleFor('em_dash'),
+    FIXED_STYLE_LINES.concreteDetails,
+    ruleFor('fabricated_specifics'),
+    ruleFor('paragraph_shape'),
+    FIXED_STYLE_LINES.blankLineSpacing,
+    ruleFor('slop_phrases'),
+    ruleFor('bait_hook'),
+    ruleFor('platform_length'),
+    ruleFor('mention_integrity'),
+  ].filter((l): l is string => Boolean(l));
+
+  return [lines[0], ...lines.slice(1).map((l) => `- ${l}`)].join('\n');
 }

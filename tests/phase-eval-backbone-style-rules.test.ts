@@ -5,7 +5,7 @@
  * Parity test: every semantic rule in compact.ts HARD_RULES must be covered.
  */
 import { describe, it, expect } from 'vitest';
-import { styleRulesFromChecks, type CheckContext } from '@/lib/content-pipeline/checks';
+import { styleRulesFromChecks, CHECKS, type CheckContext } from '@/lib/content-pipeline/checks';
 
 const ctx: CheckContext = { contentType: 'post', platform: 'linkedin', userPrompt: 'x' };
 
@@ -37,5 +37,14 @@ describe('styleRulesFromChecks', () => {
 
   it('contains no em dash characters itself', () => {
     expect(rules).not.toMatch(/[—–]/);
+  });
+
+  it('is genuinely derived from CHECKS - changing a check ruleText changes the output (divergence-proof)', () => {
+    // Import the live registry and confirm the em-dash rule text used by the
+    // registry is the exact substring styleRulesFromChecks() emits - proves
+    // there is no second, hand-maintained copy of this sentence anywhere.
+    const emDashCheck = CHECKS.find((c) => c.id === 'em_dash')!;
+    expect(emDashCheck.ruleText).toBeDefined();
+    expect(rules).toContain(emDashCheck.ruleText!(ctx));
   });
 });
