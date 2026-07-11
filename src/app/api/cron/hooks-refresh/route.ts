@@ -3,6 +3,7 @@ import { getServiceClient } from '@/lib/insforge/server';
 import { mineNiche } from '@/lib/hooks-intelligence/mining';
 import { logCronRun } from '@/lib/admin/cron-log';
 import { logError, logInfo } from '@/lib/logger';
+import { type RefreshNiche, selectDueNiches, budgetGate } from '@/lib/hooks-intelligence/refresh-scheduler';
 
 /**
  * GET /api/cron/hooks-refresh
@@ -21,27 +22,6 @@ import { logError, logInfo } from '@/lib/logger';
  * Per-niche mining failures are isolated: one niche throwing does not stop the
  * loop or the counter decrement for the rest of the run.
  */
-
-export interface RefreshNiche {
-  id: string; label: string; seed_keywords: string[];
-  status: string; active_user_count: number; last_mined_at: string | null;
-}
-
-const WEEK_MS = 7 * 86400000;
-
-/** Active, in-use niches never mined or stale beyond 7 days. */
-export function selectDueNiches(niches: RefreshNiche[], now: number): RefreshNiche[] {
-  return niches.filter((n) =>
-    n.status === 'active' &&
-    n.active_user_count > 0 &&
-    (n.last_mined_at === null || now - new Date(n.last_mined_at).getTime() >= WEEK_MS),
-  );
-}
-
-/** True while there is budget left to mine another niche. */
-export function budgetGate(spentUsd: number, capUsd: number): boolean {
-  return spentUsd < capUsd;
-}
 
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const started = Date.now();

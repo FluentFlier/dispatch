@@ -5,7 +5,7 @@
  * manual dry-run (Step 5).
  */
 import { describe, it, expect } from 'vitest';
-import { selectDueNiches, budgetGate } from '@/app/api/cron/hooks-refresh/route';
+import { selectDueNiches, budgetGate } from '@/lib/hooks-intelligence/refresh-scheduler';
 
 const day = 86400000;
 const now = new Date('2026-07-11T00:00:00Z').getTime();
