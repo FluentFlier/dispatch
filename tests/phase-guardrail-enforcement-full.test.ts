@@ -196,3 +196,72 @@ describe('Phase: Guardrail Consolidation - full pipeline enforcement wiring', ()
     expect(evaluateDraft).not.toHaveBeenCalled();
   });
 });
+
+describe('Phase: Guardrail Consolidation - compact pipeline enforcement wiring', () => {
+  const chatCompletion = vi.fn();
+  const evaluateDraft = vi.fn();
+
+  beforeEach(() => {
+    vi.resetModules();
+    chatCompletion.mockReset();
+    evaluateDraft.mockReset();
+    // The sibling "full pipeline" describe above registers PARTIAL doMocks
+    // for '@/lib/voice-prompts' (buildVoiceComposeHints only) and
+    // '@/lib/humanizer' (humanizePipeline only). vi.doMock registrations are
+    // NOT cleared by vi.resetModules() - they leak across describe blocks in
+    // the same file. compact.ts calls PLATFORM_PLAYBOOKS, CONTENT_TYPE_HINTS,
+    // and deterministicPreClean directly (index.ts's full pipeline does not
+    // call the latter two the same way), so the leaked partial mocks break
+    // it. Unmock so this block always gets the real modules.
+    vi.doUnmock('@/lib/voice-prompts');
+    vi.doUnmock('@/lib/humanizer');
+    vi.doMock('@/lib/llm', () => ({
+      chatCompletion: (...a: unknown[]) => chatCompletion(...a),
+      LlmError: class LlmError extends Error {},
+    }));
+    vi.doMock('@/lib/voice-evaluator', () => ({
+      evaluateDraft: (...a: unknown[]) => evaluateDraft(...a),
+      evaluationPasses: (m: { pass?: boolean }) => m.pass === true,
+    }));
+    process.env.LLM_PIPELINE_MODE = 'compact';
+    delete process.env.LLM_MODEL_SMART;
+  });
+
+  const PROFILE = { display_name: 'Ani', voice_description: 'punchy', voice_rules: 'no em dashes', content_pillars: [] } as never;
+  const pass = { persona_fidelity: 9, uniqueness: 9, specificity: 9, so_what: 9, pain_resonance: 9, ai_slop: 1, revision_notes: '', pass: true };
+  // 460+ chars (LinkedIn's 400-char platform_length floor) - repeat(4) (375
+  // chars) is UNDER the floor and false-fails platform_length, same fixture
+  // bug class as Task 3 Step 8: fix the mock's return value, not checks.ts.
+  const CLEAN = 'We shipped the new onboarding flow after three weeks of watching users get stuck on step two. '.repeat(5).trim();
+
+  it('clean output makes exactly the 2 base compact calls, no enforcement calls added', async () => {
+    evaluateDraft.mockResolvedValue(pass);
+    chatCompletion.mockResolvedValue(CLEAN);
+    const { runContentPipeline } = await import('@/lib/content-pipeline');
+    await runContentPipeline({ userPrompt: 'write about onboarding', profile: PROFILE, platform: 'linkedin', model: '8b-model' });
+    expect(chatCompletion).toHaveBeenCalledTimes(2);
+  });
+
+  it('hard check failure after call 2 triggers exactly one targeted revise call', async () => {
+    evaluateDraft.mockResolvedValue(pass);
+    chatCompletion
+      .mockResolvedValueOnce(CLEAN) // call 1: draft
+      .mockResolvedValueOnce('bad — text with an em dash, still long enough otherwise to pass every length floor easily. '.repeat(3)) // call 2: edit pass (broken)
+      .mockResolvedValue(CLEAN); // call 3: targeted revise (fixed)
+    const { runContentPipeline } = await import('@/lib/content-pipeline');
+    const result = await runContentPipeline({ userPrompt: 'x', profile: PROFILE, platform: 'linkedin', model: '8b-model' });
+    expect(chatCompletion).toHaveBeenCalledTimes(3);
+    expect(result.text).not.toMatch(/[—–]/);
+  });
+
+  it('escalates once and ships best-of when still failing after targeted revise, flags hard_check_failed if unresolved', async () => {
+    process.env.LLM_MODEL_SMART = 'smart-model';
+    evaluateDraft.mockResolvedValue({ ...pass, pass: false });
+    chatCompletion.mockResolvedValue('too short'); // every call, including escalation, still fails platform_length
+    const { runContentPipeline } = await import('@/lib/content-pipeline');
+    const result = await runContentPipeline({ userPrompt: 'x', profile: PROFILE, platform: 'linkedin', model: '8b-model' });
+    expect(result.flags).toContain('hard_check_failed');
+    // call1 + call2(edit) + targeted-revise + escalation(edit on smart model) = 4, never more.
+    expect(chatCompletion.mock.calls.length).toBeLessThanOrEqual(4);
+  });
+});

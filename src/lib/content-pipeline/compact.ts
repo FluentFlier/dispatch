@@ -11,7 +11,8 @@ import { deterministicPreClean } from '@/lib/humanizer';
 import { voiceEvidenceOnly, stripSections, substanceContextOnly, VOICE_EVIDENCE_HEADERS } from './context-split';
 import { finalizeResult, stripEmDashes } from './finalize';
 import type { ContentPipelineInput, ContentPipelineResult } from './index';
-import { styleRulesFromChecks, type CheckContext } from './checks';
+import { styleRulesFromChecks, runChecks, hardFailures, type CheckContext } from './checks';
+import { targetedRevise, escalateOnce, selectBest, type EnforceCandidate } from './enforce';
 import { SLOP_WORDS, SLOP_PHRASES } from './slop-lexicon';
 
 /**
@@ -189,24 +190,71 @@ export async function runCompactPipeline(
   );
   stagesCompleted.push('humanize');
 
+  // --- Enforcement gate (spec 3.2): runs after call 2 in compact mode ---
+  // True worst-case call count (doc correction - the plan said +2, it's +3):
+  // Gate A targetedRevise adds +1 chatCompletion, Gate B escalateOnce's
+  // regenerate adds +1 chatCompletion, and re-evaluating the escalated
+  // candidate adds +1 evaluateDraft. So worst case is 4 chatCompletion calls
+  // (draft, edit, targeted-revise, escalation-edit) + up to 2 evaluateDraft
+  // calls (initial + escalated) = 6 LLM calls total, never more - escalation
+  // is bounded to run at most once regardless of outcome.
+  const checkCtx = buildCheckContext(input);
+  const gate = await targetedRevise(text, checkCtx, input.model);
+  text = gate.text;
+  // task5: emit targeted_revise when gate.revisedForChecks
+
   // Single evaluation for scoring - relaxed threshold, no revise loop. A small
   // model revising off a small model's notes destroys more than it fixes.
   let evaluation: VoiceEvaluationMatrix | undefined;
+  const evalContentType = contentType === 'reply' || contentType === 'comment' ? contentType : 'post';
+  const evalContext = contentType === 'post' ? stripSections(input.contextAdditions, ['EMAIL VOICE']) : input.contextAdditions;
   if (useVoice && profile) {
-    const evalContentType =
-      contentType === 'reply' || contentType === 'comment' ? contentType : 'post';
-    const evalContext =
-      contentType === 'post' ? stripSections(input.contextAdditions, ['EMAIL VOICE']) : input.contextAdditions;
     evaluation = await evaluateDraft(text, profile, evalContext || undefined, evalContentType, 7);
     stagesCompleted.push('evaluate');
   }
+
+  const candidates: EnforceCandidate[] = [{ text, checkResults: gate.checkResults, evaluation }];
+  const stillHardFailing = hardFailures(gate.checkResults).length > 0;
+  const judgeFailing = Boolean(evaluation && !evaluation.pass && !evaluation.parse_error);
+  if (stillHardFailing || judgeFailing) {
+    const escalatedText = await escalateOnce(async (smartModel) => {
+      // task5: emit escalated
+      const preCleaned = deterministicPreClean(text, preserve);
+      return stripEmDashes(
+        await chatCompletion(buildCompactEditSystem(input), `DRAFT:\n---\n${preCleaned}\n---`, {
+          temperature: 0.4,
+          maxTokens: 1200,
+          model: smartModel,
+        }),
+      );
+    });
+    if (escalatedText) {
+      const escChecks = runChecks(escalatedText, checkCtx);
+      let escEvaluation: VoiceEvaluationMatrix | undefined;
+      if (useVoice && profile) {
+        escEvaluation = await evaluateDraft(escalatedText, profile, evalContext || undefined, evalContentType, 7);
+      }
+      candidates.push({ text: escalatedText, checkResults: escChecks, evaluation: escEvaluation });
+    }
+  }
+
+  const best = selectBest(candidates);
+  text = best.text;
+  evaluation = best.evaluation;
+  const finalHardFails = hardFailures(best.checkResults);
+  // task5: emit hard_check_failed when finalHardFails.length (best still fails after Gate B)
+  const flags = [
+    ...(evaluation && !evaluation.pass ? ['below_voice_threshold'] : []),
+    ...(finalHardFails.length ? ['hard_check_failed', ...finalHardFails.map((f) => f.id)] : []),
+  ];
+  // task5: emit shipped_below_threshold when evaluation && !evaluation.pass (ships anyway - best-of already ran)
 
   return finalizeResult(
     text,
     true,
     evaluation,
     false,
-    evaluation && !evaluation.pass ? ['below_voice_threshold'] : [],
+    flags,
     stagesCompleted,
     ['pre_clean', 'clean'],
     undefined,
