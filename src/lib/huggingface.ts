@@ -104,38 +104,49 @@ export async function transcribeAudioHF(audioBlob: Blob): Promise<string> {
   return response.text;
 }
 
+export interface AiLikelihoodResult {
+  /** P(AI) in [0,1]. */
+  score: number;
+  /** Which detector actually produced the score. */
+  detector: 'desklib' | 'heuristic';
+}
+
 /**
  * AI-text likelihood via desklib/ai-text-detector-v1.01 (DeBERTa-v3, RAID leader
- * 2026). Returns P(AI) in [0,1]. Used to keep mined slop out of the hook corpus
- * (spec 2.3.4). Fails OPEN (returns 0 = "looks human") on any API error so a
- * detector outage degrades to "accept" rather than crashing a mining run.
+ * 2026). Returns { score: P(AI) in [0,1], detector } so the mining gate
+ * (spec 2.3.4) always knows the provenance and can never silently no-op.
  *
- * Defensive parsing: the Inference API's label convention isn't guaranteed
- * (seen: "AI"/"Human", "LABEL_1"/"LABEL_0"). If a response comes back that
- * matches neither pattern, we log a descriptive warning (so an unrecognized
- * shape is never a *silent* pass) and still return 0 to preserve the fail-open
- * contract required by the mining pipeline.
+ * Any detector failure (missing key, API error, non-array response,
+ * unrecognized label set - seen conventions: "AI"/"Human", "LABEL_1"/"LABEL_0")
+ * is logged via console.error and falls back to the deterministic
+ * heuristicAiScore path from humanizer.ts, normalized to 0-1, tagged
+ * detector: 'heuristic'. Imported lazily to avoid the static cycle
+ * huggingface -> humanizer -> llm -> huggingface.
  */
-export async function aiTextLikelihood(text: string): Promise<number> {
+export async function aiTextLikelihood(text: string): Promise<AiLikelihoodResult> {
+  const fallback = async (reason: string): Promise<AiLikelihoodResult> => {
+    console.error(`aiTextLikelihood: falling back to heuristic detector: ${reason}`);
+    const { heuristicAiScore } = await import('./humanizer');
+    return { score: heuristicAiScore(text) / 100, detector: 'heuristic' };
+  };
+
   const apiKey = process.env.HUGGINGFACE_API_KEY;
-  if (!apiKey) return 0;
+  if (!apiKey) return fallback('HUGGINGFACE_API_KEY not configured');
   try {
     const out = (await hf.textClassification({
       model: 'desklib/ai-text-detector-v1.01',
       inputs: text.slice(0, 4000),
     })) as Array<{ label: string; score: number }>;
     if (!Array.isArray(out)) {
-      console.error(`aiTextLikelihood: unexpected response shape from desklib detector: ${JSON.stringify(out)}`);
-      return 0;
+      return fallback(`unexpected response shape from desklib detector: ${JSON.stringify(out)}`);
     }
     const ai = out.find((r) => /ai|machine|generated|fake|label_1/i.test(r.label));
-    if (ai) return ai.score;
+    if (ai) return { score: ai.score, detector: 'desklib' };
     // Only a human/real label came back -> AI prob is its complement.
     const human = out.find((r) => /human|real|label_0/i.test(r.label));
-    if (human) return 1 - human.score;
-    console.error(`aiTextLikelihood: unrecognized label set from desklib detector: ${JSON.stringify(out.map((r) => r.label))}`);
-    return 0;
-  } catch {
-    return 0;
+    if (human) return { score: 1 - human.score, detector: 'desklib' };
+    return fallback(`unrecognized label set from desklib detector: ${JSON.stringify(out.map((r) => r.label))}`);
+  } catch (err) {
+    return fallback(`desklib API error: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
