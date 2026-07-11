@@ -21,10 +21,10 @@ describe('checks: framework', () => {
     const results = runChecks(CLEAN_LI_POST, ctx());
     const ids = results.map((r) => r.id);
     expect(new Set(ids).size).toBe(ids.length);
-    // Task 2 registers 4 checks (em_dash, markdown, platform_length, mention_integrity);
-    // Task 3 appends paragraph_shape + fabricated_specifics, Task 4 appends soft checks,
-    // raising this count further. Bound reflects Task 2's actual scope, not the final registry.
-    expect(results.length).toBeGreaterThanOrEqual(4);
+    // Task 2 registered 4 checks (em_dash, markdown, platform_length, mention_integrity);
+    // Task 3 appends paragraph_shape + fabricated_specifics (6 total). Task 4 appends soft
+    // checks, raising this count further. Bound reflects checks applicable to CLEAN_LI_POST.
+    expect(results.length).toBeGreaterThanOrEqual(6);
   });
 
   it('clean post passes all hard checks', () => {

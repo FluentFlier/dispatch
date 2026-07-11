@@ -122,7 +122,79 @@ const mentionIntegrity: Check = {
   },
 };
 
-export const CHECKS: Check[] = [emDash, markdown, platformLength, mentionIntegrity];
+// --- paragraph_shape -------------------------------------------------------
+// Mirrors the intent of finalize.ts enforceParagraphFloor but as a DETECTOR:
+// records whether the raw draft violated the floor (the auto-fix stays where
+// it is; Phase 3 uses this signal for events/revision).
+const sentenceCount = (p: string) =>
+  (p.match(/[.!?](?=\s|["')\]]*(?:\s|$))/g) || []).length || 1;
+
+const paragraphShape: Check = {
+  id: 'paragraph_shape', severity: 'hard',
+  appliesTo: isPost,
+  test: (text) => {
+    const paras = text.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+    if (paras.length <= 3) return pass('paragraph_shape', 'hard');
+    const middle = paras.slice(1, -1);
+    let run = 0;
+    for (const p of middle) {
+      run = sentenceCount(p) === 1 ? run + 1 : 0;
+      if (run >= 3) {
+        return fail('paragraph_shape', 'hard', p,
+          'Merge consecutive one-sentence paragraphs into flowing 2-4 sentence paragraphs (hook and closing line may stand alone).');
+      }
+    }
+    return pass('paragraph_shape', 'hard');
+  },
+};
+
+// --- fabricated_specifics ---------------------------------------------------
+const NUM_WHITELIST = new Set(['1', '2', '3', '4', '5', '10', '100']);
+const WORD_WHITELIST = new Set([
+  'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+  'january', 'february', 'march', 'april', 'may', 'june', 'july', 'august',
+  'september', 'october', 'november', 'december',
+  'linkedin', 'twitter', 'instagram', 'threads', 'youtube', 'tiktok', 'google', 'ai',
+]);
+
+function normalizeNumber(raw: string): string {
+  return raw.replace(/[,$%]/g, '').replace(/[km]$/i, '');
+}
+
+const fabricatedSpecifics: Check = {
+  id: 'fabricated_specifics', severity: 'hard',
+  appliesTo: isProse,
+  test: (text, ctx) => {
+    const allowed = [ctx.userPrompt, ctx.sourceContext ?? '', ctx.profile?.display_name ?? '',
+      (ctx.mentions ?? []).join(' ')].join(' ').toLowerCase();
+    const allowedDigits = new Set(
+      Array.from(allowed.matchAll(/[$]?\d[\d,.]*[%km]?/gi)).map((m) => normalizeNumber(m[0])),
+    );
+
+    for (const m of Array.from(text.matchAll(/[$]?\d[\d,.]*[%km]?/gi))) {
+      const norm = normalizeNumber(m[0]);
+      if (NUM_WHITELIST.has(norm)) continue;
+      if (!allowedDigits.has(norm) && !allowed.includes(norm)) {
+        return fail('fabricated_specifics', 'hard', m[0],
+          `Remove or replace the number "${m[0]}" - it does not appear in the request or provided context. Never invent statistics.`);
+      }
+    }
+
+    // Proper nouns: 2+ consecutive Capitalized words, skipping sentence starts.
+    for (const m of Array.from(text.matchAll(/(?<![.!?]\s)(?<!^)\b([A-Z][a-z]+(?: [A-Z][a-z]+)+)\b/gm))) {
+      const nameLower = m[1].toLowerCase();
+      const words = nameLower.split(' ');
+      if (words.every((w) => WORD_WHITELIST.has(w))) continue;
+      if (!allowed.includes(nameLower)) {
+        return fail('fabricated_specifics', 'hard', m[1],
+          `Remove "${m[1]}" - this name does not appear in the request or provided context. Never invent people or companies.`);
+      }
+    }
+    return pass('fabricated_specifics', 'hard');
+  },
+};
+
+export const CHECKS: Check[] = [emDash, markdown, platformLength, mentionIntegrity, paragraphShape, fabricatedSpecifics];
 
 export function runChecks(text: string, ctx: CheckContext): CheckResult[] {
   const results: CheckResult[] = [];
