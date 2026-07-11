@@ -43,11 +43,23 @@ export interface Check {
    * Return undefined to contribute no line for this ctx.
    */
   ruleText?: (ctx: CheckContext) => string | undefined;
+  /**
+   * Optional prompt-emission gate consulted ONLY by styleRulesFromChecks
+   * (defaults to appliesTo ?? isProse). Lets base-hygiene rules (markdown,
+   * em dashes, slop vocabulary) reach non-prose text outputs like 'hooks'
+   * and 'caption' prompts WITHOUT changing which content types runChecks
+   * measures/enforces.
+   */
+  ruleAppliesTo?: (ctx: CheckContext) => boolean;
 }
 
 const PROSE_TYPES = new Set(['post', 'reply', 'comment']);
 const isProse = (ctx: CheckContext) => PROSE_TYPES.has(ctx.contentType);
 const isPost = (ctx: CheckContext) => ctx.contentType === 'post';
+
+// Every pipeline output is text a human will post somewhere - base hygiene
+// (no markdown, no em dashes, no slop vocabulary) prompt-applies universally.
+const anyTextOutput = () => true;
 
 const pass = (id: string, severity: CheckSeverity): CheckResult => ({ id, severity, pass: true });
 const fail = (id: string, severity: CheckSeverity, evidence: string, fixHint: string): CheckResult =>
@@ -56,6 +68,7 @@ const fail = (id: string, severity: CheckSeverity, evidence: string, fixHint: st
 // --- em_dash -------------------------------------------------------------
 const emDash: Check = {
   id: 'em_dash', severity: 'hard',
+  ruleAppliesTo: anyTextOutput,
   ruleText: () => 'No em dashes anywhere. Ever. Use a comma, period, or hyphen instead.',
   test: (text) => {
     const m = text.match(/[—–]/);
@@ -76,6 +89,7 @@ const MD_PATTERNS: Array<[RegExp, string]> = [
 ];
 const markdown: Check = {
   id: 'markdown', severity: 'hard',
+  ruleAppliesTo: anyTextOutput,
   ruleText: () => 'Plain text only. No markdown, no **bold**, no # headers, no bullet asterisks.',
   test: (text) => {
     for (const [re, label] of MD_PATTERNS) {
@@ -258,6 +272,7 @@ const fabricatedSpecifics: Check = {
 // --- slop_phrases (soft) ----------------------------------------------------
 const slopPhrases: Check = {
   id: 'slop_phrases', severity: 'soft',
+  ruleAppliesTo: anyTextOutput,
   ruleText: () =>
     'No corporate speak, no throat-clearing openers ("in today\'s world", "let\'s dive in"), no AI-tell vocabulary (delve, tapestry, leverage, game-changer, ever-evolving).',
   test: (text) => {
@@ -421,7 +436,7 @@ export function styleRulesFromChecks(ctx: CheckContext): string {
   const ruleFor = (id: string): string | undefined => {
     const c = byId.get(id);
     if (!c) return undefined;
-    const applies = c.appliesTo ? c.appliesTo(ctx) : isProse(ctx);
+    const applies = (c.ruleAppliesTo ?? c.appliesTo ?? isProse)(ctx);
     return applies ? c.ruleText!(ctx) : undefined;
   };
 
@@ -432,7 +447,8 @@ export function styleRulesFromChecks(ctx: CheckContext): string {
     FIXED_STYLE_LINES.concreteDetails,
     ruleFor('fabricated_specifics'),
     ruleFor('paragraph_shape'),
-    FIXED_STYLE_LINES.blankLineSpacing,
+    // Paragraph spacing is prose layout advice - noise on hook lists/captions.
+    isProse(ctx) ? FIXED_STYLE_LINES.blankLineSpacing : undefined,
     ruleFor('slop_phrases'),
     ruleFor('bait_hook'),
     ruleFor('platform_length'),

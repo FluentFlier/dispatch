@@ -39,6 +39,22 @@ describe('styleRulesFromChecks', () => {
     expect(rules).not.toMatch(/[—–]/);
   });
 
+  it('hygiene rules (markdown/em dash/slop) reach non-prose text outputs like hooks and caption', () => {
+    // Old BASE_SYSTEM said "plain text, no markdown, no em dashes" for EVERY
+    // content type; the registry swap must not weaken hooks/caption prompts.
+    for (const contentType of ['hooks', 'caption']) {
+      const out = styleRulesFromChecks({ ...ctx, contentType });
+      expect(out).toMatch(/no markdown/i);
+      expect(out).toMatch(/em dash/i);
+      expect(out).toMatch(/corporate speak/i);
+      // Paragraph-spacing prose rules are noise on a hook list / caption.
+      expect(out).not.toMatch(/blank line between paragraphs/i);
+      expect(out).not.toMatch(/2-4 sentences/);
+    }
+    // Prose keeps the spacing rule.
+    expect(rules).toMatch(/blank line between paragraphs/i);
+  });
+
   it('is genuinely derived from CHECKS - changing a check ruleText changes the output (divergence-proof)', () => {
     // Import the live registry and confirm the em-dash rule text used by the
     // registry is the exact substring styleRulesFromChecks() emits - proves
