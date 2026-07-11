@@ -1,6 +1,12 @@
 import { NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
+import { isComposioConfigured } from '@/lib/composio/config';
+import {
+  checkEventCaptureSetup,
+  isMissingRelationError,
+  setupRequiredResponse,
+} from '@/lib/db/setup-gate';
 
 /**
  * GET /api/event-capture
@@ -20,6 +26,17 @@ export async function GET(): Promise<NextResponse> {
   }
 
   const client = getServerClient();
+  const composioOk = isComposioConfigured();
+  const setup = await checkEventCaptureSetup(client, composioOk);
+
+  // Hard-block only when the table is missing — otherwise soft-fail with a setup
+  // banner so existing captures remain visible if Composio is temporarily unset.
+  if (setup.missing.includes('event_captures')) {
+    return setupRequiredResponse(['event_captures'], {
+      error: 'Event capture is not ready yet — contact support',
+      detail: 'Apply the event_captures migration on InsForge',
+    });
+  }
 
   const { data, error } = await client.database
     .from('event_captures')
@@ -31,9 +48,29 @@ export async function GET(): Promise<NextResponse> {
     .order('end_time', { ascending: false });
 
   if (error) {
+    if (isMissingRelationError(error)) {
+      return setupRequiredResponse(['event_captures'], {
+        error: 'Event capture is not ready yet — contact support',
+        detail: 'Apply the event_captures migration on InsForge',
+      });
+    }
     console.error('[event-capture] GET inbox error', error);
     return NextResponse.json({ error: 'Failed to fetch captures' }, { status: 500 });
   }
 
-  return NextResponse.json({ captures: data ?? [] });
+  const captures = data ?? [];
+  if (!composioOk && captures.length === 0) {
+    return NextResponse.json({
+      captures: [],
+      setupRequired: true,
+      missing: ['composio'],
+      error: 'Connect Google Calendar (Composio) to capture events.',
+      detail: 'Configure COMPOSIO_API_KEY and the Google Calendar auth config',
+    });
+  }
+
+  return NextResponse.json({
+    captures,
+    ...(composioOk ? {} : { setupRequired: true, missing: ['composio'] }),
+  });
 }

@@ -19,6 +19,12 @@ describe('WS3.1 feedViewState distinguishes error from empty', () => {
     expect(feedViewState({ loading: false, loadError: true, cardCount: 0 })).toBe('error');
   });
 
+  it('shows setup when the leads engine is not provisioned', () => {
+    expect(
+      feedViewState({ loading: false, loadError: false, cardCount: 0, setupRequired: true }),
+    ).toBe('setup');
+  });
+
   it('shows the empty state only for a genuine empty feed (no error)', () => {
     expect(feedViewState({ loading: false, loadError: false, cardCount: 0 })).toBe('empty');
   });

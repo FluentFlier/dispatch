@@ -9,6 +9,7 @@ import type { StoryBankEntry } from "@/lib/types";
 import { usePillars } from "@/hooks/usePillars";
 import StoryGrid from "@/components/story-bank/StoryGrid";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
 type UsedFilter = "all" | "unused" | "used";
 
@@ -74,7 +75,7 @@ export default function StoryBankPage() {
     setConvertingId(story.id);
     try {
       // Create post via API route
-      const postRes = await fetch("/api/posts", {
+      const postRes = await fetchWithAuth("/api/posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -97,7 +98,7 @@ export default function StoryBankPage() {
 
       // Mark story as used via API route
       if (newPost?.id) {
-        const patchRes = await fetch(`/api/story-bank/${story.id}`, {
+        const patchRes = await fetchWithAuth(`/api/story-bank/${story.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ used: true, used_post_id: newPost.id }),
@@ -124,7 +125,7 @@ export default function StoryBankPage() {
   const handleRemine = async (story: StoryBankEntry) => {
     setReminingId(story.id);
     try {
-      const res = await fetch("/api/generate", {
+      const res = await fetchWithAuth("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

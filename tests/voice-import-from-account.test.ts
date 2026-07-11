@@ -16,6 +16,7 @@ vi.mock('@/lib/workspace', () => ({
 vi.mock('@/lib/social/unipile', () => ({
   unipoleFetch: vi.fn(),
   fetchUnipileAccountDetails: vi.fn(),
+  listUnipileAccounts: vi.fn().mockResolvedValue([]),
   mapPlatform: vi.fn(),
 }));
 vi.mock('@/lib/social/sync-unipile-accounts', () => {
@@ -118,7 +119,15 @@ describe('POST /api/voice-lab/import-from-account', () => {
     (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue(mockUser);
     (getServerClient as ReturnType<typeof vi.fn>).mockReturnValue(mockServerClient());
     (getServiceClient as ReturnType<typeof vi.fn>).mockReturnValue(mockServerClient());
-    (fetchUnipileAccountDetails as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    // resolveUnipileTarget needs a live account detail (or listUnipileAccounts match).
+    // Returning a full account with the stored provider id keeps the happy path working.
+    (fetchUnipileAccountDetails as ReturnType<typeof vi.fn>).mockResolvedValue({
+      id: 'unipile_abc123',
+      type: 'LINKEDIN',
+      connection_params: {
+        im: { id: 'ACoAABcDEFgH', publicIdentifier: 'test-user' },
+      },
+    });
     (syncUnipileAccountsForUser as ReturnType<typeof vi.fn>).mockResolvedValue({ synced: 0, workspaceId: 'ws_123' });
     (unipoleFetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
@@ -195,8 +204,21 @@ describe('POST /api/voice-lab/import-from-account', () => {
 
   it('returns 404 when account_id (provider user ID) is missing', async () => {
     (getServerClient as ReturnType<typeof vi.fn>).mockReturnValue({
-      database: { from: vi.fn().mockReturnValue(mockDbChain({ unipile_account_id: 'unipile_abc123', account_id: null, account_name: 'Test' })) },
+      database: {
+        from: vi.fn().mockReturnValue(
+          mockDbChain({
+            unipile_account_id: 'unipile_abc123',
+            account_id: null,
+            account_name: 'Test',
+          }),
+        ),
+      },
     });
+    // No stored provider id and no live Unipile enrichment → cannot resolve target
+    (fetchUnipileAccountDetails as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    const { listUnipileAccounts } = await import('@/lib/social/unipile');
+    (listUnipileAccounts as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
     const { POST } = await import('@/app/api/voice-lab/import-from-account/route');
     const res = await POST(makeRequest({ platform: 'linkedin' }));
     expect(res.status).toBe(404);

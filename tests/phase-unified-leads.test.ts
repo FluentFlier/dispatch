@@ -574,6 +574,17 @@ describe('Phase: Unified Leads', () => {
     /** Builds a fake InsForge client whose tables are keyed off the given workspace_id. */
     function makeFakeClient(byWorkspace: Record<string, { leads: unknown[]; events: unknown[] }>) {
       const from = vi.fn((table: string) => {
+        // Setup-gate probes feature_flags + existence checks before the feed query.
+        if (table === 'feature_flags') {
+          const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+          chain.select = vi.fn().mockReturnValue(chain);
+          chain.eq = vi.fn().mockReturnValue(chain);
+          chain.maybeSingle = vi.fn().mockResolvedValue({ data: { enabled: true }, error: null });
+          chain.single = chain.maybeSingle;
+          chain.limit = vi.fn().mockResolvedValue({ data: [{ enabled: true }], error: null });
+          return chain;
+        }
+
         let ws = '';
         const chain: Record<string, ReturnType<typeof vi.fn>> = {};
         chain.select = vi.fn().mockReturnValue(chain);
@@ -581,12 +592,18 @@ describe('Phase: Unified Leads', () => {
           if (col === 'workspace_id') ws = val;
           return chain;
         });
+        // Existence probe (no workspace filter) and feed query both use limit().
         chain.limit = vi.fn().mockImplementation(() => {
+          if (!ws) {
+            // isTableMissing / setup probe — empty rows with no error = table exists
+            return Promise.resolve({ data: [], error: null });
+          }
           const rows = byWorkspace[ws]
             ? (table === 'signal_leads' ? byWorkspace[ws].leads : byWorkspace[ws].events)
             : [];
           return Promise.resolve({ data: rows, error: null });
         });
+        chain.maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
         return chain;
       });
       return { database: { from } };

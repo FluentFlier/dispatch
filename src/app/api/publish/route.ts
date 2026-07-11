@@ -12,7 +12,28 @@ import * as linkedinClient from '@/lib/platforms/linkedin';
 import * as instagramClient from '@/lib/platforms/instagram';
 import * as threadsClient from '@/lib/platforms/threads';
 import { decryptToken, encryptToken } from '@/lib/crypto';
+import { isUnipileConfigured } from '@/lib/unipile/config';
 import { z } from 'zod';
+
+/** Map provider/job failures to actionable client status codes (never silent success). */
+function publishFailureStatus(error: string | null | undefined): number {
+  const msg = (error ?? '').toLowerCase();
+  if (
+    msg.includes('not configured') ||
+    msg.includes('unipile_dsn') ||
+    msg.includes('unipile_api_key')
+  ) {
+    return 503;
+  }
+  if (
+    msg.includes('no unipile account') ||
+    (msg.includes('no ') && msg.includes('account connected')) ||
+    msg.includes('connect it in settings')
+  ) {
+    return 400;
+  }
+  return 500;
+}
 
 type SocialPlatform = 'twitter' | 'linkedin' | 'instagram' | 'threads';
 
@@ -214,8 +235,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const client = getServerClient();
   const publishContent = caption || content;
 
-  // Ayrshare path: durable queue + aggregator publish
+  // Unipile path: durable queue + Unipile publish (fail closed if misconfigured)
   if (getSocialProviderMode() === 'unipile') {
+    if (!isUnipileConfigured()) {
+      return NextResponse.json(
+        {
+          error:
+            'Publishing is not configured (Unipile). Set UNIPILE_API_KEY and UNIPILE_DSN, or connect accounts after the provider is provisioned.',
+        },
+        { status: 503 },
+      );
+    }
+
+    const { data: unipileAccount } = await client.database
+      .from('social_accounts')
+      .select('id, unipile_account_id')
+      .eq('user_id', user.id)
+      .eq('platform', platform)
+      .not('unipile_account_id', 'is', null)
+      .limit(1)
+      .maybeSingle();
+
+    if (!unipileAccount?.unipile_account_id) {
+      return NextResponse.json(
+        {
+          error: `No ${platform} account connected. Connect it in Settings before publishing.`,
+        },
+        { status: 400 },
+      );
+    }
+
     const resolvedPostId = postId ?? randomUUID();
 
     if (!postId) {
@@ -284,9 +333,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const updated = await processPublishJob(job, post);
     if (updated.status !== 'published') {
       await trackEvent('publish_failed', { platform, userId: user.id, jobId: job.id });
+      const errMsg = updated.last_error ?? 'Publishing failed';
       return NextResponse.json(
-        { error: updated.last_error ?? 'Publishing failed', jobId: job.id, status: updated.status },
-        { status: 500 }
+        { error: errMsg, jobId: job.id, status: updated.status },
+        { status: publishFailureStatus(errMsg) },
       );
     }
 

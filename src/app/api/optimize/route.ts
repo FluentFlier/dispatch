@@ -1,10 +1,9 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
-import { generateContent } from '@/lib/ai';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { guardAiRequest } from '@/lib/ai-guard';
-import { buildPlatformOptimizationPrompt, PLATFORM_LIMITS } from '@/lib/platform-optimize';
+import { generateOptimizeVariants, type OptimizePlatform } from '@/lib/optimize-variants';
 import { z } from 'zod';
 
 const PLATFORM_ENUM = z.enum(['twitter', 'linkedin', 'instagram', 'threads']);
@@ -16,147 +15,6 @@ const OptimizeSchema = z.object({
   postId: z.string().uuid().optional(),
   optimizationLevel: z.enum(['light', 'full']).default('full'),
 });
-
-type PlatformType = z.infer<typeof PLATFORM_ENUM>;
-
-interface Variant {
-  platform: PlatformType;
-  content: string;
-  characterCount: number;
-  isThread: boolean;
-  threadParts: string[] | null;
-}
-
-// PLATFORM_LIMITS + buildPlatformOptimizationPrompt now live in
-// @/lib/platform-optimize (shared with the main generate polish pass).
-
-function processTwitterContent(content: string): Variant {
-  const trimmed = content.trim();
-
-  // Check if the AI returned multiple tweets using the delimiter
-  if (trimmed.includes('---TWEET---')) {
-    let parts = trimmed
-      .split('---TWEET---')
-      .map((p) => p.trim())
-      .filter((p) => p.length > 0);
-
-    // Validate each part <= 280 chars; split oversized parts
-    const validatedParts: string[] = [];
-    for (const part of parts) {
-      if (part.length <= 280) {
-        validatedParts.push(part);
-      } else {
-        validatedParts.push(...splitIntoTweets(part));
-      }
-    }
-    parts = validatedParts;
-
-    if (parts.length > 1) {
-      const joined = parts.join('\n---TWEET---\n');
-      return {
-        platform: 'twitter',
-        content: joined,
-        characterCount: joined.length,
-        isThread: true,
-        threadParts: parts,
-      };
-    }
-  }
-
-  // Single tweet - check if it exceeds limit
-  if (trimmed.length <= 280) {
-    return {
-      platform: 'twitter',
-      content: trimmed,
-      characterCount: trimmed.length,
-      isThread: false,
-      threadParts: null,
-    };
-  }
-
-  // Content is over 280 chars but AI did not thread it - manually split
-  const parts = splitIntoTweets(trimmed);
-  return {
-    platform: 'twitter',
-    content: parts.join('\n---TWEET---\n'),
-    characterCount: parts.join('\n---TWEET---\n').length,
-    isThread: true,
-    threadParts: parts,
-  };
-}
-
-/**
- * Splits long text into tweet-sized chunks (<=280 chars each).
- * Tries to split at sentence boundaries, then at word boundaries.
- */
-function splitIntoTweets(text: string): string[] {
-  const maxLen = 280;
-  const tweets: string[] = [];
-  let remaining = text.trim();
-
-  while (remaining.length > 0) {
-    if (remaining.length <= maxLen) {
-      tweets.push(remaining);
-      break;
-    }
-
-    // Try to split at sentence boundary within limit
-    let splitIndex = -1;
-    const sentenceEnders = ['. ', '! ', '? ', '.\n', '!\n', '?\n'];
-    for (const ender of sentenceEnders) {
-      const idx = remaining.lastIndexOf(ender, maxLen - 1);
-      if (idx > 0 && idx > splitIndex) {
-        splitIndex = idx + ender.length - 1; // include the punctuation
-      }
-    }
-
-    // Fall back to word boundary
-    if (splitIndex <= 0) {
-      splitIndex = remaining.lastIndexOf(' ', maxLen - 1);
-    }
-
-    // Last resort: hard split
-    if (splitIndex <= 0) {
-      splitIndex = maxLen;
-    }
-
-    tweets.push(remaining.slice(0, splitIndex).trim());
-    remaining = remaining.slice(splitIndex).trim();
-  }
-
-  return tweets;
-}
-
-/**
- * Truncates content to the platform character limit.
- * Tries to truncate at word boundary, falls back to hard cut with ellipsis.
- */
-function truncateToLimit(text: string, limit: number): string {
-  if (text.length <= limit) return text;
-  // Try to truncate at last space before limit (leave room for ellipsis)
-  const cutoff = limit - 1;
-  const lastSpace = text.lastIndexOf(' ', cutoff);
-  if (lastSpace > limit * 0.5) {
-    return text.slice(0, lastSpace).trimEnd() + '\u2026';
-  }
-  return text.slice(0, cutoff) + '\u2026';
-}
-
-function processStandardContent(
-  platform: PlatformType,
-  content: string
-): Variant {
-  const trimmed = content.trim();
-  const limit = PLATFORM_LIMITS[platform];
-  const truncated = truncateToLimit(trimmed, limit);
-  return {
-    platform,
-    content: truncated,
-    characterCount: truncated.length,
-    isThread: false,
-    threadParts: null,
-  };
-}
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -188,40 +46,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     workspaceId: workspaceId ?? undefined,
   });
 
-  // Generate optimized content for each target platform
-  const variants: Variant[] = [];
-  const errors: { platform: PlatformType; error: string }[] = [];
+  const { variants, errors } = await generateOptimizeVariants({
+    content,
+    targetPlatforms: targetPlatforms as OptimizePlatform[],
+    optimizationLevel,
+    profile,
+    contextAdditions,
+  });
 
-  for (const platform of targetPlatforms) {
-    try {
-      const prompt = buildPlatformOptimizationPrompt(platform, content, optimizationLevel);
-      const systemOverride = undefined; // Use profile-based prompt
-      const generated = await generateContent(
-        prompt,
-        contextAdditions || undefined,
-        systemOverride,
-        profile,
-      );
-
-      // Strip em dashes from AI output
-      const cleaned = generated.replace(/\u2014/g, ' - ').replace(/\u2013/g, '-');
-
-      if (platform === 'twitter') {
-        variants.push(processTwitterContent(cleaned));
-      } else {
-        variants.push(processStandardContent(platform, cleaned));
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Generation failed';
-      errors.push({ platform, error: message });
-    }
-  }
-
-  // If all platforms failed, return 500
   if (variants.length === 0 && errors.length > 0) {
     return NextResponse.json(
       { error: 'All platform optimizations failed', details: errors },
-      { status: 500 }
+      { status: 500 },
     );
   }
 

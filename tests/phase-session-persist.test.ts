@@ -84,11 +84,12 @@ describe('POST /api/auth/refresh', () => {
   });
 
   it('does not clear session cookies when refresh is unauthorized', async () => {
+    vi.resetModules();
     vi.doMock('@/lib/auth-refresh', async (importOriginal) => {
       const actual = await importOriginal<typeof import('@/lib/auth-refresh')>();
       return {
         ...actual,
-        refreshSessionWithToken: vi.fn().mockResolvedValue('unauthorized'),
+        refreshSessionWithToken: vi.fn().mockResolvedValue('unauthorized' as const),
       };
     });
 
@@ -104,10 +105,14 @@ describe('POST /api/auth/refresh', () => {
     expect(response.status).toBe(401);
     const body = await response.json();
     expect(body.error).toBe('refresh_unauthorized');
+    // POST must not clear cookies — access JWT may still be valid
+    const setCookies = response.headers.getSetCookie?.() ?? [];
+    expect(setCookies.every((c) => !c.includes('Max-Age=0'))).toBe(true);
     expect(response.cookies.get(AUTH_COOKIE.access)?.value).toBeUndefined();
     expect(response.cookies.get(AUTH_COOKIE.refresh)?.value).toBeUndefined();
 
     vi.doUnmock('@/lib/auth-refresh');
+    vi.resetModules();
   });
 });
 

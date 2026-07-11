@@ -36,6 +36,10 @@ const UpdatePostSchema = z.object({
   used_hook_ids: z.array(z.string()).optional(),
   pipeline_stages: z.array(z.string()).optional(),
   updated_at: z.string().optional(),
+  // Ephemeral display-only fields with no column on `posts`; accept then strip
+  // before update so the editor never 400s on a forgiving payload.
+  hook_explanations: z.array(z.unknown()).optional(),
+  humanize_passes: z.array(z.string()).optional(),
 }).strict();
 
 export async function GET(
@@ -75,14 +79,15 @@ export async function PATCH(
   // Fetch existing post to compare content for auto-optimize
   const { data: existingPost } = await client
     .database.from('posts')
-    .select('script, caption')
+    .select('script, caption, workspace_id')
     .eq('id', params.id)
     .eq('user_id', user.id)
     .single();
 
   // When pillar/pillars/weights are being changed, keep all three in sync and
   // re-derive the primary as the highest-weight pillar.
-  const updatePayload: Record<string, unknown> = { ...parsed.data };
+  const { hook_explanations: _hookExplanations, humanize_passes: _humanizePasses, ...updatable } = parsed.data;
+  const updatePayload: Record<string, unknown> = { ...updatable };
   if (
     parsed.data.pillar !== undefined ||
     parsed.data.pillars !== undefined ||
@@ -116,16 +121,13 @@ export async function PATCH(
   if (hasContentChange && data) {
     const content = parsed.data.script || parsed.data.caption;
     if (content && data.platform) {
-      const origin = request.nextUrl.origin;
-      const cookieHeader = request.headers.get('cookie') ?? '';
-      // Fire-and-forget: do not await
+      // Fire-and-forget: in-process (no HTTP / cookie dependency)
       triggerAutoOptimize({
         userId: user.id,
         postId: params.id,
         content,
         sourcePlatform: data.platform,
-        requestCookies: cookieHeader,
-        origin,
+        workspaceId: data.workspace_id ?? existingPost?.workspace_id ?? null,
       }).catch((err) => {
         console.error('[posts] Auto-optimize trigger error:', err);
       });
