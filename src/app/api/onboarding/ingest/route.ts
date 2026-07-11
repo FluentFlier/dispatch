@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
-import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId, ensureSoloWorkspace } from '@/lib/workspace';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { errorResponse } from '@/lib/api-errors';
@@ -23,6 +23,7 @@ import { syncCreatorIntelToBrain } from '@/lib/brain/sync-intel';
 import { verifyOnboardingBrain, type OnboardingBrainCheck } from '@/lib/brain/verify';
 import { storePersona } from '@/lib/supermemory';
 import { captureVoiceDriftBaseline } from '@/lib/voice-drift';
+import { resolveNicheForProfile } from '@/lib/hooks-intelligence/niche-resolver';
 
 /** Vercel: ingest runs Unipile + Gmail + 2 LLM calls — allow up to 5 min. */
 export const maxDuration = 300;
@@ -387,6 +388,19 @@ async function persistOnboardingVoice(
       ...profilePayload,
     }]);
   }
+
+  // Fire-and-forget: never let niche classification/embedding slow or fail an
+  // onboarding save. ponytail: this is the one canonical profile-save site we
+  // wire (spec 2.2); other creator_profile writers (voice-lab save, admin
+  // toggles, display-name edits) still don't refresh niche_id - wire those if
+  // profile drift after initial onboarding turns out to matter.
+  void resolveNicheForProfile(getServiceClient(), {
+    user_id: userId,
+    display_name: profilePayload.display_name,
+    content_pillars: profilePayload.content_pillars,
+    voice_description: profilePayload.voice_description,
+    bio: bioFacts,
+  }).catch((e) => console.warn('[niche-resolver] failed', e));
 
   // onboarding_baseline + suggested_topic FIRST: these are what the resume path
   // (completeOnboardingFromStoredBaseline) needs, so if this write loop is cut
