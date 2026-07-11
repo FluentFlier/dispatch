@@ -41,12 +41,21 @@ export async function embedBatch(texts: string[]): Promise<number[][]> {
     const detail = await res.text().catch(() => '');
     throw new Error(`[embeddings] OpenAI returned ${res.status}: ${detail.slice(0, 200)}`);
   }
-  const json = (await res.json()) as { data?: Array<{ embedding: number[] }> };
+  const json = (await res.json()) as { data?: Array<{ index: number; embedding: number[] }> };
   const data = json.data ?? [];
   if (data.length !== texts.length) {
     throw new Error(`[embeddings] expected ${texts.length} vectors, got ${data.length}`);
   }
-  return data.map((d) => d.embedding);
+  const out: number[][] = new Array(texts.length);
+  for (const d of data) {
+    out[d.index] = d.embedding;
+  }
+  for (let i = 0; i < out.length; i++) {
+    if (out[i] === undefined) {
+      throw new Error(`[embeddings] missing embedding at index ${i} (malformed response)`);
+    }
+  }
+  return out;
 }
 
 /** Embeds one string. */

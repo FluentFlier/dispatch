@@ -40,7 +40,7 @@ describe('embedBatch', () => {
       expect(body.dimensions).toBe(512);
       expect(body.input).toHaveLength(2);
       return new Response(JSON.stringify({
-        data: [{ embedding: Array(512).fill(0.1) }, { embedding: Array(512).fill(0.2) }],
+        data: [{ index: 0, embedding: Array(512).fill(0.1) }, { index: 1, embedding: Array(512).fill(0.2) }],
       }), { status: 200 });
     });
     vi.stubGlobal('fetch', fetchMock);
@@ -49,6 +49,26 @@ describe('embedBatch', () => {
     expect(out).toHaveLength(2);
     expect(out[0]).toHaveLength(EMBED_DIM);
     expect(fetchMock).toHaveBeenCalledOnce();
+  });
+
+  it('restores input order when response data is out of order', async () => {
+    process.env.OPENAI_EMBEDDINGS_KEY = 'sk-embed';
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) => {
+      // Simulate OpenAI returning data out of order with index field
+      return new Response(JSON.stringify({
+        data: [
+          { index: 1, embedding: Array(512).fill(0.2) },
+          { index: 0, embedding: Array(512).fill(0.1) },
+        ],
+      }), { status: 200 });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const { embedBatch } = await import('@/lib/embeddings');
+    const out = await embedBatch(['a', 'b']);
+    // Verify order is restored to match input order, not response order
+    expect(out).toHaveLength(2);
+    expect(out[0][0]).toBe(0.1);
+    expect(out[1][0]).toBe(0.2);
   });
 });
 
