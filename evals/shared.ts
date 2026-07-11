@@ -14,37 +14,50 @@ const envFile = resolve(repoRoot, '.env.local');
 const pipelineCli = resolve(repoRoot, 'evals/providers/pipeline-cli.ts');
 
 /**
- * Judge: this repo's .env.local only has one LLM router (Groq, via LLM_BASE_URL
- * / LLM_API_KEY), so a true cross-family judge (e.g. Anthropic grading a
- * Groq-generated draft) isn't available locally today. The judge is configured
- * as a promptfoo OpenAI-compatible chat provider pointed at the same router
- * (apiBaseUrl = LLM_BASE_URL, apiKey = LLM_API_KEY) but a DIFFERENT model id
- * (EVAL_JUDGE_MODEL) than the generator uses (LLM_MODEL) - same-family judging,
- * different model. Cross-family judging is deferred until a second provider
- * key exists. Fail loudly if EVAL_JUDGE_MODEL is unset rather than silently
- * skipping judging.
+ * Judge: separate provider (Cerebras) from the generator (Groq via LLM_*).
+ * Two reasons: (1) cross-provider judging - the judge no longer shares the
+ * generator's key, so 334 judge calls per full run stop competing with the
+ * pipeline for the same Groq rate limit (the shared-key setup made full runs
+ * crawl under 429 backoff contention); (2) EVAL_JUDGE_MODEL stays the model
+ * pin (same gpt-oss-120b id, served by Cerebras). Base URL is hardcoded and
+ * the key read directly from CEREBRAS_API_KEY - deliberately NOT configurable
+ * via extra envs, so the judge config can't drift silently between runs;
+ * changing the judge means editing this file in a reviewed PR. Fail loudly if
+ * either env is unset rather than silently skipping judging.
  */
 const judgeModel = process.env.EVAL_JUDGE_MODEL;
-if (!judgeModel) throw new Error('Set EVAL_JUDGE_MODEL (e.g. "openai/gpt-oss-120b")');
-if (!process.env.LLM_BASE_URL || !process.env.LLM_API_KEY) {
-  throw new Error('Set LLM_BASE_URL and LLM_API_KEY (judge provider reuses the generation router)');
+if (!judgeModel) throw new Error('Set EVAL_JUDGE_MODEL (e.g. "gpt-oss-120b")');
+if (!process.env.CEREBRAS_API_KEY) {
+  throw new Error('Set CEREBRAS_API_KEY (judge provider runs on Cerebras, separate from the generation router)');
 }
 
 export const judgeProvider = {
   id: `openai:chat:${judgeModel}`,
   config: {
-    apiBaseUrl: process.env.LLM_BASE_URL,
-    apiKey: process.env.LLM_API_KEY,
+    apiBaseUrl: 'https://api.cerebras.ai/v1',
+    apiKey: process.env.CEREBRAS_API_KEY,
   },
 };
 
 export function evalCtxFromVars(vars: Record<string, unknown>): CheckContext {
+  // caseJson is the single source of truth (it's what the pipeline actually
+  // received). Parse it rather than reading mirrored top-level vars: a
+  // top-level ARRAY var (e.g. mentions) makes promptfoo expand one case into
+  // N test rows (observed: adversarial/mention-stuffing ran 5x -> 171 rows
+  // for 167 cases), so arrays must never be top-level vars. Top-level
+  // mirrors remain only for {{userPrompt}} rubric rendering.
+  let fromCase: Partial<CheckContext> = {};
+  try {
+    fromCase = JSON.parse((vars.caseJson as string) ?? '{}');
+  } catch {
+    /* fall back to top-level vars */
+  }
   return {
-    contentType: (vars.contentType as string) ?? 'post',
-    platform: vars.platform as string | undefined,
-    userPrompt: (vars.userPrompt as string) ?? '',
-    sourceContext: vars.sourceContext as string | undefined,
-    mentions: vars.mentions as string[] | undefined,
+    contentType: fromCase.contentType ?? (vars.contentType as string) ?? 'post',
+    platform: fromCase.platform ?? (vars.platform as string | undefined),
+    userPrompt: fromCase.userPrompt ?? (vars.userPrompt as string) ?? '',
+    sourceContext: fromCase.sourceContext ?? (vars.sourceContext as string | undefined),
+    mentions: fromCase.mentions ?? (vars.mentions as string[] | undefined),
   };
 }
 
