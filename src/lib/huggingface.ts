@@ -103,3 +103,39 @@ export async function transcribeAudioHF(audioBlob: Blob): Promise<string> {
 
   return response.text;
 }
+
+/**
+ * AI-text likelihood via desklib/ai-text-detector-v1.01 (DeBERTa-v3, RAID leader
+ * 2026). Returns P(AI) in [0,1]. Used to keep mined slop out of the hook corpus
+ * (spec 2.3.4). Fails OPEN (returns 0 = "looks human") on any API error so a
+ * detector outage degrades to "accept" rather than crashing a mining run.
+ *
+ * Defensive parsing: the Inference API's label convention isn't guaranteed
+ * (seen: "AI"/"Human", "LABEL_1"/"LABEL_0"). If a response comes back that
+ * matches neither pattern, we log a descriptive warning (so an unrecognized
+ * shape is never a *silent* pass) and still return 0 to preserve the fail-open
+ * contract required by the mining pipeline.
+ */
+export async function aiTextLikelihood(text: string): Promise<number> {
+  const apiKey = process.env.HUGGINGFACE_API_KEY;
+  if (!apiKey) return 0;
+  try {
+    const out = (await hf.textClassification({
+      model: 'desklib/ai-text-detector-v1.01',
+      inputs: text.slice(0, 4000),
+    })) as Array<{ label: string; score: number }>;
+    if (!Array.isArray(out)) {
+      console.error(`aiTextLikelihood: unexpected response shape from desklib detector: ${JSON.stringify(out)}`);
+      return 0;
+    }
+    const ai = out.find((r) => /ai|machine|generated|fake|label_1/i.test(r.label));
+    if (ai) return ai.score;
+    // Only a human/real label came back -> AI prob is its complement.
+    const human = out.find((r) => /human|real|label_0/i.test(r.label));
+    if (human) return 1 - human.score;
+    console.error(`aiTextLikelihood: unrecognized label set from desklib detector: ${JSON.stringify(out.map((r) => r.label))}`);
+    return 0;
+  } catch {
+    return 0;
+  }
+}
