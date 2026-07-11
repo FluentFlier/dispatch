@@ -178,16 +178,17 @@ const fabricatedSpecifics: Check = {
     const allowed = [ctx.userPrompt, ctx.sourceContext ?? '', ctx.profile?.display_name ?? '',
       (ctx.mentions ?? []).join(' ')].join(' ').toLowerCase();
     const allowedDigits = new Set(
-      Array.from(allowed.matchAll(/[$]?\d[\d,.]*[%km]?/gi)).map((m) => normalizeNumber(m[0])),
+      Array.from(allowed.matchAll(/[$]?\d[\d,.]*[%km]?/gi)).map((m) => normalizeNumber(m[0].replace(/[.,]+$/, ''))),
     );
 
     const scanText = IDIOM_RES.reduce((t, re) => t.replace(re, ''), text);
     for (const m of Array.from(scanText.matchAll(/[$]?\d[\d,.]*[%km]?/gi))) {
-      const norm = normalizeNumber(m[0]);
-      if (NUM_WHITELIST.has(norm) || isCalendarYear(m[0])) continue;
+      const raw = m[0].replace(/[.,]+$/, ''); // sentence punctuation is not part of the number
+      const norm = normalizeNumber(raw);
+      if (NUM_WHITELIST.has(norm) || isCalendarYear(raw)) continue;
       if (!allowedDigits.has(norm) && !allowed.includes(norm)) {
-        return fail('fabricated_specifics', 'hard', m[0],
-          `Remove or replace the number "${m[0]}" - it does not appear in the request or provided context. Never invent statistics.`);
+        return fail('fabricated_specifics', 'hard', raw,
+          `Remove or replace the number "${raw}" - it does not appear in the request or provided context. Never invent statistics.`);
       }
     }
 

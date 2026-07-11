@@ -66,6 +66,14 @@ describe('check: fabricated_specifics (hard)', () => {
     const r = get(FLOWING + '\n\nSupport runs 24/7 now.', 'fabricated_specifics');
     expect(r.pass).toBe(true);
   });
+  it('passes a context-sourced number at end of sentence', () => {
+    const r = get(FLOWING + '\n\nFinal tally: 412.', 'fabricated_specifics');
+    expect(r.pass).toBe(true);
+  });
+  it('passes a sentence-final calendar year', () => {
+    const r = get(FLOWING + '\n\nWe doubled down in 2024.', 'fabricated_specifics');
+    expect(r.pass).toBe(true);
+  });
   it('still fails a comma-formatted number that looks like a year', () => {
     const r = get(FLOWING.replace('412 signups', '2,024 signups'), 'fabricated_specifics');
     expect(r.pass).toBe(false);
