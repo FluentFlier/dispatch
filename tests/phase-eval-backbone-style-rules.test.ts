@@ -20,6 +20,7 @@ describe('styleRulesFromChecks', () => {
     expect(rules).toMatch(/paragraph/i);
     expect(rules).toMatch(/2-4 sentences/);
     expect(rules).toMatch(/concrete details/i);
+    expect(rules).toMatch(/Hook\/Setup\/Story\/Insight\/CTA/i);
   });
 
   it('includes platform length bounds when platform known', () => {

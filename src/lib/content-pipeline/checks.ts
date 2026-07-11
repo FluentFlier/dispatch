@@ -353,8 +353,9 @@ export function styleRulesFromChecks(ctx: CheckContext): string {
     '- Concrete details over vague claims. Talk directly to the reader, not about them.',
     '- Never invent a specific number, statistic, name, company, test, or personal anecdote that was not given in the prompt or context. If a beat has no real fact, write honest opinion or analysis instead.',
     '- Group sentences into real paragraphs of 2-4 sentences each. Never a run of single-sentence paragraphs; only the opening hook and the final line may stand alone.',
+    '- Do not treat structural labels like Hook/Setup/Story/Insight/CTA as cues for one-sentence paragraphs; merge those beats into flowing prose.',
     '- Use one blank line between paragraphs, never between individual sentences.',
-    '- No corporate speak, no throat-clearing openers, no AI-tell vocabulary (delve, tapestry, leverage, game-changer, ever-evolving).',
+    '- No corporate speak, no throat-clearing openers ("in today\'s world", "let\'s dive in"), no AI-tell vocabulary (delve, tapestry, leverage, game-changer, ever-evolving).',
   ];
   if (ctx.contentType === 'post') {
     lines.push('- No engagement bait: never end the hook with "Agree?", never "Comment X for Y", never "Repost if", no one-line ladder formatting.');
