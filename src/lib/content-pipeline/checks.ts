@@ -104,12 +104,13 @@ const mentionIntegrity: Check = {
     const requested = (ctx.mentions ?? []).map((m) => m.replace(/^@+/, '').toLowerCase());
     const lower = text.toLowerCase();
     for (const h of requested) {
-      if (!lower.includes(`@${h}`)) {
+      const escaped = h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (!new RegExp(`@${escaped}(?![a-z0-9._-])`, 'i').test(lower)) {
         return fail('mention_integrity', 'hard', `missing @${h}`,
           `Include the requested mention @${h} naturally in the post.`);
       }
     }
-    const inText = Array.from(text.matchAll(/@([a-z0-9_][a-z0-9._-]{1,30})/gi)).map((m) => m[1].toLowerCase());
+    const inText = Array.from(text.matchAll(/(?<=^|[\s(["'])@([a-z0-9_][a-z0-9._-]{1,30})/gi)).map((m) => m[1].toLowerCase());
     const allowedSources = `${ctx.userPrompt} ${ctx.sourceContext ?? ''}`.toLowerCase();
     for (const h of inText) {
       if (!requested.includes(h) && !allowedSources.includes(h)) {

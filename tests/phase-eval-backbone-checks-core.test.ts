@@ -96,4 +96,16 @@ describe('check: mention_integrity (hard)', () => {
     const r = runChecks(CLEAN_LI_POST + '\n\nShoutout @randomperson.', ctx()).find((x) => x.id === 'mention_integrity')!;
     expect(r.pass).toBe(false);
   });
+  it('does not flag an email address in prose as an invented mention', () => {
+    const r = runChecks(CLEAN_LI_POST + '\n\nReach me at jane@acme.com for details.', ctx()).find((x) => x.id === 'mention_integrity')!;
+    expect(r.pass).toBe(true);
+  });
+  it('fails when requested handle "sam" only appears as a substring of "@samsung"', () => {
+    const r = runChecks(CLEAN_LI_POST + '\n\nWe love @samsung devices.', ctx({ mentions: ['sam'] })).find((x) => x.id === 'mention_integrity')!;
+    expect(r.pass).toBe(false);
+  });
+  it('passes when requested handle "sam" appears with punctuation right after it', () => {
+    const r = runChecks(CLEAN_LI_POST + '\n\nThanks @sam!', ctx({ mentions: ['sam'] })).find((x) => x.id === 'mention_integrity')!;
+    expect(r.pass).toBe(true);
+  });
 });
