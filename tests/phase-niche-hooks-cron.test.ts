@@ -11,7 +11,7 @@ const day = 86400000;
 const now = new Date('2026-07-11T00:00:00Z').getTime();
 
 describe('selectDueNiches', () => {
-  const base = { id: 'n', label: 'x', seed_keywords: ['k'], status: 'active', active_user_count: 1 };
+  const base = { id: 'n', label: 'x', seed_keywords: ['k'], status: 'active', active_user_count: 1, created_at: new Date(now - 100 * day).toISOString() };
   it('includes active niches never mined or mined > 7 days ago', () => {
     const niches = [
       { ...base, id: 'never', last_mined_at: null },
@@ -23,12 +23,38 @@ describe('selectDueNiches', () => {
     expect(due).toContain('stale');
     expect(due).not.toContain('fresh');
   });
-  it('excludes non-active niches and zero-user niches', () => {
+  it('excludes zero-user active niches', () => {
     const niches = [
-      { ...base, id: 'pending', status: 'pending', last_mined_at: null },
       { ...base, id: 'idle', active_user_count: 0, last_mined_at: null },
     ];
     expect(selectDueNiches(niches, now)).toHaveLength(0);
+  });
+
+  // B2: pending niches previously had zero production call sites into
+  // earnsBudget, so they never got mined and the feature never activated.
+  describe('pending niches (B2 fix)', () => {
+    const pendingBase = { ...base, status: 'pending', last_mined_at: null };
+    it('admits a pending niche with 2+ active users regardless of age', () => {
+      const niches = [{ ...pendingBase, id: 'p1', active_user_count: 2, created_at: new Date(now - 1 * day).toISOString() }];
+      expect(selectDueNiches(niches, now).map((n) => n.id)).toEqual(['p1']);
+    });
+    it('admits a pending niche with 1 user once it is 14+ days old', () => {
+      const niches = [{ ...pendingBase, id: 'p2', active_user_count: 1, created_at: new Date(now - 15 * day).toISOString() }];
+      expect(selectDueNiches(niches, now).map((n) => n.id)).toEqual(['p2']);
+    });
+    it('does not admit a pending niche with 1 user and only 2 days of age', () => {
+      const niches = [{ ...pendingBase, id: 'p3', active_user_count: 1, created_at: new Date(now - 2 * day).toISOString() }];
+      expect(selectDueNiches(niches, now)).toHaveLength(0);
+    });
+    it('an active stale niche is still due alongside pending admissions', () => {
+      const niches = [
+        { ...base, id: 'active-stale', last_mined_at: new Date(now - 8 * day).toISOString() },
+        { ...pendingBase, id: 'p1', active_user_count: 2, created_at: new Date(now - 1 * day).toISOString() },
+      ];
+      const due = selectDueNiches(niches, now).map((n) => n.id);
+      expect(due).toContain('active-stale');
+      expect(due).toContain('p1');
+    });
   });
 });
 

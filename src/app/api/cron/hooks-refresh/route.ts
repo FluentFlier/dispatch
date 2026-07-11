@@ -37,8 +37,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   const { data: nichesRaw, error: nichesError } = await client.database
     .from('niches')
-    .select('id, label, seed_keywords, status, active_user_count, last_mined_at')
-    .eq('status', 'active');
+    .select('id, label, seed_keywords, status, active_user_count, last_mined_at, created_at')
+    .in('status', ['active', 'pending']);
   if (nichesError) {
     logError('[hooks-refresh] failed to load niches', undefined, nichesError);
     await logCronRun({ jobName: 'hooks-refresh', status: 'error', durationMs: Date.now() - started, errorMessage: nichesError.message });
@@ -64,6 +64,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     try {
       const result = await mineNiche(client, niche, { maxResults });
       spentUsd += result.costUsd;
+      // B2 fallback: mineNiche only flips pending->active once it reaches the
+      // final upsert stage (it returns early on zero-fit/zero-humanish
+      // batches without flipping). A pending niche that got a real mining
+      // attempt should not stay stuck in 'pending' forever waiting for a
+      // luckier week, so the cron flips it explicitly - idempotent with
+      // mineNiche's own update when that path already ran.
+      if (niche.status === 'pending') {
+        await client.database.from('niches').update({ status: 'active' }).eq('id', niche.id);
+      }
       mined.push({ niche: niche.id, accepted: result.accepted, costUsd: result.costUsd, rejections: result.rejections });
     } catch (err) {
       failedCount++;
