@@ -166,7 +166,7 @@ export async function runCompactPipeline(
   const stagesCompleted: ContentPipelineResult['stagesCompleted'] = ['base'];
 
   if (input.fast) {
-    return finalizeResult(text, undefined, false, [], stagesCompleted, undefined, undefined);
+    return finalizeResult(text, true, undefined, false, [], stagesCompleted, undefined, undefined);
   }
 
   // Call 2: guarded minimal edit (cheap deterministic pre-clean first).
@@ -194,6 +194,7 @@ export async function runCompactPipeline(
 
   return finalizeResult(
     text,
+    true,
     evaluation,
     false,
     evaluation && !evaluation.pass ? ['below_voice_threshold'] : [],

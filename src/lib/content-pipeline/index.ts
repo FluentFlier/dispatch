@@ -10,7 +10,7 @@ import { profilePillarWeights } from '@/lib/pillars';
 import { substanceContextOnly, stripSections } from '@/lib/content-pipeline/context-split';
 import type { VocabularyFingerprint, StructuralPatterns } from '@/lib/voice-context';
 import { finalizeResult, stripEmDashes } from './finalize';
-export { stripMarkdownFormatting } from './finalize';
+export { stripMarkdownFormatting, enforceParagraphFloor } from './finalize';
 import { isCompactMode, runCompactPipeline } from './compact';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -201,17 +201,17 @@ export async function runContentPipeline(
       });
       text = h.text;
       stagesCompleted.push('humanize');
-      return finalizeResult(text, undefined, false, [], stagesCompleted, h.passes, undefined);
+      return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, h.passes, undefined);
     }
     if (input.humanizeAlways) {
       const h = await humanizePipeline(text, { skipVoice: true, skipAudit: true });
       text = h.text;
       stagesCompleted.push('humanize');
-      return finalizeResult(text, undefined, false, [], stagesCompleted, h.passes, undefined);
+      return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, h.passes, undefined);
     }
     // revised=false: no revise loop runs on the voice-off path, so the draft was
     // never revised (was mislabeled true, showing a false "(revised)" badge).
-    return finalizeResult(text, undefined, false, [], stagesCompleted, undefined, undefined);
+    return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, undefined, undefined);
   }
 
   // Fast mode / non-prose: base + light humanize
@@ -220,11 +220,11 @@ export async function runContentPipeline(
       const h = await humanizePipeline(text, { skipVoice: true, skipAudit: true });
       text = h.text;
       stagesCompleted.push('humanize');
-      return finalizeResult(text, undefined, false, [], stagesCompleted, h.passes, undefined);
+      return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, h.passes, undefined);
     }
     // revised=false: fast/non-prose skips the revise loop (was passing skipEval,
     // which is true in fast mode -> a false "(revised)" badge).
-    return finalizeResult(text, undefined, false, [], stagesCompleted, undefined, undefined);
+    return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, undefined, undefined);
   }
 
   // --- Stage 2: Hooks ---
@@ -355,6 +355,7 @@ Return ONLY the revised post.`;
 
   return finalizeResult(
     text,
+    true,
     evaluation,
     revised,
     evaluation && !evaluation.pass ? ['below_voice_threshold'] : [],

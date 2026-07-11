@@ -37,8 +37,48 @@ export function stripMarkdownFormatting(text: string): string {
   );
 }
 
+/**
+ * Merges short paragraphs into flowing 3+ sentence blocks so prose never reads
+ * like a transcript. This is a hard platform floor: a creator's own
+ * voice_rules can ask the model for "short one or two-sentence paragraphs"
+ * (voice synthesis learns this from real samples, and one live profile did
+ * exactly that), but no per-creator instruction should be able to degrade
+ * every post on the platform into a wall of choppy micro-paragraphs. A
+ * 2-sentences-per-paragraph draft still reads staccato even though no single
+ * paragraph is "wrong" in isolation — the floor is 3, not 2, so it actually
+ * reduces paragraph count. The opening hook and the closing line are exempt —
+ * those are allowed to stand alone by design.
+ */
+export function enforceParagraphFloor(text: string): string {
+  const paras = text.split(/\n\n+/).map((p) => p.trim()).filter(Boolean);
+  if (paras.length <= 2) return text;
+
+  const sentenceCount = (p: string) => (p.match(/[.!?](?=\s|["')\]]*(?:\s|$))/g) || []).length || 1;
+
+  const hook = paras[0];
+  const closing = paras[paras.length - 1];
+  const middle = paras.slice(1, -1);
+
+  const mergedMiddle: string[] = [];
+  let buffer = '';
+  let bufferSentences = 0;
+  for (const p of middle) {
+    buffer = buffer ? `${buffer} ${p}` : p;
+    bufferSentences += sentenceCount(p);
+    if (bufferSentences >= 3) {
+      mergedMiddle.push(buffer);
+      buffer = '';
+      bufferSentences = 0;
+    }
+  }
+  if (buffer) mergedMiddle.push(buffer);
+
+  return [hook, ...mergedMiddle, closing].join('\n\n');
+}
+
 export function finalizeResult(
   text: string,
+  enforceParagraphs: boolean,
   evaluation: VoiceEvaluationMatrix | undefined,
   revised: boolean,
   flags: string[],
@@ -54,8 +94,11 @@ export function finalizeResult(
   const ai_score = evaluation ? evaluation.ai_slop * 10 : 0;
 
   // Single guarantee that no markdown/em-dash noise reaches the client, whatever
-  // path produced this draft (fast, voice-off, hooks, revise loop).
-  const cleanText = stripMarkdownFormatting(stripEmDashes(text));
+  // path produced this draft (fast, voice-off, hooks, revise loop). Paragraph
+  // floor only applies to prose (post/reply/comment) — hook lists and captions
+  // have their own intentional one-line-per-item format.
+  let cleanText = stripMarkdownFormatting(stripEmDashes(text));
+  if (enforceParagraphs) cleanText = enforceParagraphFloor(cleanText);
 
   return {
     text: cleanText,

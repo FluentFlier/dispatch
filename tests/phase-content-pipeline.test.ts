@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { deterministicPreClean, AI_SLOP_PATTERNS } from '@/lib/humanizer';
 import { substanceContextOnly } from '@/lib/content-pipeline/context-split';
-import { stripMarkdownFormatting } from '@/lib/content-pipeline';
+import { stripMarkdownFormatting, enforceParagraphFloor } from '@/lib/content-pipeline';
 import { selectBalancedVoiceSamples } from '@/lib/voice-lab/select-voice-samples';
 
 describe('Phase: Content pipeline + humanizer', () => {
@@ -94,6 +94,68 @@ describe('Phase: Content pipeline + humanizer', () => {
     it('leaves snake_case, list dashes, and plain text untouched', () => {
       const raw = 'Set the max_tokens value.\n- point one\n- point two';
       expect(stripMarkdownFormatting(raw)).toBe(raw);
+    });
+  });
+
+  describe('enforceParagraphFloor', () => {
+    it('merges consecutive one-sentence paragraphs into 3+ sentence blocks', () => {
+      // Real case: a creator voice_rules block asked for "short one-sentence
+      // paragraphs" and the model obeyed literally, producing a transcript.
+      const raw = [
+        'AI models fail.',
+        "Here's the thing.",
+        'ChatGPT finished in 1:22.',
+        'Fabel took 2:17.',
+        'Mythos kept 92% of the original language after five tries.',
+        'What do you value more, speed or sounding human?',
+      ].join('\n\n');
+      const out = enforceParagraphFloor(raw);
+      const paras = out.split(/\n\n+/);
+      // Hook and closing question stay isolated; the 4 one-sentence middle
+      // paragraphs collapse into fewer, fuller blocks (last block may fall
+      // short of 3 if there's nothing left to merge with -- that's expected).
+      expect(paras[0]).toBe('AI models fail.');
+      expect(paras[paras.length - 1]).toBe('What do you value more, speed or sounding human?');
+      expect(paras.length).toBeLessThan(raw.split(/\n\n+/).length);
+    });
+
+    it('reduces paragraph count even when every paragraph already has 2 sentences (the actual bug report)', () => {
+      // Every paragraph here already has exactly 2 sentences -- individually
+      // "fine" by a >=2 floor, but the wall of 6 short paragraphs still reads
+      // like a transcript. A >=2 floor would leave this completely unchanged.
+      const raw = [
+        'I tested three models for seven days, 15 prompts each.',
+        "Here's the thing. I wanted to see if they could make me sound like myself on repeat.",
+        "ChatGPT was fast, 1 minute 22 seconds per response. But it didn't get my voice right.",
+        'Fabel took 2 minutes 17 seconds. Still not good enough.',
+        'Mythos was different. It kept my weird word choices, my rhythm, intact after five tries.',
+        "Mythos kept 92% of my original language. That's the whole play.",
+        "I'm still rewriting the output, but that's a start. Ship it and see.",
+        "What's the one thing a model must get right for you?",
+      ].join('\n\n');
+      const beforeCount = raw.split(/\n\n+/).length;
+      const out = enforceParagraphFloor(raw);
+      const afterCount = out.split(/\n\n+/).length;
+      expect(afterCount).toBeLessThan(beforeCount);
+      // Every sentence still present -- merging must not drop content.
+      expect(out).toContain('92% of my original language');
+      expect(out).toContain("Ship it and see.");
+    });
+
+    it('leaves already-flowing paragraphs untouched', () => {
+      const raw = [
+        'The future of AI is being written in code.',
+        'I tested three models over seven days. Each one got fifteen prompts. The results were telling.',
+        'What matters most to you: speed or voice accuracy?',
+      ].join('\n\n');
+      expect(enforceParagraphFloor(raw)).toBe(raw);
+    });
+
+    it('is a no-op on hook-only or two-paragraph text (nothing to merge)', () => {
+      const raw = 'Just one line.';
+      expect(enforceParagraphFloor(raw)).toBe(raw);
+      const twoPara = 'Hook line.\n\nClosing question?';
+      expect(enforceParagraphFloor(twoPara)).toBe(twoPara);
     });
   });
 
