@@ -243,7 +243,7 @@ export async function loadCreatorVoiceContext(
   try {
     let profileQuery = client.database
       .from('creator_profile')
-      .select('display_name, bio, bio_facts, content_pillars, voice_description, voice_rules')
+      .select('display_name, bio, bio_facts, content_pillars, voice_description, voice_rules, niche_id')
       .eq('user_id', userId);
     if (options.workspaceId) profileQuery = profileQuery.eq('workspace_id', options.workspaceId);
 
@@ -273,6 +273,7 @@ export async function loadCreatorVoiceContext(
         content_pillars: contentPillars,
         voice_description: profileRow.voice_description?.trim() || undefined,
         voice_rules: profileRow.voice_rules?.trim() || undefined,
+        niche_id: profileRow.niche_id ?? undefined,
       };
     }
 

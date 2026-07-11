@@ -1,6 +1,8 @@
 import type { createClient } from '@insforge/sdk';
-import { loadHookDataset, getBestHooksForContext } from './index';
-import { getBestHooksForVerticalDB, getHooksByIdsFromDB } from './retriever';
+import { getBestHooksForContext } from './index';
+import { getNicheHookCandidates, incrementHookUsage } from './retriever';
+import { pickTopK } from './thompson';
+import { embedText } from '@/lib/embeddings';
 import type { ExtractedHook, HookVertical } from './types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -19,73 +21,66 @@ export interface ResolvedHooksResult {
   explanations: HookExplanation[];
 }
 
-function explainSource(source: 'db' | 'static' | 'mined', rlScore: number): string {
-  if (source === 'db') {
-    return `Learned score ${Math.round(rlScore)}/100 from your published post performance`;
-  }
-  if (source === 'mined') {
-    return `Fresh from social listening (score ${Math.round(rlScore)}/100)`;
-  }
-  return `Bootstrap hook (score ${Math.round(rlScore)}/100)`;
+export interface GetHooksOptions {
+  nicheId?: string;
+  topicText: string;
+  vertical?: HookVertical;
+  limit?: number;
+  rng?: () => number;
 }
 
 /**
- * Resolves hooks for generation: DB-learned scores + hook_examples text + static fallback.
- * Single source of truth for both generation and /api/hooks/intelligence.
+ * Generation-time hook selection (spec 2.4). Niche path: SQL blend candidates ->
+ * Thompson sampling over arms -> usage bump. Falls back to the static bundled
+ * dataset when there is no client, no niche, or the niche has no mined hooks yet,
+ * or when embedding the topic fails (e.g. OPENAI_EMBEDDINGS_KEY not provisioned).
  */
 export async function getBestHooksForGeneration(
   client: InsforgeClient | undefined,
-  vertical: HookVertical | undefined,
-  limit = 6,
+  opts: GetHooksOptions,
 ): Promise<ResolvedHooksResult> {
-  const dataset = loadHookDataset();
-  const byId = new Map(dataset.hooks.map((h) => [h.id, h]));
-  const explanations: HookExplanation[] = [];
-  const hooks: ExtractedHook[] = [];
+  const limit = opts.limit ?? 3;
 
-  if (client && vertical) {
+  if (client && opts.nicheId) {
     try {
-      const dbRanked = await getBestHooksForVerticalDB(client, vertical, limit);
-      const dbText = await getHooksByIdsFromDB(
-        client,
-        dbRanked.map((r) => r.hookId),
-      );
-
-      for (const ranked of dbRanked) {
-        const mined = dbText.get(ranked.hookId);
-        const staticHook = byId.get(ranked.hookId);
-        const hook = mined ?? staticHook;
-        if (!hook) continue;
-
-        const source: HookExplanation['source'] = mined
-          ? 'mined'
-          : ranked.source === 'db'
-            ? 'db'
-            : 'static';
-
-        hooks.push(hook);
-        explanations.push({
-          id: hook.id,
-          text: hook.text.slice(0, 120),
-          author: hook.author,
-          rlScore: ranked.score,
-          source,
-          reason: explainSource(source, ranked.score),
-        });
-
-        if (hooks.length >= limit) {
-          return { hooks: hooks.slice(0, limit), explanations: explanations.slice(0, limit) };
-        }
+      const topicEmbedding = await embedText(opts.topicText);
+      const candidates = await getNicheHookCandidates(client, opts.nicheId, topicEmbedding, 24);
+      if (candidates.length > 0) {
+        const picked = pickTopK(candidates, limit, opts.rng);
+        await incrementHookUsage(client, picked.map((c) => ({ nicheId: opts.nicheId!, hookId: c.hookId })));
+        const hooks: ExtractedHook[] = picked.map((c) => ({
+          id: c.hookId,
+          text: c.text,
+          author: 'mined',
+          platform: 'linkedin',
+          verticals: [],
+          engagement: undefined,
+          minedAt: new Date().toISOString(),
+        }));
+        const explanations: HookExplanation[] = picked.map((c) => ({
+          id: c.hookId,
+          text: c.text.slice(0, 120),
+          author: 'mined',
+          rlScore: Math.round((c.arm.alpha / (c.arm.alpha + c.arm.beta)) * 100),
+          source: 'mined',
+          reason: 'Selected by Thompson sampling from your niche corpus',
+        }));
+        return { hooks, explanations };
       }
-    } catch {
-      // DB tables may not exist yet — fall through to static
+    } catch (e) {
+      // phase3: emit hook_fallback_static event
+      console.warn('[hooks] niche retrieval failed, using static fallback', e);
     }
   }
 
-  const fallback = getBestHooksForContext(vertical, limit - hooks.length);
+  // Static fallback (unchanged behavior): dedup by id, keep the existing
+  // head/tail diversity dedup already applied inside getBestHooksForContext.
+  const fallback = getBestHooksForContext(opts.vertical, limit);
+  const hooks: ExtractedHook[] = [];
+  const explanations: HookExplanation[] = [];
   for (const h of fallback) {
     if (hooks.some((existing) => existing.id === h.id)) continue;
-    const hook: ExtractedHook = {
+    hooks.push({
       id: h.id,
       text: h.text,
       author: h.author,
@@ -93,17 +88,15 @@ export async function getBestHooksForGeneration(
       verticals: h.verticals,
       engagement: h.engagement,
       minedAt: h.minedAt,
-    };
-    hooks.push(hook);
+    });
     explanations.push({
       id: h.id,
       text: h.text.slice(0, 120),
       author: h.author,
       rlScore: h.score.total,
       source: 'static',
-      reason: explainSource('static', h.score.total),
+      reason: `Bootstrap hook (score ${Math.round(h.score.total)}/100)`,
     });
   }
-
   return { hooks: hooks.slice(0, limit), explanations: explanations.slice(0, limit) };
 }

@@ -12,8 +12,6 @@ import { DEFAULT_WATCHLIST } from './watchlist';
 import { rankHooks, scoreHook } from './scorer';
 import bootstrapDataset from '../../../data/hooks-dataset.json';
 
-const DATA_PATH = 'data/hooks-dataset.json';
-
 let cachedDataset: HookDataset | null = null;
 
 /**
@@ -32,15 +30,10 @@ export function loadHookDataset(): HookDataset {
 }
 
 export function saveHookDataset(dataset: HookDataset) {
-  try {
-    const fs = require('fs');
-    const dir = 'data';
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(DATA_PATH, JSON.stringify(dataset, null, 2));
-    cachedDataset = dataset;
-  } catch (e) {
-    console.warn('Could not persist hook dataset (serverless ok: DB is source of truth via prod mining)');
-  }
+  // Bundled JSON is bootstrap/fallback only; the DB (hook_examples) is the source
+  // of truth. Persisting to fs is a no-op on serverless, so we just refresh the
+  // in-process cache. (ponytail: was an fs write - dead on Vercel.)
+  cachedDataset = dataset;
 }
 
 export function addHooksToDataset(newHooks: ExtractedHook[]) {
