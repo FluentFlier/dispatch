@@ -12,6 +12,7 @@ import type { VocabularyFingerprint, StructuralPatterns } from '@/lib/voice-cont
 import { finalizeResult, stripEmDashes } from './finalize';
 export { stripMarkdownFormatting, enforceParagraphFloor } from './finalize';
 import { isCompactMode, runCompactPipeline } from './compact';
+import { styleRulesFromChecks, type CheckContext } from './checks';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -68,12 +69,12 @@ export interface ContentPipelineResult {
 
 const BASE_SYSTEM = `You are an expert social content strategist writing for real creators.
 
-Your job in this pass: write the SUBSTANCE — clear message, specific details, strong structure.
+Your job in this pass: write the SUBSTANCE, the clear message, specific details, strong structure.
 Do NOT worry about hooks or personal voice yet. Focus on:
 - One clear takeaway the reader cares about
-- Concrete details (names, numbers, moments) — never vague claims
+- Concrete details (names, numbers, moments), never vague claims
 - Platform-native length and format
-- Plain text only — no markdown, no em dashes, no title/headline unless requested
+- No title or headline unless requested
 
 Write like a smart person outlining their post before polishing it.`;
 
@@ -83,7 +84,6 @@ Rewrite ONLY the opening and tighten structure using the hook examples provided.
 - First 1-2 lines must stop the scroll (adapt hook STRUCTURE, not copy topics)
 - Keep all facts and body content from the draft
 - Do not add generic AI phrasing
-- Plain text only, no em dashes
 - The creator's own voice and opening style win on any conflict with the examples`;
 
 function topWeightedVertical(profile: CreatorProfileForPrompt | null): HookVertical | undefined {
@@ -102,11 +102,33 @@ function formatHookExamples(hooks: Array<{ id: string; text: string; author: str
 }
 
 /**
+ * Builds the CheckContext shared by styleRulesFromChecks and the enforcement
+ * gates (Task 3+). Single construction site so all three always agree on
+ * platform/contentType/mentions for a given request.
+ */
+function buildCheckContext(
+  input: ContentPipelineInput,
+  contentType: string,
+  sourceContext: string | undefined,
+  profile: CreatorProfileForPrompt | null,
+): CheckContext {
+  return {
+    platform: input.platform,
+    contentType,
+    sourceContext,
+    userPrompt: input.userPrompt,
+    profile: profile ? { display_name: profile.display_name } : null,
+    mentions: input.mentions,
+  };
+}
+
+/**
  * Stage 1 — Base draft: substance + platform format, minimal voice.
  */
 async function runBaseStage(
   input: ContentPipelineInput,
   substanceContext: string | undefined,
+  checkCtx: CheckContext,
 ): Promise<string> {
   const composeHints = buildVoiceComposeHints(input.platform, input.contentType ?? 'post', {
     creatorHookPattern: input.structural?.hook_pattern,
@@ -118,8 +140,9 @@ async function runBaseStage(
   const taskHint = input.platform
     ? `Platform: ${input.platform}. Match native format and length.`
     : undefined;
+  const rules = styleRulesFromChecks(checkCtx);
 
-  const merged = [composeHints, taskHint, mentionHint, substanceContext].filter(Boolean).join('\n\n');
+  const merged = [composeHints, taskHint, mentionHint, rules, substanceContext].filter(Boolean).join('\n\n');
   // Even with a systemOverride, keep the merged block (task hint, @mentions,
   // substance context). Previously the override replaced everything but
   // composeHints, so override callers silently lost their mentions and drafted
@@ -142,6 +165,7 @@ async function runHookStage(
   userPrompt: string,
   substanceContext: string | undefined,
   model: string | undefined,
+  checkCtx: CheckContext,
 ): Promise<string> {
   if (hooks.length === 0) return baseText;
 
@@ -149,9 +173,8 @@ async function runHookStage(
   // Give the hook stage the same voice signal the base stage got. The structural
   // patterns (how they open) and fingerprint let the opener match the creator's
   // own style instead of a generic scroll-stopper.
-  const system = substanceContext
-    ? `${HOOK_SYSTEM}\n\n${substanceContext}`
-    : HOOK_SYSTEM;
+  const rules = styleRulesFromChecks(checkCtx);
+  const system = [HOOK_SYSTEM, rules, substanceContext].filter(Boolean).join('\n\n');
   const prompt = `ORIGINAL REQUEST:\n${userPrompt}\n\nBASE DRAFT:\n---\n${baseText}\n---\n\nHOOK EXAMPLES (adapt structure to this topic):\n${examples}\n\nRewrite with a stronger hook opening. Return ONLY the full post.`;
 
   return stripEmDashes(await chatCompletion(system, prompt, { temperature: 0.7, maxTokens: 1200, model }));
@@ -185,7 +208,8 @@ export async function runContentPipeline(
   }
 
   // --- Stage 1: Base ---
-  let text = await runBaseStage(input, substanceContext);
+  const baseCheckCtx = buildCheckContext(input, contentType, substanceContext, profile);
+  let text = await runBaseStage(input, substanceContext, baseCheckCtx);
   stagesCompleted.push('base');
 
   // Voice-off: substance + humanize. "No voice" must still read like a human
@@ -240,7 +264,7 @@ export async function runContentPipeline(
     const resolved = await getBestHooksForGeneration(input.hooksClient, vertical, 3);
     usedHookIds = resolved.hooks.map((h) => h.id);
     hookExplanations = resolved.explanations;
-    text = await runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model);
+    text = await runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model, baseCheckCtx);
     stagesCompleted.push('hooks');
   }
 

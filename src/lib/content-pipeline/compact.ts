@@ -11,6 +11,8 @@ import { deterministicPreClean } from '@/lib/humanizer';
 import { voiceEvidenceOnly, stripSections, substanceContextOnly, VOICE_EVIDENCE_HEADERS } from './context-split';
 import { finalizeResult, stripEmDashes } from './finalize';
 import type { ContentPipelineInput, ContentPipelineResult } from './index';
+import { styleRulesFromChecks, type CheckContext } from './checks';
+import { SLOP_WORDS, SLOP_PHRASES } from './slop-lexicon';
 
 /**
  * Compact 2-call pipeline for small models (Llama-8B on the HF router, Groq
@@ -40,22 +42,6 @@ export function isCompactMode(modelOverride?: string): boolean {
   return SMALL_MODEL_RE.test(model);
 }
 
-const HARD_RULES = `HARD RULES:
-- Plain text only. No markdown, no **bold**, no # headers, no bullet asterisks.
-- No em dashes anywhere. Ever.
-- No corporate speak, no "in today's world", no "game-changer", no "let's dive in".
-- Concrete details over vague claims. Talk TO the reader.
-- Never invent a specific test, experiment, personal anecdote, or result that
-  wasn't given to you in the prompt or context. If a beat has no real fact to
-  draw on, write it as honest opinion or analysis, not a fabricated
-  first-person scene ("I tried X and it did Y").
-- Group sentences into real paragraphs of 2-4 sentences each. Never put a single
-  sentence alone on its own line except the opening hook and the final question.
-  Do not treat "Hook/Setup/Story/Insight/CTA" labels in the instructions as a
-  cue to start a new one-sentence paragraph per label — merge them into flowing
-  prose.
-- Use one blank line between paragraphs, never between individual sentences.`;
-
 /** Keep only the first N non-empty lines of a rule list (small models drop long lists). */
 function limitLines(text: string, max: number): string {
   return text
@@ -64,6 +50,22 @@ function limitLines(text: string, max: number): string {
     .filter(Boolean)
     .slice(0, max)
     .join('\n');
+}
+
+/** Same shape as index.ts's buildCheckContext - duplicated locally (not
+ * imported) because ContentPipelineInput and CheckContext live in files that
+ * would otherwise import each other circularly. */
+function buildCheckContext(input: ContentPipelineInput): CheckContext {
+  const useVoice = input.useVoice !== false;
+  const profile = useVoice ? input.profile : null;
+  return {
+    platform: input.platform,
+    contentType: input.contentType ?? 'post',
+    sourceContext: input.contextAdditions,
+    userPrompt: input.userPrompt,
+    profile: profile ? { display_name: profile.display_name } : null,
+    mentions: input.mentions,
+  };
 }
 
 function buildCompactDraftSystem(input: ContentPipelineInput): string {
@@ -84,7 +86,7 @@ function buildCompactDraftSystem(input: ContentPipelineInput): string {
     );
   }
 
-  parts.push(HARD_RULES);
+  parts.push(styleRulesFromChecks(buildCheckContext(input)));
 
   if (input.platform && VALID_PLATFORMS.has(input.platform)) {
     parts.push(PLATFORM_PLAYBOOKS[input.platform as VoicePlatform]);
@@ -130,11 +132,14 @@ function buildCompactEditSystem(input: ContentPipelineInput): string {
     .map((w) => w.trim())
     .filter(Boolean);
 
+  const sampleWords = SLOP_WORDS.slice(0, 30).map((e) => e.pattern).join(', ');
+  const samplePhrases = SLOP_PHRASES.filter((e) => !e.isRegex).slice(0, 10).map((e) => e.pattern).join('; ');
+
   return `You are an editor doing one final pass on a social post draft. Fix ONLY AI tells; keep everything else verbatim, including line breaks.
 
 AI TELLS TO FIX:
-- Overused AI words: delve, tapestry, leverage, foster, landscape, nuanced, multifaceted, comprehensive, robust, holistic, pivotal, transformative, utilize, seamless, elevate, empower, unlock, harness
-- Throat-clearing ("in today's world", "it's worth noting") and filler conclusions ("in conclusion", "at the end of the day")
+- Overused AI words (not exhaustive - use judgment for others like these): ${sampleWords}
+- Throat-clearing and filler phrases (not exhaustive): ${samplePhrases}
 - Perfect three-point symmetry, artificial balance, uniform paragraph lengths
 - Em dashes (replace with commas or periods), markdown syntax, chatbot phrases, fake enthusiasm
 
