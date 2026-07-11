@@ -1,0 +1,10 @@
+{
+  "profile": {
+    "display_name": "Priya Raman",
+    "voice_description": "Analyst voice. Claims backed by a source or number, mild skepticism.",
+    "voice_rules": "Never hype. Flag uncertainty explicitly.\nEnd with an implication, not a summary.",
+    "content_pillars": [
+      "AI and chip industry analysis"
+    ]
+  }
+}
