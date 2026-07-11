@@ -45,6 +45,10 @@ const HARD_RULES = `HARD RULES:
 - No em dashes anywhere. Ever.
 - No corporate speak, no "in today's world", no "game-changer", no "let's dive in".
 - Concrete details over vague claims. Talk TO the reader.
+- Never invent a specific test, experiment, personal anecdote, or result that
+  wasn't given to you in the prompt or context. If a beat has no real fact to
+  draw on, write it as honest opinion or analysis, not a fabricated
+  first-person scene ("I tried X and it did Y").
 - Group sentences into real paragraphs of 2-4 sentences each. Never put a single
   sentence alone on its own line except the opening hook and the final question.
   Do not treat "Hook/Setup/Story/Insight/CTA" labels in the instructions as a
