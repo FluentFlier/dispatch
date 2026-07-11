@@ -1,5 +1,3 @@
-import { getServiceClient } from '@/lib/insforge/server';
-
 /**
  * GLOBAL provider spend backstop.
  *
@@ -19,6 +17,13 @@ import { getServiceClient } from '@/lib/insforge/server';
  * is exactly when to stop — the operator opted into protecting credits over
  * availability by setting the env. Requires migration
  * db/migrations/llm-global-budget.sql.
+ *
+ * getServiceClient is imported lazily (dynamic import) rather than at module
+ * top-level: it pulls in next/headers via @/lib/insforge/server, which only
+ * resolves inside a Next.js runtime. A static import broke every non-Next
+ * caller of the content pipeline (e.g. the promptfoo eval CLI) even when the
+ * cap is off, because ES module imports execute at load time regardless of
+ * whether the cap check below ever runs.
  */
 
 export type GlobalBudgetStatus = 'ok' | 'blocked' | 'disabled';
@@ -41,6 +46,7 @@ export async function checkGlobalLlmBudget(): Promise<GlobalBudgetStatus> {
   if (cap === null) return 'disabled';
 
   try {
+    const { getServiceClient } = await import('@/lib/insforge/server');
     const client = getServiceClient();
     const { data, error } = await (client.database as unknown as {
       rpc: (fn: string, params: Record<string, unknown>) => Promise<{ data: unknown; error: unknown }>;

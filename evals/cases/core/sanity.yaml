@@ -1,0 +1,18 @@
+- description: "core/sanity: linkedin voice-off basic"
+  vars:
+    caseJson: '{"userPrompt":"Write a LinkedIn post about why we killed our daily standup after 2 years and what replaced it: async written updates each morning","platform":"linkedin","contentType":"post","useVoice":false}'
+    userPrompt: "Write a LinkedIn post about why we killed our daily standup after 2 years and what replaced it: async written updates each morning"
+    platform: linkedin
+    contentType: post
+- description: "core/sanity: twitter voice-off basic"
+  vars:
+    caseJson: '{"userPrompt":"Write a tweet about the moment a side project got its first paying customer, $29/mo plan","platform":"twitter","contentType":"post","useVoice":false}'
+    userPrompt: "Write a tweet about the moment a side project got its first paying customer, $29/mo plan"
+    platform: twitter
+    contentType: post
+- description: "core/sanity: linkedin thin-input"
+  vars:
+    caseJson: '{"userPrompt":"post about hiring","platform":"linkedin","contentType":"post","useVoice":false}'
+    userPrompt: "post about hiring"
+    platform: linkedin
+    contentType: post
