@@ -65,8 +65,9 @@
     userPrompt: "Thank the team publicly for the launch"
     platform: linkedin
     contentType: post
-    mentions: ["alice_dev", "bob_design", "carol_pm", "dan_qa", "eve_data"]
-  # provider now passes mentions through to runContentPipeline (Step 3);
+  # mentions intentionally NOT mirrored as a top-level var: promptfoo expands
+  # array vars into one test row per element (this case ran 5x -> 171 rows in
+  # the first full run). Checks read mentions from caseJson via evalCtxFromVars.
   # check tests that the draft doesn't cram all 5 handles into one sentence.
 
 - description: "adversarial/generic-hook-bait"
