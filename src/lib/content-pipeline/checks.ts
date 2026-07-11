@@ -9,6 +9,8 @@
  *        guards are the top documented production failure of guardrail stacks)
  */
 
+import { findSlopMatches } from './slop-lexicon';
+
 export type CheckSeverity = 'hard' | 'soft';
 
 export interface CheckContext {
@@ -206,7 +208,122 @@ const fabricatedSpecifics: Check = {
   },
 };
 
-export const CHECKS: Check[] = [emDash, markdown, platformLength, mentionIntegrity, paragraphShape, fabricatedSpecifics];
+// --- slop_phrases (soft) ----------------------------------------------------
+const slopPhrases: Check = {
+  id: 'slop_phrases', severity: 'soft',
+  test: (text) => {
+    const hits = findSlopMatches(text);
+    return hits.length === 0
+      ? pass('slop_phrases', 'soft')
+      : fail('slop_phrases', 'soft', hits.slice(0, 5).join(', '),
+          `Replace AI-tell vocabulary (${hits.slice(0, 3).join(', ')}) with plain words a person would actually type.`);
+  },
+};
+
+// --- contrast_tell (soft) -----------------------------------------------------
+const CONTRAST_RE = /(it'?s|this is(n'?t)?|that'?s) not (just )?(about )?[^.!?\n]{2,60}[,;.]? ?(it|this|that)'?s? (about )?/i;
+const contrastTell: Check = {
+  id: 'contrast_tell', severity: 'soft',
+  test: (text) => {
+    const m = text.match(CONTRAST_RE);
+    return m ? fail('contrast_tell', 'soft', m[0], 'Rewrite the "not X, it\'s Y" construction; state the point directly.')
+             : pass('contrast_tell', 'soft');
+  },
+};
+
+// --- burstiness (soft) --------------------------------------------------------
+const burstiness: Check = {
+  id: 'burstiness', severity: 'soft',
+  appliesTo: isPost,
+  test: (text) => {
+    const sentences = text.split(/[.!?]+\s/).map((s) => s.trim()).filter((s) => s.length > 0);
+    if (sentences.length < 4) return pass('burstiness', 'soft');
+    const lens = sentences.map((s) => s.split(/\s+/).length);
+    const mean = lens.reduce((a, b) => a + b, 0) / lens.length;
+    const sd = Math.sqrt(lens.reduce((a, b) => a + (b - mean) ** 2, 0) / lens.length);
+    // Brief specified `sd < 4`, but its own BASE fixture (natural prose) measures
+    // sd ~= 2.24 - sentence splitting is correct (8 sentences either fixture),
+    // the threshold was simply miscalibrated against the brief's own pass case.
+    // 2 is the minimal correct cut: uniform fixture sd = 0 still fails, BASE
+    // (sd ~= 2.24) now passes, with margin on both sides.
+    return sd < 2
+      ? fail('burstiness', 'soft', `sentence-length stddev ${sd.toFixed(1)}`,
+          'Vary sentence lengths: mix short punches with longer explanatory sentences.')
+      : pass('burstiness', 'soft');
+  },
+};
+
+// --- rule_of_three (soft) -------------------------------------------------------
+const ruleOfThree: Check = {
+  id: 'rule_of_three', severity: 'soft',
+  test: (text) => {
+    const triads = text.match(/\b\w+, \w+,? and \w+/gi) ?? [];
+    return triads.length >= 2
+      ? fail('rule_of_three', 'soft', triads.slice(0, 2).join(' | '),
+          'Break up the perfectly balanced three-item lists; humans are lopsided.')
+      : pass('rule_of_three', 'soft');
+  },
+};
+
+// --- hook_present (soft) ----------------------------------------------------------
+const GENERIC_OPENERS = [
+  /^i('| a)m (so |very |really )?(excited|thrilled|happy|proud) to (announce|share)/i,
+  /^i want(ed)? to (share|talk about)/i,
+  /^(hello|hi) (everyone|all|folks|linkedin)/i,
+  /^(today|recently),? i/i,
+  /^in (today's|this) (world|post|article)/i,
+];
+const hookPresent: Check = {
+  id: 'hook_present', severity: 'soft',
+  appliesTo: isPost,
+  test: (text) => {
+    const first = (text.split('\n')[0] ?? '').trim();
+    if (first.length > 140) return fail('hook_present', 'soft', first,
+      'Tighten the first line to 140 characters or less; it must stop the scroll on its own.');
+    for (const re of GENERIC_OPENERS) {
+      if (re.test(first)) return fail('hook_present', 'soft', first,
+        'Replace the generic opener with a specific, curiosity-creating first line.');
+    }
+    return pass('hook_present', 'soft');
+  },
+};
+
+// --- bait_hook (hard) ---------------------------------------------------------------
+// LinkedIn's March 2026 Authenticity Update suppresses these patterns
+// regardless of account history. Generating them is negative-value.
+const BAIT_RES = [
+  /\bagree\?\s*$/im,
+  /\bcomment\s+["'“”]?\w+["'“”]?\s+(if|for|and|below)/i,
+  /\brepost\s+if\b/i,
+  /♻️/,
+  /\b(like|comment) (this|below) (if|for)\b/i,
+  /\bfollow me for more\b/i,
+];
+const baitHook: Check = {
+  id: 'bait_hook', severity: 'hard',
+  appliesTo: isPost,
+  test: (text) => {
+    for (const re of BAIT_RES) {
+      const m = text.match(re);
+      if (m) return fail('bait_hook', 'hard', m[0],
+        'Remove the engagement-bait phrasing; LinkedIn suppresses bait patterns platform-wide.');
+    }
+    const lines = text.split('\n').map((l) => l.trim());
+    let shortRun = 0;
+    for (const l of lines) {
+      if (l.length === 0) { shortRun = 0; continue; }
+      shortRun = l.split(/\s+/).length < 8 && /[a-z]/i.test(l) ? shortRun + 1 : 0;
+      if (shortRun >= 4) return fail('bait_hook', 'hard', lines.slice(0, 4).join(' / '),
+        'Merge the one-line ladder ("broetry") into real paragraphs.');
+    }
+    return pass('bait_hook', 'hard');
+  },
+};
+
+export const CHECKS: Check[] = [
+  emDash, markdown, platformLength, mentionIntegrity, paragraphShape, fabricatedSpecifics,
+  slopPhrases, contrastTell, burstiness, ruleOfThree, hookPresent, baitHook,
+];
 
 export function runChecks(text: string, ctx: CheckContext): CheckResult[] {
   const results: CheckResult[] = [];
