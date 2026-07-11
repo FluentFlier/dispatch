@@ -28,14 +28,14 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-text-primary/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/25 p-4 backdrop-blur-[2px]"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-bg-secondary border border-border rounded-lg p-6 w-full max-w-md space-y-4 shadow-card">
+      <div className="w-full max-w-md space-y-4 rounded-xl border border-hair bg-white/95 p-6 shadow-[0_20px_50px_-30px_rgba(23,23,23,0.25)] backdrop-blur-xl">
         {title && (
-          <h3 className="font-display text-lg font-bold text-text-primary">{title}</h3>
+          <h3 className="font-display text-lg font-semibold tracking-[-0.02em] text-ink">{title}</h3>
         )}
         {children}
       </div>

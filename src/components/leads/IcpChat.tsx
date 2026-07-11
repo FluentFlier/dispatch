@@ -18,7 +18,7 @@ function newId(): string {
 
 function welcomeMessage(hasIcp: boolean): string {
   if (hasIcp) {
-    return 'Your ICP is saved. Tell me what to change — e.g. "focus on US only" or "add healthcare" — then hit "Find leads now" to search.';
+    return 'Your ICP is saved. Tell me what to change — e.g. "focus on US only", "add healthcare", or "find leads now".';
   }
   return 'Who do you sell to? Describe your ideal customer — stage, industry, geography, signals like funding or YC batch. I will turn it into filters and can search for matching leads when you ask.';
 }
@@ -26,29 +26,19 @@ function welcomeMessage(hasIcp: boolean): string {
 interface IcpChatProps {
   settings: DirectorySettingsRow | null;
   onSettingsSaved?: (s: DirectorySettingsRow) => void;
-  /**
-   * Trigger the actual lead scrape. The assistant never runs discovery itself
-   * (that would block the chat for tens of seconds); it only sets up the ICP and
-   * asks the parent to run the streamed /api/leads/sync via this callback.
-   */
-  onRunScrape?: () => void;
-  /** True while a scrape started via onRunScrape is in flight (disables the CTA). */
-  scraping?: boolean;
+  onDiscoveryComplete?: () => void;
   toast?: (message: string, type?: 'success' | 'error') => void;
   /** Tighter layout for the advanced drawer. */
   compact?: boolean;
 }
 
 /**
- * Conversational ICP setup — describe and refine the ICP. When the user asks to
- * find leads, the assistant confirms and surfaces a "Find leads now" button that
- * hands off to the parent's scrape (never runs the engine inside the chat).
+ * Conversational ICP setup — describe, refine, and trigger discovery in one thread.
  */
 export function IcpChat({
   settings,
   onSettingsSaved,
-  onRunScrape,
-  scraping = false,
+  onDiscoveryComplete,
   toast,
   compact = false,
 }: IcpChatProps) {
@@ -72,12 +62,8 @@ export function IcpChat({
   });
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const skipInitialScroll = useRef(true);
-  // Set when the user sends, so their message always scrolls into view even if
-  // they'd scrolled up; cleared once the pane has been pinned to the bottom.
-  const forceScroll = useRef(false);
 
   useEffect(() => {
     try {
@@ -87,20 +73,8 @@ export function IcpChat({
     }
   }, [messages]);
 
-  // Keep the chat pane pinned to the newest message — but only the pane, never
-  // the page (scrollIntoView / focus() would move the whole page), and only
-  // when the user is already near the bottom so we don't yank them off history.
   useEffect(() => {
-    if (skipInitialScroll.current) {
-      skipInitialScroll.current = false;
-      return;
-    }
-    const el = scrollRef.current;
-    if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (!forceScroll.current && !nearBottom) return;
-    forceScroll.current = false;
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
   const send = useCallback(async () => {
@@ -109,7 +83,6 @@ export function IcpChat({
 
     const userMsg: IcpChatMessage = { id: newId(), role: 'user', content: trimmed };
     const history = messages.map((m) => ({ role: m.role, content: m.content }));
-    forceScroll.current = true;
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setLoading(true);
@@ -129,33 +102,42 @@ export function IcpChat({
       ]);
 
       if (data.settings) onSettingsSaved?.(data.settings as DirectorySettingsRow);
-      if (data.applied) toast?.('ICP updated.', 'success');
-      // The assistant asked to search but can't run it itself. When there's a
-      // scrape handler the "Find leads now" button below already covers it; only
-      // nudge with a toast when no handler is wired (e.g. embedded read-only).
-      if (data.suggestRun && !onRunScrape) {
-        toast?.('ICP ready — use "Scrape now" to find leads.', 'success');
+
+      if (data.applied) {
+        const inserted = (data.sync as { inserted?: number } | null)?.inserted ?? 0;
+        if (data.discoveryRan) {
+          toast?.(
+            inserted > 0 ? `ICP updated — ${inserted} new leads found.` : 'ICP updated — discovery ran.',
+            'success',
+          );
+          onDiscoveryComplete?.();
+        } else {
+          toast?.('ICP updated.', 'success');
+        }
+      } else if (data.discoveryRan) {
+        const inserted = (data.sync as { inserted?: number } | null)?.inserted ?? 0;
+        toast?.(
+          inserted > 0 ? `Found ${inserted} new leads.` : 'Discovery ran with your current ICP.',
+          'success',
+        );
+        onDiscoveryComplete?.();
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not send message.';
       toast?.(msg, 'error');
-      // Show the ACTUAL reason in the chat, not a generic "something went wrong",
-      // so the user can tell a provider/config problem from their own input.
       setMessages((prev) => [
         ...prev,
         {
           id: newId(),
           role: 'assistant',
-          content: msg || 'Could not reach the assistant. Try again in a moment.',
+          content: 'Something went wrong on my side. Try again in a moment.',
         },
       ]);
     } finally {
       setLoading(false);
-      // preventScroll: refocusing the textarea must not scroll the whole page
-      // (the chat lives inside taller surfaces — leads setup, the GTM drawer).
-      inputRef.current?.focus({ preventScroll: true });
+      inputRef.current?.focus();
     }
-  }, [input, loading, messages, onRunScrape, onSettingsSaved, toast]);
+  }, [input, loading, messages, onDiscoveryComplete, onSettingsSaved, toast]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -180,7 +162,7 @@ export function IcpChat({
         <div className="min-w-0 flex-1">
           <h2 className="text-sm font-semibold text-text-primary">ICP assistant</h2>
           <p className="text-xs text-text-secondary mt-0.5">
-            Describe who you sell to or refine it, then hit &quot;Find leads now&quot; to search.
+            Describe who you sell to or ask for changes. Say &quot;find leads&quot; when ready to search.
           </p>
           {(verticals.length > 0 || keywords.length > 0) && (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -205,10 +187,7 @@ export function IcpChat({
         </div>
       </div>
 
-      <div
-        ref={scrollRef}
-        className={`flex-1 overflow-y-auto px-4 py-3 space-y-3 ${compact ? 'max-h-[240px]' : 'max-h-[320px]'}`}
-      >
+      <div className={`flex-1 overflow-y-auto px-4 py-3 space-y-3 ${compact ? 'max-h-[240px]' : 'max-h-[320px]'}`}>
         {messages.map((msg) =>
           msg.role === 'user' ? (
             <div key={msg.id} className="flex justify-end">
@@ -232,21 +211,8 @@ export function IcpChat({
             </div>
           </div>
         )}
+        <div ref={bottomRef} />
       </div>
-
-      {hasIcp && onRunScrape && (
-        <div className="px-4 pb-2">
-          <button
-            type="button"
-            disabled={scraping}
-            onClick={() => onRunScrape()}
-            className="w-full inline-flex items-center justify-center gap-2 rounded-lg bg-accent-primary px-3 py-2 text-sm font-medium text-white hover:bg-accent-primary/90 disabled:opacity-50 transition-colors"
-          >
-            <Sparkles className="h-4 w-4" />
-            {scraping ? 'Searching…' : 'Find leads now'}
-          </button>
-        </div>
-      )}
 
       {settings?.icp_description?.trim() && (
         <div className="px-4 pb-2">
@@ -264,7 +230,7 @@ export function IcpChat({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={onKeyDown}
             rows={compact ? 1 : 2}
-            placeholder="Seed-stage fintech from YC… or: add healthcare, focus on US only"
+            placeholder="Seed-stage fintech from YC… or: add healthcare, find leads now"
             className="flex-1 resize-none bg-transparent text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none min-h-[40px] max-h-[120px]"
             disabled={loading}
           />
@@ -278,14 +244,11 @@ export function IcpChat({
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
           </button>
         </div>
-        {/* Refinement prompts only. Running the scrape is the dedicated "Find
-            leads now" button above — a hint chip that sent "find leads now" as a
-            message just looped back to the same CTA instead of scraping. */}
         <div className="mt-2 flex flex-wrap gap-2">
           {[
             'Seed B2B SaaS, recently raised',
             'Narrow to US fintech only',
-            'Add healthcare',
+            'Find leads now',
           ].map((hint) => (
             <button
               key={hint}
@@ -294,6 +257,7 @@ export function IcpChat({
               onClick={() => setInput(hint)}
               className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border border-border text-text-tertiary hover:text-text-primary hover:border-accent-primary/30 disabled:opacity-50"
             >
+              {hint.includes('Find') && <Sparkles className="h-3 w-3" />}
               {hint}
             </button>
           ))}

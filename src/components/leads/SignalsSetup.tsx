@@ -20,42 +20,14 @@ interface SafetyStatus {
     max_linkedin_invites_per_day: number;
     max_linkedin_inmail_per_day: number;
     max_linkedin_invites_per_week: number;
-    max_x_dm_per_day: number;
     working_hours_only: boolean;
-    working_hours_utc_start: number;
-    working_hours_utc_end: number;
   };
   usage: {
     linkedin_invites_today: number;
     linkedin_invites_this_week: number;
     linkedin_inmail_today: number;
-    x_dm_today: number;
   };
   within_working_hours: boolean;
-  last_send_at: string | null;
-}
-
-/**
- * A used/cap meter with a fill bar that greens under 70%, ambers 70-90%, and
- * reds at/over the cap — so the workspace can see ban-risk headroom at a glance.
- */
-function UsageMeter({ label, used, cap }: { label: string; used: number; cap: number }) {
-  const pct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
-  const remaining = Math.max(0, cap - used);
-  const tone =
-    pct >= 100 ? 'bg-coral-dark' : pct >= 90 ? 'bg-coral-dark/80' : pct >= 70 ? 'bg-amber-500' : 'bg-accent-secondary';
-  return (
-    <div className="rounded-md border border-border bg-bg-primary px-3 py-2">
-      <div className="flex items-baseline justify-between">
-        <span className="text-text-tertiary text-[11px]">{label}</span>
-        <span className="text-text-primary font-medium text-[11px]">{used}/{cap}</span>
-      </div>
-      <div className="mt-1.5 h-1.5 w-full rounded-full bg-bg-tertiary overflow-hidden">
-        <div className={`h-full rounded-full ${tone}`} style={{ width: `${pct}%` }} />
-      </div>
-      <p className="mt-1 text-[10px] text-text-tertiary">{remaining} left</p>
-    </div>
-  );
 }
 
 /** Connection state for LinkedIn sending, from `GET /api/signals/linkedin`. */
@@ -364,8 +336,7 @@ export function SignalsSetup() {
             <h2 className="text-sm font-semibold text-text-primary">Sending &amp; safety</h2>
             <p className="mt-1 text-xs text-text-secondary">
               Sending is {safety?.settings.outreach_enabled && !safety?.settings.dry_run ? 'on' : 'off'}.
-              Caps keep outreach within safe daily and weekly limits. Actions are spaced randomly (Unipile
-              recommends ≥2 min between sends, comments scheduled inside working hours) to reduce ban risk.
+              Caps keep outreach within safe daily and weekly limits.
             </p>
           </div>
           {(!safety?.settings.outreach_enabled || safety?.settings.dry_run) && (
@@ -380,31 +351,45 @@ export function SignalsSetup() {
           )}
         </div>
         {safety && (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <UsageMeter label="Invites today" used={safety.usage.linkedin_invites_today} cap={safety.settings.max_linkedin_invites_per_day} />
-              <UsageMeter label="Invites this week" used={safety.usage.linkedin_invites_this_week} cap={safety.settings.max_linkedin_invites_per_week} />
-              <UsageMeter label="InMail today" used={safety.usage.linkedin_inmail_today} cap={safety.settings.max_linkedin_inmail_per_day} />
-              <UsageMeter label="X DMs today" used={safety.usage.x_dm_today} cap={safety.settings.max_x_dm_per_day} />
+          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
+            <div className="rounded-md border border-border bg-bg-primary px-3 py-2">
+              <dt className="text-text-tertiary">Invites today</dt>
+              <dd className="text-text-primary font-medium">
+                {safety.usage.linkedin_invites_today} / {safety.settings.max_linkedin_invites_per_day}
+              </dd>
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-[11px]">
-              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${safety.settings.dry_run ? 'bg-amber-500/10 text-amber-600' : 'bg-sage-light text-accent-secondary'}`}>
-                {safety.settings.dry_run ? 'Dry-run (drafts only)' : 'Live sending'}
-              </span>
-              <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 ${safety.within_working_hours ? 'bg-sage-light text-accent-secondary' : 'bg-bg-tertiary text-text-tertiary'}`}>
-                {safety.settings.working_hours_only
-                  ? safety.within_working_hours
-                    ? 'Within working hours'
-                    : `Paused · sends UTC ${safety.settings.working_hours_utc_start}:00–${safety.settings.working_hours_utc_end}:00`
-                  : 'Working hours off (sends anytime)'}
-              </span>
-              {safety.last_send_at && (
-                <span className="text-text-tertiary">
-                  Last send {new Date(safety.last_send_at).toLocaleString()}
-                </span>
-              )}
+            <div className="rounded-md border border-border bg-bg-primary px-3 py-2">
+              <dt className="text-text-tertiary">Invites this week</dt>
+              <dd className="text-text-primary font-medium">
+                {safety.usage.linkedin_invites_this_week} /{' '}
+                {safety.settings.max_linkedin_invites_per_week}
+              </dd>
             </div>
-          </>
+            <div className="rounded-md border border-border bg-bg-primary px-3 py-2">
+              <dt className="text-text-tertiary">InMail today</dt>
+              <dd className="text-text-primary font-medium">
+                {safety.usage.linkedin_inmail_today} / {safety.settings.max_linkedin_inmail_per_day}
+              </dd>
+            </div>
+            <div className="rounded-md border border-border bg-bg-primary px-3 py-2">
+              <dt className="text-text-tertiary">Working hours only</dt>
+              <dd className="text-text-primary font-medium">
+                {safety.settings.working_hours_only ? 'Yes' : 'No'}
+              </dd>
+            </div>
+            <div className="rounded-md border border-border bg-bg-primary px-3 py-2">
+              <dt className="text-text-tertiary">Dry run</dt>
+              <dd className="text-text-primary font-medium">
+                {safety.settings.dry_run ? 'On' : 'Off'}
+              </dd>
+            </div>
+            <div className="rounded-md border border-border bg-bg-primary px-3 py-2">
+              <dt className="text-text-tertiary">Auto-connect</dt>
+              <dd className="text-text-primary font-medium">
+                {safety.settings.auto_send_enabled ? 'On' : 'Off'}
+              </dd>
+            </div>
+          </dl>
         )}
         <div className="flex flex-wrap gap-2">
           <button
