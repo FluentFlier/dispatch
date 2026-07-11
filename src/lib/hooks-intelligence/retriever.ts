@@ -60,6 +60,16 @@ export function retrieveBestExamples(options: RetrieveOptions = {}): ExtractedHo
     sorted = sorted.filter(s => (s as any)._rankScore >= options.minScore!);
   }
 
+  // Drop near-identical hook text (mined dataset has the same line from multiple
+  // authors). Keep the highest-ranked copy so results stay distinct.
+  const seenText = new Set<string>();
+  sorted = sorted.filter(s => {
+    const key = s.text.toLowerCase().replace(/\s+/g, ' ').trim().slice(0, 120);
+    if (seenText.has(key)) return false;
+    seenText.add(key);
+    return true;
+  });
+
   return sorted.slice(0, options.limit || 8).map(({ _rankScore, ...h }) => h as ExtractedHook);
 }
 
@@ -72,7 +82,8 @@ export function getHookContextForAgent(options: RetrieveOptions = {}): string {
 
   let context = `\n\nRAG FROM REAL MINED DATA (gstack + RL scored, Imagine-eval inspired):\n`;
   examples.forEach((h, i) => {
-    context += `${i+1}. "${h.text.substring(0, 300)}..." (@${h.author}, verticals: ${(h.verticals || []).join(', ')})\n`;
+    const author = String(h.author ?? '').replace(/^@+/, '');
+    context += `${i+1}. "${h.text.substring(0, 300)}..." (@${author}, verticals: ${(h.verticals || []).join(', ')})\n`;
   });
 
   // Add categorization if we have engager-like data (future: tie to inbox)

@@ -23,9 +23,33 @@ export interface VoiceSample {
   platform?: string;
 }
 
+/**
+ * Which context sources actually resolved with content for this load. Lets the
+ * caller (and UI) react to a starved prompt instead of silently generating on
+ * near-empty context. `starved` is a coarse "onboarding likely incomplete" flag.
+ */
+export interface ContextCompleteness {
+  profile: boolean;
+  fingerprint: boolean;
+  structural: boolean;
+  voiceExamples: boolean;
+  brain: boolean;
+  semanticMemory: boolean;
+  storyBank: boolean;
+  l4Metrics: boolean;
+  /** How the persisted voice was produced. 'fallback' = generic default, not a captured voice. */
+  voiceSource?: 'fallback' | 'imported';
+  starved: boolean;
+}
+
 export interface CreatorVoiceContext {
   profile: CreatorProfileForPrompt | null;
   contextAdditions: string;
+  completeness: ContextCompleteness;
+  /** Parsed fingerprint - lets pipeline stages use PRESERVE lists without re-parsing prompt text. */
+  vocabulary?: VocabularyFingerprint;
+  /** Parsed structural patterns - lets the pipeline use the creator's own hook_pattern. */
+  structural?: StructuralPatterns;
 }
 
 interface LoadVoiceContextOptions {
@@ -162,6 +186,42 @@ export function buildVoiceContextAdditions({
 }
 
 /**
+ * Fetches the L4 voice-quality baseline block for one workspace + platform, or ''
+ * when there is no baseline yet (< 3 scored posts). Exported so generation paths
+ * that draft per-platform (event capture loops over connected platforms) can
+ * inject the platform-correct baseline without a full second context load.
+ * Single source of truth for the "PERFORMANCE BASELINE:" block — the stable prefix
+ * lets the substance allow-list pass it to the Base/Hook stage (break 24).
+ */
+export async function fetchL4BaselineBlock(
+  client: InsforgeClient,
+  workspaceId: string,
+  platform: string,
+): Promise<string> {
+  try {
+    const { data: metrics } = await client.database
+      .from('workspace_voice_metrics')
+      .select('avg_voice_match_score, avg_ai_score, post_count')
+      .eq('workspace_id', workspaceId)
+      .eq('platform', platform)
+      .maybeSingle();
+
+    if (metrics && Number(metrics.post_count) >= 3) {
+      return (
+        `\n\nPERFORMANCE BASELINE:\nYour recent ${platform} performance: ` +
+        `${Number(metrics.avg_voice_match_score).toFixed(0)}/100 voice match, ` +
+        `${Number(metrics.avg_ai_score).toFixed(0)}/100 AI detection ` +
+        `(${metrics.post_count} posts). Maintain or beat these scores.`
+      );
+    }
+  } catch (err) {
+    // Metrics optional — log so a persistent read failure is visible.
+    console.warn('[voice-context] L4 metrics load failed', { workspaceId, platform, err });
+  }
+  return '';
+}
+
+/**
  * Loads creator profile + Voice Lab settings + optional semantic memory into one context object.
  * All generation routes should use this instead of ad-hoc profile queries.
  */
@@ -170,7 +230,7 @@ export async function loadCreatorVoiceContext(
   userId: string,
   options: LoadVoiceContextOptions = {},
 ): Promise<CreatorVoiceContext> {
-  const maxSamples = options.maxSamples ?? 3;
+  const maxSamples = options.maxSamples ?? 5;
   let profile: CreatorProfileForPrompt | null = null;
   let bioFacts: string | undefined;
   let vocabulary: VocabularyFingerprint | undefined;
@@ -178,6 +238,7 @@ export async function loadCreatorVoiceContext(
   let samplePosts: VoiceSample[] | undefined;
   let emailSamples: VoiceSample[] | undefined;
   let userContext: string | undefined;
+  let voiceSource: 'fallback' | 'imported' | undefined;
 
   try {
     let profileQuery = client.database
@@ -190,7 +251,7 @@ export async function loadCreatorVoiceContext(
       .from('user_settings')
       .select('key, value')
       .eq('user_id', userId)
-      .in('key', ['context_additions', 'vocabulary_fingerprint', 'structural_patterns', 'sample_posts', 'sample_emails', 'voice_analysis_samples', 'persona_prompt_export']);
+      .in('key', ['context_additions', 'vocabulary_fingerprint', 'structural_patterns', 'sample_posts', 'sample_emails', 'voice_analysis_samples', 'persona_prompt_export', 'voice_source']);
     if (options.workspaceId) settingsQuery = settingsQuery.eq('workspace_id', options.workspaceId);
 
     const [{ data: profileRow }, { data: settingsRows }] = await Promise.all([
@@ -238,13 +299,22 @@ export async function loadCreatorVoiceContext(
               samplePosts = parseJsonSetting<VoiceSample[]>(row.value);
             }
             break;
+          case 'voice_source':
+            voiceSource = row.value === 'fallback' || row.value === 'imported' ? row.value : undefined;
+            break;
           default:
             break;
         }
       }
     }
-  } catch {
-    // Profile and settings optional
+  } catch (err) {
+    // Profile and settings optional, but a THROW here (vs. an empty result) is a
+    // real failure worth surfacing — it starves every downstream stage.
+    console.warn('[voice-context] profile/settings load failed', {
+      userId,
+      workspaceId: options.workspaceId,
+      err,
+    });
   }
 
   if (samplePosts && samplePosts.length > maxSamples) {
@@ -269,8 +339,10 @@ export async function loadCreatorVoiceContext(
       if (brain.length > 0) {
         brainSnippets = brain;
       }
-    } catch {
-      // Brain table may not exist until migration applied
+    } catch (err) {
+      // Brain table may not exist until migration applied — log so a persistent
+      // failure is visible instead of silently thinning the prompt.
+      console.warn('[voice-context] brain retrieval failed', { userId, err });
     }
   }
 
@@ -281,13 +353,17 @@ export async function loadCreatorVoiceContext(
     process.env.SUPERMEMORY_API_KEY
   ) {
     try {
-      const results = await searchUserContext(userId, options.memoryQuery.trim(), 3);
+      // Pass workspaceId so the READ tag (workspace_${ws}) matches the WRITE tag
+      // used by onboarding persona + published-post storage. Without it the search
+      // fell back to user_${userId} and never found workspace-scoped memories.
+      const results = await searchUserContext(userId, options.memoryQuery.trim(), 3, options.workspaceId);
       const snippets = results.map((r) => r.content).filter((c): c is string => Boolean(c));
       if (snippets.length > 0) {
         memorySnippets = snippets;
       }
-    } catch {
-      // Supermemory optional enhancement
+    } catch (err) {
+      // Supermemory optional enhancement — log so an auth/quota failure is visible.
+      console.warn('[voice-context] supermemory search failed', { userId, err });
     }
   }
 
@@ -303,6 +379,7 @@ export async function loadCreatorVoiceContext(
   });
 
   // L3: inject unused Story Bank angles so captured memories inform new drafts
+  let storyBankUsed = false;
   if (options.workspaceId && !options.lightweight) {
     try {
       const { data: storyRows } = await client.database
@@ -316,36 +393,60 @@ export async function loadCreatorVoiceContext(
         .limit(3);
 
       if (storyRows?.length) {
+        storyBankUsed = true;
         contextAdditions +=
           '\n\nUNUSED STORY BANK ANGLES (consider weaving into this draft):\n' +
           storyRows.map((s, i) => `${i + 1}. ${s.mined_angle}`).join('\n');
       }
-    } catch {
-      // Story bank optional
+    } catch (err) {
+      // Story bank optional — log the failure rather than dropping the angles silently.
+      console.warn('[voice-context] story bank load failed', {
+        workspaceId: options.workspaceId,
+        err,
+      });
     }
   }
 
   // L4: inject voice quality baseline so generation targets the user's own standard
+  let l4MetricsUsed = false;
   if (options.workspaceId && options.platform && !options.lightweight) {
-    try {
-      const { data: metrics } = await client.database
-        .from('workspace_voice_metrics')
-        .select('avg_voice_match_score, avg_ai_score, post_count')
-        .eq('workspace_id', options.workspaceId)
-        .eq('platform', options.platform)
-        .maybeSingle();
-
-      if (metrics && Number(metrics.post_count) >= 3) {
-        contextAdditions +=
-          `\n\nYour recent ${options.platform} performance: ` +
-          `${Number(metrics.avg_voice_match_score).toFixed(0)}/100 voice match, ` +
-          `${Number(metrics.avg_ai_score).toFixed(0)}/100 AI detection ` +
-          `(${metrics.post_count} posts). Maintain or beat these scores.`;
-      }
-    } catch {
-      // Metrics optional
+    const block = await fetchL4BaselineBlock(client, options.workspaceId, options.platform);
+    if (block) {
+      l4MetricsUsed = true;
+      contextAdditions += block;
     }
   }
 
-  return { profile, contextAdditions };
+  // A fingerprint only counts when it has CONTENT: the onboarding fallback
+  // persona writes empty uses_often/signature_phrases arrays, which is a
+  // placeholder, not a captured voice (audit P1-4).
+  const hasRealFingerprint = Boolean(
+    vocabulary?.uses_often?.length || vocabulary?.signature_phrases?.length,
+  );
+
+  // Completeness signal: which sources actually landed content. `starved` fires
+  // when the two strongest voice signals (fingerprint + examples) are BOTH absent,
+  // which almost always means Voice Lab onboarding never ran for this workspace.
+  const completeness: ContextCompleteness = {
+    profile: !!profile,
+    fingerprint: hasRealFingerprint,
+    structural: !!structural,
+    voiceExamples: !!samplePosts?.length,
+    brain: !!brainSnippets?.length,
+    semanticMemory: !!memorySnippets?.length,
+    storyBank: storyBankUsed,
+    l4Metrics: l4MetricsUsed,
+    voiceSource,
+    starved: !hasRealFingerprint && !samplePosts?.length,
+  };
+
+  if (completeness.starved) {
+    console.warn('[voice-context] starved prompt: no fingerprint or voice examples', {
+      userId,
+      workspaceId: options.workspaceId,
+      hasProfile: completeness.profile,
+    });
+  }
+
+  return { profile, contextAdditions, completeness, vocabulary, structural };
 }

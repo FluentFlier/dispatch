@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
 import { isEnabled } from '@/lib/feature-flags';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
-import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { loadCreatorVoiceContext, fetchL4BaselineBlock } from '@/lib/voice-context';
 import { generateWithVoicePipeline, type VoicePipelineResult } from '@/lib/voice-pipeline';
 import { getBestHooksForContext } from '@/lib/hooks-intelligence';
+import { PILLAR_TO_VERTICAL } from '@/lib/hooks-intelligence/types';
+import { profilePillarWeights } from '@/lib/pillars';
 import { buildQuestionsAndAnswers, resolvePostPillar } from '@/lib/event-capture/draft-context';
 
 interface RouteParams {
@@ -22,6 +24,7 @@ interface EventCaptureForProcess {
   end_time: string;
   event_type: string;
   is_public_event: boolean;
+  attendees: Array<{ name: string }> | null;
   questions: string[] | null;
   answers: Record<string, string> | null;
 }
@@ -73,8 +76,17 @@ export async function POST(
 
   const client = getServiceClient();
 
-  // Feature flag check.
+  // Feature flag check. The caller (/answers or /auto-draft) already flipped the
+  // capture to 'drafting' before firing this route, and the 3s detail poll waits
+  // on that. If we skip here without reverting, the capture is stranded at
+  // 'drafting' and the poll spins forever. Revert to 'questions_ready' so the
+  // user can retry once the flag is on.
   if (!await isEnabled(client, 'layer1_draft_generation')) {
+    await client.database
+      .from('event_captures')
+      .update({ status: 'questions_ready', updated_at: new Date().toISOString() })
+      .eq('id', params.id)
+      .eq('status', 'drafting');
     return NextResponse.json({ skipped: true, reason: 'flag_disabled' });
   }
 
@@ -82,7 +94,7 @@ export async function POST(
   const { data: captureData } = await client.database
     .from('event_captures')
     .select(
-      'id, workspace_id, user_id, title, description, location, start_time, end_time, event_type, is_public_event, questions, answers',
+      'id, workspace_id, user_id, title, description, location, start_time, end_time, event_type, is_public_event, attendees, questions, answers',
     )
     .eq('id', params.id)
     .single();
@@ -134,8 +146,24 @@ export async function POST(
   // Index-keyed pairing carries the user's answers into the written post.
   const questionsAndAnswers = buildQuestionsAndAnswers(capture.questions, capture.answers);
 
+  // When structured extraction failed (no speakers/topics/announcements), the
+  // raw_text is just noisy SERP filler and the summary silently degraded to the
+  // title. Label it as unverified so the model does not present it as fact —
+  // instead of thin research looking identical to a rich, successful enrichment.
+  const researchIsThin =
+    !!research &&
+    !(research.speakers?.length || research.key_topics?.length || research.key_announcements?.length);
+
+  // Prefer the clean extracted summary (was a dead select) as the research lead
+  // when enrichment actually succeeded; the raw_text follows as supporting detail.
+  const summaryContext = research?.summary && !researchIsThin
+    ? `\nWhat this event was about: ${research.summary}`
+    : '';
+
   const researchContext = research?.raw_text
-    ? `\nEvent research:\n${research.raw_text.slice(0, 2000)}`
+    ? `\n${researchIsThin
+        ? 'Unverified web snippets (may be noisy - rely on the answers above and do not state these as facts unless corroborated)'
+        : 'Event research'}:\n${research.raw_text.slice(0, 2000)}`
     : '';
 
   const speakersContext = research?.speakers?.length
@@ -145,6 +173,27 @@ export async function POST(
   const topicsContext = research?.key_topics?.length
     ? `\nKey topics covered: ${research.key_topics.join(', ')}`
     : '';
+
+  // Specific, name-level details captured at ingest/enrich but never reaching the
+  // model before: who was there, what the event was about, what was announced.
+  const attendeesContext = capture.attendees?.length
+    ? `\nPeople there: ${capture.attendees.map((a) => a.name).filter(Boolean).join(', ')}`
+    : '';
+
+  const descriptionContext = capture.description?.trim()
+    ? `\nEvent description: ${capture.description.trim().slice(0, 500)}`
+    : '';
+
+  const announcementsContext = research?.key_announcements?.length
+    ? `\nKey announcements: ${research.key_announcements.join('; ')}`
+    : '';
+
+  // Derive the creator's top hook vertical so event-recap hooks are anchored to
+  // their niche instead of being fetched with an undefined vertical (which
+  // silently returned an empty set).
+  const pillarWeights = profilePillarWeights(profile?.content_pillars);
+  const topPillar = Object.entries(pillarWeights).sort((a, b) => b[1] - a[1])[0]?.[0];
+  const eventVertical = topPillar ? PILLAR_TO_VERTICAL[topPillar] : undefined;
 
   // --- Generate drafts in parallel for each connected platform ---
   interface PlatformDraft {
@@ -161,10 +210,15 @@ export async function POST(
       }
 
       const platformLabel = platform === 'twitter' ? 'Twitter/X' : 'LinkedIn';
+      // The pipeline gates PLATFORM_PLAYBOOKS on lowercase enums (linkedin|twitter).
+      // Pass the enum (mapping x -> twitter), not the human label, or the playbook
+      // is silently skipped for event drafts. The label is only for the task hint.
+      const platformEnum = platform === 'x' || platform === 'twitter' ? 'twitter' : 'linkedin';
       const charLimit = PLATFORM_LIMITS[platform] ?? 3000;
 
-      // Load best hooks for event recap context.
-      const hooks = getBestHooksForContext(undefined as any, 4);
+      // Load best hooks for event recap context, anchored to the creator's
+      // top vertical (was called with an undefined vertical before).
+      const hooks = getBestHooksForContext(eventVertical, 4);
       const hookExamples = hooks.length
         ? `\nHigh-converting hook structures to adapt:\n${hooks.map((h, i) => `${i + 1}. "${h.text}"`).join('\n')}`
         : '';
@@ -173,7 +227,7 @@ export async function POST(
 
 Event: ${capture.title}
 Date: ${new Date(capture.start_time).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}${capture.location ? '\nLocation: ' + capture.location : ''}
-Type: ${capture.event_type}${speakersContext}${topicsContext}${researchContext}
+Type: ${capture.event_type}${descriptionContext}${summaryContext}${attendeesContext}${speakersContext}${topicsContext}${announcementsContext}${researchContext}
 
 ${questionsAndAnswers ? 'What happened / key insights:\n' + questionsAndAnswers : ''}${hookExamples}
 
@@ -185,11 +239,16 @@ Rules for ${platformLabel}:
 - End with a clear takeaway or question to readers
 Return ONLY the post text.`;
 
+      // Context is loaded once (no platform), so append this platform's L4 quality
+      // baseline per draft (break 25) — cheap single-row fetch, not a full reload.
+      const l4Block = await fetchL4BaselineBlock(client, capture.workspace_id, platformEnum);
+      const draftContext = l4Block ? `${contextAdditions}${l4Block}` : contextAdditions;
+
       const pipelineResult = await generateWithVoicePipeline({
         userPrompt,
         profile,
-        contextAdditions,
-        platform: platformLabel,
+        contextAdditions: draftContext,
+        platform: platformEnum,
         contentType: 'post',
         fast: false,
       });
@@ -247,6 +306,14 @@ Return ONLY the post text.`;
       // Do NOT swallow: reporting ok:true here means the UI shows "drafted" while
       // no post exists (the pillar NOT-NULL failure looked exactly like this).
       console.error('[event-capture/process] Post insert error', insertError);
+      // Revert 'drafting' -> 'questions_ready' so the 3s detail poll stops and the
+      // user can retry, instead of stranding forever (this route is fire-and-forget,
+      // so a 500 never reaches the caller's .catch). Same fix as the flag-skip exit.
+      await client.database
+        .from('event_captures')
+        .update({ status: 'questions_ready', updated_at: new Date().toISOString() })
+        .eq('id', params.id)
+        .eq('status', 'drafting');
       return NextResponse.json(
         { ok: false, error: 'Could not save the generated draft.', detail: insertError.message },
         { status: 500 },
@@ -263,14 +330,38 @@ Return ONLY the post text.`;
       console.warn('[event-capture/process] Platform generation failed', reason);
     });
 
+  // No draft was produced (every platform generation failed or was budget-blocked).
+  // Do NOT mark 'drafted' with zero posts — that leaves the inbox showing a done
+  // capture with nothing in it. Revert so the capture stays actionable + retryable.
+  if (insertedPosts.length === 0) {
+    await client.database
+      .from('event_captures')
+      .update({ status: 'questions_ready', updated_at: new Date().toISOString() })
+      .eq('id', params.id)
+      .eq('status', 'drafting');
+    return NextResponse.json(
+      { ok: false, error: 'No drafts could be generated.', draftsGenerated: 0 },
+      { status: 502 },
+    );
+  }
+
   // --- Update capture to 'drafted' ---
-  await client.database
+  const { error: statusError } = await client.database
     .from('event_captures')
     .update({
       status: 'drafted',
       updated_at: new Date().toISOString(),
     })
     .eq('id', params.id);
+
+  if (statusError) {
+    // Drafts DO exist but the status flip failed, so the 3s poll would spin on
+    // 'drafting'. Log loudly (the row is recoverable — primaryPostId is returned).
+    console.error('[event-capture/process] Failed to mark capture drafted (drafts exist)', {
+      id: params.id,
+      statusError,
+    });
+  }
 
   return NextResponse.json({
     ok: true,

@@ -96,6 +96,8 @@ interface GenerateOutputProps {
   loading: boolean;
   sourcePlatform?: DashboardPlatform;
   voiceMetrics?: GenerateVoiceMetrics;
+  /** context_completeness from /api/generate - drives the "default voice" warning. */
+  completeness?: { starved?: boolean; voiceSource?: string } | null;
   children?: React.ReactNode;
   onTextUpdate?: (newText: string) => void;
   /** Simple = creator flow: edit, viral score, post/save/copy only */
@@ -217,6 +219,7 @@ export function GenerateOutput({
   loading,
   sourcePlatform,
   voiceMetrics,
+  completeness,
   children,
   onTextUpdate,
   variant = 'full',
@@ -336,6 +339,9 @@ export function GenerateOutput({
           platform: sourcePlatform ?? 'linkedin',
           voice_match_score: voiceMetrics?.voice_match_score ?? null,
           ai_score: voiceMetrics?.ai_score ?? null,
+          // Persist the evaluation too so quick-saved drafts feed the voice
+          // flywheel (workspace_voice_metrics) the same as full saves + cron.
+          voice_evaluation: voiceMetrics?.evaluation ?? null,
         }),
       });
       if (!res.ok) {
@@ -400,6 +406,15 @@ export function GenerateOutput({
               View post
             </a>
           )}
+        </div>
+      )}
+      {completeness && (completeness.starved || completeness.voiceSource === 'fallback') && (
+        <div className="rounded-lg border border-flame/30 bg-flame/5 px-4 py-3">
+          <p className="font-body text-[13px] text-flame">
+            Voice profile incomplete: this draft used a default voice, not yours.
+            Re-run the import in Voice Lab or paste a few of your posts so
+            generations match how you actually write.
+          </p>
         </div>
       )}
       {showVoiceMetrics && <VoiceMetricsPanel metrics={voiceMetrics} />}
@@ -556,7 +571,10 @@ function SaveToLibraryModal({
           ai_score: voiceMetrics?.ai_score ?? null,
           voice_evaluation: voiceMetrics?.evaluation ?? null,
           used_hook_ids: voiceMetrics?.used_hook_ids ?? [],
-          hook_explanations: voiceMetrics?.hook_explanations ?? [],
+          // NOTE: hook_explanations is display-only transient data, not a posts
+          // column. The /api/posts schema is .strict(), so including it 400'd the
+          // entire save and the voice scores never persisted (break 6). The cron
+          // path never saved it either. Kept out of the persisted body on purpose.
           pipeline_stages: voiceMetrics?.pipeline_stages ?? [],
         }),
       });

@@ -15,9 +15,9 @@ export const PLATFORM_PLAYBOOKS: Record<VoicePlatform, string> = {
   linkedin: `LINKEDIN
 - Strong first line before "see more" fold; no "I'm excited to announce".
 - Full post length: 200 to 400 words minimum. Not a script outline. Developed paragraphs with context, story, stakes, and takeaway.
-- Short paragraphs (1 to 3 sentences); double line break between blocks for white space.
+- Paragraphs are 2 to 4 sentences of connected prose, double line break between them for white space. The ONLY one-sentence paragraphs allowed are the opening hook line and the closing CTA question — every other paragraph must merge its sentences into one flowing block, not one sentence per line.
 - Professional but human: story beats credentials list.
-- Structure: hook line, setup (2-3 sentences), story or data (2-4 sentences), insight (2-3 sentences), CTA question.
+- Structure (write as connected prose, not labeled sections): hook line, setup (2-3 sentences in one paragraph), story or data (2-4 sentences in one paragraph), insight (2-3 sentences in one paragraph), CTA question.
 - Comments: add value, not "+1" energy; one clear takeaway.`,
 
   instagram: `INSTAGRAM

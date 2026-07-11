@@ -62,12 +62,8 @@ export function IcpChat({
   });
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const skipInitialScroll = useRef(true);
-  // Set when the user sends, so their message always scrolls into view even if
-  // they'd scrolled up; cleared once the pane has been pinned to the bottom.
-  const forceScroll = useRef(false);
 
   useEffect(() => {
     try {
@@ -77,20 +73,8 @@ export function IcpChat({
     }
   }, [messages]);
 
-  // Keep the chat pane pinned to the newest message — but only the pane, never
-  // the page (scrollIntoView / focus() would move the whole page), and only
-  // when the user is already near the bottom so we don't yank them off history.
   useEffect(() => {
-    if (skipInitialScroll.current) {
-      skipInitialScroll.current = false;
-      return;
-    }
-    const el = scrollRef.current;
-    if (!el) return;
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (!forceScroll.current && !nearBottom) return;
-    forceScroll.current = false;
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
   const send = useCallback(async () => {
@@ -99,7 +83,6 @@ export function IcpChat({
 
     const userMsg: IcpChatMessage = { id: newId(), role: 'user', content: trimmed };
     const history = messages.map((m) => ({ role: m.role, content: m.content }));
-    forceScroll.current = true;
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setLoading(true);
@@ -152,9 +135,7 @@ export function IcpChat({
       ]);
     } finally {
       setLoading(false);
-      // preventScroll: refocusing the textarea must not scroll the whole page
-      // (the chat lives inside taller surfaces — leads setup, the GTM drawer).
-      inputRef.current?.focus({ preventScroll: true });
+      inputRef.current?.focus();
     }
   }, [input, loading, messages, onDiscoveryComplete, onSettingsSaved, toast]);
 
@@ -206,10 +187,7 @@ export function IcpChat({
         </div>
       </div>
 
-      <div
-        ref={scrollRef}
-        className={`flex-1 overflow-y-auto px-4 py-3 space-y-3 ${compact ? 'max-h-[240px]' : 'max-h-[320px]'}`}
-      >
+      <div className={`flex-1 overflow-y-auto px-4 py-3 space-y-3 ${compact ? 'max-h-[240px]' : 'max-h-[320px]'}`}>
         {messages.map((msg) =>
           msg.role === 'user' ? (
             <div key={msg.id} className="flex justify-end">
@@ -233,6 +211,7 @@ export function IcpChat({
             </div>
           </div>
         )}
+        <div ref={bottomRef} />
       </div>
 
       {settings?.icp_description?.trim() && (

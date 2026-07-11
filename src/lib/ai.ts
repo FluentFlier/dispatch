@@ -1,4 +1,5 @@
 import { chatCompletion } from '@/lib/llm';
+import { voiceEvidenceOnly, stripSections, VOICE_EVIDENCE_HEADERS } from '@/lib/content-pipeline/context-split';
 
 /**
  * Default template used to seed new creator profiles during onboarding.
@@ -94,9 +95,23 @@ export function buildSystemPrompt(
   }
 
   if (contextAdditions) {
-    parts.push(
-      `\nADDITIONAL CONTEXT (reference only — the VOICE RULES above are authoritative; do not introduce companies, products, or claims that are not in this creator's profile):\n${contextAdditions}`,
-    );
+    // Voice evidence (fingerprint, structural patterns, real example posts) is
+    // the strongest cloning signal the model gets - stronger than any abstract
+    // rule list. Labeling it "reference only" told small models to ignore it
+    // (audit P1-2). Split it out as authoritative; everything else stays
+    // reference-only so brain/memory facts can't hijack the post.
+    const voiceEvidence = voiceEvidenceOnly(contextAdditions);
+    const reference = stripSections(contextAdditions, VOICE_EVIDENCE_HEADERS);
+    if (voiceEvidence) {
+      parts.push(
+        `\nVOICE EVIDENCE (authoritative - this is how ${profile.display_name} actually writes; match the vocabulary, rhythm, sentence framing, and structure exactly):\n${voiceEvidence}`,
+      );
+    }
+    if (reference) {
+      parts.push(
+        `\nADDITIONAL CONTEXT (reference only — the VOICE RULES above are authoritative; do not introduce companies, products, or claims that are not in this creator's profile):\n${reference}`,
+      );
+    }
   }
 
   return parts.join('\n');
@@ -116,9 +131,42 @@ export async function generateContent(
   profile?: CreatorProfileForPrompt | null,
   modelOverride?: string
 ): Promise<string> {
-  const systemPrompt = systemOverride
-    ? systemOverride
-    : buildSystemPrompt(profile, contextAdditions);
+  let systemPrompt: string;
+  if (systemOverride) {
+    // The override owns the task framing, but a caller that ALSO passes a profile
+    // or context (e.g. event question generation) wants that personalization used.
+    // Previously the override was used verbatim and profile/context were silently
+    // dropped (break 13). Append a compact creator-reference block so the override
+    // stays authoritative while the personalization still reaches the model. No-op
+    // when neither profile nor context is provided, so raw-override callers are
+    // unaffected.
+    const ref = buildProfileReferenceBlock(profile, contextAdditions);
+    systemPrompt = ref ? `${systemOverride}\n\n${ref}` : systemOverride;
+  } else {
+    systemPrompt = buildSystemPrompt(profile, contextAdditions);
+  }
 
   return chatCompletion(systemPrompt, prompt, modelOverride ? { model: modelOverride } : undefined);
+}
+
+/**
+ * Compact, appendable creator-reference block for use alongside a systemOverride.
+ * Unlike buildSystemPrompt it carries NO post-writing preamble/rules — just the
+ * identity + voice facts — so it personalizes an override (question generation,
+ * etc.) without redirecting it to "write a post". Returns '' when there is nothing
+ * to add.
+ */
+function buildProfileReferenceBlock(
+  profile?: CreatorProfileForPrompt | null,
+  contextAdditions?: string,
+): string {
+  const parts: string[] = [];
+  if (profile?.display_name) parts.push(`Creator: ${profile.display_name}`);
+  if (profile?.bio) parts.push(`Bio: ${profile.bio}`);
+  if (profile?.bio_facts?.trim()) parts.push(`Background facts: ${profile.bio_facts.trim()}`);
+  if (profile?.voice_description) parts.push(`Voice: ${profile.voice_description}`);
+  if (profile?.voice_rules) parts.push(`Voice rules: ${profile.voice_rules}`);
+  if (contextAdditions?.trim()) parts.push(`Additional context:\n${contextAdditions.trim()}`);
+  if (parts.length === 0) return '';
+  return `CREATOR REFERENCE (personalize to this creator; do not invent facts):\n${parts.join('\n')}`;
 }

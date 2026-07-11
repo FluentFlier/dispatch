@@ -83,3 +83,6 @@ ds-bundle/
 !.design-sync/NOTES.md
 !.design-sync/conventions.md
 .env*
+
+# eval run outputs
+evals/out/

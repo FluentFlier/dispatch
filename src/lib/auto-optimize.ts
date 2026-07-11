@@ -1,33 +1,41 @@
-import { getServerClient } from '@/lib/insforge/server';
+import { getServiceClient } from '@/lib/insforge/server';
 import { PLATFORMS } from '@/lib/constants';
 import type { Platform } from '@/lib/constants';
+import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { guardAiRequest } from '@/lib/ai-guard';
+import {
+  generateOptimizeVariants,
+  type OptimizePlatform,
+} from '@/lib/optimize-variants';
 
 /**
- * Checks if auto-optimize is enabled for a user, and if so, triggers
- * background optimization to create variant posts linked by variant_group_id.
+ * Checks if auto-optimize is enabled for a user, and if so, generates
+ * platform variants in-process and inserts them as linked posts.
  *
- * This function is called after a post is created/updated with script or
- * caption content. It runs asynchronously (fire-and-forget) so it does not
- * block the response to the original POST/PATCH request.
+ * Runs fire-and-forget from POST/PATCH /api/posts — no HTTP round-trip,
+ * so it does not depend on session cookies surviving after the response.
+ * Pass workspaceId from the request handler (do not resolve via cookies here).
  */
 export async function triggerAutoOptimize({
   userId,
   postId,
   content,
   sourcePlatform,
-  requestCookies,
-  origin,
+  workspaceId,
 }: {
   userId: string;
   postId: string;
   content: string;
   sourcePlatform: string;
-  requestCookies: string;
-  origin: string;
+  workspaceId?: string | null;
+  /** @deprecated unused — kept for call-site compatibility during rollout */
+  requestCookies?: string;
+  /** @deprecated unused — kept for call-site compatibility during rollout */
+  origin?: string;
 }): Promise<void> {
-  const client = getServerClient();
+  // Service client: background work must not depend on request cookies / RLS session.
+  const client = getServiceClient();
 
-  // 1. Check user setting
   const { data: setting } = await client.database
     .from('user_settings')
     .select('value')
@@ -39,79 +47,67 @@ export async function triggerAutoOptimize({
     return;
   }
 
-  // 2. Determine target platforms (all except source)
   const targetPlatforms = PLATFORMS.filter(
-    (p) => p !== sourcePlatform
-  ) as Platform[];
+    (p) => p !== sourcePlatform,
+  ) as OptimizePlatform[];
 
   if (targetPlatforms.length === 0 || !content.trim()) {
     return;
   }
 
+  const guard = await guardAiRequest(userId);
+  if (!guard.ok) {
+    console.error('[auto-optimize] AI guard blocked:', guard.error);
+    return;
+  }
+
   const variantGroupId = crypto.randomUUID();
 
-  // 3. Call POST /api/optimize using the internal service token instead of the
-  //    original request cookies. The previous approach passed Cookie: requestCookies
-  //    into a background fetch — if the serverless function completed before the
-  //    background task ran, the session cookie was gone and the call returned 401.
-  //    The CRON_SECRET header lets /api/optimize identify internal callers.
   try {
-    const optimizeRes = await fetch(`${origin}/api/optimize`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-internal-user-id': userId,
-        Authorization: `Bearer ${process.env.CRON_SECRET ?? ''}`,
-      },
-      body: JSON.stringify({
-        content,
-        sourcePlatform: sourcePlatform as Platform,
-        targetPlatforms,
-        postId,
-        optimizationLevel: 'full',
-      }),
+    const { profile, contextAdditions } = await loadCreatorVoiceContext(client, userId, {
+      memoryQuery: content.slice(0, 200),
+      workspaceId: workspaceId ?? undefined,
     });
 
-    if (!optimizeRes.ok) {
-      console.error('[auto-optimize] Optimization request failed:', optimizeRes.status);
+    const { variants, errors } = await generateOptimizeVariants({
+      content,
+      targetPlatforms,
+      optimizationLevel: 'full',
+      profile,
+      contextAdditions,
+    });
+
+    if (errors.length > 0) {
+      console.error('[auto-optimize] Partial optimize errors:', errors);
+    }
+
+    if (!variants || variants.length === 0) {
       return;
     }
 
-    const { variants } = await optimizeRes.json();
-
-    if (!variants || !Array.isArray(variants) || variants.length === 0) {
-      return;
-    }
-
-    // 4. Fetch the source post to inherit title and pillar
     const { data: sourcePost } = await client.database
       .from('posts')
-      .select('title, pillar')
+      .select('title, pillar, workspace_id')
       .eq('id', postId)
       .eq('user_id', userId)
       .single();
 
     if (!sourcePost) return;
 
-    // 5. Create variant posts and assign variant_group_id to source post only
-    //    AFTER variants are confirmed — setting it before meant the source post
-    //    appeared in a group with no siblings when the optimize call failed.
-    const variantPosts = variants.map(
-      (v: { platform: string; content: string }) => ({
-        user_id: userId,
-        title: `${sourcePost.title} (${v.platform})`,
-        pillar: sourcePost.pillar,
-        platform: v.platform,
-        status: 'scripted' as const,
-        caption: v.content,
-        variant_group_id: variantGroupId,
-        source_platform: sourcePlatform,
-      })
-    );
+    const variantPosts = variants.map((v) => ({
+      user_id: userId,
+      workspace_id: sourcePost.workspace_id ?? workspaceId ?? null,
+      title: `${sourcePost.title} (${v.platform})`,
+      pillar: sourcePost.pillar,
+      platform: v.platform as Platform,
+      status: 'scripted' as const,
+      caption: v.content,
+      variant_group_id: variantGroupId,
+      source_platform: sourcePlatform,
+    }));
 
     await client.database.from('posts').insert(variantPosts);
 
-    // Update source post with variant_group_id only after variants are created.
     await client.database
       .from('posts')
       .update({ variant_group_id: variantGroupId, source_platform: sourcePlatform })

@@ -19,17 +19,16 @@ function markStepDone(playbook: LeadPlaybook, type: LeadPlaybook['steps'][number
   };
 }
 
-/**
- * Drafts a voice comment and queues an engagement_tasks row linked to the lead.
- */
-export async function queueLeadCommentTask(
+/** Drafts a voice comment and inserts one engagement_tasks row for a single post. */
+async function insertCommentTask(
   client: InsforgeClient,
   workspaceId: string,
   userId: string,
   lead: SignalLeadWithContacts,
-  playbook: LeadPlaybook,
   targetPost: ProspectPost,
-): Promise<{ taskId: string; playbook: LeadPlaybook; scheduledAt: string }> {
+  scheduledAtIso: string,
+  autoApprove: boolean,
+): Promise<string> {
   const contact = lead.primary_contact ?? lead.contacts?.[0];
   const draft = await draftOutboundComment(client, userId, {
     targetPostExcerpt: targetPost.excerpt,
@@ -37,13 +36,6 @@ export async function queueLeadCommentTask(
     platform: 'linkedin',
     fast: true,
   });
-
-  const settings = await getSafetySettings(client, workspaceId);
-  const scheduledAt = scheduleHumanizedEngagementAt(settings, {
-    minDelayMinutes: 60,
-    maxDelayMinutes: 480,
-  });
-  const autoApprove = settings.auto_send_enabled && settings.outreach_enabled && !settings.dry_run;
 
   const { data, error } = await client.database
     .from('engagement_tasks')
@@ -61,7 +53,7 @@ export async function queueLeadCommentTask(
         source: 'gtm_nurture',
         comment_text: draft.text,
         status: autoApprove ? 'approved' : 'draft',
-        scheduled_at: scheduledAt.toISOString(),
+        scheduled_at: scheduledAtIso,
       },
     ])
     .select('id')
@@ -70,26 +62,80 @@ export async function queueLeadCommentTask(
   if (error || !data?.id) {
     throw new Error(error?.message ?? 'Could not queue comment task.');
   }
+  return data.id as string;
+}
 
+/**
+ * Drafts a voice comment per post and queues an engagement_tasks row for each,
+ * staggered across days so they never fire in a burst (ban risk). Advances the
+ * lead to `engaging` with the whole comment set recorded on the playbook.
+ */
+export async function queueLeadCommentTasks(
+  client: InsforgeClient,
+  workspaceId: string,
+  userId: string,
+  lead: SignalLeadWithContacts,
+  playbook: LeadPlaybook,
+  targetPosts: ProspectPost[],
+): Promise<{ taskIds: string[]; playbook: LeadPlaybook; scheduledAt: string }> {
+  const settings = await getSafetySettings(client, workspaceId);
+  const autoApprove = settings.auto_send_enabled && settings.outreach_enabled && !settings.dry_run;
+
+  const taskIds: string[] = [];
+  let firstScheduledIso: string | null = null;
+  for (let i = 0; i < targetPosts.length; i++) {
+    // Space comment i ~half a day further out than the last, so warming up across
+    // several posts spreads over days instead of firing them back-to-back.
+    const scheduledAt = scheduleHumanizedEngagementAt(settings, {
+      minDelayMinutes: 60 + i * 720,
+      maxDelayMinutes: 420 + i * 720,
+    }).toISOString();
+    if (i === 0) firstScheduledIso = scheduledAt;
+    taskIds.push(await insertCommentTask(client, workspaceId, userId, lead, targetPosts[i], scheduledAt, autoApprove));
+  }
+
+  const scheduledAt = firstScheduledIso ?? new Date().toISOString();
+  const first = targetPosts[0];
   const updatedPlaybook: LeadPlaybook = {
     ...markStepDone(playbook, 'research'),
     targetPost: {
-      id: targetPost.id,
-      excerpt: targetPost.excerpt.slice(0, 500),
-      url: targetPost.url,
-      source: targetPost.source,
+      id: first.id,
+      excerpt: first.excerpt.slice(0, 500),
+      url: first.url,
+      source: first.source,
     },
-    commentTaskId: data.id as string,
-    hookContext: `${playbook.hookContext ?? ''} Comment drafted on their recent post.`,
+    commentTaskId: taskIds[0],
+    commentTaskIds: taskIds,
+    hookContext: `${playbook.hookContext ?? ''} ${taskIds.length} comment${taskIds.length > 1 ? 's' : ''} drafted on their recent posts.`,
   };
 
   await updateLead(client, workspaceId, lead.id, {
     nurture_stage: 'engaging',
     playbook: updatedPlaybook,
-    next_action_at: scheduledAt.toISOString(),
+    next_action_at: scheduledAt,
   });
 
-  return { taskId: data.id as string, playbook: updatedPlaybook, scheduledAt: scheduledAt.toISOString() };
+  return { taskIds, playbook: updatedPlaybook, scheduledAt };
+}
+
+/** Back-compat single-post wrapper over queueLeadCommentTasks. */
+export async function queueLeadCommentTask(
+  client: InsforgeClient,
+  workspaceId: string,
+  userId: string,
+  lead: SignalLeadWithContacts,
+  playbook: LeadPlaybook,
+  targetPost: ProspectPost,
+): Promise<{ taskId: string; playbook: LeadPlaybook; scheduledAt: string }> {
+  const { taskIds, playbook: pb, scheduledAt } = await queueLeadCommentTasks(
+    client,
+    workspaceId,
+    userId,
+    lead,
+    playbook,
+    [targetPost],
+  );
+  return { taskId: taskIds[0], playbook: pb, scheduledAt };
 }
 
 export interface LeadCommentActionResult {

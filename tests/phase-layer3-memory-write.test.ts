@@ -39,7 +39,12 @@ function makeClient(options: {
     database: {
       from: vi.fn((table: string) => {
         if (table === 'feature_flags') {
-          return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), single: flagSingle };
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            single: flagSingle,
+            maybeSingle: flagSingle,
+          };
         }
         if (table === 'posts') {
           return {

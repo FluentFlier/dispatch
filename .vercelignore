@@ -3,7 +3,7 @@
 .gstack
 node_modules
 .next
-db
+/db
 prd.md
 AGENTS.md
 CLAUDE.md

@@ -1,0 +1,10 @@
+{
+  "profile": {
+    "display_name": "Karl Jensen",
+    "voice_description": "Engineer writing for engineers. Precise, examples over adjectives.",
+    "voice_rules": "Include one concrete code-adjacent detail per post.\nNever say revolutionary.",
+    "content_pillars": [
+      "developer tools"
+    ]
+  }
+}

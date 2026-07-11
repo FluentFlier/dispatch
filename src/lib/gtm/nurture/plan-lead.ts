@@ -1,6 +1,6 @@
 import type { createClient } from '@insforge/sdk';
-import { queueLeadCommentTask } from '@/lib/gtm/nurture/comment-task';
-import { fetchProspectLinkedInPost } from '@/lib/gtm/nurture/linkedin-posts';
+import { queueLeadCommentTasks } from '@/lib/gtm/nurture/comment-task';
+import { fetchProspectLinkedInPosts } from '@/lib/gtm/nurture/linkedin-posts';
 import { buildLeadPlaybook, connectDueAt } from '@/lib/gtm/nurture/playbook';
 import type { LeadPlaybook, NurtureStage } from '@/lib/signals/types';
 import { draftOutreachForLead } from '@/lib/signals/outreach/draft-lead';
@@ -16,6 +16,13 @@ type InsforgeClient = ReturnType<typeof createClient>;
  * interactive plan on a slow external fetch.
  */
 const PLAN_POST_FETCH_TIMEOUT_MS = 3500;
+
+/**
+ * How many of the prospect's recent posts to warm up on before connecting. The
+ * comment tasks are staggered across days (see queueLeadCommentTasks), so this is
+ * a warm-up cadence, not a burst.
+ */
+const WARMUP_POST_COUNT = 3;
 
 export interface PlanLeadResult {
   lead: SignalLeadWithContacts;
@@ -42,27 +49,34 @@ export async function planLeadNurture(
 
   const playbook = buildLeadPlaybook(lead);
   // Best-effort, time-boxed: a slow LinkedIn post fetch must not stall the plan.
-  const targetPost = await withTimeout(
-    fetchProspectLinkedInPost(client, workspaceId, userId, lead),
+  const targetPosts = await withTimeout(
+    fetchProspectLinkedInPosts(client, workspaceId, userId, lead, WARMUP_POST_COUNT),
     PLAN_POST_FETCH_TIMEOUT_MS,
-    null,
+    [],
   );
 
-  if (targetPost) {
-    const { playbook: queuedPlaybook } = await queueLeadCommentTask(
+  if (targetPosts.length > 0) {
+    const { playbook: queuedPlaybook } = await queueLeadCommentTasks(
       client,
       workspaceId,
       userId,
       lead,
       playbook,
-      targetPost,
+      targetPosts,
     );
+    // Draft the connect note UP FRONT so a manual warm-up (comment, then connect)
+    // is never blocked waiting on the comment to auto-send — dry-run / manual mode
+    // never fires that send, which previously stranded the lead at `engaging` with
+    // no draft (approve then 422s). Drafting is not sending: assertOutreachAllowed
+    // still gates the actual connect send.
+    await draftOutreachForLead(client, userId, workspaceId, lead, 'linkedin_connect');
     const connectDue = opts?.connectDueOverride ?? connectDueAt(queuedPlaybook);
 
     await logLeadEvent(client, workspaceId, leadId, 'rescored', {
       action: 'nurture_planned',
       nurture_stage: 'engaging',
-      target_post_id: targetPost.id,
+      target_post_id: targetPosts[0].id,
+      comment_count: targetPosts.length,
       connect_due: connectDue.toISOString(),
     });
 

@@ -22,7 +22,11 @@ const securityHeaders = [
   },
   {
     key: 'Permissions-Policy',
-    value: 'camera=(), microphone=(), geolocation=()',
+    // microphone=(self): allow the mic for our OWN origin only. An empty
+    // allowlist (microphone=()) blocks getUserMedia site-wide before any prompt
+    // and cannot be overridden by the user granting permission, which broke
+    // Dictate + Voice Capture. camera/geolocation stay locked (unused).
+    value: 'camera=(), microphone=(self), geolocation=()',
   },
   {
     key: 'Content-Security-Policy',

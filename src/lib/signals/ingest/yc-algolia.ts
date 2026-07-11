@@ -1,5 +1,6 @@
 import type { IngestedLead } from '@/lib/signals/types';
 import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
+import { normalizeName } from '@/lib/signals/leads/identity';
 
 /**
  * Reliable YC directory ingest via YC's own Algolia search index.
@@ -17,6 +18,13 @@ import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
 const YC_COMPANIES_URL = 'https://www.ycombinator.com/companies';
 // Recency-sorted index → freshest batches first (what GTM outreach wants).
 const YC_ALGOLIA_INDEX = 'YCCompany_By_Launch_Date_production';
+// Relevance-ranked index — REQUIRED for any text/ICP query. The recency index
+// above has a `distinct` setting that collapses a non-empty query to a SINGLE hit
+// (nbHits in the thousands, one returned), so an ICP scrape resolved to 1 company
+// — usually a filtered mega-corp — and threw "Algolia returned 0 companies". A
+// text query on this index returns full pages; empty/recency queries keep the
+// launch-date index so fresh batches still rank first.
+const YC_ALGOLIA_INDEX_RELEVANCE = 'YCCompany_production';
 const ALGOLIA_OPTS_RE = /AlgoliaOpts\s*=\s*(\{.*?\})/;
 const MAX_HITS = 50;
 
@@ -106,12 +114,47 @@ export interface YcCompanyDetail {
   founders: YcFounder[];
 }
 
+/**
+ * Resolves a founder's real title. YC's structured `title` field is frequently
+ * just "Founder" for every co-founder, while the actual CEO/CTO/COO designation
+ * lives in the free-text `founder_bio` ("Founder & CEO at Acme (YC S26). …").
+ * Prefer the bio's leading role phrase when it names a specific C-level/president
+ * role the bare title omits; otherwise keep the structured title. This is what
+ * lets outreach target the CEO instead of whichever co-founder was listed first.
+ */
+function extractRole(title: unknown, bio: unknown): string | undefined {
+  const structured = decodeText(title) || undefined;
+  const b = decodeText(bio) ?? '';
+
+  // Tier 1: a title-anchored lead phrase — "Founder & CEO of Bylaw…",
+  // "Co-founder and CEO @ Acme…", "Cofounder & CTO of Poth…". Must START with a
+  // role word (so a narrative "Marinos is the co-founder of…" is not mistaken for
+  // a title) and must name a C-level role.
+  const lead = b
+    .match(/^\s*((?:co-?founders?|founder|ceo|cto|coo|cfo|president|chief)[A-Za-z/&,.\-\s]*?)\s+(?:at|of|@)\s/i)?.[1]
+    ?.trim()
+    .replace(/\s+/g, ' ');
+  if (lead && /\b(ceo|cto|coo|cfo|president)\b/i.test(lead)) return lead;
+
+  // Tier 2: bio asserts CEO in prose ("Rohan is the CEO of Praxis…", "serves as
+  // CEO"). Only a real role-assertion counts — an incidental mention like "a F500
+  // CEO's office" or naming a co-founder's CTO role must NOT tag this person CEO.
+  // Restricted to CEO because that's the decision-maker we route outreach to.
+  const assertsCeo = /\b(?:is\s+(?:the\s+)?|the\s+|as\s+|serves?\s+as\s+(?:the\s+)?)ceo\b/i.test(b);
+  if (assertsCeo) {
+    if (structured && !/\bceo\b/i.test(structured)) return `${structured} & CEO`;
+    return structured || 'CEO';
+  }
+
+  return structured;
+}
+
 /** Maps YC founder records to our contact shape. */
 function mapFounders(raw: unknown): YcFounder[] {
   const arr = Array.isArray(raw) ? (raw as Array<Record<string, unknown>>) : [];
   return arr.map((f) => ({
     name: decodeText(f.full_name),
-    role: decodeText(f.title),
+    role: extractRole(f.title, f.founder_bio),
     linkedinUrl: f.linkedin_url ? String(f.linkedin_url) : undefined,
     xHandle: handleFromTwitter(f.twitter_url),
   }));
@@ -207,11 +250,27 @@ async function readAlgoliaOpts(): Promise<AlgoliaOpts> {
   return opts;
 }
 
+/**
+ * Well-known YC alumni that are now large public/late-stage companies — never
+ * real cold-outreach prospects. They can surface via a stray query or a stale
+ * index row (e.g. Airbnb, W09) and just pollute the feed, so drop them at ingest.
+ * Matched on the stable slug (lowercased).
+ */
+const MEGACORP_SLUGS = new Set([
+  'airbnb', 'stripe', 'coinbase', 'doordash', 'dropbox', 'instacart', 'reddit',
+  'twitch', 'gitlab', 'cruise', 'rippling', 'brex', 'deel', 'razorpay', 'zapier',
+  'flexport', 'faire', 'scale-ai', 'benchling', 'gusto', 'checkr', 'podium',
+  'amplitude', 'mixpanel', 'segment', 'pagerduty', 'weebly', 'quora',
+]);
+
 /** Maps one Algolia hit to a normalized IngestedLead, or null if unusable. */
 export function mapHit(hit: YcHit): IngestedLead | null {
   const companyName = String(hit.name ?? '').trim();
   const externalId = String(hit.slug ?? companyName).trim();
   if (!companyName || !externalId) return null;
+  // Skip junk names (a stopword/fragment is not a real company) and mega-corps.
+  if (companyName.length < 2 || !/[a-z0-9]/i.test(companyName)) return null;
+  if (MEGACORP_SLUGS.has(externalId.toLowerCase())) return null;
   return {
     source: 'yc_directory',
     externalId,
@@ -235,7 +294,21 @@ export function mapHit(hit: YcHit): IngestedLead | null {
 export async function fetchYcCompaniesViaAlgolia(limit: number, query = ''): Promise<IngestedLead[]> {
   const startedAt = Date.now();
   const { app, key } = await readAlgoliaOpts();
-  const q = encodeURIComponent(query.trim());
+  const trimmed = query.trim();
+  const q = encodeURIComponent(trimmed);
+
+  // ICP-derived queries concatenate many verticals + keywords (e.g. "fintech
+  // treasury seed round B2B SaaS ..."). Algolia requires ALL query words to
+  // match by default, so a rich multi-term ICP matched ZERO companies (the
+  // better a user described their ICP, the emptier the scrape). Marking every
+  // word optional keeps ranking — records matching more terms rank higher —
+  // while never filtering the result set to nothing. Bare/empty queries are
+  // unaffected (no optional words to send).
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  const optionalWords = words.length > 1 ? `&optionalWords=${encodeURIComponent(JSON.stringify(words))}` : '';
+  // Text/ICP query -> relevance index (recency index collapses text queries to 1
+  // hit); empty query -> recency index so fresh batches rank first.
+  const indexName = trimmed ? YC_ALGOLIA_INDEX_RELEVANCE : YC_ALGOLIA_INDEX;
 
   const res = await fetch(`https://${app.toLowerCase()}-dsn.algolia.net/1/indexes/*/queries`, {
     method: 'POST',
@@ -247,8 +320,8 @@ export async function fetchYcCompaniesViaAlgolia(limit: number, query = ''): Pro
     body: JSON.stringify({
       requests: [
         {
-          indexName: YC_ALGOLIA_INDEX,
-          params: `query=${q}&hitsPerPage=${Math.min(Math.max(limit, 1), MAX_HITS)}&page=0`,
+          indexName,
+          params: `query=${q}${optionalWords}&hitsPerPage=${Math.min(Math.max(limit, 1), MAX_HITS)}&page=0`,
         },
       ],
     }),
@@ -265,4 +338,56 @@ export async function fetchYcCompaniesViaAlgolia(limit: number, query = ''): Pro
     );
   }
   return leads;
+}
+
+/** A company's real YC identity resolved from its display name. */
+export interface YcNameMatch {
+  slug: string;
+  name: string;
+  website?: string;
+  batch?: string;
+}
+
+/**
+ * Resolves a company NAME to its real YC identity via the same Algolia index the
+ * directory uses. Returns the top hit ONLY when its normalized name exactly matches
+ * the query — a strict gate so a generic name ("Clicks") cannot false-match a
+ * different YC company. Used to recover manual/ICP leads that are really YC
+ * companies but were stored with a guessed slug. Returns null on no confident match;
+ * throws (like the sibling scrape fn) when Algolia itself is unreachable.
+ */
+export async function findYcCompanyByName(name: string): Promise<YcNameMatch | null> {
+  const clean = name.trim();
+  if (!clean) return null;
+  const { app, key } = await readAlgoliaOpts();
+  const res = await fetch(`https://${app.toLowerCase()}-dsn.algolia.net/1/indexes/*/queries`, {
+    method: 'POST',
+    headers: {
+      'X-Algolia-Application-Id': app,
+      'X-Algolia-API-Key': key,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      requests: [
+        {
+          // Name lookup is a text query — use the relevance index (the recency
+          // index collapses text queries and can return the wrong single hit).
+          indexName: YC_ALGOLIA_INDEX_RELEVANCE,
+          params: `query=${encodeURIComponent(clean)}&hitsPerPage=1&page=0`,
+        },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`Algolia ${res.status}: ${await res.text()}`);
+  const json = (await res.json()) as { results?: Array<{ hits?: YcHit[] }> };
+  const hit = json.results?.[0]?.hits?.[0];
+  if (!hit?.slug || !hit?.name) return null;
+  // Strict confidence gate: normalized names must be equal (no fuzzy match).
+  if (normalizeName(String(hit.name)) !== normalizeName(clean)) return null;
+  return {
+    slug: String(hit.slug),
+    name: String(hit.name),
+    website: hit.website || undefined,
+    batch: hit.batch_name || undefined,
+  };
 }

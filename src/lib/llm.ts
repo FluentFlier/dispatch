@@ -73,6 +73,12 @@ export interface ChatCompletionOptions {
   temperature?: number;
   /** Override the env model for this call (rarely needed). */
   model?: string;
+  /**
+   * Ask the provider for a guaranteed-JSON response (response_format
+   * json_object). Providers that reject the param 400 - the call is retried
+   * once without it, so setting this is always safe.
+   */
+  responseFormat?: 'json';
 }
 
 /**
@@ -196,6 +202,9 @@ async function callProvider(
     body.max_tokens = maxTokens;
     body.temperature = options.temperature ?? DEFAULT_TEMPERATURE;
   }
+  if (options.responseFormat === 'json') {
+    body.response_format = { type: 'json_object' };
+  }
   const requestBody = JSON.stringify(body);
 
   for (let attempt = 0; ; attempt++) {
@@ -241,6 +250,34 @@ async function callProvider(
       detail = bodyText.slice(0, 200);
     }
     throw new LlmError(`LLM provider returned ${response.status}: ${detail}`, response.status);
+  }
+}
+
+/**
+ * callProvider + one graceful degradation: providers that don't support
+ * response_format reject it with a 400. Retry once without it so json mode
+ * is safe to request against any OpenAI-compatible endpoint.
+ */
+async function callProviderWithJsonFallback(
+  provider: Provider,
+  systemPrompt: string,
+  userPrompt: string,
+  options: ChatCompletionOptions,
+  retryRateLimit: boolean,
+): Promise<string> {
+  try {
+    return await callProvider(provider, systemPrompt, userPrompt, options, retryRateLimit);
+  } catch (err) {
+    if (err instanceof LlmError && err.status === 400 && options.responseFormat) {
+      return callProvider(
+        provider,
+        systemPrompt,
+        userPrompt,
+        { ...options, responseFormat: undefined },
+        retryRateLimit,
+      );
+    }
+    throw err;
   }
 }
 
@@ -292,12 +329,12 @@ export async function chatCompletion(
   try {
     // If a fallback exists, don't waste time retrying a rate-limited primary —
     // fail fast and switch. Without a fallback, keep the in-place retry loop.
-    return await callProvider(primary, systemPrompt, userPrompt, options, !fallback);
+    return await callProviderWithJsonFallback(primary, systemPrompt, userPrompt, options, !fallback);
   } catch (err) {
     // On quota/credit/rate-limit exhaustion, try the fallback provider.
     if (err instanceof LlmError && err.isQuota && fallback) {
       // Use the fallback's own model, not the primary's override.
-      return callProvider(fallback, systemPrompt, userPrompt, { ...options, model: undefined });
+      return callProviderWithJsonFallback(fallback, systemPrompt, userPrompt, { ...options, model: undefined }, true);
     }
     throw err;
   }

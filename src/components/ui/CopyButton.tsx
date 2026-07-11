@@ -1,17 +1,49 @@
 'use client';
 
 import { useState } from 'react';
+import { useToast } from '@/components/ui/Toast';
 
 interface CopyButtonProps {
   text: string;
   className?: string;
 }
 
+/**
+ * Fallback for when the async Clipboard API is blocked (permission denied,
+ * unsupported browser, embedded/iframe context) -- the older execCommand path
+ * still works in those cases since it doesn't need clipboard-write permission.
+ */
+function legacyCopy(text: string): boolean {
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.position = 'fixed';
+  textarea.style.opacity = '0';
+  document.body.appendChild(textarea);
+  textarea.focus();
+  textarea.select();
+  let ok = false;
+  try {
+    ok = document.execCommand('copy');
+  } catch {
+    ok = false;
+  }
+  document.body.removeChild(textarea);
+  return ok;
+}
+
 export function CopyButton({ text, className = '' }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
+  const { toast } = useToast();
 
   const copy = async () => {
-    await navigator.clipboard.writeText(text);
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch {
+      if (!legacyCopy(text)) {
+        toast('Copy failed — select and copy the text manually.', 'error');
+        return;
+      }
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };

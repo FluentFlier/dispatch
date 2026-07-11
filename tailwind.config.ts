@@ -9,17 +9,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // --- Editorial palette (Swiss-editorial light theme; landing + reskin) ---
-        paper: '#FBFAF7',
-        paper2: '#F4F2EC',
-        ink: '#171717',
-        ink2: '#56544F',
-        ink3: '#908D87',
-        hair: 'rgba(23, 23, 23, 0.10)',
-        hair2: 'rgba(23, 23, 23, 0.16)',
-        blue: { DEFAULT: '#2563EB', dark: '#1D4FD7' },
-        teal: '#0F766E',
-        flame: '#E8543A',
+        // --- Content Relay palette (white stage + bold flat accents) ---
+        paper: 'oklch(99.2% 0.002 85)',
+        paper2: 'oklch(97.5% 0.004 85)',
+        surface: 'oklch(100% 0 0)',
+        ink: 'oklch(18% 0.012 55)',
+        ink2: 'oklch(43% 0.014 65)',
+        ink3: 'oklch(49% 0.014 65)',
+        hair: 'oklch(18% 0.012 55 / 0.11)',
+        hair2: 'oklch(18% 0.012 55 / 0.18)',
+        blue: { DEFAULT: 'oklch(57% 0.24 260)', dark: 'oklch(47% 0.22 260)' },
+        teal: 'oklch(44% 0.1 145)',
+        flame: 'oklch(62% 0.2 35)',
+        lime: 'oklch(84% 0.2 125)',
+        lilac: 'oklch(76% 0.12 305)',
         bg: {
           primary: '#FBFAF7',
           secondary: '#FFFFFF',
@@ -78,9 +81,9 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ['DM Sans', 'system-ui', 'sans-serif'],
-        heading: ['DM Sans', 'system-ui', 'sans-serif'],
-        body: ['DM Sans', 'system-ui', 'sans-serif'],
+        display: ['var(--font-hanken)', 'system-ui', 'sans-serif'],
+        heading: ['var(--font-hanken)', 'system-ui', 'sans-serif'],
+        body: ['var(--font-hanken)', 'system-ui', 'sans-serif'],
         serif: ['var(--font-fraunces)', 'Georgia', 'serif'],
         grotesk: ['var(--font-hanken)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-jetbrains)', 'ui-monospace', 'monospace'],
@@ -95,7 +98,7 @@ const config: Config = {
         pill: '999px',
       },
       boxShadow: {
-        card: '0 1px 2px rgba(23, 23, 23, 0.05), 0 8px 24px rgba(23, 23, 23, 0.05)',
+        card: '0 20px 50px -30px rgba(23, 23, 23, 0.12)',
         soft: '0 8px 24px rgba(37, 99, 235, 0.12)',
         glass: '0 1px 0 rgba(244,240,232,0.06) inset, 0 24px 60px -24px rgba(0,0,0,0.7)',
       },

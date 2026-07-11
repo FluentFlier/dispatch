@@ -1,0 +1,304 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-07-11T09:59:00.000Z",
+  "title": "Design System: Content OS",
+  "extensions": {
+    "colorMeta": {
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Studio Canvas",
+        "canonical": "oklch(99.2% 0.002 85)",
+        "tonalRamp": [
+          "oklch(15% 0.008 85)",
+          "oklch(28% 0.010 85)",
+          "oklch(41% 0.010 85)",
+          "oklch(55% 0.009 85)",
+          "oklch(68% 0.008 85)",
+          "oklch(81% 0.006 85)",
+          "oklch(92% 0.004 85)",
+          "oklch(99.2% 0.002 85)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Soft Ink",
+        "canonical": "oklch(18% 0.012 55)",
+        "tonalRamp": [
+          "oklch(15% 0.012 55)",
+          "oklch(25% 0.014 55)",
+          "oklch(37% 0.014 55)",
+          "oklch(49% 0.014 55)",
+          "oklch(62% 0.012 55)",
+          "oklch(75% 0.010 55)",
+          "oklch(87% 0.008 55)",
+          "oklch(95% 0.005 55)"
+        ]
+      },
+      "cobalt": {
+        "role": "primary",
+        "displayName": "Signal Cobalt",
+        "canonical": "oklch(57% 0.24 260)",
+        "tonalRamp": [
+          "oklch(15% 0.06 260)",
+          "oklch(26% 0.11 260)",
+          "oklch(38% 0.17 260)",
+          "oklch(49% 0.22 260)",
+          "oklch(60% 0.23 260)",
+          "oklch(72% 0.16 260)",
+          "oklch(84% 0.09 260)",
+          "oklch(95% 0.025 260)"
+        ]
+      },
+      "vermilion": {
+        "role": "secondary",
+        "displayName": "Route Vermilion",
+        "canonical": "oklch(62% 0.20 35)",
+        "tonalRamp": [
+          "oklch(15% 0.05 35)",
+          "oklch(27% 0.10 35)",
+          "oklch(39% 0.16 35)",
+          "oklch(51% 0.20 35)",
+          "oklch(63% 0.20 35)",
+          "oklch(74% 0.15 35)",
+          "oklch(86% 0.08 35)",
+          "oklch(95% 0.025 35)"
+        ]
+      },
+      "relay-lime": {
+        "role": "tertiary",
+        "displayName": "Relay Lime",
+        "canonical": "oklch(84% 0.20 125)",
+        "tonalRamp": [
+          "oklch(15% 0.04 125)",
+          "oklch(28% 0.08 125)",
+          "oklch(41% 0.13 125)",
+          "oklch(55% 0.18 125)",
+          "oklch(69% 0.20 125)",
+          "oklch(82% 0.20 125)",
+          "oklch(90% 0.12 125)",
+          "oklch(96% 0.035 125)"
+        ]
+      },
+      "conversation-lilac": {
+        "role": "tertiary",
+        "displayName": "Conversation Lilac",
+        "canonical": "oklch(76% 0.12 305)",
+        "tonalRamp": [
+          "oklch(15% 0.03 305)",
+          "oklch(27% 0.06 305)",
+          "oklch(39% 0.09 305)",
+          "oklch(52% 0.12 305)",
+          "oklch(64% 0.13 305)",
+          "oklch(76% 0.12 305)",
+          "oklch(87% 0.07 305)",
+          "oklch(96% 0.02 305)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Hero Display",
+        "purpose": "The two-line landing-page promise only."
+      },
+      "poster-headline": {
+        "displayName": "Kinetic Poster Headline",
+        "purpose": "Large sentence-case statements in the voice, distribution, and leads scenes."
+      },
+      "title": {
+        "displayName": "Product Title",
+        "purpose": "Product panels, interface evidence, and compact brand marks."
+      },
+      "body": {
+        "displayName": "Founder-Direct Body",
+        "purpose": "Specific supporting copy capped near 65ch."
+      },
+      "label": {
+        "displayName": "System Label",
+        "purpose": "Sentence-case workflow states and metadata."
+      }
+    },
+    "shadows": [
+      {
+        "name": "command-center-lift",
+        "value": "0 48px 96px -34px rgb(24 22 20 / 0.42), 0 18px 38px -24px rgb(24 22 20 / 0.26)",
+        "purpose": "The desktop hero command center only."
+      },
+      {
+        "name": "poster-offset",
+        "value": "14px 16px 0 oklch(18% 0.012 55)",
+        "purpose": "Large illustrated product panels on light or colored fields."
+      },
+      {
+        "name": "compact-offset",
+        "value": "7px 8px 0 oklch(18% 0.012 55)",
+        "purpose": "Small distribution outputs and evidence cards."
+      },
+      {
+        "name": "inverse-offset",
+        "value": "8px 9px 0 oklch(99.2% 0.002 85)",
+        "purpose": "Signal cards on the Soft Ink leads field."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-relay",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Section reveals, card entrances, and responsive hover feedback."
+      },
+      {
+        "name": "command-center-spring",
+        "value": "stiffness 82, damping 24, mass 0.42",
+        "purpose": "Symmetrical scroll-linked rise, settle, and exit for desktop product proof."
+      },
+      {
+        "name": "connector-flow",
+        "value": "1.15s linear infinite",
+        "purpose": "Dashed route flow between distribution and lead evidence."
+      },
+      {
+        "name": "footer-hover",
+        "value": "180ms cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Independent lift for footer letter pieces."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "sm",
+        "value": "640px"
+      },
+      {
+        "name": "md",
+        "value": "768px"
+      },
+      {
+        "name": "lg",
+        "value": "1024px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single dominant action on a surface.",
+      "html": "<button class=\"ds-button-primary\">Get started <svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" aria-hidden=\"true\"><path d=\"M5 12h14M13 6l6 6-6 6\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></button>",
+      "css": ".ds-button-primary { display:inline-flex; align-items:center; justify-content:center; gap:8px; min-height:48px; padding:14px 22px; border:0; border-radius:10px; background:oklch(18% 0.012 55); color:oklch(99.2% 0.002 85); font:600 15px/1.2 'Hanken Grotesk',system-ui,sans-serif; transition:transform 180ms cubic-bezier(0.16,1,0.3,1),background 180ms cubic-bezier(0.16,1,0.3,1); } .ds-button-primary:hover { transform:translateY(-1px); background:oklch(24% 0.014 55); } .ds-button-primary:active { transform:translateY(0); } .ds-button-primary:focus-visible { outline:3px solid oklch(57% 0.24 260); outline-offset:3px; }"
+    },
+    {
+      "name": "Navigation Wordmark",
+      "kind": "nav",
+      "refersTo": "navigation-wordmark",
+      "description": "Sparse 72px navigation anchored by the lowercase wordmark.",
+      "html": "<nav class=\"ds-nav\"><a class=\"ds-wordmark\" href=\"#\">content os<span>.</span></a><div class=\"ds-nav-links\"><a href=\"#product\">Product</a><a href=\"#loop\">The loop</a><a href=\"#pricing\">Pricing</a><button>Start free trial</button></div></nav>",
+      "css": ".ds-nav { display:flex; align-items:center; justify-content:space-between; min-height:72px; color:oklch(18% 0.012 55); font-family:'Hanken Grotesk',system-ui,sans-serif; } .ds-wordmark { color:inherit; text-decoration:none; font-size:20px; font-weight:700; line-height:1; letter-spacing:-0.045em; } .ds-wordmark span { color:oklch(57% 0.24 260); } .ds-nav-links { display:flex; align-items:center; gap:28px; } .ds-nav-links a { color:oklch(43% 0.014 65); text-decoration:none; font-size:14px; } .ds-nav-links a:hover { color:oklch(18% 0.012 55); } .ds-nav button { min-height:44px; padding:10px 16px; border:0; border-radius:10px; background:oklch(18% 0.012 55); color:oklch(99.2% 0.002 85); } .ds-nav a:focus-visible,.ds-nav button:focus-visible { outline:3px solid oklch(57% 0.24 260); outline-offset:3px; }"
+    },
+    {
+      "name": "Illustrated Command Center",
+      "kind": "custom",
+      "refersTo": "product-proof",
+      "description": "The dominant product proof showing the entire content-to-conversation relay.",
+      "html": "<section class=\"ds-command-center\"><header>This week</header><div class=\"ds-relay\"><strong>Signals 12</strong><strong>Drafts 3</strong><strong>Voice 92%</strong><strong>Scheduled 8</strong><strong>Replies 17</strong></div><div class=\"ds-proof\"><span>Ready to ship</span><span>Creator Brain +18%</span><span>Warm conversations</span></div></section>",
+      "css": ".ds-command-center { overflow:hidden; width:min(100%,1120px); border:1px solid oklch(18% 0.012 55 / 0.15); border-radius:22px; background:oklch(99.2% 0.002 85); color:oklch(18% 0.012 55); box-shadow:0 48px 96px -34px rgb(24 22 20 / 0.42),0 18px 38px -24px rgb(24 22 20 / 0.26); font-family:'Hanken Grotesk',system-ui,sans-serif; } .ds-command-center header { padding:24px; font-size:28px; font-weight:700; letter-spacing:-0.04em; } .ds-relay { display:grid; grid-template-columns:repeat(5,1fr); gap:8px; padding:16px 24px 28px; border-top:1px solid oklch(18% 0.012 55 / 0.11); } .ds-relay strong { font-size:14px; } .ds-proof { display:grid; grid-template-columns:1.2fr .6fr 1fr; gap:10px; padding:18px 24px 24px; } .ds-proof span { padding:18px; border:2px solid oklch(18% 0.012 55); border-radius:14px; font-weight:700; } .ds-proof span:nth-child(2) { background:oklch(84% 0.20 125); } .ds-proof span:nth-child(3) { background:oklch(57% 0.24 260); color:oklch(99.2% 0.002 85); }"
+    },
+    {
+      "name": "Poster Card",
+      "kind": "card",
+      "refersTo": "poster-card",
+      "description": "A tactile product-evidence panel with an ink construction outline.",
+      "html": "<article class=\"ds-poster-card\"><span>Composer</span><h3>Behind the scenes</h3><p>Founder story · Warm + direct</p></article>",
+      "css": ".ds-poster-card { max-width:520px; padding:20px; border:3px solid oklch(18% 0.012 55); border-radius:18px; background:oklch(100% 0 0); color:oklch(18% 0.012 55); box-shadow:14px 16px 0 oklch(18% 0.012 55); transform:rotate(1.5deg); font-family:'Hanken Grotesk',system-ui,sans-serif; } .ds-poster-card span { font-size:12px; font-weight:700; } .ds-poster-card h3 { margin:16px 0 8px; font-size:20px; letter-spacing:-0.03em; } .ds-poster-card p { margin:0; color:oklch(43% 0.014 65); } .ds-poster-card:hover { transform:translateY(-4px) rotate(0deg); } .ds-poster-card:focus-within { outline:3px solid oklch(57% 0.24 260); outline-offset:3px; }"
+    },
+    {
+      "name": "Signal Card",
+      "kind": "card",
+      "refersTo": "signal-card",
+      "description": "Conversation evidence on the dark leads poster.",
+      "html": "<article class=\"ds-signal-card\"><div class=\"ds-signal-title\"><span>✓</span><strong>Warm contact identified</strong></div><p>Commented on your founder-led sales post</p></article>",
+      "css": ".ds-signal-card { min-height:166px; padding:20px; border:3px solid oklch(99.2% 0.002 85); border-radius:18px; background:oklch(76% 0.12 305); color:oklch(18% 0.012 55); box-shadow:8px 9px 0 oklch(99.2% 0.002 85); font-family:'Hanken Grotesk',system-ui,sans-serif; } .ds-signal-title { display:flex; align-items:center; gap:12px; } .ds-signal-title span { display:grid; width:40px; height:40px; place-items:center; border:2px solid oklch(18% 0.012 55); border-radius:11px; background:oklch(99.2% 0.002 85); } .ds-signal-card p { margin:16px 0 0; padding-top:12px; border-top:1px solid oklch(18% 0.012 55 / 0.15); font-size:12px; line-height:1.5; } .ds-signal-card:hover { transform:translateY(-7px); } .ds-signal-card:focus-within { outline:3px solid oklch(57% 0.24 260); outline-offset:3px; }"
+    },
+    {
+      "name": "Footer Mark",
+      "kind": "custom",
+      "description": "Compact relay-colored letter pieces spelling content os.",
+      "html": "<div class=\"ds-footer-mark\" aria-label=\"Content OS\"><span>c</span><span>o</span><span>n</span><span>t</span><span>e</span><span>n</span><span>t</span><i></i><span>o</span><span>s</span><b>.</b></div>",
+      "css": ".ds-footer-mark { display:flex; align-items:flex-end; gap:4px; font-family:'Hanken Grotesk',system-ui,sans-serif; font-size:24px; font-weight:700; color:oklch(18% 0.012 55); } .ds-footer-mark span { display:grid; min-width:28px; height:34px; place-items:center; border:2px solid currentColor; border-radius:8px; background:oklch(99.2% 0.002 85); transition:transform 180ms cubic-bezier(0.16,1,0.3,1); } .ds-footer-mark span:nth-child(2),.ds-footer-mark span:nth-child(9) { background:oklch(76% 0.12 305); } .ds-footer-mark span:nth-child(4) { background:oklch(84% 0.20 125); } .ds-footer-mark span:nth-child(7) { background:oklch(62% 0.20 35); } .ds-footer-mark span:hover { transform:translateY(-6px) scale(1.08); } .ds-footer-mark i { width:8px; } .ds-footer-mark b { margin-left:6px; color:oklch(57% 0.24 260); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Content Relay",
+    "overview": "Content OS is experienced by a founder planning the week on a bright monitor, moving quickly between ideas, publishing, replies, and warm relationships. Precise product evidence sits inside an illustrated world of handoffs, routes, operating panels, and a paper airplane that represents shipped work.",
+    "keyCharacteristics": [
+      "A compact first viewport with illustration, promise, CTA, and product proof.",
+      "The lowercase content os. wordmark with a cobalt period and paper-airplane favicon.",
+      "An illustrated command center that shows the complete operating relay.",
+      "Three distinct poster scenes for voice, distribution, and leads.",
+      "Sentence-case display typography with heavy scale and tight tracking.",
+      "Hard construction outlines paired with one soft product shadow.",
+      "Desktop choreography that reduces to stable mobile compositions."
+    ],
+    "rules": [
+      {
+        "name": "The Color Has a Job Rule",
+        "body": "Cobalt publishes, vermilion signals, lime learns, and lilac converses. Never scatter these colors as decoration.",
+        "section": "colors"
+      },
+      {
+        "name": "The White Stage Rule",
+        "body": "The hero and distribution scene preserve enough neutral space for the characters and product proof to remain readable.",
+        "section": "colors"
+      },
+      {
+        "name": "The Ink Field Exception",
+        "body": "Full-bleed Soft Ink is reserved for the leads poster and footer contrast moments. It is not a default dark theme.",
+        "section": "colors"
+      },
+      {
+        "name": "The Sentence-Case Rule",
+        "body": "Headlines and interface labels use natural capitalization. All-caps is forbidden outside unavoidable platform or acronym names.",
+        "section": "typography"
+      },
+      {
+        "name": "The One Voice Rule",
+        "body": "Hanken Grotesk carries both brand and product. Do not add serif or monospace type to manufacture personality.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tight-at-Scale Rule",
+        "body": "Tracking becomes more negative as headlines grow, but body copy remains normally spaced and readable.",
+        "section": "typography"
+      },
+      {
+        "name": "The Two Shadow Languages Rule",
+        "body": "Software floats softly; illustrated evidence lifts with a hard offset. Never combine both treatments on one object.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Flat-Until-Lifted Rule",
+        "body": "Shadows identify the dominant proof or a physically lifted poster piece. They are never ambient fog.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do make the entire loop visible through real states and handoffs.",
+      "Do use one dominant visual idea per viewport.",
+      "Do let the illustrated command center prove product depth before feature explanation.",
+      "Do assign every saturated color its documented workflow role.",
+      "Do use sentence-case headlines with Hanken Grotesk, bold weight, and tight tracking.",
+      "Do vary composition across voice, distribution, and leads.",
+      "Do remove characters and the large dashboard on narrow screens when they compete with understanding.",
+      "Do preserve WCAG 2.2 AA contrast, semantic landmarks, 44px touch targets, keyboard focus, and complete reduced-motion states."
+    ],
+    "donts": [
+      "Don't resemble generic AI SaaS marketing, a Linear clone, a caption generator, or a writer's portfolio.",
+      "Don't use blue or purple gradient atmospheres, floating glow orbs, decorative glass-card grids, vague automation claims, dense enterprise martech language, or fabricated social proof.",
+      "Don't use a generic analytics dashboard, traffic chart, or interchangeable stat-card row as product proof.",
+      "Don't repeat identical feature-card grids or give every section the same background and structure.",
+      "Don't copy Notion's illustration style, monochrome identity, page structure, or components.",
+      "Don't use beige graph paper, long empty MacBook scrolls, sparse edge sketches, typewriters, pens, or loose manuscript pages.",
+      "Don't use gradient text, side-stripe accents, nested cards, or decorative glassmorphism.",
+      "Don't make every headline uppercase.",
+      "Don't use pure black as Soft Ink or introduce unassigned accent colors."
+    ]
+  }
+}

@@ -8,7 +8,12 @@ export const GHOSTWRITER_PRINCIPLES = `GHOSTWRITER PRINCIPLES
 1. SPECIFICITY
 - Name real tools, numbers, places, and moments from the creator's world.
 - Replace vague claims ("many founders struggle") with one concrete scene.
-- If you lack a fact, ask in revision notes. Never invent credentials or metrics.
+- Never invent a specific test, experiment, personal anecdote, or result that
+  wasn't given to you. If a beat (e.g. "story or data") has no real fact to
+  draw on, write that beat as honest opinion or analysis instead of a
+  fabricated first-person scene — do not manufacture "I tried X and it did Y"
+  to fill a structural slot. If you lack a fact, ask in revision notes. Never
+  invent credentials or metrics.
 
 2. NO AI SLOP
 - Ban: "In today's fast-paced world", "game-changer", "leverage", "dive deep", "let's unpack".

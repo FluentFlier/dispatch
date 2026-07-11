@@ -1,4 +1,4 @@
-import { generateContent } from '@/lib/ai';
+import { chatCompletion } from '@/lib/llm';
 import { parseLlmJson } from '@/lib/llm-json';
 import type { VoiceAnalysisResult } from '@/lib/onboarding/baseline';
 
@@ -60,14 +60,16 @@ export async function analyzeVoiceSamples(
 
   const userPrompt = `Here are ${samples.length} content samples to analyze:\n\n${samplesText}`;
 
+  const ANALYZE_OPTS = { temperature: 0.3, maxTokens: 2048, responseFormat: 'json' as const };
+
   let analysis = parseLlmJson<VoiceAnalysisResult>(
-    await generateContent(userPrompt, undefined, ANALYZE_PROMPT),
+    await chatCompletion(ANALYZE_PROMPT, userPrompt, ANALYZE_OPTS),
   );
 
   if (!analysis) {
     const retrySystem = `${ANALYZE_PROMPT}\n\nIMPORTANT: Return ONLY a single valid JSON object. No markdown, no prose.`;
     analysis = parseLlmJson<VoiceAnalysisResult>(
-      await generateContent(userPrompt, undefined, retrySystem),
+      await chatCompletion(retrySystem, userPrompt, ANALYZE_OPTS),
     );
   }
 

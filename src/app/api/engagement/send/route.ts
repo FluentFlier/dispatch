@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { sendEngagementReplies } from '@/lib/engagement/inbox';
+import { unipileCommentsAvailable } from '@/lib/engagement/unipile-comments';
 import { z } from 'zod';
 
 const SendSchema = z
@@ -27,16 +28,50 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
+  if (!unipileCommentsAvailable()) {
+    return NextResponse.json(
+      {
+        error:
+          'Cannot send replies: Unipile is not configured. Connect LinkedIn or X in Settings after the provider is provisioned.',
+        canSend: false,
+        sent: 0,
+        failed: 0,
+        stubbed: 0,
+      },
+      { status: 503 },
+    );
+  }
+
   const client = getServerClient();
 
   try {
     const result = await sendEngagementReplies(client, user.id, parsed.data);
-    return NextResponse.json({ ok: true, ...result });
+    if (result.stubbed > 0 && result.sent === 0) {
+      return NextResponse.json(
+        {
+          ok: false,
+          canSend: false,
+          error:
+            result.errors[0] ??
+            'Replies were not sent. Connect the social account in Settings.',
+          ...result,
+        },
+        { status: 422 },
+      );
+    }
+    return NextResponse.json({ ok: true, canSend: true, ...result });
   } catch (err) {
     console.error('Engagement send error:', err);
+    const message = err instanceof Error ? err.message : 'Send failed';
+    const unavailable =
+      (typeof err === 'object' &&
+        err !== null &&
+        'code' in err &&
+        (err as { code: unknown }).code === 'UNIPILE_UNAVAILABLE') ||
+      /unipile is not configured/i.test(message);
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : 'Send failed' },
-      { status: 500 },
+      { error: message, canSend: false },
+      { status: unavailable ? 503 : 500 },
     );
   }
 }

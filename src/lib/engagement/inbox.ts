@@ -93,6 +93,7 @@ export async function getEngagementInbox(
     return {
       groups: [],
       summary: { posts: 0, comments: 0, needs_reply: 0, drafted: 0, sent: 0 },
+      canSendReplies: unipileCommentsAvailable(),
     };
   }
 
@@ -199,6 +200,7 @@ export async function getEngagementInbox(
       drafted: totalDrafted,
       sent: totalSent,
     },
+    canSendReplies: unipileCommentsAvailable(),
   };
 }
 
@@ -416,6 +418,17 @@ export async function sendEngagementReplies(
   let failed = 0;
   let stubbed = 0;
 
+  const useUnipile = unipileCommentsAvailable();
+  if (!useUnipile) {
+    // Fail closed: never pretend sends succeeded when the provider is unavailable.
+    throw Object.assign(
+      new Error(
+        'Cannot send replies: Unipile is not configured. Set UNIPILE_API_KEY and UNIPILE_DSN, then connect LinkedIn or X in Settings.',
+      ),
+      { code: 'UNIPILE_UNAVAILABLE' as const },
+    );
+  }
+
   let queueQuery = client.database
     .from('comment_reply_queue')
     .select('*')
@@ -434,7 +447,7 @@ export async function sendEngagementReplies(
 
   const rows = (queueRows ?? []) as CommentReplyQueueRow[];
   if (rows.length === 0) {
-    return { sent: 0, failed: 0, stubbed: 0, errors, items };
+    return { sent: 0, failed: 0, stubbed: 0, errors, items, canSend: true };
   }
 
   const commentIds = rows.map((r) => r.post_comment_id);
@@ -448,7 +461,28 @@ export async function sendEngagementReplies(
     ((comments ?? []) as PostCommentRow[]).map((c) => [c.id, c]),
   );
 
-  const useUnipile = unipileCommentsAvailable();
+  const postIds = Array.from(
+    new Set(((comments ?? []) as PostCommentRow[]).map((c) => c.post_id)),
+  );
+  const { data: jobs } = await client.database
+    .from('publish_jobs')
+    .select('post_id, platform, provider_post_id')
+    .eq('user_id', userId)
+    .eq('status', 'published')
+    .in('post_id', postIds)
+    .not('provider_post_id', 'is', null);
+
+  const socialPostIdByKey = new Map<string, string>();
+  for (const job of (jobs ?? []) as Array<{
+    post_id: string;
+    platform: string;
+    provider_post_id: string;
+  }>) {
+    const key = `${job.post_id}:${job.platform}`;
+    if (!socialPostIdByKey.has(key)) {
+      socialPostIdByKey.set(key, job.provider_post_id);
+    }
+  }
 
   for (const queueRow of rows) {
     let row = queueRow;
@@ -481,22 +515,44 @@ export async function sendEngagementReplies(
       let provider_reply_id: string | null = null;
       let wasStubbed = false;
 
-      if (useUnipile) {
-        const reply = await sendUnipileCommentReply({
-          userId,
-          socialPostId: comment.provider_comment_id,
-          providerCommentId: comment.provider_comment_id,
-          platform: comment.platform,
-          replyText: row.draft_reply,
+      const socialPostId = socialPostIdByKey.get(`${comment.post_id}:${comment.platform}`);
+      if (!socialPostId) {
+        failed++;
+        errors.push(
+          `Queue ${row.id}: no published post id for reply target (${comment.platform})`,
+        );
+        items.push({
+          queue_id: row.id,
+          status: 'failed',
+          provider_reply_id: null,
         });
-        provider_reply_id = reply.provider_reply_id;
-        wasStubbed = reply.stubbed;
-      } else {
-        wasStubbed = true;
+        await client.database
+          .from('comment_reply_queue')
+          .update({
+            status: 'failed',
+            last_error: 'Missing published post id for reply target',
+          })
+          .eq('id', row.id)
+          .eq('user_id', userId);
+        continue;
       }
 
+      const reply = await sendUnipileCommentReply({
+        userId,
+        socialPostId,
+        providerCommentId: comment.provider_comment_id,
+        platform: comment.platform,
+        replyText: row.draft_reply,
+      });
+      provider_reply_id = reply.provider_reply_id;
+      wasStubbed = reply.stubbed;
+
       if (wasStubbed) {
+        // Provider returned a stub (e.g. missing account) — do not mark sent.
         stubbed++;
+        errors.push(
+          `Queue ${row.id}: reply not sent (provider unavailable for ${comment.platform}). Connect the account in Settings.`,
+        );
         items.push({
           queue_id: row.id,
           status: row.status === 'draft' ? 'approved' : row.status,
@@ -541,5 +597,5 @@ export async function sendEngagementReplies(
     }
   }
 
-  return { sent, failed, stubbed, errors, items };
+  return { sent, failed, stubbed, errors, items, canSend: true };
 }

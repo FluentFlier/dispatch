@@ -15,7 +15,7 @@ import { buildCreatorBaseline, type CreatorBaseline } from '@/lib/onboarding/bas
 import { synthesizePersonaFromAnalysis, type OnboardingPersona } from '@/lib/onboarding/synthesize-voice';
 import { analyzeVoiceSamples } from '@/lib/voice-lab/analyze-samples';
 import { importVoiceSamplesFromEmail } from '@/lib/voice-lab/import-from-email';
-import { selectBalancedVoiceSamples } from '@/lib/voice-lab/select-voice-samples';
+import { selectBalancedVoiceSamples, curateSamplePosts } from '@/lib/voice-lab/select-voice-samples';
 import { persistImportedPosts } from '@/lib/voice-lab/persist-imported-posts';
 import { gatherCreatorIntel, type CreatorIntelBundle } from '@/lib/onboarding/creator-intel';
 import { syncBrainVoiceLab, syncCreatorBrainFull } from '@/lib/brain/sync';
@@ -181,20 +181,27 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    creatorIntel = await gatherCreatorIntel(
-      accountRows.map((account) => ({
-        platform: account.platform as OnboardingPlatform,
-        unipile_account_id: account.unipile_account_id,
-        account_id: account.account_id,
-        account_name: account.account_name,
-      })),
-      displayName,
-    );
-    if (creatorIntel.linkedin?.fullName) {
-      displayName = resolveDisplayName({
-        oauthName,
-        socialAccountName: creatorIntel.linkedin.fullName,
-      });
+    // Best-effort: profile/web enrichment is a heavy scrape + LLM step. It must
+    // never throw the whole ingest into a 500 (which bounces the user back to the
+    // connect step and loops) — degrade to the name/posts we already have.
+    try {
+      creatorIntel = await gatherCreatorIntel(
+        accountRows.map((account) => ({
+          platform: account.platform as OnboardingPlatform,
+          unipile_account_id: account.unipile_account_id,
+          account_id: account.account_id,
+          account_name: account.account_name,
+        })),
+        displayName,
+      );
+      if (creatorIntel.linkedin?.fullName) {
+        displayName = resolveDisplayName({
+          oauthName,
+          socialAccountName: creatorIntel.linkedin.fullName,
+        });
+      }
+    } catch (err) {
+      console.warn('[onboarding/ingest] creator intel failed — continuing:', err);
     }
   }
 
@@ -249,6 +256,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
         requireLinkedInIntel: linkedinConnected && !degraded,
         requireWebIntel: Boolean(creatorIntel.web) && !degraded,
       },
+      degraded ? 'fallback' : 'imported',
     );
 
     // One connected account must always get the user into the app. If the brain
@@ -348,6 +356,7 @@ async function persistOnboardingVoice(
   analysisSamples: VoiceSample[],
   creatorIntel: CreatorIntelBundle,
   verifyOptions: { requireLinkedInIntel: boolean; requireWebIntel: boolean },
+  voiceSource: 'fallback' | 'imported',
 ): Promise<OnboardingBrainCheck> {
   const bioFacts = creatorIntel.bioFacts || baseline.voiceSummary;
 
@@ -379,29 +388,40 @@ async function persistOnboardingVoice(
     }]);
   }
 
+  // onboarding_baseline + suggested_topic FIRST: these are what the resume path
+  // (completeOnboardingFromStoredBaseline) needs, so if this write loop is cut
+  // short (e.g. the function hits its time limit mid-way) a reload can still
+  // finish onboarding instead of looping. The rest are enrichment.
   const settings = [
+    { key: 'onboarding_baseline', value: JSON.stringify(baseline) },
+    { key: 'onboarding_suggested_topic', value: baseline.suggestedTopic },
     { key: 'vocabulary_fingerprint', value: JSON.stringify(persona.vocabulary_fingerprint) },
     { key: 'structural_patterns', value: JSON.stringify(persona.structural_patterns) },
     { key: 'persona_prompt_export', value: persona.exportable_prompt },
-    { key: 'sample_posts', value: JSON.stringify(postSamples.slice(0, 10)) },
+    { key: 'sample_posts', value: JSON.stringify(curateSamplePosts(postSamples, 10)) },
     { key: 'sample_emails', value: JSON.stringify(emailSamples.slice(0, 8)) },
     { key: 'voice_analysis_samples', value: JSON.stringify(analysisSamples.slice(0, 12)) },
-    { key: 'onboarding_baseline', value: JSON.stringify(baseline) },
-    { key: 'onboarding_suggested_topic', value: baseline.suggestedTopic },
     { key: 'creator_intel_linkedin', value: JSON.stringify(creatorIntel.linkedin) },
     { key: 'creator_intel_twitter', value: JSON.stringify(creatorIntel.twitter) },
     { key: 'creator_intel_web', value: JSON.stringify(creatorIntel.web) },
     { key: 'creator_bio_facts', value: bioFacts },
+    { key: 'voice_source', value: voiceSource },
   ];
 
   for (const setting of settings) {
-    await client.database.from('user_settings').upsert({
-      user_id: userId,
-      workspace_id: workspaceId,
-      key: setting.key,
-      value: setting.value,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,key' });
+    // Best-effort per setting: one failed write must not abort the rest (or the
+    // whole ingest). Missing enrichment can be re-synced from the dashboard.
+    try {
+      await client.database.from('user_settings').upsert({
+        user_id: userId,
+        workspace_id: workspaceId,
+        key: setting.key,
+        value: setting.value,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id,key' });
+    } catch (err) {
+      console.warn(`[onboarding/ingest] setting write failed (${setting.key}):`, err);
+    }
   }
 
   try {

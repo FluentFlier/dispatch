@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { syncBrainVoiceLab } from '@/lib/brain/sync';
 import { storePersona } from '@/lib/supermemory';
+import { getActiveWorkspaceId } from '@/lib/workspace';
 import { fetchOAuthDisplayName, resolveDisplayName } from '@/lib/user-display-name';
 import { AUTH_COOKIE } from '@/lib/auth-cookies';
 import { z } from 'zod';
@@ -29,6 +30,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
   const client = getServerClient();
+  // Scope the brain + Supermemory writes to the active workspace so the WRITE tag
+  // (workspace_${ws}) matches the READ tag generation now uses (break 7). Without
+  // this, a persona trained via Voice Lab landed under the legacy user_ tag and
+  // generation never found it.
+  const workspaceId = (await getActiveWorkspaceId(user.id)) ?? undefined;
 
   // Persist the analyzed voice onto the creator_profile row.
   //
@@ -128,7 +134,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       voice_rules: parsed.data.voice_rules,
       vocabulary_fingerprint: parsed.data.vocabulary_fingerprint,
       structural_patterns: parsed.data.structural_patterns,
-    });
+    }, workspaceId);
   } catch (err) {
     console.warn('Brain voice sync failed (non-critical):', err);
   }
@@ -145,7 +151,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     await storePersona(user.id, personaContent, {
       type: 'persona',
       hasExport: true,
-    });
+    }, workspaceId);
   } catch (err) {
     // Supermemory is optional -- don't fail the save if it's unavailable
     console.warn('Supermemory store failed (non-critical):', err);

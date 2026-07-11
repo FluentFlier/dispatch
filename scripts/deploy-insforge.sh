@@ -29,6 +29,9 @@ if ! npx @insforge/cli current 2>/dev/null | grep -q "Project:"; then
   npx @insforge/cli link -y || npx @insforge/cli link
 fi
 
+echo "--- Applying core schema ---"
+bash scripts/apply-core-schema.sh
+
 echo "--- Applying intelligence migrations ---"
 bash scripts/apply-all-intelligence.sh
 
@@ -46,7 +49,7 @@ npx @insforge/cli deployments metadata 2>/dev/null || true
 
 echo ""
 echo "Smoke test:"
-PROD_URL="${PROD_URL:-https://mm4nbzdu.insforge.site}"
+PROD_URL="${PROD_URL:-https://contentos.us}"
 for p in /api/health /terms /book-demo /api/intelligence/health; do
   code=$(curl -sS -m 15 -o /dev/null -w "%{http_code}" "${PROD_URL}${p}" || echo "000")
   echo "  ${PROD_URL}${p} -> ${code}"

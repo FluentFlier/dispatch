@@ -84,6 +84,11 @@ describe('POST /api/auth/refresh', () => {
   });
 
   it('does not clear session cookies when refresh is unauthorized', async () => {
+    // A prior test already imported the route, so the module is cached and
+    // vi.doMock would not apply — reset the registry first so the fresh dynamic
+    // import below actually picks up the mocked refreshSessionWithToken. Without
+    // this the real one runs and returns 503 (no backend), not the 401 under test.
+    vi.resetModules();
     vi.doMock('@/lib/auth-refresh', async (importOriginal) => {
       const actual = await importOriginal<typeof import('@/lib/auth-refresh')>();
       return {
@@ -108,6 +113,8 @@ describe('POST /api/auth/refresh', () => {
     expect(response.cookies.get(AUTH_COOKIE.refresh)?.value).toBeUndefined();
 
     vi.doUnmock('@/lib/auth-refresh');
+    // Clear the registry again so later dynamic imports get the real module.
+    vi.resetModules();
   });
 });
 

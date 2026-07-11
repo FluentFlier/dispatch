@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('@/lib/engagement/unipile-comments', () => ({
-  unipileCommentsAvailable: () => true,
+  unipileCommentsAvailable: () => false,
   sendUnipileCommentReply: vi.fn().mockResolvedValue({
     provider_reply_id: null,
     stubbed: true,
@@ -16,63 +16,17 @@ describe('Phase: GTM creator readiness', () => {
   });
 
   describe('engagement send stub honesty', () => {
-    it('does not mark queue rows as sent when Unipile is stubbed', async () => {
-      const updates: unknown[] = [];
+    it('fails closed when Unipile is unavailable (does not stub-send)', async () => {
       const mockClient = {
         database: {
-          from: vi.fn((table: string) => {
-            if (table === 'comment_reply_queue') {
-              return {
-                select: () => ({
-                  eq: () => ({
-                    in: () =>
-                      Promise.resolve({
-                        data: [
-                          {
-                            id: 'q1',
-                            user_id: 'u1',
-                            post_comment_id: 'c1',
-                            draft_reply: 'Thanks!',
-                            status: 'approved',
-                          },
-                        ],
-                      }),
-                  }),
-                }),
-                update: (patch: unknown) => {
-                  updates.push(patch);
-                  return { eq: () => ({ eq: () => Promise.resolve({ error: null }) }) };
-                },
-              };
-            }
-            if (table === 'post_comments') {
-              return {
-                select: () => ({
-                  eq: () => ({
-                    in: () =>
-                      Promise.resolve({
-                        data: [
-                          {
-                            id: 'c1',
-                            provider_comment_id: 'pc1',
-                            platform: 'linkedin',
-                          },
-                        ],
-                      }),
-                  }),
-                }),
-              };
-            }
-            return {};
-          }),
+          from: vi.fn(),
         },
       };
 
-      const result = await sendEngagementReplies(mockClient as never, 'u1', { queueIds: ['q1'] });
-
-      expect(result.stubbed).toBe(1);
-      expect(result.sent).toBe(0);
-      expect(updates.some((u) => (u as { status?: string }).status === 'sent')).toBe(false);
+      await expect(
+        sendEngagementReplies(mockClient as never, 'u1', { queueIds: ['q1'] }),
+      ).rejects.toThrow(/Unipile is not configured/i);
+      expect(mockClient.database.from).not.toHaveBeenCalled();
     });
   });
 

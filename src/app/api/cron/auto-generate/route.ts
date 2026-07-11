@@ -165,8 +165,9 @@ Return ONLY the post text, no JSON, no formatting.`;
         notes: JSON.stringify({ auto_generated: true, type: 'scheduled', cron: true }),
         used_hook_ids: result.usedHookIds ?? [],
         pipeline_stages: result.stagesCompleted ?? [],
-        voice_match_score: result.voice_match_score || null,
-        ai_score: result.ai_score || null,
+        // ?? not || so a genuine 0 score (best case) is preserved, not nulled.
+        voice_match_score: result.voice_match_score ?? null,
+        ai_score: result.ai_score ?? null,
         voice_evaluation: result.evaluation ?? null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

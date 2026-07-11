@@ -61,6 +61,31 @@ const SIGNAL_STATUS_TO_LEAD_STATUS: Record<SignalEventStatus, string> = {
 };
 
 /**
+ * Junk company-name guard. Detection can mis-extract a stopword or fragment as a
+ * company (e.g. a tweet "…we joined YC W26" yielding "the"). Such a value is not
+ * a real name — treat it as absent so the card falls through to person/author
+ * instead of headlining garbage.
+ */
+const NAME_STOPWORDS = new Set([
+  'the', 'a', 'an', 'we', 'our', 'us', 'this', 'that', 'it', 'i', 'my', 'they',
+  'building', 'startup', 'company', 'team', 'and', 'to', 'of', 'for',
+]);
+function isJunkName(name: string): boolean {
+  const n = name.trim().toLowerCase();
+  if (n.length < 2) return true;
+  if (NAME_STOPWORDS.has(n)) return true;
+  if (!/[a-z0-9]/i.test(n)) return true; // no alphanumerics at all
+  return false;
+}
+function firstValidName(...candidates: Array<string | undefined>): string | undefined {
+  for (const c of candidates) {
+    const v = c?.trim();
+    if (v && !isJunkName(v)) return v;
+  }
+  return undefined;
+}
+
+/**
  * Maps a real-time signal event (a detected X/LinkedIn post) into a unified
  * feed card. Falls back to 'x' when the source platform is unknown so the
  * card always has a valid `source`, since raw_post can be missing if the
@@ -72,11 +97,12 @@ export function normalizeEvent(e: SignalEventWithPost): UnifiedLeadCard {
   // posts), and stale rows can carry junk fragments in company_name. Rather
   // than render a blank or garbage headline, fall back through the next-best
   // identifiers so the card always shows something a human can act on.
-  const companyName = e.company_name?.trim()
-    || e.person_name?.trim()
-    || e.raw_post?.author_name?.trim()
-    || e.raw_post?.author_handle?.trim().replace(/^@/, '')
-    || 'Unknown company';
+  const companyName = firstValidName(
+    e.company_name ?? undefined,
+    e.person_name ?? undefined,
+    e.raw_post?.author_name ?? undefined,
+    e.raw_post?.author_handle?.replace(/^@/, ''),
+  ) || 'Unknown company';
   return {
     id: e.id,
     kind: 'signal',
@@ -104,13 +130,20 @@ export function normalizeEvent(e: SignalEventWithPost): UnifiedLeadCard {
  */
 export function normalizeLead(l: SignalLeadWithContacts): UnifiedLeadCard {
   const pc = l.primary_contact ?? null;
+  // A Product Hunt listing and a YC "launch" post ARE launch events, so they
+  // carry the 'launch' signal type — this lets the "Launched" feed filter match
+  // scraped directory leads instead of returning nothing. Funding / role-change
+  // / accelerator-join can't be inferred from a directory record, so those
+  // signal types stay exclusive to the live Signal engine (normalizeEvent).
+  const signalType: SignalType | null =
+    l.source === 'product_hunt' || l.source === 'yc_launches' ? 'launch' : null;
   return {
     id: l.id,
     kind: 'directory',
     source: l.source,
     companyName: l.company_name,
     tagline: l.tagline,
-    signalType: null,
+    signalType,
     signalSummary: l.tagline,
     sourceUrl: l.website,
     batch: l.batch,

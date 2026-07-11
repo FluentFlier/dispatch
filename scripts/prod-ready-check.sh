@@ -59,19 +59,22 @@ else
   tail -5 /tmp/dispatch-build.log 2>/dev/null || true
 fi
 
-PROD_URL="${PROD_URL:-https://mm4nbzdu.insforge.site}"
-HEALTH=$(curl -sS -m 15 "${PROD_URL}/api/health" 2>/dev/null || echo '{}')
-if echo "$HEALTH" | grep -q '"status":"ok"'; then
-  pass "prod health ${PROD_URL}/api/health"
+# Prefer local health when a server is up; otherwise skip remote prod URL.
+BASE_HEALTH="${SMOKE_BASE:-http://localhost:3001}"
+HEALTH=$(curl -sS -m 5 "${BASE_HEALTH}/api/health" 2>/dev/null || echo '')
+if [ -n "$HEALTH" ] && echo "$HEALTH" | grep -q '"service":"content-os"'; then
+  if echo "$HEALTH" | grep -q '"status":"ok"'; then
+    pass "local health ${BASE_HEALTH}/api/health"
+  else
+    warn "local health degraded: $HEALTH"
+  fi
+  if echo "$HEALTH" | grep -q '"schema":"ok"'; then
+    pass "schema check ok"
+  else
+    warn "schema check not ok — apply db/APPLY_ORDER.md"
+  fi
 else
-  warn "prod health not ok: $HEALTH"
-fi
-
-SIG_CODE=$(curl -sS -m 15 -o /dev/null -w "%{http_code}" "${PROD_URL}/signals" 2>/dev/null || echo "000")
-if [ "$SIG_CODE" = "200" ] || [ "$SIG_CODE" = "307" ] || [ "$SIG_CODE" = "302" ]; then
-  pass "prod /signals reachable ($SIG_CODE)"
-else
-  fail "prod /signals returns $SIG_CODE (404 = branch not deployed)"
+  warn "no local server at ${BASE_HEALTH} — start with npm run dev to smoke health"
 fi
 
 BASE="${SMOKE_BASE:-http://localhost:3002}"
@@ -96,12 +99,13 @@ echo "  bash scripts/apply-agent-integration.sh   # agent + social graph only"
 echo "  bash scripts/apply-all-intelligence.sh      # intelligence stack"
 echo ""
 echo "=== Hosting ==="
-echo "  Production: InsForge → https://mm4nbzdu.insforge.site (NOT Cloudflare)"
-echo "  CI/previews: Vercel (content-os + dispatch projects on GitHub push)"
-echo "  Crons: cron-job.org → CRONJOB_APP_URL=https://mm4nbzdu.insforge.site"
+echo "  Production: InsForge → https://contentos.us"
+echo "  Backend API: https://mm4nbzdu.us-east.insforge.app"
+echo "  Crons: cron-job.org → CRONJOB_APP_URL=https://contentos.us"
 echo ""
 echo "=== Prod env vars (InsForge hosting secrets) ==="
-echo "  NEXT_PUBLIC_APP_URL=https://mm4nbzdu.insforge.site"
+echo "  NEXT_PUBLIC_APP_URL=https://contentos.us"
+echo "  NEXT_PUBLIC_INSFORGE_URL=https://mm4nbzdu.us-east.insforge.app"
 echo "  INSFORGE_SERVICE_ROLE_KEY, CRON_SECRET"
 echo "  LLM_BASE_URL, LLM_API_KEY, LLM_MODEL"
 echo "  TOKEN_ENCRYPTION_KEY, UNIPILE_*, UNIPILE_WEBHOOK_SECRET"

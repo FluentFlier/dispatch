@@ -80,6 +80,15 @@ export const unipileProvider: SocialProvider = {
    * Publishes a post via Unipile using the user's connected account_id for the platform.
    */
   async publish(userId: string, payload: PublishPayload): Promise<PublishResult> {
+    if (!getUnipileApiBase() || !getUnipileApiKey()) {
+      return {
+        success: false,
+        error:
+          'Unipile is not configured. Set UNIPILE_API_KEY and UNIPILE_DSN before publishing.',
+        provider: 'unipile',
+      };
+    }
+
     const client = getServerClient();
     const { data: row } = await client.database
       .from('social_accounts')
@@ -93,7 +102,7 @@ export const unipileProvider: SocialProvider = {
     if (!row?.unipile_account_id) {
       return {
         success: false,
-        error: `No Unipile account connected for ${payload.platform}`,
+        error: `No Unipile account connected for ${payload.platform}. Connect it in Settings before publishing.`,
         provider: 'unipile',
       };
     }

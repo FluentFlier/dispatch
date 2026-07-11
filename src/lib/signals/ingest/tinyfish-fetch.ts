@@ -76,22 +76,16 @@ export async function fetchDirectoryLeads(
   const config = DIRECTORY_QUERIES[source];
   if (!config) throw new DirectoryScrapeError(source, `No query config for source ${source}`);
 
-  if (!isTinyFishConfigured()) {
-    // TINYFISH_API_KEY doubles as the "live scraping enabled" switch. When it is
-    // absent, only the intentional demo path may return the fabricated seed set
-    // (behind SIGNALS_DEMO_SEED); a real workspace instead sees a genuine empty
-    // state so fictional companies with dead LinkedIn URLs never leak into a
-    // real feed. The YC Algolia path below also stays gated behind the key.
-    if (isDemoSeedEnabled()) {
+  // YC directory is served by YC's OWN public Algolia index (see yc-algolia.ts):
+  // keyless from our side, ~300ms, deterministic, real company homepages. It must
+  // run whether or not a TinyFish Agent key is configured — otherwise a workspace
+  // with no paid scraping credentials gets an empty feed even though the free,
+  // reliable YC source is right there. Only the demo-seed flag short-circuits it
+  // to fabricated data (fully-offline testing).
+  if (source === 'yc_directory') {
+    if (!isTinyFishConfigured() && isDemoSeedEnabled()) {
       return SEED_DIRECTORY_LEADS.filter((l) => l.source === source);
     }
-    return [];
-  }
-
-  // Hybrid ingest: YC directory comes from YC's Algolia index (deterministic,
-  // fast, reliable). Other sources (Product Hunt, launches) have no clean
-  // endpoint, so they use the TinyFish Agent path below.
-  if (source === 'yc_directory') {
     try {
       const leads = await fetchYcCompaniesViaAlgolia(config.maxCompanies, opts?.icpQuery ?? '');
       if (leads.length > 0) return leads;
@@ -104,6 +98,18 @@ export async function fetchDirectoryLeads(
         err,
       );
     }
+  }
+
+  // Agent-driven sources (yc_launches, product_hunt) have no clean keyless
+  // endpoint, so they require the TinyFish Agent key. When it is absent, only the
+  // intentional demo path may return the fabricated seed set (behind
+  // SIGNALS_DEMO_SEED); a real workspace instead sees a genuine empty state so
+  // fictional companies with dead LinkedIn URLs never leak into a real feed.
+  if (!isTinyFishConfigured()) {
+    if (isDemoSeedEnabled()) {
+      return SEED_DIRECTORY_LEADS.filter((l) => l.source === source);
+    }
+    return [];
   }
 
   const debug = signalsDebugEnabled();

@@ -9,6 +9,7 @@ import {
 import { generateEventQuestions } from '@/lib/event-capture/questions';
 import { isPublicEvent } from '@/lib/event-capture/filter';
 import type { EventType } from '@/lib/event-capture/filter';
+import type { CreatorProfileForPrompt } from '@/lib/ai';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -30,7 +31,12 @@ interface EventCaptureRow {
 }
 
 interface CreatorProfileRow {
+  display_name: string;
+  bio: string | null;
+  bio_facts: string | null;
   content_pillars: unknown;
+  voice_description: string | null;
+  voice_rules: string | null;
 }
 
 /**
@@ -112,10 +118,11 @@ export async function enrichCapture(
     }
 
     let contentPillars: Array<{ name: string; description?: string }> | undefined;
+    let profile: CreatorProfileForPrompt | null = null;
     try {
       const { data: profileData } = await client.database
         .from('creator_profile')
-        .select('content_pillars')
+        .select('display_name, bio, bio_facts, content_pillars, voice_description, voice_rules')
         .eq('user_id', capture.user_id)
         .eq('workspace_id', capture.workspace_id)
         .maybeSingle();
@@ -124,6 +131,17 @@ export async function enrichCapture(
         const row = profileData as CreatorProfileRow;
         const raw = typeof row.content_pillars === 'string' ? JSON.parse(row.content_pillars) : row.content_pillars;
         if (Array.isArray(raw)) contentPillars = raw as Array<{ name: string; description?: string }>;
+        // Pass the full profile (name/bio/voice) so questions are personalized to
+        // the creator, not just anchored to pillar names. generateEventQuestions
+        // already forwards profile to the LLM; enrich was the only caller omitting it.
+        profile = {
+          display_name: row.display_name,
+          bio: row.bio ?? undefined,
+          bio_facts: row.bio_facts?.trim() || undefined,
+          content_pillars: contentPillars,
+          voice_description: row.voice_description?.trim() || undefined,
+          voice_rules: row.voice_rules?.trim() || undefined,
+        };
       }
     } catch {
       // Profile optional — questions still generated without pillars.
@@ -138,6 +156,7 @@ export async function enrichCapture(
       researchSummary,
       researchRawText,
       contentPillars,
+      profile,
     });
 
     await client.database

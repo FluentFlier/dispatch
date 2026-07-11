@@ -31,6 +31,8 @@ export interface LeadPlaybook {
     source: 'unipile' | 'thehog';
   };
   commentTaskId?: string;
+  /** All queued comment-task ids when warming up across several of the prospect's posts. */
+  commentTaskIds?: string[];
 }
 
 export type SignalPlatform = 'x' | 'linkedin';

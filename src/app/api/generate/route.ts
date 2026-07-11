@@ -50,13 +50,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     signalBlock = formatSignalTopicsBlock(topics);
   }
 
-  const { profile, contextAdditions } = useVoice
+  const { profile, contextAdditions, completeness, vocabulary, structural } = useVoice
     ? await loadCreatorVoiceContext(client, user.id, {
         memoryQuery: parsed.data.topic ?? parsed.data.prompt.slice(0, 200),
         workspaceId: workspaceId ?? undefined,
         platform: parsed.data.platform,
       })
-    : { profile: null, contextAdditions: '' };
+    : { profile: null, contextAdditions: '', completeness: undefined, vocabulary: undefined, structural: undefined };
 
   const mergedContext = [contextAdditions, signalBlock].filter(Boolean).join('\n') || undefined;
 
@@ -72,6 +72,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       useVoice,
       mentions: parsed.data.mentions,
       hooksClient: client,
+      vocabulary,
+      structural,
     });
 
     void trackEvent('generation_complete', {
@@ -92,6 +94,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       hook_explanations: result.hookExplanations ?? [],
       pipeline_stages: result.stagesCompleted ?? [],
       humanize_passes: result.humanizePasses ?? [],
+      // Context completeness so the UI/agent can flag a starved prompt (e.g. Voice
+      // Lab not run) instead of the thinning being invisible.
+      context_completeness: completeness ?? null,
     });
   } catch (err) {
     if (err instanceof LlmError && err.isQuota) {

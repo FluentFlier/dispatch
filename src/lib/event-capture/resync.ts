@@ -124,7 +124,17 @@ async function enrichNow(
   if (captureIds.length === 0) return 0;
 
   const outcomes = await runBatched(captureIds, ENRICH_CONCURRENCY, (id) => enrichCapture(client, id, now, { ignoreRecency: true }));
-  const succeeded = outcomes.filter((o) => o.status === 'fulfilled' && o.value === 'questions_ready').length;
+  // outcomes[i] aligns with captureIds[i] (runBatched preserves order). Only the
+  // captures that actually reached 'questions_ready' should have their job marked
+  // done — a failed/blocked capture must stay pending so the cron retries it,
+  // otherwise it reverts to 'detected' and vanishes from the inbox forever.
+  const succeededIds = new Set(
+    captureIds.filter(
+      (_, i) => outcomes[i].status === 'fulfilled' &&
+        (outcomes[i] as PromiseFulfilledResult<string>).value === 'questions_ready',
+    ),
+  );
+  const succeeded = succeededIds.size;
 
   const { data: pendingJobs } = await client.database
     .from('jobs')
@@ -133,9 +143,8 @@ async function enrichNow(
     .eq('type', 'enrich_event')
     .eq('status', 'pending');
 
-  const idSet = new Set(captureIds);
   const doneJobIds = ((pendingJobs as PendingJobRow[] | null) ?? [])
-    .filter((j) => idSet.has(j.payload.event_capture_id))
+    .filter((j) => succeededIds.has(j.payload.event_capture_id))
     .map((j) => j.id);
 
   if (doneJobIds.length > 0) {

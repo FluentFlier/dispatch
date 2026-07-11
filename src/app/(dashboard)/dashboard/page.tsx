@@ -6,7 +6,9 @@ import {
   AlertCircle,
   Circle,
   PenLine,
-  CalendarDays,
+  Radio,
+  Settings2,
+  Sparkles,
 } from 'lucide-react';
 import { getServerClient, getAuthenticatedUser } from '@/lib/insforge/server';
 import type { Post, ContentIdea } from '@/lib/types';
@@ -220,57 +222,80 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="page-shell-wide space-y-6">
+    <div className="page-shell-wide">
       <Suspense fallback={null}>
         <DashboardWelcomeBanner />
       </Suspense>
 
-      <header className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="page-title">
-            {creatorProfile?.display_name
-              ? `Hey ${creatorProfile.display_name.split(' ')[0]}`
-              : 'Dashboard'}
-          </h1>
-          <p className="mt-2 max-w-xl text-[15px] leading-relaxed text-ink2">
-            Draft your next post, see what&apos;s scheduled, and handle anything that needs attention.
-          </p>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            <Link href="/generate" className="btn-primary">
-              <PenLine className="h-4 w-4" />
-              Write next post
-            </Link>
-            <Link href="/calendar" className="btn-secondary">
-              <CalendarDays className="h-4 w-4" />
-              Plan week
-            </Link>
-            {!hasConnections && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-flame/20 bg-flame/10 px-3 py-1 text-xs font-medium text-flame">
-                <Circle className="h-2 w-2 fill-current" />
-                Connect a channel to publish
+      <section className="card-surface overflow-hidden">
+        <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.65fr]">
+          <div className="p-6 md:p-8">
+            <span className="inline-flex items-center gap-2 rounded-full border border-hair bg-white/80 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink2 shadow-sm backdrop-blur-sm">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue shadow-[0_0_8px_#2563EB]" aria-hidden />
+              Dashboard
+            </span>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-teal/20 bg-teal/10 px-3 py-1 text-xs font-medium text-teal">
+                <Radio className="h-3.5 w-3.5" />
+                Workspace live
               </span>
-            )}
+              {!hasConnections && (
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-flame/20 bg-flame/10 px-3 py-1 text-xs font-medium text-flame">
+                  <Circle className="h-2 w-2 fill-current" />
+                  Publishing not connected
+                </span>
+              )}
+            </div>
+            <h1 className="mt-5 max-w-2xl text-[clamp(32px,4vw,44px)] font-semibold leading-[1.05] tracking-[-0.04em] text-ink">
+              {creatorProfile?.display_name
+                ? `${creatorProfile.display_name.split(' ')[0]}, your content system is ready for the next move.`
+                : 'Your content system is ready for the next move.'}
+            </h1>
+            <p className="mt-3 max-w-xl text-[15px] leading-6 text-ink2">
+              Draft the next post, schedule the week, or turn replies into leads. Content OS should feel like a command center, not a folder of half-finished tools.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <Link href="/generate" className="btn-primary">
+                <PenLine className="h-4 w-4" />
+                Write next post
+              </Link>
+              <Link href="/settings?tab=connections" className="btn-secondary">
+                <Settings2 className="h-4 w-4" />
+                Connect channels
+              </Link>
+            </div>
+          </div>
+
+          <div className="border-t border-hair bg-paper2/50 p-6 lg:border-l lg:border-t-0">
+            <p className="section-label">This week</p>
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <MetricTile value={postsThisWeek} label="Published" />
+              <MetricTile value={inPipeline} label="In progress" />
+              <MetricTile value={totalPosted} label="All time" />
+              <MetricTile value={streak} label="Day streak" accent />
+            </div>
+            <div className="mt-5 rounded-2xl border border-hair bg-white/80 p-4 backdrop-blur-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-ink">Creator Brain</p>
+                  <p className="mt-1 text-xs leading-5 text-ink2">Memory, voice, and shipped posts powering your drafts.</p>
+                </div>
+                <Sparkles className="h-5 w-5 text-blue" />
+              </div>
+            </div>
           </div>
         </div>
-
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-3">
-          <MetricTile value={postsThisWeek} label="Published" />
-          <MetricTile value={inPipeline} label="In progress" />
-          <MetricTile value={streak} label="Day streak" accent />
-          <MetricTile value={totalPosted} label="All time" />
-        </div>
-      </header>
+      </section>
 
       <QuickActions />
 
-      <MorningBriefCard brief={morningBrief} />
-
-      <NeedsAttention items={attentionItems} />
-
       <GtmCommandCenter />
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_300px]">
+      <MorningBriefCard brief={morningBrief} />
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
         <div className="space-y-6">
+          <NeedsAttention items={attentionItems} />
           <section className="card-surface p-5">
             <SectionHeader
               tag="Publishing pipeline"

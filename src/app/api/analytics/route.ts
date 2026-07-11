@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { usage } from '@/lib/hooks-intelligence/usage-tracker';
 import { postPillars } from '@/lib/pillars';
 import { computeBestTimes, type TimingPost } from '@/lib/analytics/timing';
-import { enrichPostsWithSyncCounts, postEngagementScore, resolvePublishedAt } from '@/lib/analytics/post-metrics';
+import { enrichPostsWithSyncCounts, postEngagementScore, resolvePublishedAt, countPostsWithMetrics } from '@/lib/analytics/post-metrics';
+import { syncUserPostMetrics } from '@/lib/analytics/sync-user-metrics';
 import { getAlgorithmInsights, normalizeInsightPlatform, type InsightPlatform } from '@/lib/analytics/algorithm-insights';
 import type { Post } from '@/lib/types';
 
@@ -106,8 +107,36 @@ export async function GET(): Promise<NextResponse> {
   if (reviewsRes.error) return NextResponse.json({ error: reviewsRes.error.message }, { status: 500 });
   if (leadsRes.error) return NextResponse.json({ error: leadsRes.error.message }, { status: 500 });
 
+  let rawPosts = (postsRes.data ?? []) as Post[];
+
+  // When posts exist but every metric is zero, pull live stats before rendering charts.
+  if (rawPosts.length > 0 && countPostsWithMetrics(rawPosts) === 0) {
+    try {
+      const syncClient = process.env.INSFORGE_SERVICE_ROLE_KEY?.trim()
+        ? getServiceClient()
+        : client;
+      const syncResult = await syncUserPostMetrics(syncClient, user.id);
+      if (syncResult.updated > 0) {
+        let refetchQuery = client.database.from('posts')
+          .select('*')
+          .eq('user_id', user.id)
+          .eq('status', 'posted')
+          .order('posted_date', { ascending: false })
+          .limit(POSTED_POSTS_LIMIT);
+        refetchQuery = applyWorkspaceScope(refetchQuery, workspaceId);
+        const refetch = await refetchQuery;
+        if (!refetch.error && refetch.data) {
+          rawPosts = refetch.data as Post[];
+        }
+      }
+    } catch (err) {
+      // Non-fatal: return whatever we already have, but log so blank analytics is diagnosable.
+      console.error('[analytics] auto-sync failed', err instanceof Error ? err.message : err);
+    }
+  }
+
   const posts = enrichPostsWithSyncCounts(
-    (postsRes.data ?? []) as Post[],
+    rawPosts,
     countByPostId((reactionsRes.data ?? []) as Array<{ post_id: string }>),
     countByPostId((commentersRes.data ?? []) as Array<{ post_id: string }>),
   );

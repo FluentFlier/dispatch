@@ -11,9 +11,24 @@ function pageToSnippet(slug: string, body: string): string {
   try {
     const parsed = JSON.parse(body) as Record<string, unknown>;
     if (slug === BRAIN_SLUG.voice) {
+      // syncBrainVoiceLab writes vocabulary_fingerprint + structural_patterns into
+      // this page but they were never read back — dead storage. Read them so the
+      // brain voice page is a real fingerprint source (fallback/reinforcement for
+      // the user_settings copy), not just voice_description + voice_rules.
+      const vocab = parsed.vocabulary_fingerprint as
+        | { uses_often?: string[]; signature_phrases?: string[] }
+        | undefined;
+      const structural = parsed.structural_patterns as
+        | { hook_pattern?: string; closing_pattern?: string }
+        | undefined;
       const parts = [
         parsed.voice_description && `Voice: ${parsed.voice_description}`,
         parsed.voice_rules && `Rules: ${parsed.voice_rules}`,
+        vocab?.uses_often?.length && `Uses often: ${vocab.uses_often.join(', ')}`,
+        vocab?.signature_phrases?.length &&
+          `Signature phrases: ${vocab.signature_phrases.join(', ')}`,
+        structural?.hook_pattern && `Opens: ${structural.hook_pattern}`,
+        structural?.closing_pattern && `Closes: ${structural.closing_pattern}`,
       ].filter(Boolean);
       return parts.join('\n');
     }

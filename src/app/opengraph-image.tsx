@@ -20,9 +20,10 @@ export default function OpenGraphImage(): ImageResponse {
           flexDirection: 'column',
           justifyContent: 'space-between',
           padding: '64px',
-          background: 'linear-gradient(145deg, #1C1917 0%, #292524 55%, #3D8B7A 100%)',
-          color: '#FAFAF9',
+          background: '#f7f4ec',
+          color: '#24211e',
           fontFamily: 'system-ui, sans-serif',
+          border: '1px solid #ded8ca',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -31,8 +32,8 @@ export default function OpenGraphImage(): ImageResponse {
               width: 56,
               height: 56,
               borderRadius: 12,
-              background: '#FAFAF9',
-              color: '#1C1917',
+              background: '#315fe8',
+              color: '#f7f4ec',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -40,18 +41,18 @@ export default function OpenGraphImage(): ImageResponse {
               fontWeight: 700,
             }}
           >
-            /
+            C
           </div>
-          <span style={{ fontSize: 28, letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+          <span style={{ fontSize: 28, fontWeight: 650 }}>
             {PRODUCT_NAME}
           </span>
         </div>
         <div>
-          <div style={{ fontSize: 64, fontWeight: 600, lineHeight: 1.05, letterSpacing: '-0.03em', maxWidth: 900 }}>
-            Write in your voice. Ship everywhere.
+          <div style={{ fontSize: 76, fontWeight: 700, lineHeight: 0.95, letterSpacing: '-0.055em', maxWidth: 900 }}>
+            One system. More momentum.
           </div>
-          <div style={{ marginTop: 24, fontSize: 28, color: '#D6D3D1', maxWidth: 820 }}>
-            The private content command center for creators who publish consistently.
+          <div style={{ marginTop: 28, fontSize: 27, color: '#615c54', maxWidth: 820 }}>
+            Create, publish, reply, and learn in one connected loop.
           </div>
         </div>
       </div>

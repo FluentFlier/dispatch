@@ -13,7 +13,12 @@ import { resolveSignalOutreach } from '@/components/leads/signal-outreach';
 import { AdvancedDrawer } from '@/components/leads/AdvancedDrawer';
 import { SignalsSetup } from '@/components/leads/SignalsSetup';
 import { IcpManager } from '@/components/leads/IcpManager';
-import { LeadsHeaderActions, LeadsEmptyState } from '@/components/leads/LeadsFeedChrome';
+import {
+  LeadsHeaderActions,
+  LeadsEmptyState,
+  LeadsFilteredEmptyState,
+  ScrapeProgress,
+} from '@/components/leads/LeadsFeedChrome';
 import type {
   DirectorySettingsRow,
   FollowedCompanyRow,
@@ -33,6 +38,14 @@ import { feedViewState, draftAllOutcome } from '@/lib/leads/feed-view';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
 
+/** Fields the scrape toast reads off the streamed DirectorySyncResult. */
+type ScrapeResultSummary = {
+  inserted: number;
+  updated: number;
+  resolved: number;
+  warnings?: string[];
+};
+
 /** Initial feed page + how much each "Load more" adds. Capped by the server at 300. */
 const FEED_PAGE_SIZE = 50;
 const FEED_MAX = 300;
@@ -46,6 +59,19 @@ const INITIAL_FILTERS: FeedFilterState = {
   search: '',
   sort: 'score',
 };
+
+/**
+ * Signal types that can only ever come from the live Signal engine (X/LinkedIn
+ * post detection), never from a directory scrape. When one of these is selected
+ * and the feed is empty, the filtered-empty state explains that gap instead of
+ * misleadingly offering "Scrape now". 'launch' is intentionally excluded — it
+ * now maps to Product Hunt / YC-launch directory leads too.
+ */
+const SIGNAL_ENGINE_ONLY_TYPES = new Set<string>([
+  'funding_round',
+  'role_change',
+  'accelerator_join',
+]);
 
 /**
  * Unified leads feed page. One inbox that renders both live signal events and
@@ -76,8 +102,13 @@ export default function LeadsPage() {
   // True when the initial bootstrap fetch FAILED (vs a genuine empty feed), so
   // the UI shows a retry instead of the misleading "No leads yet" empty state.
   const [loadError, setLoadError] = useState(false);
+  // Soft setup gate when signals tables / signals_engine flag are unavailable.
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [setupMessage, setSetupMessage] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(false);
   const [scraping, setScraping] = useState(false);
+  // Live scrape progress streamed from /api/leads/sync (null when idle).
+  const [scrapeProgress, setScrapeProgress] = useState<{ pct: number; label: string } | null>(null);
   // Per-action busy tracking: only the clicked button spins, not every button
   // for the lead. `busyActionFor(id)` returns the in-flight action or null.
   const [busy, setBusy] = useState<LeadBusy | null>(null);
@@ -132,14 +163,28 @@ export default function LeadsPage() {
   const loadBootstrap = useCallback(async () => {
     setLoading(true);
     setLoadError(false);
+    setSetupRequired(false);
+    setSetupMessage(null);
     try {
       const [feedRes, bootRes] = await Promise.all([
         fetch(`/api/leads/feed?${feedQuery()}`),
         fetch(`/api/leads/bootstrap?status=${filters.status}`),
       ]);
+      const feed = await feedRes.json().catch(() => ({}));
+      const boot = await bootRes.json().catch(() => ({}));
+
+      if (feed.setupRequired || boot.setupRequired) {
+        setSetupRequired(true);
+        setSetupMessage(
+          (boot.error as string | undefined) ||
+            (feed.error as string | undefined) ||
+            'Leads engine not provisioned — contact support',
+        );
+        setCards([]);
+        return;
+      }
+
       if (!feedRes.ok || !bootRes.ok) throw new Error('load failed');
-      const feed = await feedRes.json();
-      const boot = await bootRes.json();
       setCards(feed.cards ?? []);
       indexLeads(boot.leads ?? []);
       setSettings(boot.settings ?? null);
@@ -342,24 +387,69 @@ export default function LeadsPage() {
 
   const handleScrape = async () => {
     setScraping(true);
+    setScrapeProgress({ pct: 0, label: 'Starting scrape…' });
     try {
       const res = await fetch('/api/leads/sync', { method: 'POST' });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      const r = data.result;
-      const warnings: string[] = r.warnings ?? [];
-      if (r.inserted === 0 && warnings.length > 0) {
+      if (!res.ok || !res.body) {
+        // Non-stream error path (auth / no-workspace return plain JSON).
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? 'Scrape failed.');
+      }
+
+      // Consume the NDJSON progress stream. Each line is one JSON message; the
+      // terminal message is either {type:'result'} or {type:'error'}.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let result: ScrapeResultSummary | null = null;
+      let streamError: string | null = null;
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed) continue;
+          let msg: Record<string, unknown>;
+          try {
+            msg = JSON.parse(trimmed);
+          } catch {
+            continue;
+          }
+          if (msg.type === 'progress') {
+            setScrapeProgress({
+              pct: typeof msg.pct === 'number' ? msg.pct : 0,
+              label: typeof msg.label === 'string' ? msg.label : 'Working…',
+            });
+          } else if (msg.type === 'result') {
+            result = msg.result as ScrapeResultSummary;
+          } else if (msg.type === 'error') {
+            streamError = typeof msg.error === 'string' ? msg.error : 'Scrape failed.';
+          }
+        }
+      }
+
+      if (streamError) throw new Error(streamError);
+      if (!result) throw new Error('Scrape ended without a result.');
+
+      setScrapeProgress({ pct: 100, label: 'Done' });
+      const warnings: string[] = result.warnings ?? [];
+      if (result.inserted === 0 && warnings.length > 0) {
         toast(`0 new leads — ${warnings[0]}`, 'error');
       } else if (warnings.length > 0) {
-        toast(`${r.inserted} new, but ${warnings.length} source(s) failed: ${warnings[0]}`, 'error');
+        toast(`${result.inserted} new, but ${warnings.length} source(s) failed: ${warnings[0]}`, 'error');
       } else {
-        toast(`Scrape done: ${r.inserted} new, ${r.updated} updated, ${r.resolved} resolved.`);
+        toast(`Scrape done: ${result.inserted} new, ${result.updated} updated, ${result.resolved} resolved.`);
       }
       await refetchList();
-    } catch {
-      toast('Scrape failed.', 'error');
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Scrape failed.', 'error');
     } finally {
       setScraping(false);
+      setScrapeProgress(null);
     }
   };
 
@@ -879,6 +969,14 @@ export default function LeadsPage() {
   const icpConfigured = Boolean(
     settings && (settings.icp_description?.trim() || (settings.icp_verticals?.length ?? 0) > 0),
   );
+  // Any filter narrowed away from its default. Distinguishes "no leads at all"
+  // (show Scrape now) from "leads exist but filters hide them" (show clear).
+  const filtersActive =
+    filters.status !== INITIAL_FILTERS.status ||
+    filters.source !== 'all' ||
+    filters.signalType !== 'all' ||
+    filters.vertical !== 'all' ||
+    filters.search.trim() !== '';
 
   return (
     <div className="max-w-6xl mx-auto space-y-6">
@@ -929,7 +1027,13 @@ export default function LeadsPage() {
             profiles={profiles}
             onProfilesChange={setProfiles}
             onSettingsSaved={setSettings}
-            onDiscoveryComplete={() => void loadBootstrap()}
+            onRunScrape={() => {
+              // Hand off to the streamed scrape and switch to the feed so the
+              // user sees the live progress bar instead of a blocked chat.
+              setView('feed');
+              void handleScrape();
+            }}
+            scraping={scraping}
             toast={toast}
           />
           <SignalsSetup />
@@ -966,7 +1070,13 @@ export default function LeadsPage() {
       )}
       <FeedFilters state={filters} onChange={setFilters} verticals={verticals} />
 
-      {feedViewState({ loading, loadError, cardCount: cards.length }) === 'loading' ? (
+      {/* Live scrape progress above an already-populated feed. The empty-feed
+          case shows the big panel variant in the empty branch below instead. */}
+      {scraping && scrapeProgress && cards.length > 0 && (
+        <ScrapeProgress pct={scrapeProgress.pct} label={scrapeProgress.label} />
+      )}
+
+      {feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'loading' ? (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
           <div className="lg:col-span-2">
             <UnifiedFeed cards={[]} selectedId={null} loading onSelect={() => {}} isFollowed={() => false} />
@@ -975,7 +1085,26 @@ export default function LeadsPage() {
             Loading leads…
           </div>
         </div>
-      ) : feedViewState({ loading, loadError, cardCount: cards.length }) === 'error' ? (
+      ) : feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'setup' ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-bg-secondary py-16 text-center px-6">
+          <p className="text-sm text-text-primary font-medium">
+            {setupMessage ?? 'Leads engine not provisioned — contact support'}
+          </p>
+          <p className="text-xs text-text-tertiary max-w-md">
+            This workspace cannot load leads until the signals schema is applied. If you are an operator, apply{' '}
+            <code className="font-mono">db/signals.sql</code> and{' '}
+            <code className="font-mono">db/signals-leads.sql</code>, then enable{' '}
+            <code className="font-mono">signals_engine</code>.
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadBootstrap()}
+            className="text-xs font-medium px-3 py-1.5 rounded-md bg-accent-primary text-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+          >
+            Retry
+          </button>
+        </div>
+      ) : feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'error' ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-bg-secondary py-16 text-center">
           <p className="text-sm text-text-secondary">Could not load your leads.</p>
           <button
@@ -986,8 +1115,24 @@ export default function LeadsPage() {
             Retry
           </button>
         </div>
-      ) : feedViewState({ loading, loadError, cardCount: cards.length }) === 'empty' ? (
-        <LeadsEmptyState onScrape={handleScrape} scraping={scraping} />
+      ) : feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'empty' ? (
+        scraping && scrapeProgress ? (
+          <ScrapeProgress pct={scrapeProgress.pct} label={scrapeProgress.label} panel />
+        ) : filtersActive ? (
+          <LeadsFilteredEmptyState
+            onClear={() => setFilters(INITIAL_FILTERS)}
+            signalHint={SIGNAL_ENGINE_ONLY_TYPES.has(filters.signalType)}
+          />
+        ) : (
+          <LeadsEmptyState onScrape={handleScrape} scraping={scraping} />
+        )
+      ) : visibleCards.length === 0 ? (
+        // Server returned leads, but a client-side filter (search / vertical)
+        // hides them all — explain + offer clear instead of a blank list.
+        <LeadsFilteredEmptyState
+          onClear={() => setFilters(INITIAL_FILTERS)}
+          signalHint={SIGNAL_ENGINE_ONLY_TYPES.has(filters.signalType)}
+        />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
           {/* List */}

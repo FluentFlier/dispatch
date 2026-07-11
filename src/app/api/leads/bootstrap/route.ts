@@ -5,6 +5,11 @@ import { getDirectorySettings, listFollowedCompanies, listLeads } from '@/lib/si
 import { ensureSeedProfile } from '@/lib/signals/leads/icp-profiles';
 import { isLeadsDemoMode } from '@/lib/signals/ingest/config';
 import { errorResponse } from '@/lib/api-errors';
+import {
+  checkLeadsSetup,
+  isMissingRelationError,
+  setupRequiredResponse,
+} from '@/lib/db/setup-gate';
 import type { LeadStatus } from '@/lib/signals/types';
 
 /**
@@ -24,6 +29,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   try {
     const client = getServerClient();
+    const setup = await checkLeadsSetup(client);
+    if (!setup.ok) {
+      return setupRequiredResponse(setup.missing, {
+        error: 'Leads engine not provisioned — contact support',
+        detail: setup.flagDisabled
+          ? 'Enable signals_engine (feature_flags) and apply db/signals.sql + db/signals-leads.sql'
+          : 'Apply db/signals.sql and db/signals-leads.sql on InsForge',
+      });
+    }
+
     const [leads, settings, followedCompanies, profiles] = await Promise.all([
       listLeads(client, workspaceId, { status }),
       getDirectorySettings(client, workspaceId),
@@ -32,6 +47,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     ]);
     return NextResponse.json({ leads, settings, followedCompanies, profiles, demoData: isLeadsDemoMode() });
   } catch (err) {
+    if (isMissingRelationError(err)) {
+      return setupRequiredResponse(['signal_leads'], {
+        error: 'Leads engine not provisioned — contact support',
+        detail: 'Apply db/signals.sql and db/signals-leads.sql on InsForge',
+      });
+    }
     return errorResponse('Could not load leads.', 500, err);
   }
 }

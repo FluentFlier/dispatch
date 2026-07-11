@@ -1,6 +1,6 @@
 # Content OS
 
-**Live:** [https://mm4nbzdu.insforge.site](https://mm4nbzdu.insforge.site) (deployed on InsForge)
+**Backend:** InsForge project **dispatch** — API `https://mm4nbzdu.us-east.insforge.app`, site `https://contentos.us`
 
 Private content command center for creators who ship. Generate, organize, schedule, and publish across X, LinkedIn, Instagram, and Threads from one workspace.
 
@@ -9,15 +9,16 @@ Private content command center for creators who ship. Generate, organize, schedu
 ## Features
 
 - **Generate** — AI studio with voice QA scores: scripts, hooks, captions, story mining, repurposing, trends, series planning
-- **Intelligence** — GStack-powered mining of high-converting viral hooks (target 1000+), RL + RAG system, categorized lead analytics (ICP vs Potential Leads vs Community), live hook suggestions in Generate and a dedicated Research Lab in Analytics
-- **Comments** — Sync replies on your posts, AI drafts in your voice, approve and send
+- **Comments** — Sync replies on your posts, AI drafts in your voice, approve and send (requires Unipile)
 - **Library** — Post command center (Write | Schedule | Comments | Stats tabs), pipeline, bulk publish
 - **Calendar** — Month/week views, drag-and-drop scheduling, AI week fill
-- **Publish** — OAuth for X, LinkedIn, Instagram, Threads; platform-specific formatting
-- **Analytics** — Weekly reviews, pillar breakdowns, performance logging, and actionable Intelligence insights
-- **Video Studio** — Remotion-based templates and preview
+- **Publish** — Unipile-connected X, LinkedIn, Instagram, Threads; platform-specific formatting
+- **Analytics** — Weekly reviews, pillar breakdowns, performance logging, hook examples
+- **Leads** — Signal-based lead engine (requires signals schema + ingest keys)
 - **Voice Lab** — Tune AI output to your voice and pillars
 - **Teleprompter** — Full-screen recording mode with mirror and offline support
+- **Video Studio** — Remotion template preview only (export/auto-edit not shipping yet)
+- **Hook examples** — Local mined-hook dataset for Generate (full RL loop not live yet)
 
 ## Stack
 
@@ -46,7 +47,7 @@ cp .env.example .env.local
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3001](http://localhost:3001).
 
 The default git branch is **main** (GitHub: [FluentFlier/dispatch](https://github.com/FluentFlier/dispatch)).
 
@@ -70,9 +71,9 @@ See [`.env.example`](.env.example). Required for core functionality:
 - `TOKEN_ENCRYPTION_KEY` — `openssl rand -hex 32`
 - `NEXT_PUBLIC_APP_URL` — OAuth callbacks
 
-Optional: `AYRSHARE_API_KEY`, Stripe keys, platform OAuth keys (direct mode), `CRON_SECRET`.
+Optional: Stripe keys, platform OAuth keys (direct mode), `CRON_SECRET`, Unipile (`UNIPILE_API_KEY` + `UNIPILE_DSN`).
 
-Apply schema changes: `npx @insforge/cli db query "$(cat db/production-delta.sql)"` or run statements from `db/production-delta.sql` individually.
+**Apply schema in order** — see [`db/APPLY_ORDER.md`](db/APPLY_ORDER.md). Do not apply only `schema.sql`; Leads, engagement, and event capture need additional SQL files.
 
 ## Project layout
 
@@ -89,18 +90,16 @@ scripts/        # GStack mining, bulk DB import, continuous loops
 
 ## Deploy (production checklist)
 
-**Live production site:** [https://mm4nbzdu.insforge.site](https://mm4nbzdu.insforge.site) (hosted on InsForge)
+**InsForge project:** `dispatch` (app key `mm4nbzdu`). Already linked via `.insforge/project.json`. Apply schema with `bash scripts/apply-core-schema.sh` (see [`db/APPLY_ORDER.md`](db/APPLY_ORDER.md)).
 
 1. **InsForge** — Link project: `npx @insforge/cli link`
-2. **Schema** — Apply in order:
-   - `db/schema.sql` (fresh projects)
-   - `db/production-delta.sql` (billing, publish queue, engagement)
-   - `db/creator-brain.sql` (Creator Brain pages)
+2. **Schema** — Follow [`db/APPLY_ORDER.md`](db/APPLY_ORDER.md) (core → production-delta → engagement → signals → intelligence → migrations).
 3. **Secrets** — Set via `insforge secrets` or dashboard:
    - `NEXT_PUBLIC_INSFORGE_URL`, `NEXT_PUBLIC_INSFORGE_ANON_KEY`, `INSFORGE_SERVICE_ROLE_KEY`
    - `TOKEN_ENCRYPTION_KEY` (`openssl rand -hex 32`)
    - `NEXT_PUBLIC_APP_URL`, `CRON_SECRET`
-   - `AYRSHARE_API_KEY` (recommended for multi-platform publish + comment sync)
+   - `UNIPILE_API_KEY`, `UNIPILE_DSN` (required for publish + comment send)
+   - `LLM_BASE_URL`, `LLM_API_KEY` (or `HUGGINGFACE_API_KEY` fallback)
 4. **OAuth** — Add redirect URLs in InsForge dashboard for `/login`
 5. **Deploy frontend** — Use InsForge CLI (deploys to InsForge hosting):
    ```bash
@@ -131,8 +130,8 @@ cron-job.org timer → GET https://your-app/api/cron/fast
 
 | Title | URL | Schedule | Method | Header |
 |-------|-----|----------|--------|--------|
-| `dispatch-fast` | `https://your-app.vercel.app/api/cron/fast` | Every 5 minutes | GET | `Authorization: Bearer YOUR_CRON_SECRET` |
-| `dispatch-medium` | `https://your-app.vercel.app/api/cron/medium` | Every 15 minutes | GET | `Authorization: Bearer YOUR_CRON_SECRET` |
+| `content-os-fast` | `https://contentos.us/api/cron/fast` | Every 5 minutes | GET | `Authorization: Bearer YOUR_CRON_SECRET` |
+| `content-os-medium` | `https://contentos.us/api/cron/medium` | Every 15 minutes | GET | `Authorization: Bearer YOUR_CRON_SECRET` |
 
 **What each job covers:**
 
@@ -164,7 +163,7 @@ See `scripts/research-hooks.ts`, `scripts/continuous-research-loop.sh`, `scripts
 
 ### First-time user flow
 
-Sign in → onboarding (profile + voice) → Settings → connect platforms (Ayrshare) → Write → Posts → publish → Comments inbox to reply.
+Sign in → onboarding (profile + voice) → Settings → connect platforms (Unipile) → Write → Posts → publish → Comments inbox to reply.
 
 The production site is deployed via InsForge (frontend hosting). For custom domains or advanced Vercel config, use the InsForge dashboard or link your own Vercel project.
 

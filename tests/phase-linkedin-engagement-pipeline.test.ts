@@ -151,6 +151,13 @@ describe('Phase: LinkedIn Engagement Pipeline', () => {
       expect(buildPostIdCandidates('urn:li:activity:123')).toEqual(['urn:li:activity:123']);
       expect(buildPostIdCandidates('abc-unipile-id')).toEqual(['abc-unipile-id']);
     });
+
+    it('should share URN candidates with comment sync (same helper as reactions)', () => {
+      const numericId = '7478897599899521024';
+      const candidates = buildPostIdCandidates(numericId);
+      expect(candidates[0]).toBe(`urn:li:activity:${numericId}`);
+      expect(candidates).toContain(numericId);
+    });
   });
 
   describe('extractReactions', () => {
@@ -257,12 +264,45 @@ describe('Phase: LinkedIn Engagement Pipeline', () => {
       ).toEqual({ views: 900, likes: 30, comments: 5, shares: 2 });
     });
 
+    it('should read Unipile v2 analytics.*_counter field names', () => {
+      expect(
+        extractLinkedInMetrics({
+          analytics: {
+            impressions_counter: 1200,
+            reactions_counter: 45,
+            comments_counter: 8,
+            reposts_counter: 3,
+          },
+        }),
+      ).toEqual({ views: 1200, likes: 45, comments: 8, shares: 3 });
+    });
+
     it('should leave missing fields undefined so stored values are never zeroed', () => {
       const metrics = extractLinkedInMetrics({ analytics: { impressions: 100 } });
       expect(metrics.views).toBe(100);
       expect(metrics.likes).toBeUndefined();
       expect(metrics.comments).toBeUndefined();
       expect(metrics.shares).toBeUndefined();
+    });
+
+    it('should ignore zero impressions (LinkedIn often hides them as 0)', () => {
+      const metrics = extractLinkedInMetrics({
+        impressions_counter: 0,
+        reaction_counter: 93,
+        comment_counter: 4,
+      });
+      expect(metrics.views).toBeUndefined();
+      expect(metrics.likes).toBe(93);
+      expect(metrics.comments).toBe(4);
+    });
+
+    it('should map followers_gained_from_this_post onto follows', () => {
+      expect(
+        extractLinkedInMetrics({
+          analytics: { followers_gained_from_this_post: 12, impressions: 500 },
+          reaction_counter: 3,
+        }),
+      ).toMatchObject({ views: 500, likes: 3, follows: 12 });
     });
 
     it('should return empty metrics for malformed payloads', () => {
@@ -272,6 +312,7 @@ describe('Phase: LinkedIn Engagement Pipeline', () => {
         likes: undefined,
         comments: undefined,
         shares: undefined,
+        follows: undefined,
       });
     });
   });
