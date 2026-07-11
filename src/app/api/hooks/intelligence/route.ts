@@ -37,7 +37,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       client = undefined;
     }
 
-    const resolved = await getBestHooksForGeneration(client, vertical ?? undefined, limit);
+    // No topic/niche context on this browse endpoint (just a vertical filter),
+    // so this always takes the static fallback path inside getBestHooksForGeneration.
+    const resolved = await getBestHooksForGeneration(client, {
+      topicText: vertical ?? '',
+      vertical: vertical ?? undefined,
+      limit,
+    });
 
     return NextResponse.json({
       hooks: resolved.hooks.map((h, i) => ({

@@ -10,7 +10,11 @@ import { formatSignalTopicsBlock } from '@/lib/signals/content-bridge';
 describe('Phase: Evolving model', () => {
   describe('resolve-hooks unified store', () => {
     it('falls back to static bootstrap when no DB client', async () => {
-      const result = await getBestHooksForGeneration(undefined, 'indie_maker', 3);
+      const result = await getBestHooksForGeneration(undefined, {
+        topicText: 'launching my product',
+        vertical: 'indie_maker',
+        limit: 3,
+      });
       expect(result.hooks.length).toBeGreaterThan(0);
       expect(result.explanations.length).toBe(result.hooks.length);
       expect(result.explanations[0].source).toBe('static');

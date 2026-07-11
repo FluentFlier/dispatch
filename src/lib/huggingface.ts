@@ -103,3 +103,50 @@ export async function transcribeAudioHF(audioBlob: Blob): Promise<string> {
 
   return response.text;
 }
+
+export interface AiLikelihoodResult {
+  /** P(AI) in [0,1]. */
+  score: number;
+  /** Which detector actually produced the score. */
+  detector: 'desklib' | 'heuristic';
+}
+
+/**
+ * AI-text likelihood via desklib/ai-text-detector-v1.01 (DeBERTa-v3, RAID leader
+ * 2026). Returns { score: P(AI) in [0,1], detector } so the mining gate
+ * (spec 2.3.4) always knows the provenance and can never silently no-op.
+ *
+ * Any detector failure (missing key, API error, non-array response,
+ * unrecognized label set - seen conventions: "AI"/"Human", "LABEL_1"/"LABEL_0")
+ * is logged via console.error and falls back to the deterministic
+ * heuristicAiScore path from humanizer.ts, normalized to 0-1, tagged
+ * detector: 'heuristic'. Imported lazily to avoid the static cycle
+ * huggingface -> humanizer -> llm -> huggingface.
+ */
+export async function aiTextLikelihood(text: string): Promise<AiLikelihoodResult> {
+  const fallback = async (reason: string): Promise<AiLikelihoodResult> => {
+    console.error(`aiTextLikelihood: falling back to heuristic detector: ${reason}`);
+    const { heuristicAiScore } = await import('./humanizer');
+    return { score: heuristicAiScore(text) / 100, detector: 'heuristic' };
+  };
+
+  const apiKey = process.env.HUGGINGFACE_API_KEY;
+  if (!apiKey) return fallback('HUGGINGFACE_API_KEY not configured');
+  try {
+    const out = (await hf.textClassification({
+      model: 'desklib/ai-text-detector-v1.01',
+      inputs: text.slice(0, 4000),
+    })) as Array<{ label: string; score: number }>;
+    if (!Array.isArray(out)) {
+      return fallback(`unexpected response shape from desklib detector: ${JSON.stringify(out)}`);
+    }
+    const ai = out.find((r) => /ai|machine|generated|fake|label_1/i.test(r.label));
+    if (ai) return { score: ai.score, detector: 'desklib' };
+    // Only a human/real label came back -> AI prob is its complement.
+    const human = out.find((r) => /human|real|label_0/i.test(r.label));
+    if (human) return { score: 1 - human.score, detector: 'desklib' };
+    return fallback(`unrecognized label set from desklib detector: ${JSON.stringify(out.map((r) => r.label))}`);
+  } catch (err) {
+    return fallback(`desklib API error: ${err instanceof Error ? err.message : String(err)}`);
+  }
+}
