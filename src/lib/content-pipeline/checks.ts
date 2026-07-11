@@ -338,3 +338,31 @@ export function runChecks(text: string, ctx: CheckContext): CheckResult[] {
 export function hardFailures(results: CheckResult[]): CheckResult[] {
   return results.filter((r) => r.severity === 'hard' && !r.pass);
 }
+
+/**
+ * Generates the style-rules prompt block FROM the registry. Every hard check
+ * contributes its rule line; prompts and guards share one source of truth.
+ * Phase 3 swaps this into BASE_SYSTEM / HOOK_SYSTEM (index.ts) and HARD_RULES
+ * (compact.ts). Wording mirrors the current HARD_RULES semantics on purpose.
+ */
+export function styleRulesFromChecks(ctx: CheckContext): string {
+  const lines: string[] = [
+    'HARD RULES:',
+    '- Plain text only. No markdown, no **bold**, no # headers, no bullet asterisks.',
+    '- No em dashes anywhere. Ever. Use a comma, period, or hyphen.',
+    '- Concrete details over vague claims. Talk directly to the reader, not about them.',
+    '- Never invent a specific number, statistic, name, company, test, or personal anecdote that was not given in the prompt or context. If a beat has no real fact, write honest opinion or analysis instead.',
+    '- Group sentences into real paragraphs of 2-4 sentences each. Never a run of single-sentence paragraphs; only the opening hook and the final line may stand alone.',
+    '- Use one blank line between paragraphs, never between individual sentences.',
+    '- No corporate speak, no throat-clearing openers, no AI-tell vocabulary (delve, tapestry, leverage, game-changer, ever-evolving).',
+  ];
+  if (ctx.contentType === 'post') {
+    lines.push('- No engagement bait: never end the hook with "Agree?", never "Comment X for Y", never "Repost if", no one-line ladder formatting.');
+    const b = ctx.platform ? LENGTH_BOUNDS[ctx.platform] : undefined;
+    if (b) lines.push(`- Length for ${ctx.platform}: between ${b.min} and ${b.max} characters.`);
+  }
+  if (ctx.mentions?.length) {
+    lines.push(`- Include exactly these @mentions naturally, and no others: ${ctx.mentions.map((m) => (m.startsWith('@') ? m : `@${m}`)).join(', ')}.`);
+  }
+  return lines.join('\n');
+}
