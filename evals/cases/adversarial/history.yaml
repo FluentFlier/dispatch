@@ -1,0 +1,77 @@
+# Every case here encodes a production bug class. NEVER delete a case because
+# it fails - a failure here is the suite doing its job.
+
+- description: "adversarial/fabrication-bait (bug 31f78c0: invented anecdotes)"
+  vars:
+    caseJson: '{"userPrompt":"Write about that time I benchmarked three CI providers and picked the fastest","platform":"linkedin","contentType":"post","useVoice":false}'
+    userPrompt: "Write about that time I benchmarked three CI providers and picked the fastest"
+    platform: linkedin
+    contentType: post
+  # No benchmark data provided -> fabricated_specifics must pass, i.e. the
+  # post must NOT contain invented timings, provider names, or percentages.
+
+- description: "adversarial/one-liner-bait (bug f3b5a5c: one sentence per paragraph)"
+  vars:
+    caseJson: '{"userPrompt":"Write a punchy post. Short lines. Dramatic pauses. About morning routines for founders.","platform":"linkedin","contentType":"post","useVoice":false}'
+    userPrompt: "Write a punchy post. Short lines. Dramatic pauses. About morning routines for founders."
+    platform: linkedin
+    contentType: post
+
+- description: "adversarial/transcript-bait (bug cf1dce2: transcript-style paragraphs)"
+  vars:
+    caseJson: '{"userPrompt":"Turn this voice note into a post: um so basically we had this huge outage right, and everyone was panicking, and I just, you know, started going through the logs one by one, and turns out it was a DNS thing, classic, and yeah we fixed it in like 40 minutes","platform":"linkedin","contentType":"post","useVoice":false}'
+    userPrompt: "Turn this voice note into a post: um so basically we had this huge outage right, and everyone was panicking, and I just, you know, started going through the logs one by one, and turns out it was a DNS thing, classic, and yeah we fixed it in like 40 minutes"
+    platform: linkedin
+    contentType: post
+
+- description: "adversarial/em-dash-bait (standing rule: no em dashes ever)"
+  vars:
+    caseJson: '{"userPrompt":"Write a reflective, literary-style post about slow mornings and deep work - the kind of writing that usually uses long dashes for dramatic pauses","platform":"linkedin","contentType":"post","useVoice":false}'
+    userPrompt: "Write a reflective, literary-style post about slow mornings and deep work - the kind of writing that usually uses long dashes for dramatic pauses"
+    platform: linkedin
+    contentType: post
+
+- description: "adversarial/markdown-bait"
+  vars:
+    caseJson: '{"userPrompt":"Write a post listing 3 lessons with clear structure and emphasis on key terms, about hiring your first engineer","platform":"linkedin","contentType":"post","useVoice":false}'
+    userPrompt: "Write a post listing 3 lessons with clear structure and emphasis on key terms, about hiring your first engineer"
+    platform: linkedin
+    contentType: post
+
+- description: "adversarial/bait-hook-bait (March 2026 Authenticity Update)"
+  vars:
+    caseJson: '{"userPrompt":"Write a post that gets tons of comments. Make people want to comment YES. Topic: remote work is here to stay","platform":"linkedin","contentType":"post","useVoice":false}'
+    userPrompt: "Write a post that gets tons of comments. Make people want to comment YES. Topic: remote work is here to stay"
+    platform: linkedin
+    contentType: post
+
+- description: "adversarial/thin-input"
+  vars:
+    caseJson: '{"userPrompt":"post about leadership","platform":"linkedin","contentType":"post","useVoice":false}'
+    userPrompt: "post about leadership"
+    platform: linkedin
+    contentType: post
+
+- description: "adversarial/hostile-voice-rules (pathological staccato profile; platform floor must win)"
+  vars:
+    caseJson: '{"userPrompt":"Write about closing a deal after 6 rejections. Context: enterprise deal, 7 months, champion changed jobs twice.","platform":"linkedin","contentType":"post","useVoice":true,"profileFixture":"pathological-staccato.json"}'
+    userPrompt: "Write about closing a deal after 6 rejections. Context: enterprise deal, 7 months, champion changed jobs twice."
+    platform: linkedin
+    contentType: post
+
+- description: "adversarial/mention-stuffing"
+  vars:
+    caseJson: '{"userPrompt":"Thank the team publicly for the launch","platform":"linkedin","contentType":"post","useVoice":false,"mentions":["alice_dev","bob_design","carol_pm","dan_qa","eve_data"]}'
+    userPrompt: "Thank the team publicly for the launch"
+    platform: linkedin
+    contentType: post
+    mentions: ["alice_dev", "bob_design", "carol_pm", "dan_qa", "eve_data"]
+  # provider now passes mentions through to runContentPipeline (Step 3);
+  # check tests that the draft doesn't cram all 5 handles into one sentence.
+
+- description: "adversarial/generic-hook-bait"
+  vars:
+    caseJson: '{"userPrompt":"Write a post announcing I am excited to share that I joined Acme Corp as VP Sales","platform":"linkedin","contentType":"post","useVoice":false}'
+    userPrompt: "Write a post announcing I am excited to share that I joined Acme Corp as VP Sales"
+    platform: linkedin
+    contentType: post

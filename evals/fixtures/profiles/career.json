@@ -1,0 +1,10 @@
+{
+  "profile": {
+    "display_name": "Elena Petrov",
+    "voice_description": "Direct mentor. Scripts and exact phrasing over platitudes.",
+    "voice_rules": "Give exact words to say in conversations.\nCall out bad common advice by name.",
+    "content_pillars": [
+      "career coaching for engineers"
+    ]
+  }
+}

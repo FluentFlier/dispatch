@@ -1,6 +1,6 @@
 /**
  * promptfoo exec-provider: runs the REAL content pipeline for one eval case.
- * Input: argv[2] = JSON {userPrompt, platform, contentType, useVoice, profileFixture}
+ * Input: argv[2] = JSON {userPrompt, platform, contentType, useVoice, profileFixture, mentions, sourceContext}
  * Output: generated post text on stdout (promptfoo captures it).
  * Exit 1 + stderr on failure so promptfoo marks the case errored, not empty-pass.
  */
@@ -14,6 +14,8 @@ interface CaseVars {
   contentType?: string;
   useVoice?: boolean;
   profileFixture?: string; // filename in evals/fixtures/profiles/
+  mentions?: string[];
+  sourceContext?: string;
 }
 
 async function main() {
@@ -41,6 +43,8 @@ async function main() {
     useVoice: vars.useVoice ?? Boolean(profile),
     vocabulary,
     structural,
+    mentions: vars.mentions,
+    contextAdditions: vars.sourceContext,
   });
 
   process.stdout.write(result.text);
