@@ -12,7 +12,8 @@ import type { VocabularyFingerprint, StructuralPatterns } from '@/lib/voice-cont
 import { finalizeResult, stripEmDashes } from './finalize';
 export { stripMarkdownFormatting, enforceParagraphFloor } from './finalize';
 import { isCompactMode, runCompactPipeline } from './compact';
-import { styleRulesFromChecks, type CheckContext } from './checks';
+import { styleRulesFromChecks, runChecks, hardFailures, type CheckContext } from './checks';
+import { targetedRevise, escalateOnce, selectBest, type EnforceCandidate } from './enforce';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -200,6 +201,7 @@ export async function runContentPipeline(
 
   const contentType = input.contentType ?? 'post';
   const isProse = contentType === 'post' || contentType === 'reply' || contentType === 'comment';
+  const evalContentType = contentType === 'reply' || contentType === 'comment' ? contentType : 'post';
 
   // Small models can't survive the full 6-11 rewrite chain - route prose to
   // the 2-call compact pipeline (env LLM_PIPELINE_MODE overrides detection).
@@ -225,7 +227,15 @@ export async function runContentPipeline(
       });
       text = h.text;
       stagesCompleted.push('humanize');
-      return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, h.passes, undefined);
+      // Gate A (voice-off path): targeted revise runs, no escalation ladder -
+      // per this task's scope decision, escalation only exists on the
+      // voice-on path (there is nothing to escalate to here). task5: emit hard_check_failed
+      const voiceOffCtx = buildCheckContext(input, contentType, fullContext, null);
+      const voiceOffGate = await targetedRevise(text, voiceOffCtx, input.model);
+      text = voiceOffGate.text;
+      const voiceOffFails = hardFailures(voiceOffGate.checkResults);
+      const voiceOffFlags = voiceOffFails.length ? ['hard_check_failed', ...voiceOffFails.map((f) => f.id)] : [];
+      return finalizeResult(text, isProse, undefined, false, voiceOffFlags, stagesCompleted, h.passes, undefined);
     }
     if (input.humanizeAlways) {
       const h = await humanizePipeline(text, { skipVoice: true, skipAudit: true });
@@ -284,6 +294,18 @@ export async function runContentPipeline(
     stagesCompleted.push('humanize');
   }
 
+  // --- Gate A: check gate after humanize (spec 3.2) ---
+  // Runs for every prose output regardless of voice-on/off - hard checks
+  // like em-dash/markdown/fabricated-specifics matter either way. `fast`
+  // mode already returned earlier in this function and never reaches here.
+  const flags: string[] = [];
+  if (isProse) {
+    const gateACtx = buildCheckContext(input, contentType, fullContext, profile);
+    const gateA = await targetedRevise(text, gateACtx, input.model);
+    text = gateA.text;
+    // task5: emit targeted_revise when gateA.revisedForChecks
+  }
+
   // EMAIL VOICE is a 1:1 register (greetings, sign-offs, warmth) - useful for
   // replies/comments, wrong for public posts. Keep it out of the post rewrite
   // so email tone can't bleed in.
@@ -316,9 +338,6 @@ Return ONLY the final post.`;
   const maxIterations = input.maxIterations ?? 2;
 
   if (!skipEval && useVoice) {
-    const evalContentType =
-      contentType === 'reply' || contentType === 'comment' ? contentType : 'post';
-
     let lastActionWasRevise = false;
 
     for (let i = 0; i < maxIterations; i++) {
@@ -377,12 +396,57 @@ Return ONLY the revised post.`;
     stagesCompleted.push('evaluate');
   }
 
+  // --- Gate B: final check gate + bounded escalation (spec 3.2) ---
+  const gateBCtx = buildCheckContext(input, contentType, voiceStageContext, profile);
+  const finalChecks = runChecks(text, gateBCtx);
+  const candidates: EnforceCandidate[] = [{ text, checkResults: finalChecks, evaluation }];
+
+  const stillHardFailing = hardFailures(finalChecks).length > 0;
+  const judgeFailing = Boolean(evaluation && !evaluation.pass && !evaluation.parse_error);
+  if (stillHardFailing || judgeFailing) {
+    const escalatedText = await escalateOnce(async (smartModel) => {
+      // task5: emit escalated
+      const voiceSystem = buildSystemPrompt(profile, voiceStageContext || undefined);
+      const revisePrompt = `Revise the draft below so it sounds more like the creator and fixes every issue noted. Keep the topic, facts, and overall structure.
+
+ORIGINAL REQUEST:
+${input.userPrompt}
+
+CURRENT DRAFT:
+---
+${text}
+---
+
+ISSUES TO FIX:
+${[...hardFailures(finalChecks).map((f) => `- ${f.id}: ${f.fixHint}`), evaluation?.revision_notes ? `- voice: ${evaluation.revision_notes}` : ''].filter(Boolean).join('\n')}
+
+Return ONLY the revised post.`;
+      return stripEmDashes(
+        await chatCompletion(voiceSystem, revisePrompt, { temperature: 0.6, maxTokens: 1200, model: smartModel }),
+      );
+    });
+
+    if (escalatedText) {
+      const escChecks = runChecks(escalatedText, gateBCtx);
+      const escEvaluation = await evaluateDraft(escalatedText, profile, voiceStageContext || undefined, evalContentType);
+      candidates.push({ text: escalatedText, checkResults: escChecks, evaluation: escEvaluation });
+    }
+  }
+
+  const best = selectBest(candidates);
+  text = best.text;
+  evaluation = best.evaluation;
+  const finalHardFails = hardFailures(best.checkResults);
+  if (finalHardFails.length > 0) flags.push('hard_check_failed', ...finalHardFails.map((f) => f.id));
+  // task5: emit hard_check_failed when finalHardFails.length > 0 (best still fails after Gate B)
+
+  // task5: emit shipped_below_threshold when evaluation && !evaluation.pass (ships anyway - best-of already ran)
   return finalizeResult(
     text,
     true,
     evaluation,
     revised,
-    evaluation && !evaluation.pass ? ['below_voice_threshold'] : [],
+    [...(evaluation && !evaluation.pass ? ['below_voice_threshold'] : []), ...flags],
     stagesCompleted,
     humanizePasses,
     usedHookIds,
