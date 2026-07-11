@@ -32,7 +32,7 @@ import { cosineSim } from './niche-resolver';
 type InsforgeClient = ReturnType<typeof createClient>;
 
 const APIFY_ACTOR = process.env.HOOKS_MINING_ACTOR || 'apimaestro/linkedin-posts-search-scraper-no-cookies';
-const COST_PER_RESULT_USD = 0.005; // $5 / 1k results (spec 2.3)
+export const COST_PER_RESULT_USD = 0.005; // $5 / 1k results (spec 2.3)
 const AI_REJECT_ABOVE = 0.8;
 const FIT_REJECT_BELOW = 6;
 const NEAR_DUP_COSINE = 0.92;

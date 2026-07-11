@@ -185,7 +185,7 @@ export async function resolveNicheForProfile(
       .eq('id', nicheId);
   } else {
     const slug = slugify(cls.label) || `niche-${Date.now()}`;
-    const { data: ins } = await client.database
+    const { data: ins, error: insError } = await client.database
       .from('niches')
       .insert({
         slug,
@@ -197,8 +197,26 @@ export async function resolveNicheForProfile(
       })
       .select('id')
       .single();
-    nicheId = (ins as { id: string }).id;
-    created = true;
+    if (insError || !ins) {
+      // Two concurrent onboardings can classify into the same label and race
+      // on the `slug` unique constraint. Rather than throwing (and dropping
+      // the loser's niche assignment), fall back to the row that won the race.
+      const { data: bySlug, error: selError } = await client.database
+        .from('niches')
+        .select('id')
+        .eq('slug', slug)
+        .single();
+      if (selError || !bySlug) {
+        throw new Error(
+          `[niche-resolver] niche insert failed and slug fallback found no row (slug=${slug}): ${JSON.stringify(insError)}`,
+        );
+      }
+      nicheId = (bySlug as { id: string }).id;
+      created = false;
+    } else {
+      nicheId = (ins as { id: string }).id;
+      created = true;
+    }
   }
 
   await client.database

@@ -130,7 +130,10 @@ describe('classifyProfileNiche (mocked LLM)', () => {
 
 // Minimal chainable fake of the InsForge database client - just the calls
 // resolveNicheForProfile makes.
-function fakeClient(rows: NicheRow[], opts: { rejectSelect?: boolean } = {}) {
+function fakeClient(
+  rows: NicheRow[],
+  opts: { rejectSelect?: boolean; insertError?: boolean; slugFallbackRow?: { id: string } } = {},
+) {
   const calls = { inserts: 0, updates: [] as Array<{ table: string; payload: Record<string, unknown> }> };
   const database = {
     from(table: string) {
@@ -140,6 +143,13 @@ function fakeClient(rows: NicheRow[], opts: { rejectSelect?: boolean } = {}) {
             if (opts.rejectSelect) throw new Error('db down');
             return { data: rows, error: null };
           },
+          // Only hit by the insert-collision slug fallback query.
+          eq: () => ({
+            single: async () => {
+              if (opts.slugFallbackRow) return { data: opts.slugFallbackRow, error: null };
+              return { data: null, error: { message: 'no row for slug' } };
+            },
+          }),
         }),
         update: (payload: Record<string, unknown>) => ({
           eq: async () => {
@@ -151,6 +161,9 @@ function fakeClient(rows: NicheRow[], opts: { rejectSelect?: boolean } = {}) {
           select: () => ({
             single: async () => {
               calls.inserts += 1;
+              if (opts.insertError) {
+                return { data: null, error: { message: 'duplicate key value violates unique constraint "niches_slug_key"' } };
+              }
               return { data: { id: 'new-niche-id' }, error: null };
             },
           }),
@@ -195,6 +208,22 @@ describe('resolveNicheForProfile (mocked client)', () => {
     const res = await resolveNicheForProfile(client, profile);
     expect(res.created).toBe(true);
     expect(calls.inserts).toBe(1);
+  });
+
+  // Folded follow-up: two concurrent onboardings can classify to the same
+  // label and race on the `slug` unique constraint. The loser must not throw
+  // and drop the user's niche assignment - it should fall back to the winner.
+  it('falls back to select-by-slug when insert hits a unique collision', async () => {
+    const { client, calls } = fakeClient([], { insertError: true, slugFallbackRow: { id: 'winner-id' } });
+    const res = await resolveNicheForProfile(client, profile);
+    expect(res.created).toBe(false);
+    expect(res.nicheId).toBe('winner-id');
+    expect(calls.inserts).toBe(1);
+  });
+
+  it('throws a clear error when insert fails AND the slug fallback finds nothing', async () => {
+    const { client } = fakeClient([], { insertError: true });
+    await expect(resolveNicheForProfile(client, profile)).rejects.toThrow(/niche insert failed/);
   });
 
   it('rejects (never throws synchronously) when the DB read fails, so fire-and-forget .catch() absorbs it', async () => {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
-import { mineNiche } from '@/lib/hooks-intelligence/mining';
+import { mineNiche, COST_PER_RESULT_USD } from '@/lib/hooks-intelligence/mining';
+import { embeddingsKey } from '@/lib/embeddings';
 import { logCronRun } from '@/lib/admin/cron-log';
 import { logError, logInfo } from '@/lib/logger';
 import { type RefreshNiche, selectDueNiches, budgetGate } from '@/lib/hooks-intelligence/refresh-scheduler';
@@ -35,6 +36,21 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const dryRun = request.nextUrl.searchParams.get('dry') === '1';
   const client = getServiceClient();
 
+  // Pre-flight, before any Apify spend: mineNiche only needs the embeddings key
+  // at filter 6 (after the scrape already happened), so without this check a
+  // missing key burns the whole run's Apify budget on posts it will fail to
+  // embed. Skipped entirely for dry runs, which never call mineNiche.
+  if (!dryRun) {
+    try {
+      embeddingsKey();
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      logError('[hooks-refresh] skipping run: embeddings key missing', undefined, err);
+      await logCronRun({ jobName: 'hooks-refresh', status: 'error', durationMs: Date.now() - started, errorMessage: reason });
+      return NextResponse.json({ ok: false, skipped: 'embeddings_key_missing', reason }, { status: 200 });
+    }
+  }
+
   const { data: nichesRaw, error: nichesError } = await client.database
     .from('niches')
     .select('id, label, seed_keywords, status, active_user_count, last_mined_at, created_at')
@@ -55,7 +71,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       continue;
     }
     const remainingUsd = capUsd - spentUsd;
-    const maxResults = Math.min(200, Math.floor(remainingUsd / 0.005));
+    const maxResults = Math.min(200, Math.floor(remainingUsd / COST_PER_RESULT_USD));
     if (maxResults < 10) {
       mined.push({ niche: niche.id, skipped: 'budget_exhausted' });
       continue;
