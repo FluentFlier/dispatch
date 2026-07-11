@@ -230,18 +230,25 @@ const fabricatedSpecifics: Check = {
     // (ambiguous capitalization), which meant a fabricated name used as its
     // OWN opening sentence ("Sundar Pichai even called...") went undetected
     // (Phase 1 session note - accepted fail-open, Phase 3 must close it).
-    // Fix: drop the position-based exclusion; instead skip a run only when
-    // its FIRST word is a common sentence-opener (still genuinely ambiguous
-    // capitalization - "Every Monday", "This Tuesday") - any other run is a
-    // real signal regardless of where in the sentence it appears.
-    for (const m of Array.from(text.matchAll(/\b([A-Z][a-z]+(?: [A-Z][a-z]+)+)\b/gm))) {
-      const nameLower = m[1].toLowerCase();
-      const words = nameLower.split(' ');
-      if (words.every((w) => WORD_WHITELIST.has(w))) continue;
-      if (SENTENCE_STARTER_WHITELIST.has(words[0])) continue;
-      if (!allowed.includes(nameLower)) {
-        return fail('fabricated_specifics', 'hard', m[1],
-          `Remove "${m[1]}" - this name does not appear in the request or provided context. Never invent people or companies.`);
+    // Fix: drop the position-based exclusion. Starter words excuse only
+    // THEMSELVES, never the rest of the run: strip leading whitelisted
+    // starters ("Every Monday" -> "Monday", "The National Business Research
+    // Institute" -> "National Business Research Institute", the D.1 prod
+    // fabrication) and re-check the remainder. A remainder of 2+ capitalized
+    // words is a real proper-noun signal wherever it sits in the sentence;
+    // a 1-word remainder stays unchecked (single-word names too ambiguous).
+    // Word atom allows interior caps ("McKinsey", "LinkedIn"), not just Xxxx.
+    for (const m of Array.from(text.matchAll(/\b([A-Z][a-z]+(?:[A-Z][a-z]+)*(?: [A-Z][a-z]+(?:[A-Z][a-z]+)*)+)\b/gm))) {
+      const words = m[1].toLowerCase().split(' ');
+      let start = 0;
+      while (start < words.length && SENTENCE_STARTER_WHITELIST.has(words[start])) start++;
+      const rest = words.slice(start);
+      if (rest.length < 2) continue;
+      if (rest.every((w) => WORD_WHITELIST.has(w))) continue;
+      if (!allowed.includes(rest.join(' '))) {
+        const evidence = m[1].split(' ').slice(start).join(' ');
+        return fail('fabricated_specifics', 'hard', evidence,
+          `Remove "${evidence}" - this name does not appear in the request or provided context. Never invent people or companies.`);
       }
     }
     return pass('fabricated_specifics', 'hard');

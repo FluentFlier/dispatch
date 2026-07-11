@@ -26,6 +26,42 @@ describe('Phase: Guardrail Consolidation - checks recalibration', () => {
     expect(r.pass).toBe(false);
   });
 
+  it('still catches a fabricated org name behind a whitelisted starter word ("The ...")', () => {
+    // Fix round 1: whitelisting words[0] must not discard the WHOLE run.
+    // "The National Business Research Institute" is the flagship D.1 prod
+    // fabrication; strip the starter word and re-check the remainder.
+    const text = 'We looked hard at our own hiring data this quarter.\n\n' +
+      'The National Business Research Institute found hiring slowed.';
+    const r = runChecks(text, ctx({ userPrompt: 'write about hiring trends' })).find((x) => x.id === 'fabricated_specifics')!;
+    expect(r.pass).toBe(false);
+    expect(r.evidence).toContain('National Business Research Institute');
+  });
+
+  it('still catches a fabricated name mid-sentence behind "The"', () => {
+    const text = 'We looked hard at our own hiring data this quarter.\n\n' +
+      'A recent report from The McKinsey Institute said so.';
+    const r = runChecks(text, ctx({ userPrompt: 'write about hiring trends' })).find((x) => x.id === 'fabricated_specifics')!;
+    expect(r.pass).toBe(false);
+  });
+
+  it('passes a whitelisted starter followed by a single whitelisted word ("Last Tuesday")', () => {
+    const text = 'We looked hard at our own hiring data this quarter.\n\n' +
+      'Last Tuesday we shipped.';
+    const r = runChecks(text, ctx({ userPrompt: 'write about hiring trends' })).find((x) => x.id === 'fabricated_specifics')!;
+    expect(r.pass).toBe(true);
+  });
+
+  it('passes "The <org>" when the org name is present in sourceContext', () => {
+    const text = 'We looked hard at our own hiring data this quarter.\n\n' +
+      'The National Business Research Institute found hiring slowed.';
+    const c = ctx({
+      userPrompt: 'write about hiring trends',
+      sourceContext: 'Study by the National Business Research Institute: hiring slowed this year.',
+    });
+    const r = runChecks(text, c).find((x) => x.id === 'fabricated_specifics')!;
+    expect(r.pass).toBe(true);
+  });
+
   it('every hard check that gates generation has a ruleText (no silent registry/prompt gap)', () => {
     const gatingHardIds = ['em_dash', 'markdown', 'fabricated_specifics', 'paragraph_shape', 'slop_phrases', 'bait_hook'];
     for (const id of gatingHardIds) {
