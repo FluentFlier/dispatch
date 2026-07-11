@@ -14,7 +14,7 @@
 import type { createClient } from '@insforge/sdk';
 import { chatCompletion } from '@/lib/llm';
 import { resolveModel } from '@/lib/ai-tiers';
-import { embedText, toPgVector } from '@/lib/embeddings';
+import { embedText, toPgVector, parseVec } from '@/lib/embeddings';
 import { parseLlmJson } from '@/lib/llm-json';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -154,7 +154,18 @@ export async function resolveNicheForProfile(
   if (nichesError) {
     console.warn('[niche-resolver] niches read failed, treating as empty', nichesError);
   }
-  const existing = (existingRaw ?? []) as unknown as NicheRow[];
+  // B1: PostgREST reads the `vector` column back as a JSON string ("[1,2,3]"),
+  // not a parsed array (verified live) - parse at the read site so cosineSim
+  // never silently NaNs on every existing niche.
+  let unparseableEmbeddings = 0;
+  const existing = ((existingRaw ?? []) as unknown as NicheRow[]).map((row) => {
+    const embedding = parseVec(row.embedding);
+    if (row.embedding != null && embedding === null) unparseableEmbeddings++;
+    return { ...row, embedding };
+  });
+  if (unparseableEmbeddings > 0) {
+    console.warn('[niche-resolver] skipped niches with unparseable embeddings', { unparseableEmbeddings });
+  }
 
   const decision = decideAssignment(embedding, existing);
   const activeCount = existing.filter((n) => n.status === 'active').length;

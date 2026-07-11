@@ -28,6 +28,28 @@ export function toPgVector(vec: number[]): string {
   return `[${vec.join(',')}]`;
 }
 
+/**
+ * Parses a pgvector column value read back through PostgREST, which serializes
+ * `vector` as a JSON string like "[1,2,3]" rather than a JSON array (verified
+ * live). Every read site MUST route embeddings through this before cosineSim -
+ * feeding cosineSim(number[], string) silently produces NaN, which compares
+ * false against every threshold and looks like "no match found".
+ * Returns null (not []) for anything unparseable so callers can skip + count
+ * the row instead of guessing.
+ */
+export function parseVec(e: unknown): number[] | null {
+  if (Array.isArray(e)) return e as number[];
+  if (typeof e === 'string') {
+    try {
+      const parsed = JSON.parse(e);
+      return Array.isArray(parsed) ? (parsed as number[]) : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
 /** Embeds a batch of strings. One request; order preserved. */
 export async function embedBatch(texts: string[]): Promise<number[][]> {
   if (texts.length === 0) return [];

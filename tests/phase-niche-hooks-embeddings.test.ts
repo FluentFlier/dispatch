@@ -78,3 +78,28 @@ describe('toPgVector', () => {
     expect(toPgVector([0.5, -0.25, 1])).toBe('[0.5,-0.25,1]');
   });
 });
+
+describe('parseVec (B1: PostgREST serializes pgvector as a JSON string in prod)', () => {
+  it('passes an already-parsed array through unchanged', async () => {
+    const { parseVec } = await import('@/lib/embeddings');
+    expect(parseVec([1, 2, 3])).toEqual([1, 2, 3]);
+  });
+  it('parses a pgvector string literal into an array', async () => {
+    const { parseVec } = await import('@/lib/embeddings');
+    expect(parseVec('[1,2,3]')).toEqual([1, 2, 3]);
+  });
+  it('returns null for an unparseable string, not a throw', async () => {
+    const { parseVec } = await import('@/lib/embeddings');
+    expect(parseVec('not json')).toBeNull();
+  });
+  it('returns null for a string that parses but is not an array', async () => {
+    const { parseVec } = await import('@/lib/embeddings');
+    expect(parseVec('{"a":1}')).toBeNull();
+  });
+  it('returns null for null/undefined/other types', async () => {
+    const { parseVec } = await import('@/lib/embeddings');
+    expect(parseVec(null)).toBeNull();
+    expect(parseVec(undefined)).toBeNull();
+    expect(parseVec(42)).toBeNull();
+  });
+});

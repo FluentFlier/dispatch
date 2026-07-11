@@ -24,6 +24,13 @@ vi.mock('@/lib/huggingface', () => ({ aiTextLikelihood: vi.fn() }));
 vi.mock('@/lib/embeddings', () => ({
   embedBatch: vi.fn(),
   toPgVector: (v: number[]) => `[${v.join(',')}]`,
+  parseVec: (e: unknown) => {
+    if (Array.isArray(e)) return e;
+    if (typeof e === 'string') {
+      try { const p = JSON.parse(e); return Array.isArray(p) ? p : null; } catch { return null; }
+    }
+    return null;
+  },
 }));
 
 const chatMock = vi.mocked(chatCompletion);
@@ -186,6 +193,43 @@ describe('mineNiche near-dup keeps higher engagement (spec 2.3.6)', () => {
     expect(res.rejections.bait_classifier).toBe(1);
     expect(res.rejections.bait).toBe(0);
     expect(res.accepted).toBe(1);
+  });
+});
+
+describe('mineNiche parses pgvector string-serialized existing embeddings (B1)', () => {
+  beforeEach(() => {
+    process.env.APIFY_TOKEN = 'test-token';
+    chatMock.mockReset();
+    aiMock.mockReset();
+    embedMock.mockReset();
+    aiMock.mockResolvedValue({ score: 0.1, detector: 'heuristic' });
+    embedMock.mockImplementation(async (texts: string[]) => texts.map((t) => VEC[t]));
+  });
+
+  it('near-dups against an existing hook_examples row whose embedding came back as a string, not an array', async () => {
+    // Live PostgREST shape: embedding is `JSON.stringify(EXISTING_VEC)`, not the
+    // array itself. Before the parseVec fix, nearDupIndex's cosineSim call NaNs
+    // and never matches, so the mined near-dup is inserted as a brand new row
+    // instead of replacing the weaker existing one - DB near-dup dedup never fires.
+    apifyState.items = [
+      { text: TEXT_C, likes: 50, comments: 5, followers: 1000, authorName: 'c' },
+    ];
+    chatMock.mockResolvedValue(JSON.stringify({
+      results: [{ pattern_class: 'number_result', fit: 10 }],
+    }));
+    const { client, upserts } = fakeClient([
+      { id: 'existing-1', embedding: JSON.stringify(EXISTING_VEC), norm_engagement: 0.05 },
+    ]);
+
+    const res = await mineNiche(client, NICHE, {});
+
+    expect(res.accepted).toBe(1);
+    const hookRows = upserts['hook_examples'] ?? [];
+    const replaced = hookRows.find((r) => r.id === 'existing-1');
+    expect(replaced?.text).toBe(TEXT_C);
+    // Replacement, not a fresh arm.
+    const arms = upserts['hook_arms'] ?? [];
+    expect(arms).toHaveLength(0);
   });
 });
 

@@ -17,6 +17,13 @@ vi.mock('@/lib/llm', () => ({ chatCompletion: vi.fn() }));
 vi.mock('@/lib/embeddings', () => ({
   embedText: vi.fn(),
   toPgVector: (v: number[]) => `[${v.join(',')}]`,
+  parseVec: (e: unknown) => {
+    if (Array.isArray(e)) return e;
+    if (typeof e === 'string') {
+      try { const p = JSON.parse(e); return Array.isArray(p) ? p : null; } catch { return null; }
+    }
+    return null;
+  },
 }));
 
 const chatMock = vi.mocked(chatCompletion);
@@ -195,5 +202,23 @@ describe('resolveNicheForProfile (mocked client)', () => {
     // Sync throw here would fail the test at the call, before the await.
     const p = resolveNicheForProfile(client, profile);
     await expect(p).rejects.toThrow('db down');
+  });
+
+  // B1: PostgREST serializes the `vector` column as a JSON string ("[0,0,1]"),
+  // never a parsed array - verified live. Before the parseVec fix at the read
+  // site, cosineSim(number[], string) silently NaNs and the merge never fires,
+  // so every onboarding in this niche would create a brand new pending niche.
+  it('B1: assigns to an existing niche whose embedding is read back as a pgvector string, not an array', async () => {
+    const rows: NicheRow[] = [{
+      id: 'a', slug: 'automotive', label: 'Automotive',
+      embedding: '[0,0,1]' as unknown as number[], // live PostgREST shape
+      status: 'active', active_user_count: 3,
+    }];
+    embedMock.mockResolvedValue(unit([0, 0, 1])); // identical vector -> sim 1.0
+    const { client, calls } = fakeClient(rows);
+    const res = await resolveNicheForProfile(client, profile);
+    expect(res.action).toBe('assign');
+    expect(res.created).toBe(false);
+    expect(calls.inserts).toBe(0);
   });
 });

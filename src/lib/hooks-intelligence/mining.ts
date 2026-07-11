@@ -24,7 +24,7 @@ import { chatCompletion } from '@/lib/llm';
 import { resolveModel } from '@/lib/ai-tiers';
 import { parseLlmJson } from '@/lib/llm-json';
 import { aiTextLikelihood } from '@/lib/huggingface';
-import { embedBatch, toPgVector } from '@/lib/embeddings';
+import { embedBatch, toPgVector, parseVec } from '@/lib/embeddings';
 import { priorAlpha } from './thompson';
 import { runChecks } from '@/lib/content-pipeline/checks';
 import { cosineSim } from './niche-resolver';
@@ -259,7 +259,19 @@ export async function mineNiche(
     .eq('niche_id', niche.id)
     .not('embedding', 'is', null)
     .limit(2000);
-  const existing = (existingRows ?? []) as Array<{ id: string; embedding: number[]; norm_engagement: number | null }>;
+  // B1: PostgREST reads the `vector` column back as a JSON string ("[1,2,3]"),
+  // not a parsed array (verified live) - parse at the read site so nearDupIndex's
+  // cosineSim call never silently NaNs on every existing DB row.
+  const existingRaw = (existingRows ?? []) as Array<{ id: string; embedding: unknown; norm_engagement: number | null }>;
+  let unparseableExisting = 0;
+  const existing = existingRaw.flatMap((r) => {
+    const vec = parseVec(r.embedding);
+    if (vec === null) { unparseableExisting++; return []; }
+    return [{ id: r.id, embedding: vec, norm_engagement: r.norm_engagement }];
+  });
+  if (unparseableExisting > 0) {
+    console.warn('[mining] skipped hook_examples rows with unparseable embeddings', { nicheId: niche.id, unparseableExisting });
+  }
   const existingVecs = existing.map((r) => r.embedding);
 
   const finalRows: Array<{ row: Record<string, unknown>; hookId: string; ne: number; isReplacement: boolean }> = [];
