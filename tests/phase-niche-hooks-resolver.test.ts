@@ -4,11 +4,23 @@
  * math: cosine dedupe thresholds, slug hygiene, and the anti-explosion budget
  * gate. Those are pure and fully tested here.
  */
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   cosineSim, slugify, decideAssignment, earnsBudget,
+  classifyProfileNiche, resolveNicheForProfile,
   NICHE_MERGE_THRESHOLD, MAX_ACTIVE_NICHES, type NicheRow,
 } from '@/lib/hooks-intelligence/niche-resolver';
+import { chatCompletion } from '@/lib/llm';
+import { embedText } from '@/lib/embeddings';
+
+vi.mock('@/lib/llm', () => ({ chatCompletion: vi.fn() }));
+vi.mock('@/lib/embeddings', () => ({
+  embedText: vi.fn(),
+  toPgVector: (v: number[]) => `[${v.join(',')}]`,
+}));
+
+const chatMock = vi.mocked(chatCompletion);
+const embedMock = vi.mocked(embedText);
 
 const unit = (seed: number[]): number[] => {
   const n = Math.sqrt(seed.reduce((a, b) => a + b * b, 0));
@@ -56,6 +68,11 @@ describe('decideAssignment', () => {
     const d = decideAssignment(unit([1, 0, 0]), [{ ...rows[0], embedding: null }]);
     expect(d.action).toBe('create');
   });
+  it('returns the nearest row even on create, so the cap can fall back to it', () => {
+    const d = decideAssignment(unit([0, 0, 1]), rows);
+    expect(d.action).toBe('create');
+    expect(d.nearest).toBeDefined();
+  });
 });
 
 describe('earnsBudget (anti-explosion, spec 2.2.4)', () => {
@@ -71,5 +88,112 @@ describe('earnsBudget (anti-explosion, spec 2.2.4)', () => {
   });
   it('MAX_ACTIVE_NICHES cap is 50', () => {
     expect(MAX_ACTIVE_NICHES).toBe(50);
+  });
+});
+
+describe('classifyProfileNiche (mocked LLM)', () => {
+  beforeEach(() => {
+    chatMock.mockReset();
+  });
+  const profile = { display_name: 'Sam', voice_description: 'gym talk', bio: 'coach' };
+
+  it('parses a valid JSON classification', async () => {
+    chatMock.mockResolvedValue('{"label":"Fitness Coaching","seed_keywords":["gym","macros"],"confidence":0.9}');
+    const c = await classifyProfileNiche(profile);
+    expect(c.label).toBe('Fitness Coaching');
+    expect(c.seed_keywords).toEqual(['gym', 'macros']);
+    expect(c.confidence).toBe(0.9);
+  });
+
+  it('falls back to defaults on malformed JSON without throwing', async () => {
+    chatMock.mockResolvedValue('Sure! The niche is fitness, roughly speaking.');
+    const c = await classifyProfileNiche(profile);
+    expect(c.label).toBe('general');
+    expect(c.seed_keywords).toEqual([]);
+    expect(c.confidence).toBe(0.5);
+  });
+
+  it('clamps out-of-range confidence to [0, 1]', async () => {
+    chatMock.mockResolvedValue('{"label":"X","seed_keywords":[],"confidence":5}');
+    expect((await classifyProfileNiche(profile)).confidence).toBe(1);
+    chatMock.mockResolvedValue('{"label":"X","seed_keywords":[],"confidence":-1}');
+    expect((await classifyProfileNiche(profile)).confidence).toBe(0);
+  });
+});
+
+// Minimal chainable fake of the InsForge database client - just the calls
+// resolveNicheForProfile makes.
+function fakeClient(rows: NicheRow[], opts: { rejectSelect?: boolean } = {}) {
+  const calls = { inserts: 0, updates: [] as Array<{ table: string; payload: Record<string, unknown> }> };
+  const database = {
+    from(table: string) {
+      return {
+        select: () => ({
+          neq: async () => {
+            if (opts.rejectSelect) throw new Error('db down');
+            return { data: rows, error: null };
+          },
+        }),
+        update: (payload: Record<string, unknown>) => ({
+          eq: async () => {
+            calls.updates.push({ table, payload });
+            return { error: null };
+          },
+        }),
+        insert: () => ({
+          select: () => ({
+            single: async () => {
+              calls.inserts += 1;
+              return { data: { id: 'new-niche-id' }, error: null };
+            },
+          }),
+        }),
+      };
+    },
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return { client: { database } as any, calls };
+}
+
+describe('resolveNicheForProfile (mocked client)', () => {
+  beforeEach(() => {
+    chatMock.mockReset();
+    embedMock.mockReset();
+    chatMock.mockResolvedValue('{"label":"Quantum Basket Weaving","seed_keywords":["qbw"],"confidence":0.8}');
+    embedMock.mockResolvedValue(unit([0, 0, 1]));
+  });
+  const profile = { user_id: 'u1', display_name: 'Sam' };
+
+  it('at the 50-active-niche cap, assigns the nearest niche instead of inserting', async () => {
+    const rows: NicheRow[] = Array.from({ length: MAX_ACTIVE_NICHES }, (_, i) => ({
+      id: `n${i}`, slug: `n${i}`, label: `N${i}`, embedding: unit([1, i * 0.001, 0]),
+      status: 'active', active_user_count: 1,
+    }));
+    const { client, calls } = fakeClient(rows);
+    const res = await resolveNicheForProfile(client, profile);
+    expect(res.action).toBe('assign-capped');
+    expect(res.created).toBe(false);
+    expect(calls.inserts).toBe(0);
+    const profileUpdate = calls.updates.find((u) => u.table === 'creator_profile');
+    expect(profileUpdate?.payload.niche_id).toBe(res.nicheId);
+    expect(rows.some((r) => r.id === res.nicheId)).toBe(true);
+  });
+
+  it('below the cap, still creates a new niche for a novel label', async () => {
+    const rows: NicheRow[] = [{
+      id: 'a', slug: 'automotive', label: 'Automotive', embedding: unit([1, 0, 0]),
+      status: 'active', active_user_count: 3,
+    }];
+    const { client, calls } = fakeClient(rows);
+    const res = await resolveNicheForProfile(client, profile);
+    expect(res.created).toBe(true);
+    expect(calls.inserts).toBe(1);
+  });
+
+  it('rejects (never throws synchronously) when the DB read fails, so fire-and-forget .catch() absorbs it', async () => {
+    const { client } = fakeClient([], { rejectSelect: true });
+    // Sync throw here would fail the test at the call, before the await.
+    const p = resolveNicheForProfile(client, profile);
+    await expect(p).rejects.toThrow('db down');
   });
 });

@@ -63,11 +63,15 @@ export function slugify(label: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-/** Nearest-neighbour decision against existing niche embeddings. */
+/**
+ * Nearest-neighbour decision against existing niche embeddings.
+ * `nearest` is the best-similarity row regardless of action, so the
+ * MAX_ACTIVE_NICHES cap can fall back to it when action is 'create'.
+ */
 export function decideAssignment(
   embedding: number[],
   existing: NicheRow[],
-): { action: 'assign' | 'assign-review' | 'create'; niche?: NicheRow; bestSim: number } {
+): { action: 'assign' | 'assign-review' | 'create'; niche?: NicheRow; nearest?: NicheRow; bestSim: number } {
   let best: NicheRow | undefined;
   let bestSim = -1;
   for (const row of existing) {
@@ -78,9 +82,9 @@ export function decideAssignment(
       best = row;
     }
   }
-  if (best && bestSim >= NICHE_MERGE_THRESHOLD) return { action: 'assign', niche: best, bestSim };
-  if (best && bestSim >= NICHE_REVIEW_THRESHOLD) return { action: 'assign-review', niche: best, bestSim };
-  return { action: 'create', bestSim: bestSim < 0 ? 0 : bestSim };
+  if (best && bestSim >= NICHE_MERGE_THRESHOLD) return { action: 'assign', niche: best, nearest: best, bestSim };
+  if (best && bestSim >= NICHE_REVIEW_THRESHOLD) return { action: 'assign-review', niche: best, nearest: best, bestSim };
+  return { action: 'create', nearest: best, bestSim: bestSim < 0 ? 0 : bestSim };
 }
 
 /** Whether a niche earns its own mining budget yet (spec 2.2.4). */
@@ -119,7 +123,7 @@ export async function classifyProfileNiche(profile: {
   return {
     label: (parsed.label ?? 'general').trim(),
     seed_keywords: Array.isArray(parsed.seed_keywords) ? parsed.seed_keywords.slice(0, 10) : [],
-    confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+    confidence: typeof parsed.confidence === 'number' ? Math.min(1, Math.max(0, parsed.confidence)) : 0.5,
   };
 }
 
@@ -143,45 +147,47 @@ export async function resolveNicheForProfile(
   const cls = await classifyProfileNiche(profile);
   const embedding = await embedText(cls.label);
 
-  const { data: existingRaw } = await client.database
+  const { data: existingRaw, error: nichesError } = await client.database
     .from('niches')
     .select('id, slug, label, embedding, status, active_user_count')
     .neq('status', 'merged');
+  if (nichesError) {
+    console.warn('[niche-resolver] niches read failed, treating as empty', nichesError);
+  }
   const existing = (existingRaw ?? []) as unknown as NicheRow[];
 
   const decision = decideAssignment(embedding, existing);
+  const activeCount = existing.filter((n) => n.status === 'active').length;
+  // Cap hit: attach to nearest rather than exploding the taxonomy.
+  const capped = decision.action === 'create' && activeCount >= MAX_ACTIVE_NICHES && !!decision.nearest;
+  const assignTo = decision.action !== 'create' ? decision.niche : capped ? decision.nearest : undefined;
 
   let nicheId: string;
   let created = false;
+  let action: string = capped ? 'assign-capped' : decision.action;
 
-  if (decision.action !== 'create' && decision.niche) {
-    nicheId = decision.niche.id;
+  if (assignTo) {
+    nicheId = assignTo.id;
     await client.database
       .from('niches')
-      .update({ active_user_count: decision.niche.active_user_count + 1 })
+      .update({ active_user_count: assignTo.active_user_count + 1 })
       .eq('id', nicheId);
   } else {
-    const activeCount = existing.filter((n) => n.status === 'active').length;
-    if (activeCount >= MAX_ACTIVE_NICHES && decision.niche) {
-      // Cap hit: attach to nearest rather than exploding the taxonomy.
-      nicheId = decision.niche.id;
-    } else {
-      const slug = slugify(cls.label) || `niche-${Date.now()}`;
-      const { data: ins } = await client.database
-        .from('niches')
-        .insert({
-          slug,
-          label: cls.label,
-          embedding: toPgVector(embedding),
-          status: 'pending',
-          seed_keywords: cls.seed_keywords,
-          active_user_count: 1,
-        })
-        .select('id')
-        .single();
-      nicheId = (ins as { id: string }).id;
-      created = true;
-    }
+    const slug = slugify(cls.label) || `niche-${Date.now()}`;
+    const { data: ins } = await client.database
+      .from('niches')
+      .insert({
+        slug,
+        label: cls.label,
+        embedding: toPgVector(embedding),
+        status: 'pending',
+        seed_keywords: cls.seed_keywords,
+        active_user_count: 1,
+      })
+      .select('id')
+      .single();
+    nicheId = (ins as { id: string }).id;
+    created = true;
   }
 
   await client.database
@@ -194,5 +200,5 @@ export async function resolveNicheForProfile(
       user: profile.user_id, nicheId, sim: decision.bestSim, label: cls.label,
     });
   }
-  return { nicheId, created, action: decision.action };
+  return { nicheId, created, action };
 }

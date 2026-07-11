@@ -394,13 +394,17 @@ async function persistOnboardingVoice(
   // wire (spec 2.2); other creator_profile writers (voice-lab save, admin
   // toggles, display-name edits) still don't refresh niche_id - wire those if
   // profile drift after initial onboarding turns out to matter.
-  void resolveNicheForProfile(getServiceClient(), {
-    user_id: userId,
-    display_name: profilePayload.display_name,
-    content_pillars: profilePayload.content_pillars,
-    voice_description: profilePayload.voice_description,
-    bio: bioFacts,
-  }).catch((e) => console.warn('[niche-resolver] failed', e));
+  // The async IIFE keeps getServiceClient()'s SYNC throw (missing env vars)
+  // inside the .catch() too - a bare call would bubble it into the route's
+  // outer try and 500 the onboarding save.
+  void (async () =>
+    resolveNicheForProfile(getServiceClient(), {
+      user_id: userId,
+      display_name: profilePayload.display_name,
+      content_pillars: profilePayload.content_pillars,
+      voice_description: profilePayload.voice_description,
+      bio: bioFacts,
+    }))().catch((e) => console.warn('[niche-resolver] resolution skipped:', e));
 
   // onboarding_baseline + suggested_topic FIRST: these are what the resume path
   // (completeOnboardingFromStoredBaseline) needs, so if this write loop is cut
