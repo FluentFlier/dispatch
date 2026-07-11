@@ -297,6 +297,46 @@ export interface DirectorySettingsRow {
   updated_at: string;
 }
 
+/**
+ * What an agenda is trying to achieve. Drives the outreach angle, copy rules,
+ * and which sequence steps run. Add a variant here and the `never` checks in
+ * agenda.ts force every switch to handle it.
+ */
+export type AgendaGoalType =
+  | 'networking'
+  | 'customer_acquisition'
+  | 'hiring'
+  | 'fundraising'
+  | 'other';
+
+/** Where an agenda draws people/companies from. */
+export type AgendaSource = 'engagers' | 'directory' | 'signals';
+
+/**
+ * A named, saved ICP — now a full "agenda": a goal (goal_type) with its own
+ * pitch angle, tone rules, daily caps, and sources. A workspace can keep
+ * several; the active one is mirrored into `signal_directory_settings` so the
+ * existing discovery/scoring pipeline reads it unchanged.
+ */
+export interface IcpProfileRow {
+  id: string;
+  workspace_id: string;
+  name: string;
+  description: string | null;
+  verticals: string[];
+  keywords: string[];
+  is_active: boolean;
+  goal_type: AgendaGoalType;
+  target_personas: string[];
+  pitch_angle: string | null;
+  tone_rules: string | null;
+  daily_connect_limit: number;
+  daily_comment_limit: number;
+  sources: AgendaSource[];
+  created_at: string;
+  updated_at: string;
+}
+
 export interface FollowedCompanyRow {
   id: string;
   workspace_id: string;

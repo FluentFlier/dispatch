@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { Brain, RefreshCw } from 'lucide-react';
+import Link from 'next/link';
+import { Brain, Network, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
 interface BrainStatusResponse {
@@ -110,15 +111,25 @@ export function CreatorBrainCard() {
               {syncing ? 'Syncing…' : 'Set up'}
             </Button>
           ) : (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={handleSync}
-              disabled={syncing}
-              title="Refresh memory from profile and published posts"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-            </Button>
+            <>
+              <Link
+                href="/brain"
+                title="Visualize your Creator Brain as a graph"
+                className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-hair2 bg-white/90 px-3 text-sm text-ink backdrop-blur-sm transition-colors hover:border-blue/25 hover:bg-white"
+              >
+                <Network className="h-3.5 w-3.5" />
+                Graph
+              </Link>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={handleSync}
+                disabled={syncing}
+                title="Refresh memory from profile and published posts"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+              </Button>
+            </>
           )}
         </div>
       </div>

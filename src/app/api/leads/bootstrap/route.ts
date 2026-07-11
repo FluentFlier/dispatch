@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { getDirectorySettings, listFollowedCompanies, listLeads } from '@/lib/signals/leads/store';
+import { ensureSeedProfile } from '@/lib/signals/leads/icp-profiles';
 import { isLeadsDemoMode } from '@/lib/signals/ingest/config';
 import { errorResponse } from '@/lib/api-errors';
 import {
@@ -38,12 +39,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    const [leads, settings, followedCompanies] = await Promise.all([
+    const [leads, settings, followedCompanies, profiles] = await Promise.all([
       listLeads(client, workspaceId, { status }),
       getDirectorySettings(client, workspaceId),
       listFollowedCompanies(client, workspaceId),
+      ensureSeedProfile(client, workspaceId),
     ]);
-    return NextResponse.json({ leads, settings, followedCompanies, demoData: isLeadsDemoMode() });
+    return NextResponse.json({ leads, settings, followedCompanies, profiles, demoData: isLeadsDemoMode() });
   } catch (err) {
     if (isMissingRelationError(err)) {
       return setupRequiredResponse(['signal_leads'], {

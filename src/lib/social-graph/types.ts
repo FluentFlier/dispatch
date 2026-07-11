@@ -1,6 +1,16 @@
+import type { LeadPlaybook, NurtureStage } from '@/lib/signals/types';
+
 export type WarmContactStatus = 'new' | 'drafted' | 'sent' | 'dismissed';
 
 export type WarmContactCategory = 'ICP' | 'Community' | 'Potential Lead' | 'Other';
+
+/** Research dossier produced by the LLM (or a deterministic fallback). */
+export interface EngagerDossier {
+  summary: string;
+  whyMatters: string;
+  angle: string;
+  generatedAt: string;
+}
 
 export interface WarmContactRow {
   id: string;
@@ -22,6 +32,15 @@ export interface WarmContactRow {
   last_synced_at: string;
   created_at: string;
   updated_at: string;
+  // --- Nurture layer (mirrors signal_leads) ---
+  nurture_stage: NurtureStage;
+  playbook: LeadPlaybook | null;
+  next_action_at: string | null;
+  dossier: string | null;
+  dossier_json: EngagerDossier | null;
+  icp_profile_id: string | null;
+  goal_type: string | null;
+  priority_score: number;
 }
 
 export interface PostReaction {

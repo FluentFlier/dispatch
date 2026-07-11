@@ -8,7 +8,7 @@
  * components share, so the decoupling is unit-testable without a DOM.
  */
 
-/** Every per-lead / per-signal action that can be in flight. */
+/** Every per-lead / per-signal / per-engager action that can be in flight. */
 export type LeadBusyAction =
   | 'draft'
   | 'plan'
@@ -19,7 +19,10 @@ export type LeadBusyAction =
   | 'resolve'
   | 'check'
   | 'followup'
-  | 'send';
+  | 'send'
+  // Engager (post-engager) detail panel actions.
+  | 'connect'
+  | 'dm';
 
 /** The single in-flight action for a given lead id, or null when idle. */
 export interface LeadBusy {
