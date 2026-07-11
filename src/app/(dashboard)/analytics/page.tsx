@@ -254,20 +254,16 @@ export default function AnalyticsPage() {
       <ChartsSection posts={posts} getLabel={getLabel} getColor={getColor} />
       </div>
 
-      {/* ================================================================== */}
-      {/* NEW CONSUMER SURFACE: Intelligence & Research Lab (the money maker) */}
-      {/* Makes the entire Hook Intelligence engine (Apify + RL + RAG) visible */}
-      {/* and valuable to paying users. Leads categorization = actionable ROI. */}
-      {/* ================================================================== */}
+      {/* Hook examples + lead buckets. Full RL training loop is not wired yet. */}
       <section id="intelligence" className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
               <Sparkles className="h-5 w-5 text-accent-primary" />
-              Intelligence & Research Lab
+              Hook examples
             </h2>
             <p className="text-sm text-text-secondary mt-1">
-              Live high-converting hooks mined + trained from the best creators. See exactly which engagers become leads.
+              High-performing hook patterns from the local dataset (and any mined hooks). Closed-loop RL training is not live yet.
             </p>
           </div>
           <button

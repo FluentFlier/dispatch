@@ -13,6 +13,7 @@ import IdeaRow from "@/components/ideas/IdeaRow";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { useToast } from "@/components/ui/Toast";
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
 /** A ranked hook from GET /api/hooks/intelligence. */
 interface IntelligenceHook {
@@ -104,7 +105,7 @@ export default function IdeasPage() {
   useEffect(() => {
     const loadIntelligence = async () => {
       try {
-        const res = await fetch('/api/hooks/intelligence?limit=8');
+        const res = await fetchWithAuth('/api/hooks/intelligence?limit=8');
         if (res.ok) {
           const data = await res.json();
           setTopHooks(data.hooks || []);
@@ -247,7 +248,7 @@ export default function IdeasPage() {
       const pillarLabel = getLabel(idea.pillar);
       const prompt = `Write a short-form video script about: ${idea.idea}\n\nContent pillar: ${pillarLabel}`;
 
-      const res = await fetch("/api/generate", {
+      const res = await fetchWithAuth("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt }),
@@ -405,7 +406,7 @@ export default function IdeasPage() {
             onClick={async () => {
               setResearchLoading(true);
               try {
-                const res = await fetch('/api/research', {
+                const res = await fetchWithAuth('/api/research', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ brief: 'improve content performance and lead generation', vertical: 'indie_maker' }),
@@ -453,7 +454,7 @@ export default function IdeasPage() {
                     <a href="/generate" className="text-[10px] text-accent-primary hover:underline">Use in Generate</a>
                     <button onClick={async () => {
                       try {
-                        const res = await fetch('/api/brain/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: hook.text, type: 'hook', source: 'intelligence' }) });
+                        const res = await fetchWithAuth('/api/brain/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: hook.text, type: 'hook', source: 'intelligence' }) });
                         if (!res.ok) throw new Error('save failed');
                         toast('Saved to Creator Brain');
                       } catch { toast('Could not save. Try again.', 'error'); }

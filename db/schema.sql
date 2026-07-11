@@ -3,6 +3,15 @@
 -- Apply via: insforge db apply --file db/schema.sql
 -- ============================================================
 
+-- Shared trigger helper (must exist before any updated_at triggers)
+create or replace function update_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
 -- ============================================================
 -- WORKSPACES (multi-tenancy — solo creators + agency clients)
 -- Each user gets one solo workspace automatically on signup.
@@ -110,14 +119,6 @@ create table if not exists posts (
   created_at timestamptz default now() not null,
   updated_at timestamptz default now() not null
 );
-
-create or replace function update_updated_at()
-returns trigger as $$
-begin
-  new.updated_at = now();
-  return new;
-end;
-$$ language plpgsql;
 
 create trigger posts_updated_at
   before update on posts

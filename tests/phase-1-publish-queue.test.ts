@@ -35,7 +35,7 @@ function makeDbMock(overrides: Record<string, unknown> = {}) {
 describe('P1-1: processPublishJob — direct mode updates DB before returning', () => {
   beforeEach(() => vi.resetModules());
 
-  it('writes status=failed to DB when provider is not ayrshare', async () => {
+  it('writes status=failed to DB when provider is not unipile', async () => {
     const dbMock = makeDbMock();
     const updateChain = {
       eq: vi.fn().mockResolvedValue({ error: null }),

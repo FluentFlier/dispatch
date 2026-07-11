@@ -98,6 +98,9 @@ export default function LeadsPage() {
   // True when the initial bootstrap fetch FAILED (vs a genuine empty feed), so
   // the UI shows a retry instead of the misleading "No leads yet" empty state.
   const [loadError, setLoadError] = useState(false);
+  // Soft setup gate when signals tables / signals_engine flag are unavailable.
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [setupMessage, setSetupMessage] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(false);
   const [scraping, setScraping] = useState(false);
   // Live scrape progress streamed from /api/leads/sync (null when idle).
@@ -152,14 +155,28 @@ export default function LeadsPage() {
   const loadBootstrap = useCallback(async () => {
     setLoading(true);
     setLoadError(false);
+    setSetupRequired(false);
+    setSetupMessage(null);
     try {
       const [feedRes, bootRes] = await Promise.all([
         fetch(`/api/leads/feed?${feedQuery()}`),
         fetch(`/api/leads/bootstrap?status=${filters.status}`),
       ]);
+      const feed = await feedRes.json().catch(() => ({}));
+      const boot = await bootRes.json().catch(() => ({}));
+
+      if (feed.setupRequired || boot.setupRequired) {
+        setSetupRequired(true);
+        setSetupMessage(
+          (boot.error as string | undefined) ||
+            (feed.error as string | undefined) ||
+            'Leads engine not provisioned — contact support',
+        );
+        setCards([]);
+        return;
+      }
+
       if (!feedRes.ok || !bootRes.ok) throw new Error('load failed');
-      const feed = await feedRes.json();
-      const boot = await bootRes.json();
       setCards(feed.cards ?? []);
       indexLeads(boot.leads ?? []);
       setSettings(boot.settings ?? null);
@@ -914,7 +931,7 @@ export default function LeadsPage() {
         <ScrapeProgress pct={scrapeProgress.pct} label={scrapeProgress.label} />
       )}
 
-      {feedViewState({ loading, loadError, cardCount: cards.length }) === 'loading' ? (
+      {feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'loading' ? (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
           <div className="lg:col-span-2">
             <UnifiedFeed cards={[]} selectedId={null} loading onSelect={() => {}} isFollowed={() => false} />
@@ -923,7 +940,26 @@ export default function LeadsPage() {
             Loading leads…
           </div>
         </div>
-      ) : feedViewState({ loading, loadError, cardCount: cards.length }) === 'error' ? (
+      ) : feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'setup' ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-bg-secondary py-16 text-center px-6">
+          <p className="text-sm text-text-primary font-medium">
+            {setupMessage ?? 'Leads engine not provisioned — contact support'}
+          </p>
+          <p className="text-xs text-text-tertiary max-w-md">
+            This workspace cannot load leads until the signals schema is applied. If you are an operator, apply{' '}
+            <code className="font-mono">db/signals.sql</code> and{' '}
+            <code className="font-mono">db/signals-leads.sql</code>, then enable{' '}
+            <code className="font-mono">signals_engine</code>.
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadBootstrap()}
+            className="text-xs font-medium px-3 py-1.5 rounded-md bg-accent-primary text-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+          >
+            Retry
+          </button>
+        </div>
+      ) : feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'error' ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-bg-secondary py-16 text-center">
           <p className="text-sm text-text-secondary">Could not load your leads.</p>
           <button
@@ -934,7 +970,7 @@ export default function LeadsPage() {
             Retry
           </button>
         </div>
-      ) : feedViewState({ loading, loadError, cardCount: cards.length }) === 'empty' ? (
+      ) : feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'empty' ? (
         scraping && scrapeProgress ? (
           <ScrapeProgress pct={scrapeProgress.pct} label={scrapeProgress.label} panel />
         ) : filtersActive ? (

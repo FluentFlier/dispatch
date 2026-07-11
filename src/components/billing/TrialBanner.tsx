@@ -38,12 +38,12 @@ export default function TrialBanner() {
       }`}
     >
       <span>
-        <span className="font-medium text-text-primary">Free trial</span>
+        <span className="font-medium text-ink">Free trial</span>
         {' · '}
         {trial.daysLeft === 1
           ? '1 day left'
           : `${trial.daysLeft} days left`}
-        {' — '}
+        {'. '}
         Starter access ends soon. Subscribe to keep publishing.
       </span>
       <Link href="/pricing" className="btn-primary text-[13px] min-h-[40px] px-4">

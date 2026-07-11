@@ -13,6 +13,7 @@ import PostTable from '@/components/library/PostTable';
 import PostEditorDrawer from '@/components/library/PostEditorDrawer';
 import PublishTimeline from '@/components/library/PublishTimeline';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 export default function LibraryPage() {
   const { pillars: pillarList, getLabel } = usePillars();
@@ -51,7 +52,7 @@ export default function LibraryPage() {
       // cookie server-side. Do NOT gate this on the browser SDK's getCurrentUser():
       // right after the onboarding redirect the browser session can lag the cookie,
       // and the old early-return here left freshly imported posts invisible.
-      const res = await fetch(`/api/posts?page=1&limit=${PAGE_SIZE}`);
+      const res = await fetchWithAuth(`/api/posts?page=1&limit=${PAGE_SIZE}`);
       if (res.ok) {
         const data = await res.json();
         setPosts((data.posts as Post[]) ?? []);
@@ -97,7 +98,7 @@ export default function LibraryPage() {
       return;
     }
     let cancelled = false;
-    fetch(`/api/posts/${postId}`)
+    fetchWithAuth(`/api/posts/${postId}`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         const p = (d?.post ?? d) as Post | null;
@@ -162,7 +163,7 @@ export default function LibraryPage() {
     const ids = Array.from(selected);
     await Promise.all(
       ids.map((id) =>
-        fetch(`/api/posts/${id}`, {
+        fetchWithAuth(`/api/posts/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ status, updated_at: new Date().toISOString() }),
@@ -176,7 +177,7 @@ export default function LibraryPage() {
   // New post
   const handleNewPost = async () => {
     if (!userId) return;
-    const res = await fetch('/api/posts', {
+    const res = await fetchWithAuth('/api/posts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -200,7 +201,7 @@ export default function LibraryPage() {
     setImportError(null);
 
     try {
-      const res = await fetch('/api/voice-lab/import-from-account', {
+      const res = await fetchWithAuth('/api/voice-lab/import-from-account', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ platform: 'linkedin' }),
@@ -240,7 +241,7 @@ export default function LibraryPage() {
     setLoadingMore(true);
     try {
       const nextPage = page + 1;
-      const res = await fetch(`/api/posts?page=${nextPage}&limit=${PAGE_SIZE}`);
+      const res = await fetchWithAuth(`/api/posts?page=${nextPage}&limit=${PAGE_SIZE}`);
       if (res.ok) {
         const data = await res.json();
         const newPosts = (data.posts as Post[]) ?? [];

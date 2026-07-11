@@ -33,16 +33,16 @@ export class ErrorBoundary extends Component<Props, State> {
 
       return (
         <div className="flex flex-col items-center justify-center py-16 text-center">
-          <AlertTriangle className="w-12 h-12 text-text-tertiary mb-4" />
-          <h2 className="font-heading text-[16px] font-semibold text-text-primary mb-1">
+          <AlertTriangle className="mb-4 h-12 w-12 text-ink3" />
+          <h2 className="mb-1 font-heading text-[16px] font-semibold text-ink">
             Something went wrong
           </h2>
-          <p className="text-text-tertiary text-[13px] mb-4 max-w-md">
+          <p className="mb-4 max-w-md text-[13px] text-ink3">
             An unexpected error occurred. Try refreshing or come back later.
           </p>
           <button
             onClick={this.handleRetry}
-            className="flex items-center gap-1.5 bg-accent-primary hover:bg-accent-dark text-text-inverse text-[13px] font-medium px-5 py-[10px] rounded-md transition-colors"
+            className="btn-primary min-h-[40px] px-5 py-2 text-[13px]"
           >
             <RefreshCw size={14} />
             Try Again

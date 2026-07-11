@@ -7,6 +7,10 @@ describe('Phase: Admin Ops', () => {
     const originalCron = process.env.CRON_SECRET;
 
     beforeEach(() => {
+      // signingKey() prefers TOKEN_ENCRYPTION_KEY over CRON_SECRET. The local env
+      // provides TOKEN_ENCRYPTION_KEY, so clear it to make CRON_SECRET the
+      // deterministic signing key these tests sign with.
+      delete process.env.TOKEN_ENCRYPTION_KEY;
       process.env.CRON_SECRET = 'test-cron-secret-for-impersonation';
       vi.resetModules();
     });

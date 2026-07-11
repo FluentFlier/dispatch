@@ -33,11 +33,11 @@ function statusLabel(queue: InboxComment['queue']): string {
 }
 
 function statusTone(queue: InboxComment['queue']): string {
-  if (!queue) return 'text-text-secondary bg-bg-tertiary';
-  if (queue.status === 'sent') return 'text-sage bg-sage-light';
-  if (queue.status === 'draft' || queue.status === 'approved') return 'text-accent-primary bg-coral-light';
-  if (queue.status === 'failed') return 'text-accent-dark bg-coral-light';
-  return 'text-text-secondary bg-bg-tertiary';
+  if (!queue) return 'text-ink2 bg-paper2/80';
+  if (queue.status === 'sent') return 'text-teal bg-teal/10';
+  if (queue.status === 'draft' || queue.status === 'approved') return 'text-blue bg-blue/10';
+  if (queue.status === 'failed') return 'text-flame bg-flame/10';
+  return 'text-ink2 bg-paper2/80';
 }
 
 interface EngagementInboxProps {

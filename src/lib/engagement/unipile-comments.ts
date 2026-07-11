@@ -1,5 +1,6 @@
 import { getServerClient } from '@/lib/insforge/server';
-import { retryWithBackoff, throwIfNotOk } from '@/lib/social/reliability';
+import { buildPostIdCandidates } from '@/lib/engagement/unipile-reactions';
+import { HttpStatusError, retryWithBackoff, throwIfNotOk } from '@/lib/social/reliability';
 
 /**
  * Unified comment fetched from Unipile's GET /posts/{social_id}/comments endpoint.
@@ -106,6 +107,8 @@ export async function getUnipileAccountId(userId: string, platform: string): Pro
 /**
  * Fetches comments for a post via Unipile GET /posts/{social_id}/comments.
  * social_id is stored in publish_jobs.provider_post_id after a successful publish.
+ * Tries the same URN/id candidates as reaction sync — numeric LinkedIn activity
+ * ids only work when wrapped as urn:li:activity:… for many Unipile endpoints.
  */
 export async function fetchUnipilePostComments(
   userId: string,
@@ -118,19 +121,34 @@ export async function fetchUnipilePostComments(
   if (!accountId) return [];
 
   const params = new URLSearchParams({ account_id: accountId });
-  // Retry transient failures (429/5xx) with backoff; permanent 4xx fail fast.
-  const res = await retryWithBackoff(async () =>
-    throwIfNotOk(
-      await unipoleFetch(
-        `/posts/${encodeURIComponent(socialId)}/comments?${params.toString()}`,
-        { method: 'GET' },
-      ),
-      'Unipile get comments',
-    ),
-  );
+  let lastError: unknown = null;
 
-  const json = await res.json();
-  return extractComments(json, platform);
+  for (const candidate of buildPostIdCandidates(socialId)) {
+    try {
+      const res = await retryWithBackoff(async () =>
+        throwIfNotOk(
+          await unipoleFetch(
+            `/posts/${encodeURIComponent(candidate)}/comments?${params.toString()}`,
+            { method: 'GET' },
+          ),
+          'Unipile get comments',
+        ),
+      );
+      return extractComments(await res.json(), platform);
+    } catch (error) {
+      lastError = error;
+      if (error instanceof HttpStatusError && (error.status === 404 || error.status === 422)) {
+        continue;
+      }
+      throw error;
+    }
+  }
+
+  if (lastError instanceof HttpStatusError && (lastError.status === 404 || lastError.status === 422)) {
+    return [];
+  }
+  if (lastError) throw lastError;
+  return [];
 }
 
 /**
@@ -149,32 +167,42 @@ export async function sendUnipileCommentReply(params: {
   const accountId = await getUnipileAccountId(params.userId, params.platform);
   if (!accountId) return { provider_reply_id: null, stubbed: true };
 
-  const res = await unipoleFetch(
-    `/posts/${encodeURIComponent(params.socialPostId)}/comments`,
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        account_id: accountId,
-        text: params.replyText,
-        comment_id: params.providerCommentId,
-      }),
-    },
-  );
+  const body = JSON.stringify({
+    account_id: accountId,
+    text: params.replyText,
+    comment_id: params.providerCommentId,
+  });
 
-  const json = (await res.json()) as {
-    id?: string;
-    comment_id?: string;
-    message?: string;
-  };
+  let lastError: unknown = null;
+  for (const candidate of buildPostIdCandidates(params.socialPostId)) {
+    const res = await unipoleFetch(
+      `/posts/${encodeURIComponent(candidate)}/comments`,
+      { method: 'POST', body },
+    );
 
-  if (!res.ok) {
+    const json = (await res.json()) as {
+      id?: string;
+      comment_id?: string;
+      message?: string;
+    };
+
+    if (res.ok) {
+      return {
+        provider_reply_id: json.id ?? json.comment_id ?? null,
+        stubbed: false,
+      };
+    }
+
+    if (res.status === 404 || res.status === 422) {
+      lastError = new Error(json.message ?? `Unipile reply failed (${res.status})`);
+      continue;
+    }
+
     throw new Error(json.message ?? `Unipile reply failed (${res.status})`);
   }
 
-  return {
-    provider_reply_id: json.id ?? json.comment_id ?? null,
-    stubbed: false,
-  };
+  if (lastError instanceof Error) throw lastError;
+  return { provider_reply_id: null, stubbed: true };
 }
 
 export function unipileCommentsAvailable(): boolean {

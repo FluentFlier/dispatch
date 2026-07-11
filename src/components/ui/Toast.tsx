@@ -62,12 +62,12 @@ function ToastNotification({
 
   const styles =
     item.type === 'success'
-      ? 'bg-sage-light text-accent-secondary border-border'
-      : 'bg-coral-light text-accent-dark border-border';
+      ? 'border-teal/20 bg-teal/10 text-teal'
+      : 'border-flame/20 bg-flame/10 text-flame';
 
   return (
     <div
-      className={`${styles} border text-[13px] font-body font-medium px-4 py-2.5 rounded-lg shadow-card animate-fade-in max-w-xs`}
+      className={`${styles} border text-[13px] font-body font-medium px-4 py-2.5 rounded-xl shadow-[0_20px_50px_-30px_rgba(23,23,23,0.2)] backdrop-blur-sm animate-fade-in max-w-xs`}
     >
       {item.message}
     </div>

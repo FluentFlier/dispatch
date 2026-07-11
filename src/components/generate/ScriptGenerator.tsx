@@ -230,12 +230,8 @@ export function ScriptGenerator({
     try { sessionStorage.setItem(CHAT_KEY, JSON.stringify(messages)); } catch {}
   }, [messages]);
 
-  // Scroll only the chat pane — scrollIntoView would also move ancestor
-  // containers and jump the whole page down to the latest draft.
   useEffect(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
   const sendMessage = useCallback(async (text: string) => {

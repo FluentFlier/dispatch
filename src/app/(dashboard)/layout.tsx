@@ -15,6 +15,12 @@ import { getPostAuthPath } from '@/lib/auth-routing';
 import { mustSubscribe } from '@/lib/trial';
 import TrialBanner from '@/components/billing/TrialBanner';
 import DashboardShell from '@/components/layout/DashboardShell';
+import SchemaSetupRequired from '@/components/layout/SchemaSetupRequired';
+import {
+  checkCoreSchemaSetup,
+  isMissingRelationError,
+  isSchemaMismatchError,
+} from '@/lib/db/setup-gate';
 
 export default async function DashboardLayout({
   children,
@@ -41,31 +47,61 @@ export default async function DashboardLayout({
   const isGetStarted = pathname === '/get-started';
   const isOnboarding =
     pathname === '/onboarding' || pathname.startsWith('/onboarding/');
-  const isMinimalChrome = isGetStarted || isOnboarding || pathname === '/teleprompter';
 
   if (pathname !== '/teleprompter') {
-    const client = getServerClient();
-    const [profileRes, sub] = await Promise.all([
-      client.database
-        .from('creator_profile')
-        .select('onboarding_complete')
-        .eq('user_id', user.id)
-        .maybeSingle(),
-      getOrCreateSubscription(user.id),
-    ]);
+    try {
+      const client = getServerClient();
+      const setup = await checkCoreSchemaSetup(client);
+      if (!setup.ok) {
+        return (
+          <ToastProvider>
+            {sessionKeepAlive}
+            <SchemaSetupRequired />
+          </ToastProvider>
+        );
+      }
 
-    if (mustSubscribe(sub)) {
-      redirect('/pricing?trial=expired');
-    }
+      const [profileRes, sub] = await Promise.all([
+        client.database
+          .from('creator_profile')
+          .select('onboarding_complete')
+          .eq('user_id', user.id)
+          .maybeSingle(),
+        getOrCreateSubscription(user.id),
+      ]);
 
-    const nextPath = getPostAuthPath(profileRes.data, sub);
+      if (profileRes.error && (isMissingRelationError(profileRes.error) || isSchemaMismatchError(profileRes.error))) {
+        return (
+          <ToastProvider>
+            {sessionKeepAlive}
+            <SchemaSetupRequired />
+          </ToastProvider>
+        );
+      }
 
-    if (isOnboarding) {
-      if (nextPath === '/get-started') redirect('/auth/continue');
-      if (nextPath === '/dashboard') redirect('/dashboard');
-    } else if (!isGetStarted) {
-      const destination = nextPath === '/get-started' ? '/auth/continue' : nextPath;
-      if (destination !== '/dashboard') redirect(destination);
+      if (mustSubscribe(sub)) {
+        redirect('/pricing?trial=expired');
+      }
+
+      const nextPath = getPostAuthPath(profileRes.data, sub);
+
+      if (isOnboarding) {
+        if (nextPath === '/get-started') redirect('/auth/continue');
+        if (nextPath === '/dashboard') redirect('/dashboard');
+      } else if (!isGetStarted) {
+        const destination = nextPath === '/get-started' ? '/auth/continue' : nextPath;
+        if (destination !== '/dashboard') redirect(destination);
+      }
+    } catch (err) {
+      if (isMissingRelationError(err) || isSchemaMismatchError(err)) {
+        return (
+          <ToastProvider>
+            {sessionKeepAlive}
+            <SchemaSetupRequired />
+          </ToastProvider>
+        );
+      }
+      throw err;
     }
   }
 

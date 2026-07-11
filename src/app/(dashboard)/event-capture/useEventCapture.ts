@@ -55,26 +55,55 @@ export interface CaptureDetail {
 
 // --- Inbox ---
 
+export interface EventCaptureSetupState {
+  setupRequired: boolean;
+  missing: string[];
+  message?: string;
+}
+
 /**
  * Loads the event-capture inbox (questions_ready + drafting + drafted), newest
  * first. Uses cookie auth via credentials: 'same-origin' to match every other
  * dashboard fetch in this app. Exposes `refresh` so callers can re-pull after
- * dismissing a capture.
+ * dismissing a capture. Surfaces setupRequired when the table/Composio is missing.
  */
 export function useInbox(): {
   items: CaptureSummary[];
   loading: boolean;
+  setup: EventCaptureSetupState;
   refresh: () => Promise<void>;
 } {
   const [items, setItems] = useState<CaptureSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [setup, setSetup] = useState<EventCaptureSetupState>({
+    setupRequired: false,
+    missing: [],
+  });
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
       const res = await fetch('/api/event-capture', { credentials: 'same-origin' });
-      if (!res.ok) throw new Error('Failed to load event captures');
-      const json = (await res.json()) as { captures?: CaptureSummary[] };
+      const json = (await res.json().catch(() => ({}))) as {
+        captures?: CaptureSummary[];
+        setupRequired?: boolean;
+        missing?: string[];
+        error?: string;
+      };
+
+      if (json.setupRequired) {
+        setSetup({
+          setupRequired: true,
+          missing: json.missing ?? [],
+          message: json.error,
+        });
+        setItems(json.captures ?? []);
+        return;
+      }
+
+      if (!res.ok) throw new Error(json.error || 'Failed to load event captures');
+
+      setSetup({ setupRequired: false, missing: [] });
       setItems(json.captures ?? []);
     } catch (err) {
       console.error('[event-capture] inbox load failed', err);
@@ -87,7 +116,7 @@ export function useInbox(): {
     void refresh();
   }, [refresh]);
 
-  return { items, loading, refresh };
+  return { items, loading, setup, refresh };
 }
 
 // --- Detail (with drafting poll) ---
