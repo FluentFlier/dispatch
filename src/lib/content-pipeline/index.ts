@@ -271,7 +271,13 @@ export async function runContentPipeline(
   const hasOwnOpeningStyle = Boolean(input.structural?.hook_pattern?.trim());
   if (!input.skipHooks && (!hasOwnOpeningStyle || input.forceHooks)) {
     const vertical = topWeightedVertical(profile);
-    const resolved = await getBestHooksForGeneration(input.hooksClient, vertical, 3);
+    const nicheId = (profile as { niche_id?: string } | null)?.niche_id;
+    const resolved = await getBestHooksForGeneration(input.hooksClient, {
+      nicheId,
+      topicText: `${input.userPrompt}\n${substanceContext}`.slice(0, 1000),
+      vertical,
+      limit: 3,
+    });
     usedHookIds = resolved.hooks.map((h) => h.id);
     hookExplanations = resolved.explanations;
     text = await runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model, baseCheckCtx);

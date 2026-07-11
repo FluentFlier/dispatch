@@ -64,6 +64,8 @@ export interface EngagementInboxResult {
     drafted: number;
     sent: number;
   };
+  /** False when Unipile is not configured — UI must block Approve & Send. */
+  canSendReplies: boolean;
 }
 
 export interface ManualSyncComment {
@@ -146,6 +148,8 @@ export interface SendRepliesResult {
   failed: number;
   stubbed: number;
   errors: string[];
+  /** False when Unipile is unavailable — callers should treat as non-success. */
+  canSend?: boolean;
   items: Array<{
     queue_id: string;
     status: ReplyQueueStatus;

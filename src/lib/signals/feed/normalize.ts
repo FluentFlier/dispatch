@@ -9,7 +9,7 @@
  */
 
 import type {
-  SignalEventStatus, SignalEventWithPost, SignalLeadWithContacts, SignalType,
+  NurtureStage, SignalEventStatus, SignalEventWithPost, SignalLeadWithContacts, SignalType,
 } from '@/lib/signals/types';
 
 /** Contact info surfaced on a unified card, regardless of which source it came from. */
@@ -24,7 +24,7 @@ export interface UnifiedContact {
 /** Common shape both signal events and directory leads are normalized into for the feed. */
 export interface UnifiedLeadCard {
   id: string;
-  kind: 'signal' | 'directory';
+  kind: 'signal' | 'directory' | 'engager';
   source: 'x' | 'linkedin' | 'yc_directory' | 'yc_launches' | 'product_hunt' | 'manual';
   companyName: string | null;
   tagline: string | null;
@@ -38,6 +38,8 @@ export interface UnifiedLeadCard {
   score: number;
   status: string;
   detectedAt: string;
+  /** Nurture sequence stage for engager cards; absent for signal/directory cards. */
+  nurtureStage?: NurtureStage | null;
 }
 
 /**

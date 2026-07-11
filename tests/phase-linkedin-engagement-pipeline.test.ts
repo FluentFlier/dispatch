@@ -151,6 +151,13 @@ describe('Phase: LinkedIn Engagement Pipeline', () => {
       expect(buildPostIdCandidates('urn:li:activity:123')).toEqual(['urn:li:activity:123']);
       expect(buildPostIdCandidates('abc-unipile-id')).toEqual(['abc-unipile-id']);
     });
+
+    it('should share URN candidates with comment sync (same helper as reactions)', () => {
+      const numericId = '7478897599899521024';
+      const candidates = buildPostIdCandidates(numericId);
+      expect(candidates[0]).toBe(`urn:li:activity:${numericId}`);
+      expect(candidates).toContain(numericId);
+    });
   });
 
   describe('extractReactions', () => {

@@ -4,18 +4,21 @@
  */
 
 /** What the feed area should render. `error` is a FAILED fetch, not an empty feed. */
-export type FeedViewState = 'loading' | 'error' | 'empty' | 'list';
+export type FeedViewState = 'loading' | 'setup' | 'error' | 'empty' | 'list';
 
 /**
  * Distinguish a failed bootstrap fetch from a genuinely empty feed so the UI
  * shows a retry instead of the misleading "No leads yet today" empty state.
+ * `setup` is when the leads/signals schema (or flag) is not provisioned.
  */
 export function feedViewState(opts: {
   loading: boolean;
   loadError: boolean;
   cardCount: number;
+  setupRequired?: boolean;
 }): FeedViewState {
   if (opts.loading) return 'loading';
+  if (opts.setupRequired) return 'setup';
   if (opts.loadError) return 'error';
   if (opts.cardCount === 0) return 'empty';
   return 'list';

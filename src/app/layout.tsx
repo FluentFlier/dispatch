@@ -27,7 +27,7 @@ const jetbrains = JetBrains_Mono({
 });
 
 const SITE_DESC =
-  'The private content command center for creators who ship. Write in your voice, schedule everywhere, reply faster, and learn what compounds.';
+  'Create in your voice, publish to LinkedIn and X, reply faster, and turn the response into what you do next.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),

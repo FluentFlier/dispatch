@@ -9,7 +9,7 @@
  */
 
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
-import type { SignalType } from '@/lib/signals/types';
+import type { NurtureStage, SignalType } from '@/lib/signals/types';
 
 /** How a card's `source` should read in the UI (short badge label + whether it is a live post). */
 export interface SourceBadge {
@@ -80,4 +80,27 @@ export function scoreChip(score: number): string | null {
 /** Short label for the contact-status pill: resolved vs no-contact. */
 export function contactPillLabel(card: UnifiedLeadCard): 'Contact ready' | 'No contact' {
   return isReachable(card) ? 'Contact ready' : 'No contact';
+}
+
+/**
+ * Human-readable label for an engager's nurture stage, used on the engager
+ * detail chip. Returns `null` for `discovered`/absent stages (the sequence
+ * hasn't meaningfully started, so no chip is shown) rather than a bare
+ * "Discovered" that reads as noise.
+ */
+export function nurtureStageLabel(stage: NurtureStage | string | null | undefined): string | null {
+  if (!stage || stage === 'discovered') return null;
+  const labels: Record<NurtureStage, string> = {
+    discovered: 'Discovered',
+    planned: 'Planned',
+    engaging: 'Engaging',
+    connect_ready: 'Connect ready',
+    connect_sent: 'Connect sent',
+    nurturing: 'Nurturing',
+    dm_ready: 'DM ready',
+    dm_sent: 'DM sent',
+    replied: 'Replied',
+    closed: 'Closed',
+  };
+  return labels[stage as NurtureStage] ?? null;
 }

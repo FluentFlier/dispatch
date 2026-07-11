@@ -24,8 +24,8 @@ export function Tabs({ tabs, activeTab, onChange, variant = 'default', className
             onClick={() => onChange(tab.id)}
             className={`whitespace-nowrap px-4 py-[7px] min-h-[44px] text-[13px] font-body font-medium rounded-pill border transition-all duration-100 shrink-0 ${
               activeTab === tab.id
-                ? 'border-accent-primary text-accent-primary bg-coral-light'
-                : 'border-border text-text-secondary hover:text-text-primary bg-transparent'
+                ? 'border-blue/25 text-blue bg-blue/10 shadow-sm'
+                : 'border-hair text-ink2 hover:text-ink bg-white/60'
             }`}
           >
             {tab.label}
@@ -36,7 +36,7 @@ export function Tabs({ tabs, activeTab, onChange, variant = 'default', className
   }
 
   return (
-    <div className={`flex gap-1 overflow-x-auto pb-[1px] scrollbar-hide border-b border-border ${className}`}>
+    <div className={`flex gap-1 overflow-x-auto pb-[1px] scrollbar-hide border-b border-hair ${className}`}>
       {tabs.map((tab) => (
         <button
           key={tab.id}
@@ -44,8 +44,8 @@ export function Tabs({ tabs, activeTab, onChange, variant = 'default', className
           onClick={() => onChange(tab.id)}
           className={`whitespace-nowrap px-4 py-2 min-h-[44px] font-body font-medium text-[13px] border-b-[1.5px] transition-colors duration-100 shrink-0 ${
             activeTab === tab.id
-              ? 'border-accent-primary text-text-primary'
-              : 'border-transparent text-text-secondary hover:text-text-primary'
+              ? 'border-blue text-ink'
+              : 'border-transparent text-ink2 hover:text-ink'
           }`}
         >
           {tab.label}

@@ -8,10 +8,15 @@ import type { HookVertical } from '@/lib/hooks-intelligence/types';
  * Hook Intelligence API — DB-learned scores + mined hooks + static fallback.
  *
  * GET /api/hooks/intelligence?vertical=indie_maker&limit=8
- * GET /api/hooks/intelligence/search?q=how I made
+ * GET /api/hooks/intelligence?action=search&q=how I made
+ *
+ * Requires an authenticated session (was previously public).
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
+  if (!user) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  }
 
   const { searchParams } = new URL(request.url);
   const action = searchParams.get('action') || 'top';
@@ -26,15 +31,19 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     let client;
-    if (user) {
-      try {
-        client = getServerClient();
-      } catch {
-        client = undefined;
-      }
+    try {
+      client = getServerClient();
+    } catch {
+      client = undefined;
     }
 
-    const resolved = await getBestHooksForGeneration(client, vertical ?? undefined, limit);
+    // No topic/niche context on this browse endpoint (just a vertical filter),
+    // so this always takes the static fallback path inside getBestHooksForGeneration.
+    const resolved = await getBestHooksForGeneration(client, {
+      topicText: vertical ?? '',
+      vertical: vertical ?? undefined,
+      limit,
+    });
 
     return NextResponse.json({
       hooks: resolved.hooks.map((h, i) => ({

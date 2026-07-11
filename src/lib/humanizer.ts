@@ -190,7 +190,7 @@ export async function humanize(
   return stripEmDashes(result.trim());
 }
 
-function heuristicAiScore(text: string): number {
+export function heuristicAiScore(text: string): number {
   let hits = 0;
   for (const re of AI_SLOP_PATTERNS) {
     const matches = text.match(re);

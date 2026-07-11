@@ -3,6 +3,7 @@ import { getServiceClient } from '@/lib/insforge/server';
 import { syncEngagementComments } from '@/lib/engagement/sync';
 import { refreshLeadCategories } from '@/lib/engagement/categorize-engagers';
 import { syncWarmContacts } from '@/lib/social-graph/warm-contacts';
+import { runEngagerNurtureForWorkspace } from '@/lib/social-graph/engager-nurture';
 import { socialGraphAvailable } from '@/lib/social-graph/unipile-reactions';
 import { isEnabled } from '@/lib/feature-flags';
 import { logError, logInfo } from '@/lib/logger';
@@ -40,8 +41,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       user_id: string;
       synced: number;
       warm_contacts_upserted?: number;
+      engagers_nurtured?: number;
       errors: string[];
     }> = [];
+
+    // Engager nurture is workspace-scoped; multiple synced users can map to the
+    // same workspace, so run the sequence at most once per workspace per pass.
+    const nurturedWorkspaces = new Set<string>();
+    const nurtureEnabled =
+      socialGraphAvailable() && (await isEnabled(client, 'loop_engager_nurture'));
 
     for (const userId of userIds.slice(0, 50)) {
       try {
@@ -68,6 +76,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             row.warm_contacts_upserted = warmResult.contactsUpserted;
             if (warmResult.errors.length) {
               row.errors.push(...warmResult.errors.map((e) => `warm: ${e}`));
+            }
+
+            // Run the full research -> comment -> connect -> DM sequence for
+            // this workspace's engagers, once per workspace per pass. Failures
+            // are captured but never fail the surrounding sync.
+            if (nurtureEnabled && workspaceId && !nurturedWorkspaces.has(workspaceId)) {
+              nurturedWorkspaces.add(workspaceId);
+              const nurture = await runEngagerNurtureForWorkspace(client, workspaceId);
+              row.engagers_nurtured =
+                nurture.planned + nurture.connectsSent + nurture.dmsSent;
+              if (nurture.errors.length) {
+                row.errors.push(...nurture.errors.map((e) => `nurture: ${e}`));
+              }
+              logInfo('engagement-sync engager nurture', { workspaceId, ...nurture });
             }
           } catch (warmErr) {
             logError('engagement-sync warm contacts failed', {

@@ -1,11 +1,16 @@
-# Declarative InsForge config for Dispatch
-# Apply: npx @insforge/cli config apply
-# Note: auth.allowed_redirect_urls requires a newer backend (currently skipped on apply)
+# Declarative InsForge config for Dispatch / Content OS (project dispatch / mm4nbzdu)
+# Apply: npx @insforge/cli config apply --auto-approve
 
 [auth]
 require_email_verification = false
 verify_email_method = "code"
 reset_password_method = "code"
+allowed_redirect_urls = [
+  "http://localhost:3001/login",
+  "http://localhost:3001/auth/callback",
+  "https://contentos.us/login",
+  "https://contentos.us/auth/callback",
+]
 
 [auth.password]
 min_length = 6
@@ -13,10 +18,3 @@ require_number = false
 require_lowercase = false
 require_uppercase = false
 require_special_char = false
-
-# Uncomment when backend supports config apply for redirect URLs:
-# allowed_redirect_urls = [
-#   "http://localhost:3000/login",
-#   "https://mm4nbzdu.insforge.site/login",
-#   "https://dispatch.vercel.app/login",
-# ]

@@ -1,5 +1,7 @@
 import { unipileCommentsAvailable } from '@/lib/engagement/unipile-comments';
+import { buildPostIdCandidates } from '@/lib/engagement/unipile-reactions';
 import { getServerClient } from '@/lib/insforge/server';
+import { retryWithBackoff, throwIfNotOk, HttpStatusError } from '@/lib/social/reliability';
 import type { PostReaction } from '@/lib/social-graph/types';
 import {
   getCachedRead,
@@ -84,30 +86,44 @@ export async function fetchPostReactions(
   const accountId = await getUnipileAccountId(userId, platform);
   if (!accountId) return [];
 
-  const params = new URLSearchParams({
-    account_id: accountId,
-    limit: String(Math.min(opts.limit ?? 100, 100)),
-  });
+  const limit = String(Math.min(opts.limit ?? 100, 100));
 
-  const res = await fetch(
-    `${getUnipileBase()}/posts/${encodeURIComponent(socialPostId)}/reactions?${params}`,
-    {
-      headers: {
-        'X-API-KEY': apiKey,
-        accept: 'application/json',
-      },
-    },
-  );
-
-  if (!res.ok) {
-    const body = await res.text();
-    throw new Error(`Unipile reactions failed: ${res.status} ${body.slice(0, 200)}`);
+  // LinkedIn post ids surface in several URN flavors and Unipile only accepts
+  // the one the post was indexed under. Try each candidate in order, treating a
+  // 404/422 as "wrong format, try the next" so one id-format mismatch no longer
+  // silently drops every engager for a post.
+  let lastError: unknown = null;
+  for (const candidate of buildPostIdCandidates(socialPostId)) {
+    const params = new URLSearchParams({ account_id: accountId, limit });
+    try {
+      const res = await retryWithBackoff(async () =>
+        throwIfNotOk(
+          await fetch(
+            `${getUnipileBase()}/posts/${encodeURIComponent(candidate)}/reactions?${params}`,
+            { headers: { 'X-API-KEY': apiKey, accept: 'application/json' } },
+          ),
+          'Unipile get reactions',
+        ),
+      );
+      const reactions = extractReactions(await res.json());
+      await setCachedRead(cacheKey, reactions);
+      return reactions;
+    } catch (error) {
+      lastError = error;
+      if (error instanceof HttpStatusError && (error.status === 404 || error.status === 422)) {
+        continue;
+      }
+      throw error;
+    }
   }
 
-  const json = await res.json();
-  const reactions = extractReactions(json);
-  await setCachedRead(cacheKey, reactions);
-  return reactions;
+  // Every candidate 404'd — the post has no indexable reactions (or was
+  // deleted). Cache the empty result so we don't retry the dead post each pass.
+  if (lastError instanceof HttpStatusError && (lastError.status === 404 || lastError.status === 422)) {
+    await setCachedRead(cacheKey, []);
+    return [];
+  }
+  throw lastError ?? new Error('Unipile get reactions failed');
 }
 
 export { unipileCommentsAvailable as socialGraphAvailable };

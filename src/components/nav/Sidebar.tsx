@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   BarChart3,
+  Brain,
   CalendarDays,
   FileText,
   Home,
@@ -28,6 +29,7 @@ const navIcons: Record<string, ComponentType<{ className?: string }>> = {
   '/calendar': CalendarDays,
   '/inbox': MessageSquare,
   '/leads': Target,
+  '/brain': Brain,
   '/event-capture': CalendarDays,
   '/ideas': Lightbulb,
   '/series': FileText,

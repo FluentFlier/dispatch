@@ -191,52 +191,51 @@ describe('P3-5: engagement inbox sort — handles undefined synced_at', () => {
 });
 
 // ---------------------------------------------------------------------------
-// P3-8: auto-optimize — background fetch uses internal auth, not request cookies
+// P3-8: auto-optimize — runs in-process (no HTTP / cookie dependency)
 // ---------------------------------------------------------------------------
-describe('P3-8: auto-optimize — uses service auth header, not session cookies', () => {
+describe('P3-8: auto-optimize — in-process, no session cookie HTTP round-trip', () => {
   beforeEach(() => vi.resetModules());
 
-  it('passes x-internal-user-id and Authorization header, not Cookie', async () => {
-    process.env.CRON_SECRET = 'test-cron-secret';
-
-    const fetchMock = vi.fn().mockResolvedValue({
-      ok: true,
-      json: vi.fn().mockResolvedValue({ variants: [] }),
-    });
+  it('does not call fetch; uses service client + generateOptimizeVariants', async () => {
+    const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
 
-    vi.doMock('@/lib/insforge/server', () => ({
-      getServerClient: vi.fn().mockReturnValue({
-        database: {
-          from: vi.fn().mockReturnValue({
-            select: vi.fn().mockReturnThis(),
-            update: vi.fn().mockReturnThis(),
-            eq: vi.fn().mockReturnThis(),
-            single: vi.fn().mockResolvedValue({ data: { title: 'Test', pillar: 'founder' }, error: null }),
-          }),
-        },
-      }),
+    const generateMock = vi.fn().mockResolvedValue({
+      variants: [{ platform: 'linkedin', content: 'LI variant', characterCount: 10, isThread: false, threadParts: null }],
+      errors: [],
+    });
+
+    vi.doMock('@/lib/optimize-variants', () => ({
+      generateOptimizeVariants: generateMock,
+    }));
+    vi.doMock('@/lib/ai-guard', () => ({
+      guardAiRequest: vi.fn().mockResolvedValue({ ok: true }),
+    }));
+    vi.doMock('@/lib/voice-context', () => ({
+      loadCreatorVoiceContext: vi.fn().mockResolvedValue({ profile: null, contextAdditions: '' }),
     }));
     vi.doMock('@/lib/constants', () => ({
       PLATFORMS: ['twitter', 'linkedin', 'instagram', 'threads'],
     }));
-
-    // Mock user setting to enable auto-optimize
     vi.doMock('@/lib/insforge/server', () => ({
-      getServerClient: vi.fn().mockReturnValue({
+      getServiceClient: vi.fn().mockReturnValue({
         database: {
           from: vi.fn().mockImplementation((table: string) => ({
             select: vi.fn().mockReturnThis(),
             update: vi.fn().mockReturnThis(),
             eq: vi.fn().mockReturnThis(),
             single: vi.fn().mockResolvedValue({
-              data: table === 'user_settings' ? { value: 'true' } : { title: 'Test', pillar: 'founder' },
+              data:
+                table === 'user_settings'
+                  ? { value: 'true' }
+                  : { title: 'Test', pillar: 'founder', workspace_id: 'ws1' },
               error: null,
             }),
             insert: vi.fn().mockResolvedValue({ error: null }),
           })),
         },
       }),
+      getServerClient: vi.fn(),
     }));
 
     const { triggerAutoOptimize } = await import('@/lib/auto-optimize');
@@ -245,18 +244,11 @@ describe('P3-8: auto-optimize — uses service auth header, not session cookies'
       postId: 'p1',
       content: 'Post content here',
       sourcePlatform: 'twitter',
-      requestCookies: 'content-os-token=old-session-cookie',
-      origin: 'https://app.contentOS.com',
+      workspaceId: 'ws1',
     });
 
-    // Verify fetch was called with internal auth headers, NOT the session cookie
-    if (fetchMock.mock.calls.length > 0) {
-      const [, fetchOptions] = fetchMock.mock.calls[0];
-      const headers = fetchOptions?.headers ?? {};
-      expect(headers['x-internal-user-id']).toBe('u1');
-      expect(headers['Authorization']).toContain('Bearer test-cron-secret');
-      expect(headers['Cookie']).toBeUndefined();
-    }
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(generateMock).toHaveBeenCalled();
   });
 });
 
@@ -266,18 +258,25 @@ describe('P3-8: auto-optimize — uses service auth header, not session cookies'
 describe('P3-9: auto-optimize — variant_group_id updated only after successful variant creation', () => {
   beforeEach(() => vi.resetModules());
 
-  it('does not update variant_group_id on source post when optimize call fails', async () => {
-    process.env.CRON_SECRET = 'secret';
-
-    const fetchMock = vi.fn().mockResolvedValue({ ok: false, status: 500 });
-    vi.stubGlobal('fetch', fetchMock);
-
+  it('does not update variant_group_id on source post when optimize returns no variants', async () => {
     const updateMock = vi.fn().mockReturnValue({
       eq: vi.fn().mockReturnThis(),
     });
 
+    vi.doMock('@/lib/optimize-variants', () => ({
+      generateOptimizeVariants: vi.fn().mockResolvedValue({ variants: [], errors: [{ platform: 'linkedin', error: 'fail' }] }),
+    }));
+    vi.doMock('@/lib/ai-guard', () => ({
+      guardAiRequest: vi.fn().mockResolvedValue({ ok: true }),
+    }));
+    vi.doMock('@/lib/voice-context', () => ({
+      loadCreatorVoiceContext: vi.fn().mockResolvedValue({ profile: null, contextAdditions: '' }),
+    }));
+    vi.doMock('@/lib/constants', () => ({
+      PLATFORMS: ['twitter', 'linkedin', 'instagram', 'threads'],
+    }));
     vi.doMock('@/lib/insforge/server', () => ({
-      getServerClient: vi.fn().mockReturnValue({
+      getServiceClient: vi.fn().mockReturnValue({
         database: {
           from: vi.fn().mockImplementation((table: string) => ({
             select: vi.fn().mockReturnThis(),
@@ -291,21 +290,20 @@ describe('P3-9: auto-optimize — variant_group_id updated only after successful
           })),
         },
       }),
-    }));
-    vi.doMock('@/lib/constants', () => ({
-      PLATFORMS: ['twitter', 'linkedin', 'instagram', 'threads'],
+      getServerClient: vi.fn(),
     }));
 
     const { triggerAutoOptimize } = await import('@/lib/auto-optimize');
     await triggerAutoOptimize({
-      userId: 'u1', postId: 'p1', content: 'Content',
-      sourcePlatform: 'twitter', requestCookies: '', origin: 'https://app.test',
+      userId: 'u1',
+      postId: 'p1',
+      content: 'Content',
+      sourcePlatform: 'twitter',
+      workspaceId: 'ws1',
     });
 
-    // variant_group_id update on source post should NOT have been called
-    // when optimize failed (no variants created)
     const variantGroupUpdates = updateMock.mock.calls.filter((call) =>
-      JSON.stringify(call).includes('variant_group_id')
+      JSON.stringify(call).includes('variant_group_id'),
     );
     expect(variantGroupUpdates).toHaveLength(0);
   });

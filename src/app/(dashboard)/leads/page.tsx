@@ -8,10 +8,11 @@ import { FeedFilters, type FeedFilterState } from '@/components/leads/FeedFilter
 import { UnifiedFeed } from '@/components/leads/UnifiedFeed';
 import { LeadDetail } from '@/components/leads/LeadDetail';
 import { SignalDetail } from '@/components/leads/SignalDetail';
+import { EngagerDetail, type EngagerDetailAction } from '@/components/leads/EngagerDetail';
 import { resolveSignalOutreach } from '@/components/leads/signal-outreach';
 import { AdvancedDrawer } from '@/components/leads/AdvancedDrawer';
 import { SignalsSetup } from '@/components/leads/SignalsSetup';
-import { IcpChat } from '@/components/leads/IcpChat';
+import { IcpManager } from '@/components/leads/IcpManager';
 import {
   LeadsHeaderActions,
   LeadsEmptyState,
@@ -21,9 +22,11 @@ import {
 import type {
   DirectorySettingsRow,
   FollowedCompanyRow,
+  IcpProfileRow,
   SignalLeadWithContacts,
 } from '@/lib/signals/types';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
+import type { WarmContactRow } from '@/lib/social-graph/types';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import {
   busyActionFor as deriveBusyAction,
@@ -86,6 +89,7 @@ export default function LeadsPage() {
   const [cards, setCards] = useState<UnifiedLeadCard[]>([]);
   const [leadsById, setLeadsById] = useState<Record<string, SignalLeadWithContacts>>({});
   const [settings, setSettings] = useState<DirectorySettingsRow | null>(null);
+  const [profiles, setProfiles] = useState<IcpProfileRow[]>([]);
   const [followed, setFollowed] = useState<FollowedCompanyRow[]>([]);
 
   const [filters, setFilters] = useState<FeedFilterState>(INITIAL_FILTERS);
@@ -98,6 +102,9 @@ export default function LeadsPage() {
   // True when the initial bootstrap fetch FAILED (vs a genuine empty feed), so
   // the UI shows a retry instead of the misleading "No leads yet" empty state.
   const [loadError, setLoadError] = useState(false);
+  // Soft setup gate when signals tables / signals_engine flag are unavailable.
+  const [setupRequired, setSetupRequired] = useState(false);
+  const [setupMessage, setSetupMessage] = useState<string | null>(null);
   const [listLoading, setListLoading] = useState(false);
   const [scraping, setScraping] = useState(false);
   // Live scrape progress streamed from /api/leads/sync (null when idle).
@@ -118,6 +125,10 @@ export default function LeadsPage() {
   // signal + directory configuration surface folded in from the retired /signals page.
   const [view, setView] = useState<'feed' | 'setup'>('feed');
   const [companyById, setCompanyById] = useState<Record<string, YcCompanyDetail | 'loading' | 'error'>>({});
+  // Full engager records, loaded lazily when an engager card is opened.
+  const [engagersById, setEngagersById] = useState<Record<string, WarmContactRow | 'loading'>>({});
+  // Inline safety-guard notice per engager (expected 422 block on send).
+  const [engagerNotices, setEngagerNotices] = useState<Record<string, string>>({});
   const [draftAll, setDraftAll] = useState<{ done: number; total: number } | null>(null);
   // True when the feed is the built-in demo set (no live scraping key); badged so
   // a user never mistakes seed companies for real leads.
@@ -152,17 +163,32 @@ export default function LeadsPage() {
   const loadBootstrap = useCallback(async () => {
     setLoading(true);
     setLoadError(false);
+    setSetupRequired(false);
+    setSetupMessage(null);
     try {
       const [feedRes, bootRes] = await Promise.all([
         fetch(`/api/leads/feed?${feedQuery()}`),
         fetch(`/api/leads/bootstrap?status=${filters.status}`),
       ]);
+      const feed = await feedRes.json().catch(() => ({}));
+      const boot = await bootRes.json().catch(() => ({}));
+
+      if (feed.setupRequired || boot.setupRequired) {
+        setSetupRequired(true);
+        setSetupMessage(
+          (boot.error as string | undefined) ||
+            (feed.error as string | undefined) ||
+            'Leads engine not provisioned — contact support',
+        );
+        setCards([]);
+        return;
+      }
+
       if (!feedRes.ok || !bootRes.ok) throw new Error('load failed');
-      const feed = await feedRes.json();
-      const boot = await bootRes.json();
       setCards(feed.cards ?? []);
       indexLeads(boot.leads ?? []);
       setSettings(boot.settings ?? null);
+      setProfiles(boot.profiles ?? []);
       setFollowed(boot.followedCompanies ?? []);
       setDemoData(Boolean(boot.demoData));
       // Persist the browser timezone once if the workspace has none. Best-effort:
@@ -257,6 +283,32 @@ export default function LeadsPage() {
       return next;
     });
   }, []);
+
+  // Load the full engager record the first time an engager card is opened, so
+  // the detail pane can show the dossier + current draft. Mirrors companyById.
+  useEffect(() => {
+    if (!selectedId || engagersById[selectedId]) return;
+    const card = cards.find((c) => c.id === selectedId);
+    if (!card || card.kind !== 'engager') return;
+    const id = selectedId;
+    setEngagersById((m) => ({ ...m, [id]: 'loading' }));
+    fetch(`/api/social-graph/warm-contacts/${id}`)
+      .then((r) => r.json())
+      .then((d) => {
+        const contact = (d.contact as WarmContactRow) ?? null;
+        setEngagersById((m) => ({ ...m, [id]: contact ?? 'loading' }));
+        if (contact?.outreach_draft) {
+          setDrafts((dd) => (dd[id] ? dd : { ...dd, [id]: contact.outreach_draft as string }));
+        }
+      })
+      .catch(() =>
+        setEngagersById((m) => {
+          const next = { ...m };
+          delete next[id];
+          return next;
+        }),
+      );
+  }, [selectedId, engagersById, cards]);
 
   // --- Followed helpers ---
   const isFollowed = useCallback(
@@ -797,6 +849,114 @@ export default function LeadsPage() {
     }
   };
 
+  // --- Actions (engager cards) ---
+  // Reload one engager's full record and reflect its stage/status on the feed
+  // card so the list + detail stay consistent without a full refetch.
+  const refreshEngager = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/social-graph/warm-contacts/${id}`);
+      const data = await res.json();
+      const contact = (data.contact as WarmContactRow) ?? null;
+      if (!contact) return;
+      setEngagersById((m) => ({ ...m, [id]: contact }));
+      if (contact.outreach_draft) setDrafts((d) => ({ ...d, [id]: contact.outreach_draft as string }));
+      setCards((prev) =>
+        prev.map((c) =>
+          c.id === id
+            ? {
+                ...c,
+                nurtureStage: contact.nurture_stage,
+                status: contact.status === 'sent' ? 'sent' : contact.status === 'drafted' ? 'drafted' : c.status,
+                score: typeof contact.priority_score === 'number' ? contact.priority_score : c.score,
+              }
+            : c,
+        ),
+      );
+    } catch {
+      // Non-fatal: the card keeps its prior state.
+    }
+  }, []);
+
+  const handleEngagerPlan = async (id: string) => {
+    setBusy({ id, action: 'plan' });
+    setEngagerNotices((n) => {
+      const next = { ...n };
+      delete next[id];
+      return next;
+    });
+    try {
+      const res = await fetch(`/api/social-graph/warm-contacts/${id}/plan`, { method: 'POST' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Plan failed');
+      await refreshEngager(id);
+      toast(
+        data.path === 'comment'
+          ? 'Sequence started — value-add comment queued.'
+          : 'Sequence started — connect note drafted.',
+      );
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not start sequence.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleEngagerSend = async (id: string, kind: 'connect' | 'dm') => {
+    setBusy({ id, action: kind });
+    setEngagerNotices((n) => {
+      const next = { ...n };
+      delete next[id];
+      return next;
+    });
+    try {
+      // Persist any inline edits to the draft before sending.
+      const draft = drafts[id];
+      if (draft?.trim()) {
+        await fetch(`/api/social-graph/warm-contacts/${id}`, {
+          method: 'PATCH',
+          headers: jsonHeaders,
+          body: JSON.stringify({ draft }),
+        }).catch(() => {});
+      }
+      const path = kind === 'connect' ? 'send' : 'send-dm';
+      const res = await fetch(`/api/social-graph/warm-contacts/${id}/${path}`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify(kind === 'connect' ? { note: draft } : { message: draft }),
+      });
+      const data = await res.json();
+      if (res.status === 429) {
+        setEngagerNotices((n) => ({
+          ...n,
+          [id]: data.error || 'Sending is blocked by your safety settings right now.',
+        }));
+        return;
+      }
+      if (!res.ok) throw new Error(data.error || 'send failed');
+      await refreshEngager(id);
+      toast(kind === 'connect' ? 'Connect invite sent.' : 'Follow-up DM sent.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not send.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleEngagerDismiss = async (id: string) => {
+    setBusy({ id, action: 'dismiss' });
+    try {
+      const res = await fetch(`/api/social-graph/warm-contacts/${id}/dismiss`, { method: 'POST' });
+      if (!res.ok) throw new Error();
+      setCards((prev) => prev.filter((c) => c.id !== id));
+      if (selectedId === id) setSelectedId(null);
+      toast('Engager dismissed.');
+    } catch {
+      toast('Could not dismiss.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   // --- Selection resolution ---
   const selectedCard = cards.find((c) => c.id === selectedId) ?? null;
   const selectedLead = selectedId ? leadsById[selectedId] ?? null : null;
@@ -862,8 +1022,10 @@ export default function LeadsPage() {
 
       {view === 'setup' ? (
         <div className="space-y-6">
-          <IcpChat
+          <IcpManager
             settings={settings}
+            profiles={profiles}
+            onProfilesChange={setProfiles}
             onSettingsSaved={setSettings}
             onRunScrape={() => {
               // Hand off to the streamed scrape and switch to the feed so the
@@ -914,7 +1076,7 @@ export default function LeadsPage() {
         <ScrapeProgress pct={scrapeProgress.pct} label={scrapeProgress.label} />
       )}
 
-      {feedViewState({ loading, loadError, cardCount: cards.length }) === 'loading' ? (
+      {feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'loading' ? (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 min-h-[480px]">
           <div className="lg:col-span-2">
             <UnifiedFeed cards={[]} selectedId={null} loading onSelect={() => {}} isFollowed={() => false} />
@@ -923,7 +1085,26 @@ export default function LeadsPage() {
             Loading leads…
           </div>
         </div>
-      ) : feedViewState({ loading, loadError, cardCount: cards.length }) === 'error' ? (
+      ) : feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'setup' ? (
+        <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-bg-secondary py-16 text-center px-6">
+          <p className="text-sm text-text-primary font-medium">
+            {setupMessage ?? 'Leads engine not provisioned — contact support'}
+          </p>
+          <p className="text-xs text-text-tertiary max-w-md">
+            This workspace cannot load leads until the signals schema is applied. If you are an operator, apply{' '}
+            <code className="font-mono">db/signals.sql</code> and{' '}
+            <code className="font-mono">db/signals-leads.sql</code>, then enable{' '}
+            <code className="font-mono">signals_engine</code>.
+          </p>
+          <button
+            type="button"
+            onClick={() => void loadBootstrap()}
+            className="text-xs font-medium px-3 py-1.5 rounded-md bg-accent-primary text-white hover:opacity-90 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+          >
+            Retry
+          </button>
+        </div>
+      ) : feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'error' ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-bg-secondary py-16 text-center">
           <p className="text-sm text-text-secondary">Could not load your leads.</p>
           <button
@@ -934,7 +1115,7 @@ export default function LeadsPage() {
             Retry
           </button>
         </div>
-      ) : feedViewState({ loading, loadError, cardCount: cards.length }) === 'empty' ? (
+      ) : feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'empty' ? (
         scraping && scrapeProgress ? (
           <ScrapeProgress pct={scrapeProgress.pct} label={scrapeProgress.label} panel />
         ) : filtersActive ? (
@@ -1012,6 +1193,19 @@ export default function LeadsPage() {
           <div className="lg:col-span-3 border border-border rounded-lg bg-bg-secondary p-5">
             {!selectedCard ? (
               <div className="flex items-center justify-center h-full text-text-tertiary text-sm">Select a lead to review.</div>
+            ) : selectedCard.kind === 'engager' ? (
+              <EngagerDetail
+                card={selectedCard}
+                contact={engagersById[selectedCard.id] ?? null}
+                draft={drafts[selectedCard.id] ?? ''}
+                onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedCard.id]: v }))}
+                busyAction={busyActionFor(selectedCard.id) as EngagerDetailAction | null}
+                notice={engagerNotices[selectedCard.id] ?? null}
+                onPlan={() => handleEngagerPlan(selectedCard.id)}
+                onSendConnect={() => handleEngagerSend(selectedCard.id, 'connect')}
+                onSendDm={() => handleEngagerSend(selectedCard.id, 'dm')}
+                onDismiss={() => handleEngagerDismiss(selectedCard.id)}
+              />
             ) : selectedCard.kind === 'directory' && selectedLead ? (
               <LeadDetail
                 lead={selectedLead}

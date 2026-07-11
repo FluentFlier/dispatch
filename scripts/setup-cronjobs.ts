@@ -3,13 +3,13 @@
  *
  * Required env vars:
  *   CRONJOB_ORG_API_KEY   - from cron-job.org → Settings → API keys
- *   CRONJOB_APP_URL       - production URL, e.g. https://mm4nbzdu.insforge.site (InsForge)
- *   CRON_SECRET           - same secret set in Vercel env vars
+ *   CRONJOB_APP_URL       - production URL, e.g. https://contentos.us (InsForge)
+ *   CRON_SECRET           - same secret set in hosting env vars
  *
  * NOTE: Use CRONJOB_APP_URL (not NEXT_PUBLIC_APP_URL) so localhost never leaks in.
  *
  * Run:
- *   CRONJOB_APP_URL=https://mm4nbzdu.insforge.site npx tsx --env-file=.env.local scripts/setup-cronjobs.ts
+ *   CRONJOB_APP_URL=https://contentos.us npx tsx --env-file=.env.local scripts/setup-cronjobs.ts
  */
 
 const CRONJOB_API = 'https://api.cron-job.org';

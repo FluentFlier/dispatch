@@ -126,12 +126,20 @@ export default function VideoStudioPage() {
         }),
       });
 
-      const data = await res.json();
-      if (data.captions) {
-        setCaptions(data.captions);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setAutoEditResult(data.error || data.message || 'Auto-edit is not available yet');
+        return;
       }
-      setAutoEditResult(data.message || 'Processing submitted');
-    } catch (err) {
+      if (Array.isArray(data.captions) && data.captions.length > 0) {
+        setCaptions(data.captions);
+        setAutoEditResult(`Generated ${data.captions.length} caption cues`);
+      } else {
+        setAutoEditResult(
+          data.message || 'Caption generation is not available yet — pipeline not built.',
+        );
+      }
+    } catch {
       setAutoEditResult('Auto-edit request failed');
     } finally {
       setAutoEditing(false);
@@ -165,8 +173,14 @@ export default function VideoStudioPage() {
       <PageHeader
         eyebrow="VIDEO STUDIO"
         title="Video Studio"
-        subtitle="Upload, apply templates, and export your videos with Remotion-powered compositions."
+        subtitle="Upload and preview Remotion templates. Auto-edit, captions, and export are not shipping yet."
       />
+
+      <div className="rounded-md border border-border bg-bg-tertiary px-4 py-3 text-sm text-text-secondary">
+        Preview-only for now. Caption generation, silence removal, and export return
+        &quot;coming soon&quot; until the video pipeline is built. You can still upload
+        clips and try template layouts.
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
         {/* Main column */}

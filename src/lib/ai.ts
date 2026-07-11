@@ -23,6 +23,8 @@ export interface CreatorProfileForPrompt {
   content_pillars?: Array<{ name: string; description?: string; promptTemplate?: string; weight?: number }>;
   voice_description?: string;
   voice_rules?: string;
+  /** Niche assigned by niche-resolver (spec 2.1); drives the hook generation stage. */
+  niche_id?: string;
 }
 
 /**

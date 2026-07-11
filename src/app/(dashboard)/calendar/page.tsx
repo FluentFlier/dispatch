@@ -15,6 +15,7 @@ import { ScheduleModal, FillWeekModal } from "@/components/calendar/CalendarModa
 import PostDetailModal from "@/components/calendar/PostDetailModal";
 import { ClientOnly } from "@/components/ClientOnly";
 import { useRouter } from "next/navigation";
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
 type ViewMode = "month" | "week" | "day" | "schedule";
 
@@ -122,7 +123,7 @@ export default function CalendarPage() {
 
       let wsId: string | null = null;
       try {
-        const wsRes = await fetch("/api/workspaces", { cache: "no-store", credentials: "same-origin" });
+        const wsRes = await fetchWithAuth("/api/workspaces", { cache: "no-store" });
         if (wsRes.ok) wsId = (await wsRes.json()).activeId ?? null;
       } catch { /* fall back to user scope */ }
 
@@ -300,7 +301,7 @@ export default function CalendarPage() {
   /* ---- Publish Now ---- */
   const handlePublishNow = async (post: Post) => {
     const content = post.caption ?? post.script ?? post.hook ?? post.title ?? "";
-    const res = await fetch("/api/publish", {
+    const res = await fetchWithAuth("/api/publish", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -317,7 +318,7 @@ export default function CalendarPage() {
 
   /* ---- Unschedule ---- */
   const handleUnschedule = async (postId: string) => {
-    const res = await fetch(`/api/posts/${postId}/unschedule`, { method: "POST" });
+    const res = await fetchWithAuth(`/api/posts/${postId}/unschedule`, { method: "POST" });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error ?? "Unschedule failed");
     await fetchPosts();
@@ -356,7 +357,7 @@ export default function CalendarPage() {
         const d = p.scheduled_date.slice(0, 10);
         return d >= weekStart && d <= weekEnd;
       });
-      const res = await fetch("/api/generate", {
+      const res = await fetchWithAuth("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
