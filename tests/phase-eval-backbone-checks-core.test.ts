@@ -108,4 +108,15 @@ describe('check: mention_integrity (hard)', () => {
     const r = runChecks(CLEAN_LI_POST + '\n\nThanks @sam!', ctx({ mentions: ['sam'] })).find((x) => x.id === 'mention_integrity')!;
     expect(r.pass).toBe(true);
   });
+  it('passes when requested handle is followed by a sentence-final period', () => {
+    const r = runChecks(CLEAN_LI_POST + '\n\nThanks @sam.', ctx({ mentions: ['sam'] })).find((x) => x.id === 'mention_integrity')!;
+    expect(r.pass).toBe(true);
+  });
+  it('strips a trailing period from a scanned handle before the allowed-source lookup', () => {
+    const r = runChecks(
+      CLEAN_LI_POST + '\n\nGreat work @acme.co. Next topic.',
+      ctx({ userPrompt: 'Write a post praising acme.co for shipping fast' }),
+    ).find((x) => x.id === 'mention_integrity')!;
+    expect(r.pass).toBe(true);
+  });
 });
