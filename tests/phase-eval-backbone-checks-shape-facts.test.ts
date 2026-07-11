@@ -58,4 +58,17 @@ describe('check: fabricated_specifics (hard)', () => {
     const r = runChecks(FLOWING + '\n\nAnirudh Chinta here, signing off.', c).find((x) => x.id === 'fabricated_specifics')!;
     expect(r.pass).toBe(true);
   });
+  it('ignores a bare calendar year as framing, not a statistic', () => {
+    const r = get(FLOWING + '\n\nIn 2024 we doubled down.', 'fabricated_specifics');
+    expect(r.pass).toBe(true);
+  });
+  it('ignores the 24/7 idiom instead of splitting into 24 and 7', () => {
+    const r = get(FLOWING + '\n\nSupport runs 24/7 now.', 'fabricated_specifics');
+    expect(r.pass).toBe(true);
+  });
+  it('still fails a comma-formatted number that looks like a year', () => {
+    const r = get(FLOWING.replace('412 signups', '2,024 signups'), 'fabricated_specifics');
+    expect(r.pass).toBe(false);
+    expect(r.evidence).toContain('2,024');
+  });
 });

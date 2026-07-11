@@ -161,6 +161,16 @@ function normalizeNumber(raw: string): string {
   return raw.replace(/[,$%]/g, '').replace(/[km]$/i, '');
 }
 
+// Idioms that read as numbers but aren't statistics - strip before number scan.
+const IDIOM_RES = [/\b24\/7\b/gi, /\b9\s?-?\s?to\s?-?\s?5\b/gi];
+
+// Bare 4-digit token (no $, comma, decimal, %, k/m suffix) in a plausible calendar range.
+function isCalendarYear(raw: string): boolean {
+  if (!/^\d{4}$/.test(raw)) return false;
+  const year = Number(raw);
+  return year >= 1900 && year <= 2099;
+}
+
 const fabricatedSpecifics: Check = {
   id: 'fabricated_specifics', severity: 'hard',
   appliesTo: isProse,
@@ -171,9 +181,10 @@ const fabricatedSpecifics: Check = {
       Array.from(allowed.matchAll(/[$]?\d[\d,.]*[%km]?/gi)).map((m) => normalizeNumber(m[0])),
     );
 
-    for (const m of Array.from(text.matchAll(/[$]?\d[\d,.]*[%km]?/gi))) {
+    const scanText = IDIOM_RES.reduce((t, re) => t.replace(re, ''), text);
+    for (const m of Array.from(scanText.matchAll(/[$]?\d[\d,.]*[%km]?/gi))) {
       const norm = normalizeNumber(m[0]);
-      if (NUM_WHITELIST.has(norm)) continue;
+      if (NUM_WHITELIST.has(norm) || isCalendarYear(m[0])) continue;
       if (!allowedDigits.has(norm) && !allowed.includes(norm)) {
         return fail('fabricated_specifics', 'hard', m[0],
           `Remove or replace the number "${m[0]}" - it does not appear in the request or provided context. Never invent statistics.`);
