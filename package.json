@@ -27,7 +27,9 @@
     "eval:smoke": "promptfoo eval --env-file .env.local -c evals/promptfooconfig.smoke.ts -o evals/out/smoke.json",
     "eval:full": "promptfoo eval --env-file .env.local -c evals/promptfooconfig.full.ts -o evals/out/full.json --no-cache",
     "eval:gate": "npx tsx evals/compare-baseline.ts evals/out/full.json",
-    "eval:baseline": "npx tsx evals/compare-baseline.ts evals/out/full.json --write"
+    "eval:baseline": "npx tsx evals/compare-baseline.ts evals/out/full.json --write",
+    "canary:generate": "npx tsx evals/generate-canary.ts",
+    "eval:canary": "promptfoo eval --env-file .env.local -c evals/promptfooconfig.canary.ts -o evals/out/canary.json"
   },
   "dependencies": {
     "@composio/core": "^0.13.1",
@@ -63,12 +65,14 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/js-yaml": "4.0.9",
     "@types/node": "^22.10.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.20",
     "eslint": "^8.57.1",
     "eslint-config-next": "14.2.21",
+    "js-yaml": "5.2.1",
     "postcss": "^8.4.49",
     "promptfoo": "0.121.18",
     "tailwindcss": "^3.4.16",
