@@ -9,11 +9,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 
-const { callLog, posts, getTrailingMedianEngagement, updateArmsForHooks } = vi.hoisted(() => ({
+const { callLog, posts, getTrailingMedianEngagement, updateArmsForHooks, updateFromPerformanceDB } = vi.hoisted(() => ({
   callLog: [] as string[],
   posts: [] as Array<Record<string, unknown>>,
   getTrailingMedianEngagement: vi.fn(),
   updateArmsForHooks: vi.fn().mockResolvedValue({ updated: 1, skipped: 0 }),
+  updateFromPerformanceDB: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@/lib/insforge/server', () => ({
@@ -51,7 +52,10 @@ vi.mock('@/lib/insforge/server', () => ({
 
 vi.mock('@/lib/feature-flags', () => ({ isEnabled: () => Promise.resolve(true) }));
 vi.mock('@/lib/hooks-intelligence/rl-trainer', () => ({
-  updateFromPerformanceDB: vi.fn().mockResolvedValue(undefined),
+  updateFromPerformanceDB: (...args: unknown[]) => {
+    callLog.push(`ema:${args[1]}`);
+    return updateFromPerformanceDB(...args);
+  },
   extractWinningPatterns: () => [],
 }));
 vi.mock('@/lib/engagement/categorize-leads', () => ({
@@ -92,7 +96,7 @@ describe('GET /api/cron/intelligence-sync - arm reward wiring', () => {
     const { GET } = await import('@/app/api/cron/intelligence-sync/route');
     await GET(makeRequest());
 
-    expect(callLog).toEqual(['median-fetched', 'marked:p1']);
+    expect(callLog).toEqual(['median-fetched', 'ema:h1', 'marked:p1']);
   });
 
   it('CONTRACT 2 (threshold): a post exactly at its own median gets reward 0 (strict >, not >=)', async () => {
@@ -126,6 +130,32 @@ describe('GET /api/cron/intelligence-sync - arm reward wiring', () => {
     expect(json.processed).toBe(1);
     expect(json.armsUpdated).toBe(0);
     expect(json.armsSkipped).toBe(0);
-    expect(callLog).toEqual(['marked:p4']);
+    expect(callLog).toEqual(['ema:h1', 'marked:p4']);
+  });
+
+  it('CONTRACT 4 (failure isolation): a rejecting median fetch skips arms for that post only, never aborts the run', async () => {
+    // First post's median fetch throws (DB blip / RLS). Second post is fine.
+    // The failing post must still run EMA + get marked processed (so it is not
+    // retried forever), be counted armsSkipped, and NOT 500 the whole run.
+    getTrailingMedianEngagement
+      .mockRejectedValueOnce(new Error('db blip'))
+      .mockResolvedValueOnce(0.01);
+    posts.push(
+      { id: 'bad', user_id: 'u1', pillar: 'saas', saves: 5, views: 200, likes: 0, comments: 0, used_hook_ids: ['h1'] },
+      { id: 'ok', user_id: 'u2', pillar: 'saas', saves: 5, views: 200, likes: 0, comments: 0, used_hook_ids: ['h2'] },
+    );
+    const { GET } = await import('@/app/api/cron/intelligence-sync/route');
+    const res = await GET(makeRequest());
+    const json = await res.json();
+
+    expect(res.status).toBe(200);          // run did NOT abort
+    expect(json.processed).toBe(2);        // both posts processed
+    expect(json.armsSkipped).toBe(1);      // failing post's one hook counted skipped
+    expect(json.armsUpdated).toBe(1);      // healthy post's arm still updated
+    // Failing post still ran EMA and was marked processed (not retried forever).
+    expect(callLog).toContain('marked:bad');
+    expect(callLog.filter((e) => e.startsWith('ema:'))).toHaveLength(2);
+    // Healthy post's arm update happened.
+    expect(updateArmsForHooks).toHaveBeenCalledWith(expect.anything(), ['h2'], 1);
   });
 });

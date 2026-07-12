@@ -81,22 +81,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       // holds independent of the query shape. No arm mutation, no failure count.
       const userId = (post as { user_id?: string }).user_id;
       if (userId && views >= 100) {
-        if (!medianCache.has(userId)) {
-          medianCache.set(userId, await getTrailingMedianEngagement(client, userId));
-        }
-        const median = medianCache.get(userId) ?? null;
-        if (median !== null) {
-          const reward: 0 | 1 = engagementRate > median ? 1 : 0;
-          try {
+        try {
+          // The median fetch is a new failure surface (DB blip / RLS). It lives
+          // INSIDE this try so a throw degrades to "skip arms for THIS post"
+          // rather than aborting the whole nightly run at the route-level catch.
+          if (!medianCache.has(userId)) {
+            medianCache.set(userId, await getTrailingMedianEngagement(client, userId));
+          }
+          const median = medianCache.get(userId) ?? null;
+          if (median !== null) {
+            const reward: 0 | 1 = engagementRate > median ? 1 : 0;
             const res = await updateArmsForHooks(client, hookIds, reward);
             armsUpdated += res.updated;
             armsSkipped += res.skipped;
-          } catch (err) {
-            // Phase 2 tables missing or transient DB error: EMA still runs,
-            // post still gets marked processed. Never kill the cron for arms.
-            armsSkipped += hookIds.length;
-            console.warn('[intelligence-sync] hook_arms reward failed (Phase 2 migration applied?)', err);
           }
+        } catch (err) {
+          // Phase 2 tables missing or transient DB error: EMA still runs,
+          // post still gets marked processed. Never kill the cron for arms.
+          armsSkipped += hookIds.length;
+          console.warn('[intelligence-sync] hook_arms reward failed (Phase 2 migration applied?)', err);
         }
       }
 
