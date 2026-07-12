@@ -18,7 +18,8 @@ export type AnalyticsEvent =
   | 'generation_complete'
   | 'edit_feedback_submitted'
   | 'rl_hooks_updated'
-  | 'voice_drift_detected';
+  | 'voice_drift_detected'
+  | 'canary_alarm';
 
 export async function trackEvent(
   event: AnalyticsEvent,
