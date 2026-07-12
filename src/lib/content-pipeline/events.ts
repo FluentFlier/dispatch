@@ -36,7 +36,11 @@ export type PipelineEventType =
   | 'judge_parse_error'
   | 'provider_retry'
   | 'shipped_below_threshold'
-  | 'stage_contract_violation';
+  | 'stage_contract_violation'
+  // Not a degradation: one row per finished generation (Phase 4 observation
+  // record). This is the DENOMINATOR dashboards divide every other event
+  // count by to get a rate - keep it out of any "degradation types" list.
+  | 'generation_complete';
 
 export interface PipelineEventInput {
   requestId: string;
