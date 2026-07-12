@@ -69,7 +69,7 @@ export function ImageUpload({ imageUrl, onUpload, onRemove }: ImageUploadProps) 
         <button
           type="button"
           onClick={onRemove}
-          className="absolute top-2 right-2 w-7 h-7 rounded-full bg-bg-primary/80 flex items-center justify-center text-text-secondary hover:text-text-primary opacity-0 group-hover:opacity-100 transition-opacity"
+          className="absolute top-2 right-2 flex h-9 w-9 items-center justify-center rounded-full bg-paper/85 backdrop-blur-sm text-text-secondary hover:text-text-primary opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
         >
           <X size={14} />
         </button>

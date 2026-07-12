@@ -41,6 +41,7 @@ export default function LibraryPage() {
 
   // Selection
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
 
   // Editor drawer
   const [editorPost, setEditorPost] = useState<Post | null>(null);
@@ -391,21 +392,39 @@ export default function LibraryPage() {
           <button onClick={handleBulkDelete} className="flex items-center gap-1 text-[13px] text-accent-primary hover:opacity-80">
             <Trash2 className="w-3.5 h-3.5" /> Delete
           </button>
-          <div className="relative group">
-            <button className="flex items-center gap-1 text-[13px] text-text-secondary hover:text-text-primary">
+          <div className="relative">
+            <button
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={bulkStatusOpen}
+              onClick={() => setBulkStatusOpen((o) => !o)}
+              className="flex min-h-[44px] items-center gap-1 text-[13px] text-text-secondary hover:text-text-primary"
+            >
               Change Status <ChevronDown className="w-3.5 h-3.5" />
             </button>
-            <div className="absolute top-full left-0 mt-1 bg-bg-secondary border border-border rounded-lg py-1 shadow-card hidden group-hover:block z-20">
-              {STATUSES.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => handleBulkStatus(s)}
-                  className="block w-full text-left px-4 py-1.5 text-[13px] text-text-primary hover:bg-bg-tertiary capitalize"
-                >
-                  {STATUS_LABELS[s]}
-                </button>
-              ))}
-            </div>
+            {bulkStatusOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-10"
+                  aria-hidden
+                  onClick={() => setBulkStatusOpen(false)}
+                />
+                <div className="absolute top-full left-0 mt-1 bg-bg-secondary border border-border rounded-lg py-1 shadow-card z-20">
+                  {STATUSES.map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => {
+                        handleBulkStatus(s);
+                        setBulkStatusOpen(false);
+                      }}
+                      className="block w-full min-h-[44px] text-left px-4 py-1.5 text-[13px] text-text-primary hover:bg-bg-tertiary capitalize"
+                    >
+                      {STATUS_LABELS[s]}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
