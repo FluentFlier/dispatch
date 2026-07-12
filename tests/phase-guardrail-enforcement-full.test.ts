@@ -81,6 +81,17 @@ describe('Phase: Guardrail Consolidation - enforce.ts core', () => {
       expect(result.revisedForChecks).toBe(true);
       expect(result.text).toBe('fixed draft text');
     });
+
+    it('ships the unrevised draft (never throws) when the revise call fails', async () => {
+      // A below-threshold draft is the exact population enforcement rescues;
+      // a transient revise-call failure must not turn it into a 500.
+      chatCompletion.mockRejectedValue(new Error('provider 500'));
+      const { targetedRevise } = await import('@/lib/content-pipeline/enforce');
+      const ctx = { contentType: 'post', userPrompt: 'x' } as const;
+      const result = await targetedRevise('bad — draft with an em dash', ctx, undefined, 'req_test', 'test-stage');
+      expect(result.revisedForChecks).toBe(false);
+      expect(result.text).toBe('bad — draft with an em dash'); // original, unrevised
+    });
   });
 
   describe('escalateOnce', () => {
@@ -117,6 +128,17 @@ describe('Phase: Guardrail Consolidation - enforce.ts core', () => {
       const result = await escalateOnce(regenerate, 'req_test', 'test-stage');
       expect(regenerate).toHaveBeenCalledWith('smart-model');
       expect(result).toBe('escalated text');
+    });
+
+    it('returns null (never throws) when the regenerate call itself fails', async () => {
+      // llm.ts does NOT fail over on a non-quota 500; escalation must swallow
+      // it so a finished-but-below-threshold generation still ships best-of.
+      vi.doMock('@/lib/ai-tiers', () => ({ resolveModel: vi.fn().mockReturnValue('smart-model') }));
+      vi.doMock('@/lib/llm-budget', () => ({ checkGlobalLlmBudget: vi.fn().mockResolvedValue('ok') }));
+      const { escalateOnce } = await import('@/lib/content-pipeline/enforce');
+      const regenerate = vi.fn().mockRejectedValue(new Error('smart model 500'));
+      const result = await escalateOnce(regenerate, 'req_test', 'test-stage');
+      expect(result).toBeNull();
     });
   });
 });
