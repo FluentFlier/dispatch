@@ -1,8 +1,9 @@
 -- Phase 4 (spec 4.3): daily canary run results. One row per (day, case).
--- Service-role write, admin read via service client (getServiceClient bypasses
--- RLS, so no anon/authenticated policies are needed - mirrors the no-policy
--- service-role-only tables' intent in migrations/20260706225246_admin-ops-tables.sql,
--- style kept lowercase to match that file).
+-- Service-role write (cron via getServiceClient, RLS-bypassing); admin-only
+-- read. Grants the same project_admin read/write policy the sibling admin
+-- tables use (pipeline_events, admin_audit_log / cron_run_log) so an admin
+-- dashboard reading through a project_admin client does not silently get zero
+-- rows. Style kept lowercase to match those files.
 
 create table if not exists canary_results (
   id uuid primary key default gen_random_uuid(),
@@ -18,5 +19,7 @@ create table if not exists canary_results (
 create index if not exists idx_canary_results_run_date on canary_results (run_date);
 
 alter table canary_results enable row level security;
--- No anon/authenticated policies: service-role only (writes from the cron,
--- reads from the admin ops page via getServiceClient).
+
+do $$ begin
+  create policy canary_results_admin on canary_results for all to project_admin using (true) with check (true);
+exception when duplicate_object then null; end $$;
