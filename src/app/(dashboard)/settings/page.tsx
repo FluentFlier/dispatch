@@ -325,13 +325,13 @@ export default function SettingsPage() {
     }
 
     // Unipile success redirect lands on /settings?tab=connections&connected=true.
-    // Call /api/social-accounts/sync first — this is the fallback for local dev
-    // where the Unipile webhook can't reach localhost. In production the webhook
-    // already stored the account, so the sync is a fast no-op (accounts already exist).
+    // Sync (local-dev webhook fallback), then auto-import the just-connected
+    // account's posts as voice samples so connecting actually completes the voice
+    // profile — Settings previously only synced, leaving "voice profile
+    // incomplete" lit until the user manually imported in Voice Lab.
     if (searchParams.get('connected') === 'true') {
-      fetch('/api/social-accounts/sync', { method: 'POST' })
-        .catch(() => undefined)
-        .finally(() => refreshAccounts());
+      setActiveTab('connections');
+      void completeConnectVoiceImport();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
@@ -472,6 +472,52 @@ export default function SettingsPage() {
       }
     } catch {
       // silently fail
+    }
+  }
+
+  // Runs once after a Unipile connect redirect: sync the account, then import
+  // recent posts as voice samples for every connected LinkedIn/X account so the
+  // voice profile completes on connect (import-from-account seeds
+  // user_settings.sample_posts + voice_source='imported'). Idempotent — post
+  // persistence dedupes and the seed is a straight upsert.
+  async function completeConnectVoiceImport() {
+    try {
+      await fetch('/api/social-accounts/sync', { method: 'POST' }).catch(() => undefined);
+      const social = await fetch('/api/social-accounts')
+        .then((r) => (r.ok ? r.json() : { accounts: [] }))
+        .catch(() => ({ accounts: [] }));
+      const platforms = Array.from(
+        new Set(((social.accounts ?? []) as ConnectedAccount[]).map((a) => a.platform)),
+      ).filter((p): p is 'linkedin' | 'twitter' => p === 'linkedin' || p === 'twitter');
+
+      if (platforms.length === 0) {
+        refreshAccounts();
+        return;
+      }
+
+      setIntegrationNotice({ type: 'success', message: 'Importing your recent posts to learn your voice…' });
+      const results = await Promise.all(
+        platforms.map((platform) =>
+          fetch('/api/voice-lab/import-from-account', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ platform }),
+          })
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null),
+        ),
+      );
+      const imported = results.reduce((sum, r) => sum + (r?.count ?? 0), 0);
+      setIntegrationNotice(
+        imported > 0
+          ? { type: 'success', message: `Imported ${imported} posts. Your voice profile is ready.` }
+          : {
+              type: 'success',
+              message: 'Account connected. Import posts in Voice Lab to finish your voice profile.',
+            },
+      );
+    } finally {
+      refreshAccounts();
     }
   }
 
