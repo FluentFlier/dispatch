@@ -36,6 +36,23 @@ function llmConfigSummary() {
 }
 
 /**
+ * Non-secret presence probe for the Phase 4 canary + tracing env (spec 4.2/4.3).
+ * Reports only boolean key-presence and the non-secret judge model id so an
+ * operator can confirm the daily-canary judge and Langfuse wiring are
+ * provisioned in prod without exposing any secret value.
+ */
+function observabilityConfigSummary() {
+  return {
+    eval_judge_model: process.env.EVAL_JUDGE_MODEL?.trim() || null,
+    cerebras_key_set: Boolean(process.env.CEREBRAS_API_KEY?.trim()),
+    langfuse_keys_set: Boolean(
+      process.env.LANGFUSE_PUBLIC_KEY?.trim() && process.env.LANGFUSE_SECRET_KEY?.trim(),
+    ),
+    canary_batch: process.env.CANARY_BATCH?.trim() || null,
+  };
+}
+
+/**
  * GET /api/health: deployment + dependency probe for beta monitoring.
  *
  * Pass ?probe=llm to run a LIVE LLM completion (costs 1 tiny call) — presence
@@ -116,6 +133,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       timestamp: new Date().toISOString(),
       checks,
       llm: llmConfigSummary(),
+      observability: observabilityConfigSummary(),
       provider: socialMode,
       intelligence_health_url: '/api/intelligence/health',
       composio_health_url: '/api/integrations/composio/health',
