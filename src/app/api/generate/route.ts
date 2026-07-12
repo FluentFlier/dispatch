@@ -25,6 +25,7 @@ const RequestSchema = z.object({
   fast: z.boolean().optional(),
   useVoice: z.boolean().optional(),
   mentions: z.array(z.string().max(100)).max(10).optional(),
+  research: z.boolean().optional(),
 });
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -74,6 +75,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       hooksClient: client,
       vocabulary,
       structural,
+      research: parsed.data.research,
     });
 
     void trackEvent('generation_complete', {

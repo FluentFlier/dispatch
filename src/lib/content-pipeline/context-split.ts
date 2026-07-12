@@ -16,6 +16,7 @@ const KNOWN_SECTION_HEADERS = [
   'SEMANTIC MEMORY',
   'UNUSED STORY BANK',
   'PERFORMANCE BASELINE:',
+  'RESEARCH NOTES',
 ] as const;
 
 // The subset the substance stages are allowed to see. EMAIL VOICE is withheld
@@ -30,6 +31,7 @@ const SUBSTANCE_ALLOWED_HEADERS = [
   'STRUCTURAL PATTERNS:',
   'VOICE EXAMPLES',
   'PERFORMANCE BASELINE:',
+  'RESEARCH NOTES',
 ] as const;
 
 /**

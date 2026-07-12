@@ -23,6 +23,7 @@ const RequestSchema = z.object({
   contentType: z.enum(['post', 'thread', 'reply', 'comment', 'hooks', 'caption']).optional(),
   fast: z.boolean().optional(),
   useVoice: z.boolean().optional(),
+  research: z.boolean().optional(),
 });
 
 /**
@@ -77,6 +78,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       platform: parsed.data.platform,
       contentType: parsed.data.contentType,
       fast: parsed.data.fast,
+      research: parsed.data.research,
     });
 
     void trackEvent('generation_complete', {

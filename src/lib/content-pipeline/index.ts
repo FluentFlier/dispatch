@@ -15,6 +15,7 @@ import { isCompactMode, runCompactPipeline } from './compact';
 import { styleRulesFromChecks, runChecks, hardFailures, type CheckContext } from './checks';
 import { targetedRevise, escalateOnce, selectBest, type EnforceCandidate } from './enforce';
 import { emitPipelineEvent } from './events';
+import { runResearchStage } from './research';
 import { createRequestId } from '@/lib/logger';
 import { callStageChecked } from './stage-contract';
 import { withSpan, flushAfterResponse } from '@/lib/observability/langfuse';
@@ -23,6 +24,7 @@ import { recordGenerationOutcome } from '@/lib/observability/generation-outcome'
 type InsforgeClient = ReturnType<typeof createClient>;
 
 export type PipelineStage =
+  | 'research'
   | 'base'
   | 'hooks'
   | 'humanize'
@@ -57,6 +59,12 @@ export interface ContentPipelineInput {
   structural?: StructuralPatterns;
   /** Run the learned-hook rewrite stage even when the creator has their own opening style. */
   forceHooks?: boolean;
+  /**
+   * Stage 0 (opt-in): web-research the brief before drafting and inject the
+   * findings as a RESEARCH NOTES context section. Best-effort - a missing
+   * APIFY_TOKEN, timeout, or empty result set skips research silently.
+   */
+  research?: boolean;
   /** Correlates every pipeline_events row for one generation request. Generated
    * internally when omitted - callers only need to pass it if they want to
    * correlate pipeline events with their own request-scoped logging. */
@@ -217,8 +225,23 @@ async function runContentPipelineInner(
   const useVoice = input.useVoice !== false;
   const profile = useVoice ? input.profile : null;
   const skipEval = input.fast || !useVoice;
-  const substanceContext = substanceContextOnly(input.contextAdditions);
-  const fullContext = input.contextAdditions;
+
+  // --- Stage 0: Research (opt-in, best-effort) ---
+  // Runs before the context split so both the full and compact paths draft
+  // against the findings, and the fabricated_specifics check sees them as
+  // sourced context instead of invented numbers.
+  let contextAdditions = input.contextAdditions;
+  if (input.research) {
+    const researchBlock = await withSpan('stage:research', {}, () =>
+      runResearchStage({ userPrompt: input.userPrompt, requestId, userId: input.userId }));
+    if (researchBlock) {
+      contextAdditions = [contextAdditions, researchBlock].filter(Boolean).join('\n\n');
+      stagesCompleted.push('research');
+    }
+  }
+
+  const substanceContext = substanceContextOnly(contextAdditions);
+  const fullContext = contextAdditions;
 
   const contentType = input.contentType ?? 'post';
   const isProse =
@@ -235,7 +258,7 @@ async function runContentPipelineInner(
       requestId, userId: input.userId, event: 'compact_mode',
       detail: { model: input.model ?? process.env.LLM_MODEL },
     });
-    return runCompactPipeline({ ...input, requestId });
+    return runCompactPipeline({ ...input, requestId, contextAdditions });
   }
 
   // --- Stage 1: Base ---
