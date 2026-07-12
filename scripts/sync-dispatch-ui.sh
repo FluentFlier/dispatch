@@ -48,8 +48,8 @@ for dir in admin analytics billing dashboard engagement generate leads library v
   fi
 done
 
-# Admin shell layout styling
-cp "$UI/src/app/(admin)/layout.tsx" "$ROOT/src/app/(admin)/"
+# Admin shell layout styling (production auth layout — do not overwrite)
+# cp "$UI/src/app/(admin)/layout.tsx" "$ROOT/src/app/(admin)/"
 
 # Brand copy refresh
 cp "$UI/src/lib/brand.ts" "$ROOT/src/lib/"
