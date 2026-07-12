@@ -67,7 +67,12 @@ export async function streamCreatorDraft(
   if (input.mode === 'draft' && useVoice) {
     try {
       const vertical = topWeightedVertical(profile);
-      const resolved = await getBestHooksForGeneration(input.hooksClient, vertical, 5);
+      const resolved = await getBestHooksForGeneration(input.hooksClient, {
+        nicheId: (profile as { niche_id?: string | null } | null)?.niche_id ?? undefined,
+        topicText: input.userPrompt.slice(0, 1000),
+        vertical,
+        limit: 5,
+      });
       usedHookIds = resolved.hooks.map((h) => h.id);
       if (resolved.hooks.length > 0) {
         hookGuidance = `HOOK PATTERNS (adapt the STRUCTURE to this topic, never copy the words):\n${resolved.hooks
