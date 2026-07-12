@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { Plus, X } from 'lucide-react';
 import { SignalsSetupBanner } from '@/components/signals/SignalsSetupBanner';
 import { SignalRulesManager } from '@/components/signals/SignalRulesManager';
 import CalendarConnectionCard from '@/components/calendar/CalendarConnectionCard';
@@ -69,6 +69,8 @@ export function SignalsSetup() {
   const [success, setSuccess] = useState<string | null>(null);
   const [newSourceHandle, setNewSourceHandle] = useState('');
   const [newSourcePlatform, setNewSourcePlatform] = useState<'x' | 'linkedin'>('x');
+  const [newKeyword, setNewKeyword] = useState('');
+  const [removingKeywordId, setRemovingKeywordId] = useState<string | null>(null);
   const [enablingSend, setEnablingSend] = useState(false);
   const [togglingAuto, setTogglingAuto] = useState(false);
   const [connectingToolkit, setConnectingToolkit] = useState<'slack' | 'gmail' | null>(null);
@@ -232,6 +234,63 @@ export function SignalsSetup() {
     }
   };
 
+  /** Per-workspace topic cap; keep in sync with MAX_KEYWORD_SOURCES in the sources API. */
+  const MAX_TOPICS = 5;
+
+  /** Adds a monitored keyword/hashtag (an X keyword_search source). */
+  const handleAddKeyword = async () => {
+    const keyword = newKeyword.trim();
+    if (!keyword) return;
+    setError(null);
+    try {
+      const res = await fetch('/api/signals/sources', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          platform: 'x',
+          handle_or_url: keyword,
+          source_type: 'keyword_search',
+          label: keyword,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? 'Could not add topic');
+      }
+      const data = await res.json().catch(() => ({}));
+      if (data.source) setSources((prev) => [...prev, data.source as SignalSourceRow]);
+      setNewKeyword('');
+      setSuccess('Topic added. New posts about it will surface as leads within the hour.');
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not add topic');
+    }
+  };
+
+  /** Stops monitoring a topic (deletes the keyword_search source). */
+  const handleRemoveKeyword = async (id: string) => {
+    setRemovingKeywordId(id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/signals/sources/${id}`, {
+        method: 'DELETE',
+        credentials: 'same-origin',
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error ?? 'Could not remove topic');
+      }
+      setSources((prev) => prev.filter((s) => s.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Could not remove topic');
+    } finally {
+      setRemovingKeywordId(null);
+    }
+  };
+
+  const accountSources = sources.filter((s) => s.source_type !== 'keyword_search');
+  const keywordSources = sources.filter((s) => s.source_type === 'keyword_search');
+
   const setupState = {
     hasSources: sources.length > 0,
     linkedInConnected: Boolean(linkedIn?.connected),
@@ -271,15 +330,15 @@ export function SignalsSetup() {
       {/* --- Sources: who to watch --- */}
       <section className="rounded-lg border border-border bg-bg-secondary p-5 space-y-3">
         <div>
-          <h2 className="text-sm font-semibold text-text-primary">Who to watch ({sources.length})</h2>
+          <h2 className="text-sm font-semibold text-text-primary">Who to watch ({accountSources.length})</h2>
           <p className="mt-1 text-xs text-text-secondary">
             Follow founders on X or LinkedIn. When they post about funding or accelerators, they show
             up in your feed.
           </p>
         </div>
-        {sources.length > 0 && (
+        {accountSources.length > 0 && (
           <div className="flex flex-wrap gap-2">
-            {sources.map((s) => (
+            {accountSources.map((s) => (
               <span
                 key={s.id}
                 className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-primary px-2.5 py-1 text-xs text-text-primary"
@@ -314,6 +373,61 @@ export function SignalsSetup() {
           >
             <Plus className="h-4 w-4" />
             Follow
+          </button>
+        </div>
+      </section>
+
+      {/* --- Topics: keywords to monitor on X --- */}
+      <section className="rounded-lg border border-border bg-bg-secondary p-5 space-y-3">
+        <div>
+          <h2 className="text-sm font-semibold text-text-primary">
+            Topics to monitor ({keywordSources.length} of {MAX_TOPICS})
+          </h2>
+          <p className="mt-1 text-xs text-text-secondary">
+            We check X for new posts about each topic roughly every hour and surface the authors as
+            leads.
+          </p>
+        </div>
+        {keywordSources.length > 0 && (
+          <div className="flex flex-wrap gap-2">
+            {keywordSources.map((s) => (
+              <span
+                key={s.id}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-primary px-2.5 py-1 text-xs text-text-primary"
+              >
+                {s.label || s.handle_or_url}
+                <button
+                  type="button"
+                  onClick={() => handleRemoveKeyword(s.id)}
+                  disabled={removingKeywordId === s.id}
+                  aria-label={`Stop monitoring ${s.label || s.handle_or_url}`}
+                  className="text-text-tertiary hover:text-text-primary disabled:opacity-50"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <input
+            type="text"
+            placeholder={'keyword or #hashtag — e.g. "building in public"'}
+            value={newKeyword}
+            onChange={(e) => setNewKeyword(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void handleAddKeyword();
+            }}
+            className="flex-1 min-w-[160px] text-sm rounded-md border border-border bg-bg-primary px-3 py-2 min-h-[40px]"
+          />
+          <button
+            type="button"
+            onClick={handleAddKeyword}
+            disabled={keywordSources.length >= MAX_TOPICS}
+            className="inline-flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-md bg-accent-primary text-white min-h-[40px] disabled:opacity-50"
+          >
+            <Plus className="h-4 w-4" />
+            Monitor
           </button>
         </div>
       </section>

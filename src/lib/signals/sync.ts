@@ -4,7 +4,12 @@ import {
   SIGNALS_MAX_POSTS_PER_SOURCE,
   signalsApifyEnabled,
 } from '@/lib/signals/ingest/config';
-import { createApifyClient, fetchPostsViaApify } from '@/lib/signals/ingest/apify-fetch';
+import {
+  createApifyClient,
+  fetchKeywordPostsViaApify,
+  fetchPostsViaApify,
+} from '@/lib/signals/ingest/apify-fetch';
+import { getDirectorySettings } from '@/lib/signals/leads/store';
 import { processIngestedPosts, ingestSinglePost } from '@/lib/signals/ingest/process-batch';
 import { fetchPostsViaUnipile, unipileConfigured } from '@/lib/signals/ingest/unipile-fetch';
 import { getWorkspacePollAccount } from '@/lib/signals/ingest/workspace-account';
@@ -43,6 +48,19 @@ async function fetchPostsForSource(
 
   if (mode === 'webhook') {
     return [];
+  }
+
+  // Keyword monitoring runs an X *search*, which only Apify supports (Unipile
+  // has no search endpoint). v1 is X-only; LinkedIn keyword sources are a no-op.
+  if (source.source_type === 'keyword_search') {
+    if (source.platform !== 'x') return [];
+    const apify = createApifyClient();
+    if (!apify || (mode !== 'apify' && !signalsApifyEnabled())) {
+      throw new Error(
+        'Keyword monitoring requires Apify: set SIGNALS_USE_APIFY=true and APIFY_TOKEN',
+      );
+    }
+    return fetchKeywordPostsViaApify(source, apify, maxItems);
   }
 
   const tryUnipile = mode === 'unipile' || mode === 'auto';
@@ -123,6 +141,18 @@ export async function syncWorkspaceSignals(
     )
     .slice(0, safety.max_sources_per_sync_run);
 
+  // ICP context for the keyword-match relevance gate. Loaded once per run, and
+  // only when a keyword source is actually up for polling; a load failure just
+  // skips the gate (matches surface at baseline confidence).
+  let icpDescription: string | null = null;
+  if (eligible.some((s) => s.source_type === 'keyword_search')) {
+    try {
+      icpDescription = (await getDirectorySettings(client, workspaceId)).icp_description;
+    } catch {
+      icpDescription = null;
+    }
+  }
+
   for (let i = 0; i < eligible.length; i++) {
     const source = eligible[i];
     let posts: IngestedPost[] = [];
@@ -154,6 +184,7 @@ export async function syncWorkspaceSignals(
       dryRun: opts.dryRun,
       maxItems,
       rules,
+      icpDescription,
     });
     result.postsIngested += batch.postsIngested;
     result.signalsCreated += batch.signalsCreated;

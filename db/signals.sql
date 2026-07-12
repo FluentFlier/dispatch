@@ -67,7 +67,7 @@ create table if not exists signal_events (
   workspace_id uuid not null,
   raw_post_id uuid references signal_raw_posts(id) on delete cascade,
   signal_type text not null
-    check (signal_type in ('accelerator_join', 'funding_round', 'role_change', 'launch', 'other')),
+    check (signal_type in ('accelerator_join', 'funding_round', 'role_change', 'launch', 'other', 'keyword_match')),
   company_name text,
   person_name text,
   accelerator_name text,

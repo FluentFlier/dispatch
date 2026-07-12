@@ -15,6 +15,12 @@ const CreateSourceSchema = z.object({
   enabled: z.boolean().optional(),
 }).strict();
 
+/** Per-workspace ceiling on monitored keywords — each one costs an X search per poll. */
+const MAX_KEYWORD_SOURCES = 5;
+
+/** Keyword searches poll hourly by default (profiles default to 30 min). */
+const KEYWORD_POLL_INTERVAL_MINUTES = 60;
+
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -49,6 +55,22 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   try {
     const client = getServerClient();
+    const isKeyword = body.source_type === 'keyword_search';
+
+    if (isKeyword) {
+      const { data: existing } = await client.database
+        .from('signal_sources')
+        .select('id')
+        .eq('workspace_id', workspaceId)
+        .eq('source_type', 'keyword_search');
+      if ((existing?.length ?? 0) >= MAX_KEYWORD_SOURCES) {
+        return NextResponse.json(
+          { error: `You can monitor up to ${MAX_KEYWORD_SOURCES} topics. Remove one to add another.` },
+          { status: 422 },
+        );
+      }
+    }
+
     const { data, error } = await client.database
       .from('signal_sources')
       .insert({
@@ -58,6 +80,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         source_type: body.source_type ?? 'account',
         label: body.label ?? null,
         enabled: body.enabled ?? true,
+        ...(isKeyword ? { poll_interval_minutes: KEYWORD_POLL_INTERVAL_MINUTES } : {}),
       })
       .select('*')
       .single();

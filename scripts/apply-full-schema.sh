@@ -53,6 +53,7 @@ FILES=(
   migrations/20260707213000_signal-outreach-edits.sql
   migrations/20260707220000_signal-lead-contacts-linkedin-verified.sql
   migrations/20260707221000_dedupe-signal-lead-contacts.sql
+  migrations/20260711140000_signal-events-keyword-match.sql
   migrations/20260703010000_subscriptions-allow-unlimited-plan.sql
   # 8. Multi-tenancy (additive only)
   db/multi-tenancy.sql

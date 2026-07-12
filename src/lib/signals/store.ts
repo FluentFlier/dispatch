@@ -261,9 +261,13 @@ export async function createSignalEvent(
     signal_summary: classified.signalSummary,
   };
 
-  notifySlackForNewSignal(client, workspaceId, eventRow).catch((err) => {
-    console.error('[signals/slack] alert failed', err);
-  });
+  // Keyword matches are high-volume by nature; per-signal Slack alerts would
+  // be spam. They reach the user via the feed and the daily digest instead.
+  if (classified.signalType !== 'keyword_match') {
+    notifySlackForNewSignal(client, workspaceId, eventRow).catch((err) => {
+      console.error('[signals/slack] alert failed', err);
+    });
+  }
 
   return { created: true, eventId };
 }

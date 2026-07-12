@@ -114,7 +114,18 @@ export function normalizeEvent(e: SignalEventWithPost): UnifiedLeadCard {
     sourceUrl: e.raw_post?.post_url ?? null,
     batch: e.batch,
     accelerator: e.accelerator_name,
-    contact: e.person_name ? { name: e.person_name } : null,
+    // Keyword matches carry the author's X handle as a real messaging channel:
+    // the poster IS the lead, so the card should be contact-ready for the X-DM
+    // flow. Other signal types keep the name-only contact (no channel implied).
+    contact:
+      e.signal_type === 'keyword_match' && e.raw_post?.author_handle
+        ? {
+            name: e.person_name ?? e.raw_post.author_name ?? e.raw_post.author_handle,
+            x_handle: e.raw_post.author_handle,
+          }
+        : e.person_name
+          ? { name: e.person_name }
+          : null,
     contactStatus: null,
     score: e.confidence ?? 0,
     status: SIGNAL_STATUS_TO_LEAD_STATUS[e.status],

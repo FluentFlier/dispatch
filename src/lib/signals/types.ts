@@ -48,7 +48,8 @@ export type SignalType =
   | 'funding_round'
   | 'role_change'
   | 'launch'
-  | 'other';
+  | 'other'
+  | 'keyword_match';
 
 export type SignalEventStatus =
   | 'pending'
