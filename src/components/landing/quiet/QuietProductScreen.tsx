@@ -41,15 +41,17 @@ export default function QuietProductScreen() {
           Content OS
         </div>
         <nav className="space-y-0.5" aria-label="Product preview">
-          {NAV.map(({ label, icon: Icon, active }) => (
+          {NAV.map((item) => (
             <div
-              key={label}
+              key={item.label}
               className={`flex items-center gap-2 rounded-md px-2 py-1.5 text-[7px] ${
-                active ? 'bg-[#fcfbf8] font-semibold shadow-sm' : 'text-[#6c6861]'
+                'active' in item && item.active
+                  ? 'bg-[#fcfbf8] font-semibold shadow-sm'
+                  : 'text-[#6c6861]'
               }`}
             >
-              <Icon className="h-2.5 w-2.5" strokeWidth={1.8} />
-              {label}
+              <item.icon className="h-2.5 w-2.5" strokeWidth={1.8} />
+              {item.label}
             </div>
           ))}
         </nav>

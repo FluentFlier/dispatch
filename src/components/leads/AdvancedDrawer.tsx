@@ -1,10 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { X } from 'lucide-react';
+import { X, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
-import { IcpChat } from '@/components/leads/IcpChat';
 import type { DirectorySettingsRow, FollowedCompanyRow } from '@/lib/signals/types';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
@@ -39,17 +38,46 @@ export function AdvancedDrawer({
   onDiscoveryComplete,
   toast,
 }: AdvancedDrawerProps) {
+  const [icpDescription, setIcpDescription] = useState('');
   const [verticals, setVerticals] = useState('');
   const [keywords, setKeywords] = useState('');
   const [company, setCompany] = useState('');
   const [saving, setSaving] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
 
   useEffect(() => {
     if (settings) {
+      setIcpDescription(settings.icp_description ?? '');
       setVerticals((settings.icp_verticals ?? []).join(', '));
       setKeywords((settings.icp_keywords ?? []).join(', '));
     }
   }, [settings]);
+
+  const applyIcp = async () => {
+    if (icpDescription.trim().length < 10) {
+      toast('Describe your ICP in at least one sentence.', 'error');
+      return;
+    }
+    setDiscovering(true);
+    try {
+      const res = await fetch('/api/leads/icp', {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ description: icpDescription.trim(), discover: true }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'ICP apply failed');
+      onSettingsSaved(data.settings);
+      const inserted = data.sync?.inserted ?? 0;
+      toast(inserted > 0 ? `ICP applied — ${inserted} new leads found.` : 'ICP applied — discovery running.');
+      onDiscoveryComplete?.();
+    } catch (err) {
+      console.error('ICP apply failed', err);
+      toast('Could not apply ICP.', 'error');
+    } finally {
+      setDiscovering(false);
+    }
+  };
 
   const apply = async () => {
     setSaving(true);
@@ -58,7 +86,7 @@ export function AdvancedDrawer({
         method: 'PUT',
         headers: jsonHeaders,
         body: JSON.stringify({
-          icp_description: settings?.icp_description?.trim() || null,
+          icp_description: icpDescription.trim() || null,
           icp_verticals: split(verticals),
           icp_keywords: split(keywords),
         }),
@@ -98,14 +126,21 @@ export function AdvancedDrawer({
         <button onClick={onClose} aria-label="Close GTM setup drawer" className="p-1 text-text-tertiary hover:text-text-primary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary rounded"><X className="h-5 w-5" /></button>
       </div>
 
-      <section className="mb-6">
-        <IcpChat
-          compact
-          settings={settings}
-          onSettingsSaved={onSettingsSaved}
-          onDiscoveryComplete={onDiscoveryComplete}
-          toast={toast}
+      <section className="space-y-3 mb-6">
+        <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">Describe your ICP</p>
+        <p className="text-xs text-text-tertiary">
+          Tell us who you sell to in plain English. We parse it into filters, update your GTM playbook, and discover matching leads (YC + TinyFish).
+        </p>
+        <textarea
+          value={icpDescription}
+          onChange={(e) => setIcpDescription(e.target.value)}
+          rows={4}
+          placeholder="Seed-stage fintech startups from YC W25 that need modern treasury and banking..."
+          className="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
         />
+        <Button variant="primary" size="sm" onClick={applyIcp} loading={discovering}>
+          <Sparkles className="h-4 w-4" /> Find leads for this ICP
+        </Button>
       </section>
 
       <section className="space-y-3 mb-6">

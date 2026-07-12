@@ -13,6 +13,9 @@ interface UnifiedFeedProps {
   onSelect: (id: string) => void;
   /** Tells the feed whether a given card is a followed company (drives the pin). */
   isFollowed: (card: UnifiedLeadCard) => boolean;
+  /** Bulk-select: when provided, rows show a checkbox and report toggles. */
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
 /** A single shimmer row shown while the first feed load is in flight. */
@@ -44,6 +47,8 @@ export function UnifiedFeed({
   refreshing,
   onSelect,
   isFollowed,
+  selectedIds,
+  onToggleSelect,
 }: UnifiedFeedProps) {
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -94,6 +99,8 @@ export function UnifiedFeed({
           followed={isFollowed(card)}
           onSelect={() => onSelect(card.id)}
           onKeyDown={handleKeyDown(i)}
+          checked={selectedIds?.has(card.id)}
+          onToggleSelect={onToggleSelect ? () => onToggleSelect(card.id) : undefined}
         />
       ))}
     </div>
