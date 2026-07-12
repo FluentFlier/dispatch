@@ -65,7 +65,9 @@ describe('Phase: LLM failover', () => {
 
   it('throws the original quota error when no fallback is configured', async () => {
     delete process.env.HUGGINGFACE_API_KEY; // no fallback available
-    // retry-after 0 keeps the in-place retry loop near-instant for the test.
+    // retry-after 0 no longer means near-instant (spec 3.4: 1s floor + jitter
+    // on every backoff) - this test only asserts the eventual rejection, not
+    // timing, so it is unaffected by the floor.
     const fetchSpy = vi.fn().mockResolvedValue(res(429, { error: { message: 'limit' } }, { 'retry-after': '0' }));
     vi.stubGlobal('fetch', fetchSpy);
 

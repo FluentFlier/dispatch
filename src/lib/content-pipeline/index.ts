@@ -16,6 +16,7 @@ import { styleRulesFromChecks, runChecks, hardFailures, type CheckContext } from
 import { targetedRevise, escalateOnce, selectBest, type EnforceCandidate } from './enforce';
 import { emitPipelineEvent } from './events';
 import { createRequestId } from '@/lib/logger';
+import { callStageChecked } from './stage-contract';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -138,6 +139,7 @@ async function runBaseStage(
   input: ContentPipelineInput,
   substanceContext: string | undefined,
   checkCtx: CheckContext,
+  requestId: string,
 ): Promise<string> {
   const composeHints = buildVoiceComposeHints(input.platform, input.contentType ?? 'post', {
     creatorHookPattern: input.structural?.hook_pattern,
@@ -161,7 +163,7 @@ async function runBaseStage(
     : `${BASE_SYSTEM}\n\n${merged}`;
 
   return stripEmDashes(
-    await chatCompletion(system, input.userPrompt, { temperature: 0.75, maxTokens: 1200, model: input.model }),
+    await callStageChecked(system, input.userPrompt, { temperature: 0.75, model: input.model }, 'base', requestId, ''),
   );
 }
 
@@ -175,6 +177,7 @@ async function runHookStage(
   substanceContext: string | undefined,
   model: string | undefined,
   checkCtx: CheckContext,
+  requestId: string,
 ): Promise<string> {
   if (hooks.length === 0) return baseText;
 
@@ -186,7 +189,7 @@ async function runHookStage(
   const system = [HOOK_SYSTEM, rules, substanceContext].filter(Boolean).join('\n\n');
   const prompt = `ORIGINAL REQUEST:\n${userPrompt}\n\nBASE DRAFT:\n---\n${baseText}\n---\n\nHOOK EXAMPLES (adapt structure to this topic):\n${examples}\n\nRewrite with a stronger hook opening. Return ONLY the full post.`;
 
-  return stripEmDashes(await chatCompletion(system, prompt, { temperature: 0.7, maxTokens: 1200, model }));
+  return stripEmDashes(await callStageChecked(system, prompt, { temperature: 0.7, model }, 'hooks', requestId, baseText));
 }
 
 /**
@@ -224,7 +227,7 @@ export async function runContentPipeline(
 
   // --- Stage 1: Base ---
   const baseCheckCtx = buildCheckContext(input, contentType, substanceContext, profile);
-  let text = await runBaseStage(input, substanceContext, baseCheckCtx);
+  let text = await runBaseStage(input, substanceContext, baseCheckCtx, requestId);
   stagesCompleted.push('base');
 
   // Voice-off: substance + humanize. "No voice" must still read like a human
@@ -297,7 +300,7 @@ export async function runContentPipeline(
     if (resolved.usedStaticFallback) {
       await emitPipelineEvent({ requestId, userId: input.userId, event: 'hook_fallback_static', detail: { vertical } });
     }
-    text = await runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model, baseCheckCtx);
+    text = await runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model, baseCheckCtx, requestId);
     stagesCompleted.push('hooks');
   }
 
@@ -349,7 +352,8 @@ ${text}
 
 Return ONLY the final post.`;
 
-    text = stripEmDashes(await chatCompletion(voiceSystem, voicePrompt, { temperature: 0.68, maxTokens: 1200, model: input.model }));
+    const preVoiceText = text;
+    text = stripEmDashes(await callStageChecked(voiceSystem, voicePrompt, { temperature: 0.68, model: input.model }, 'voice', requestId, preVoiceText));
     stagesCompleted.push('voice');
   }
 
@@ -394,7 +398,8 @@ ${evaluation.revision_notes || 'Sound more like the creator. Less generic.'}
 Return ONLY the revised post.`;
 
       const voiceSystem = buildSystemPrompt(profile, voiceStageContext || undefined);
-      text = stripEmDashes(await chatCompletion(voiceSystem, revisePrompt, { temperature: 0.7, maxTokens: 1200, model: input.model }));
+      const preReviseText = text;
+      text = stripEmDashes(await callStageChecked(voiceSystem, revisePrompt, { temperature: 0.7, model: input.model }, 'revise', requestId, preReviseText));
       revised = true;
       lastActionWasRevise = true;
 
