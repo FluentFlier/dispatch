@@ -49,12 +49,18 @@ export function shouldCanaryAlarm(
 }
 
 function ctxFromCase(c: CanaryCase): CheckContext {
+  // Mirror prod Gate B (buildCheckContext in content-pipeline/index.ts): pass the
+  // fixture's display_name so fabricatedSpecifics allow-lists the creator's own
+  // name. Omitting it flags the creator's name as a fabricated proper noun in
+  // canary scoring when prod would not - noise in the very pass-rate the alarm keys on.
+  const fixture = c.vars.inlineFixture;
   return {
     contentType: c.vars.contentType ?? 'post',
     platform: c.vars.platform,
     userPrompt: c.vars.userPrompt,
     sourceContext: c.vars.sourceContext,
     mentions: c.vars.mentions,
+    profile: fixture?.profile ? { display_name: (fixture.profile as { display_name?: string }).display_name } : null,
   };
 }
 

@@ -57,11 +57,29 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         });
         ran++;
       } catch (err) {
-        // One broken case (provider 500, unique-violation from a double-fire)
-        // must not kill the batch. It stays "not done" and a later invocation
-        // retries it.
+        // One broken case (provider 500, budget-cap LlmError) must not kill the
+        // batch. Write a placeholder failure row so the case counts as done and
+        // the day can always complete - a persistently-broken case then surfaces
+        // as a sustained pass-rate drop (alarm fires, human sees detail.runError)
+        // instead of silently pinning the day at 49/50 forever and disabling
+        // drift detection. One transient throw is 1/50 = 2% for one day, below
+        // the 3-point sustained-3-day alarm threshold, so it cannot false-alarm.
+        // ponytail: no within-day retry for transient errors; silent-dark is the
+        // worse failure, and the case runs fresh next day (rows are per run_date).
         failedToRun++;
         console.warn(`[eval-canary] case ${c.id} failed`, err);
+        try {
+          await client.database.from('canary_results').insert({
+            run_date: runDate,
+            case_id: c.id,
+            hard_pass: false,
+            judge_pass: false,
+            detail: { runError: err instanceof Error ? err.message : String(err) },
+          });
+          ran++; // placeholder row counts toward day-completion
+        } catch {
+          // Unique-violation from a genuine double-fire: row already exists, leave it.
+        }
       }
     }
 

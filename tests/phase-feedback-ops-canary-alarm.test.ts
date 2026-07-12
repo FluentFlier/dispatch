@@ -35,4 +35,12 @@ describe('shouldCanaryAlarm', () => {
   it('no alarm with fewer than 4 complete days of history', () => {
     expect(shouldCanaryAlarm([day('2026-07-08', 0.5), day('2026-07-09', 0.5), day('2026-07-10', 0.5)], 50).alarm).toBe(false);
   });
+  it('a 50-row day with placeholder-failure rows still counts as complete and drives the alarm', () => {
+    // Route's per-case catch inserts hard_pass=false placeholder rows for
+    // persistently-broken cases so the day still reaches 50 rows (caseCount=50).
+    // Those failures lower passRate; a sustained broken case must fire the alarm.
+    const days = baselineWeek(0.94).concat([day('2026-07-08', 0.90), day('2026-07-09', 0.90), day('2026-07-10', 0.90)]);
+    const r = shouldCanaryAlarm(days, 50);
+    expect(r.alarm).toBe(true); // 50-row days (some failed) are complete, drop is sustained
+  });
 });
