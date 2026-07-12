@@ -17,6 +17,7 @@ import { SLOP_WORDS, SLOP_PHRASES } from './slop-lexicon';
 import { emitPipelineEvent } from './events';
 import { createRequestId } from '@/lib/logger';
 import { callStageChecked } from './stage-contract';
+import { withSpan } from '@/lib/observability/langfuse';
 
 /**
  * Compact 2-call pipeline for small models (Llama-8B on the HF router, Groq
@@ -171,7 +172,8 @@ export async function runCompactPipeline(
   const draftSystem = buildCompactDraftSystem(input);
   const system = input.systemOverride ? `${input.systemOverride}\n\n${draftSystem}` : draftSystem;
   let text = stripEmDashes(
-    await callStageChecked(system, input.userPrompt, { temperature: 0.7, model: input.model }, 'compact-draft', requestId, ''),
+    await withSpan('compact:draft', { model: input.model ?? process.env.LLM_MODEL ?? 'env-default' },
+      () => callStageChecked(system, input.userPrompt, { temperature: 0.7, model: input.model }, 'compact-draft', requestId, '')),
   );
   const stagesCompleted: ContentPipelineResult['stagesCompleted'] = ['base'];
 
@@ -183,7 +185,8 @@ export async function runCompactPipeline(
   text = deterministicPreClean(text, preserve);
   const preEditText = text;
   text = stripEmDashes(
-    await callStageChecked(buildCompactEditSystem(input), `DRAFT:\n---\n${text}\n---`, { temperature: 0.4, model: input.model }, 'compact-edit', requestId, preEditText),
+    await withSpan('compact:edit', {},
+      () => callStageChecked(buildCompactEditSystem(input), `DRAFT:\n---\n${text}\n---`, { temperature: 0.4, model: input.model }, 'compact-edit', requestId, preEditText)),
   );
   stagesCompleted.push('humanize');
 

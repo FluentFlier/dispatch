@@ -3,6 +3,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { updateFromEdits, updateFromEditsDB } from '@/lib/hooks-intelligence/rl-trainer';
 import { pillarToVertical } from '@/lib/engagement/categorize-leads';
 import { trackEvent } from '@/lib/analytics';
+import { applyEditPenaltyToArms } from '@/lib/hooks-intelligence/rewards';
 import { z } from 'zod';
 
 const FeedbackSchema = z.object({
@@ -68,6 +69,18 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     dbUpdated = await updateFromEditsDB(client, hookIds, magnitude, vertical, user.id, postId);
   }
 
+  // Phase 4: half-weight negative to Thompson arms. An edit is a weaker
+  // signal than a flop, so beta += 0.5 (vs 1.0 for a below-median post).
+  // Threshold 30 matches the "heavy rewrite" bar used in rl-trainer.
+  let armsPenalized = 0;
+  if (hookIds.length > 0 && magnitude >= 30) {
+    try {
+      armsPenalized = await applyEditPenaltyToArms(client, hookIds);
+    } catch (err) {
+      console.warn('[hooks/feedback] hook_arms edit penalty failed (Phase 2 migration applied?)', err);
+    }
+  }
+
   // Legacy file-based RL for bootstrap hooks not yet in DB.
   updateFromEdits([
     {
@@ -81,7 +94,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     post_id: postId,
     magnitude,
     hooks_penalized: dbUpdated,
+    arms_penalized: armsPenalized,
   });
 
-  return NextResponse.json({ ok: true, dbUpdated, hookIds: hookIds.length });
+  return NextResponse.json({ ok: true, dbUpdated, armsPenalized, hookIds: hookIds.length });
 }

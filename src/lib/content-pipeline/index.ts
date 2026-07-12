@@ -17,6 +17,8 @@ import { targetedRevise, escalateOnce, selectBest, type EnforceCandidate } from 
 import { emitPipelineEvent } from './events';
 import { createRequestId } from '@/lib/logger';
 import { callStageChecked } from './stage-contract';
+import { withSpan, flushAfterResponse } from '@/lib/observability/langfuse';
+import { recordGenerationOutcome } from '@/lib/observability/generation-outcome';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -76,6 +78,13 @@ export interface ContentPipelineResult {
   stagesCompleted: PipelineStage[];
   humanizePasses?: string[];
 }
+
+/**
+ * Bump the patch suffix on ANY change to a prompt string in this file,
+ * compact.ts, humanizer.ts, or voice-evaluator.ts (RUNBOOK rule). Tagged on
+ * every Langfuse trace so quality trends segment by prompt generation.
+ */
+export const PROMPT_VERSION = '2026-07-12.1';
 
 const BASE_SYSTEM = `You are an expert social content strategist writing for real creators.
 
@@ -200,7 +209,7 @@ async function runHookStage(
  * Hooks on substance preserve facts; humanize before voice removes AI tells first;
  * voice last makes it sound like THEM without reintroducing slop.
  */
-export async function runContentPipeline(
+async function runContentPipelineInner(
   input: ContentPipelineInput,
 ): Promise<ContentPipelineResult> {
   const stagesCompleted: PipelineStage[] = [];
@@ -227,7 +236,8 @@ export async function runContentPipeline(
 
   // --- Stage 1: Base ---
   const baseCheckCtx = buildCheckContext(input, contentType, substanceContext, profile);
-  let text = await runBaseStage(input, substanceContext, baseCheckCtx, requestId);
+  let text = await withSpan('stage:base', { model: input.model ?? process.env.LLM_MODEL ?? 'env-default' },
+    () => runBaseStage(input, substanceContext, baseCheckCtx, requestId));
   stagesCompleted.push('base');
 
   // Voice-off: substance + humanize. "No voice" must still read like a human
@@ -300,7 +310,8 @@ export async function runContentPipeline(
     if (resolved.usedStaticFallback) {
       await emitPipelineEvent({ requestId, userId: input.userId, event: 'hook_fallback_static', detail: { vertical } });
     }
-    text = await runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model, baseCheckCtx, requestId);
+    text = await withSpan('stage:hooks', { hookCount: resolved.hooks.length },
+      () => runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model, baseCheckCtx, requestId));
     stagesCompleted.push('hooks');
   }
 
@@ -309,12 +320,12 @@ export async function runContentPipeline(
   const shouldHumanize = input.humanizeAlways || isProse;
 
   if (shouldHumanize) {
-    const humanized = await humanizePipeline(text, {
+    const humanized = await withSpan('stage:humanize', {}, () => humanizePipeline(text, {
       profile: null,
       skipVoice: true,
       skipAudit: false,
       vocabulary: input.vocabulary,
-    });
+    }));
     text = humanized.text;
     humanizePasses = humanized.passes;
     stagesCompleted.push('humanize');
@@ -353,7 +364,8 @@ ${text}
 Return ONLY the final post.`;
 
     const preVoiceText = text;
-    text = stripEmDashes(await callStageChecked(voiceSystem, voicePrompt, { temperature: 0.68, model: input.model }, 'voice', requestId, preVoiceText));
+    text = stripEmDashes(await withSpan('stage:voice', { model: input.model ?? process.env.LLM_MODEL ?? 'env-default' },
+      () => callStageChecked(voiceSystem, voicePrompt, { temperature: 0.68, model: input.model }, 'voice', requestId, preVoiceText)));
     stagesCompleted.push('voice');
   }
 
@@ -368,7 +380,8 @@ Return ONLY the final post.`;
 
     for (let i = 0; i < maxIterations; i++) {
       iterations = i + 1;
-      evaluation = await evaluateDraft(text, profile, voiceStageContext || undefined, evalContentType);
+      evaluation = await withSpan('stage:evaluate', { iteration: i + 1 },
+        () => evaluateDraft(text, profile, voiceStageContext || undefined, evalContentType));
       lastActionWasRevise = false;
 
       if (evaluation.parse_error) {
@@ -420,7 +433,8 @@ Return ONLY the revised post.`;
     // draft, not the text we return. Re-evaluate the final draft so score matches
     // output. A parse glitch on this final pass keeps the prior evaluation.
     if (lastActionWasRevise) {
-      const finalEval = await evaluateDraft(text, profile, voiceStageContext || undefined, evalContentType);
+      const finalEval = await withSpan('stage:evaluate', { iteration: iterations + 1, final: true },
+        () => evaluateDraft(text, profile, voiceStageContext || undefined, evalContentType));
       if (!finalEval.parse_error) evaluation = finalEval;
     }
     stagesCompleted.push('evaluate');
@@ -483,4 +497,38 @@ Return ONLY the revised post.`;
     iterations,
     hookExplanations,
   );
+}
+
+/**
+ * Public entry: same signature and behavior as runContentPipelineInner. Adds
+ * a Langfuse trace (no-op without keys), a fire-and-forget outcome record,
+ * and a post-response flush. Phase 4 is observation only - errors here can
+ * never fail generation (withSpan/flushAfterResponse never throw on their
+ * own, and any error inside the wrapped fn still propagates unchanged).
+ *
+ * requestId is generated here (once) and threaded into the inner call so the
+ * outcome record's request_id matches every degradation event the inner
+ * pipeline emits for the same generation - the whole point of a shared
+ * request_id (see ContentPipelineInput.requestId doc).
+ */
+export async function runContentPipeline(
+  input: ContentPipelineInput,
+): Promise<ContentPipelineResult> {
+  const requestId = input.requestId ?? createRequestId();
+  try {
+    return await withSpan('generation', {
+      requestId,
+      model: input.model ?? process.env.LLM_MODEL ?? 'env-default',
+      promptVersion: PROMPT_VERSION,
+      platform: input.platform,
+      contentType: input.contentType ?? 'post',
+      useVoice: input.useVoice !== false,
+    }, async () => {
+      const result = await runContentPipelineInner({ ...input, requestId });
+      void recordGenerationOutcome(requestId, input, result).catch(() => undefined);
+      return result;
+    });
+  } finally {
+    flushAfterResponse();
+  }
 }
