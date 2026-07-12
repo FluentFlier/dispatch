@@ -84,7 +84,7 @@ export interface ContentPipelineResult {
  * compact.ts, humanizer.ts, or voice-evaluator.ts (RUNBOOK rule). Tagged on
  * every Langfuse trace so quality trends segment by prompt generation.
  */
-export const PROMPT_VERSION = '2026-07-12.1';
+export const PROMPT_VERSION = '2026-07-12.2';
 
 const BASE_SYSTEM = `You are an expert social content strategist writing for real creators.
 
@@ -221,8 +221,12 @@ async function runContentPipelineInner(
   const fullContext = input.contextAdditions;
 
   const contentType = input.contentType ?? 'post';
-  const isProse = contentType === 'post' || contentType === 'reply' || contentType === 'comment';
+  const isProse =
+    contentType === 'post' || contentType === 'thread' || contentType === 'reply' || contentType === 'comment';
   const evalContentType = contentType === 'reply' || contentType === 'comment' ? contentType : 'post';
+  // Threads are ----separated tweet sequences; merging their "paragraphs"
+  // into 3-sentence blocks would destroy the tweet boundaries.
+  const enforceParagraphs = isProse && contentType !== 'thread';
 
   // Small models can't survive the full 6-11 rewrite chain - route prose to
   // the 2-call compact pipeline (env LLM_PIPELINE_MODE overrides detection).
@@ -262,17 +266,17 @@ async function runContentPipelineInner(
       text = voiceOffGate.text;
       const voiceOffFails = hardFailures(voiceOffGate.checkResults);
       const voiceOffFlags = voiceOffFails.length ? ['hard_check_failed', ...voiceOffFails.map((f) => f.id)] : [];
-      return finalizeResult(text, isProse, undefined, false, voiceOffFlags, stagesCompleted, h.passes, undefined);
+      return finalizeResult(text, enforceParagraphs, undefined, false, voiceOffFlags, stagesCompleted, h.passes, undefined);
     }
     if (input.humanizeAlways) {
       const h = await humanizePipeline(text, { skipVoice: true, skipAudit: true });
       text = h.text;
       stagesCompleted.push('humanize');
-      return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, h.passes, undefined);
+      return finalizeResult(text, enforceParagraphs, undefined, false, [], stagesCompleted, h.passes, undefined);
     }
     // revised=false: no revise loop runs on the voice-off path, so the draft was
     // never revised (was mislabeled true, showing a false "(revised)" badge).
-    return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, undefined, undefined);
+    return finalizeResult(text, enforceParagraphs, undefined, false, [], stagesCompleted, undefined, undefined);
   }
 
   // Fast mode / non-prose: base + light humanize
@@ -281,11 +285,11 @@ async function runContentPipelineInner(
       const h = await humanizePipeline(text, { skipVoice: true, skipAudit: true });
       text = h.text;
       stagesCompleted.push('humanize');
-      return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, h.passes, undefined);
+      return finalizeResult(text, enforceParagraphs, undefined, false, [], stagesCompleted, h.passes, undefined);
     }
     // revised=false: fast/non-prose skips the revise loop (was passing skipEval,
     // which is true in fast mode -> a false "(revised)" badge).
-    return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, undefined, undefined);
+    return finalizeResult(text, enforceParagraphs, undefined, false, [], stagesCompleted, undefined, undefined);
   }
 
   // --- Stage 2: Hooks ---
@@ -487,7 +491,7 @@ Return ONLY the revised post.`;
 
   return finalizeResult(
     text,
-    true,
+    enforceParagraphs,
     evaluation,
     revised,
     [...(evaluation && !evaluation.pass ? ['below_voice_threshold'] : []), ...flags],

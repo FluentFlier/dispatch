@@ -163,6 +163,9 @@ export async function runCompactPipeline(
   const useVoice = input.useVoice !== false;
   const profile = useVoice ? input.profile : null;
   const contentType = input.contentType ?? 'post';
+  // Threads are ----separated tweet sequences; the paragraph floor would
+  // merge tweets across their boundaries.
+  const enforceParagraphs = contentType !== 'thread';
   const preserve = [
     ...(input.vocabulary?.uses_often ?? []),
     ...(input.vocabulary?.signature_phrases ?? []),
@@ -178,7 +181,7 @@ export async function runCompactPipeline(
   const stagesCompleted: ContentPipelineResult['stagesCompleted'] = ['base'];
 
   if (input.fast) {
-    return finalizeResult(text, true, undefined, false, [], stagesCompleted, undefined, undefined);
+    return finalizeResult(text, enforceParagraphs, undefined, false, [], stagesCompleted, undefined, undefined);
   }
 
   // Call 2: guarded minimal edit (cheap deterministic pre-clean first).
@@ -253,7 +256,7 @@ export async function runCompactPipeline(
 
   return finalizeResult(
     text,
-    true,
+    enforceParagraphs,
     evaluation,
     false,
     flags,

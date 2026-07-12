@@ -53,7 +53,7 @@ export interface Check {
   ruleAppliesTo?: (ctx: CheckContext) => boolean;
 }
 
-const PROSE_TYPES = new Set(['post', 'reply', 'comment']);
+const PROSE_TYPES = new Set(['post', 'thread', 'reply', 'comment']);
 const isProse = (ctx: CheckContext) => PROSE_TYPES.has(ctx.contentType);
 const isPost = (ctx: CheckContext) => ctx.contentType === 'post';
 
@@ -123,6 +123,40 @@ const platformLength: Check = {
     if (len > b.max) return fail('platform_length', 'hard', `${len} chars > ${b.max}`,
       `Cut the post to at most ${b.max} characters for ${ctx.platform}.`);
     return pass('platform_length', 'hard');
+  },
+};
+
+// --- thread_shape ----------------------------------------------------------
+// X/Twitter threads are tweet sequences separated by lines containing only
+// --- (the format CONTENT_TYPE_HINTS.thread instructs). One idea per tweet,
+// every tweet inside the platform limit. platform_length and paragraph_shape
+// are post-only and never fight this check.
+export function splitThread(text: string): string[] {
+  return text.split(/\n\s*---\s*\n/).map((t) => t.trim()).filter(Boolean);
+}
+
+const THREAD_MIN_TWEETS = 3;
+const THREAD_MAX_TWEETS = 12;
+const TWEET_MAX_CHARS = 280;
+
+const threadShape: Check = {
+  id: 'thread_shape', severity: 'hard',
+  appliesTo: (ctx) => ctx.contentType === 'thread',
+  ruleText: () =>
+    `Thread format: 5 to 9 tweets, each ${TWEET_MAX_CHARS} characters or fewer, one idea per tweet, separated by a line containing only ---. First tweet is the hook; last tweet lands the takeaway.`,
+  test: (text) => {
+    const tweets = splitThread(text);
+    if (tweets.length < THREAD_MIN_TWEETS)
+      return fail('thread_shape', 'hard', `${tweets.length} tweet(s) found`,
+        `Split the content into at least ${THREAD_MIN_TWEETS} tweets separated by lines containing only ---.`);
+    if (tweets.length > THREAD_MAX_TWEETS)
+      return fail('thread_shape', 'hard', `${tweets.length} tweets`,
+        `Cut the thread to at most ${THREAD_MAX_TWEETS} tweets; merge or drop the weakest ones.`);
+    const over = tweets.findIndex((t) => t.length > TWEET_MAX_CHARS);
+    if (over >= 0)
+      return fail('thread_shape', 'hard', `tweet ${over + 1} is ${tweets[over].length} chars`,
+        `Shorten tweet ${over + 1} to ${TWEET_MAX_CHARS} characters or fewer; move the overflow into the next tweet.`);
+    return pass('thread_shape', 'hard');
   },
 };
 
@@ -397,7 +431,7 @@ const baitHook: Check = {
 };
 
 export const CHECKS: Check[] = [
-  emDash, markdown, platformLength, mentionIntegrity, paragraphShape, fabricatedSpecifics,
+  emDash, markdown, platformLength, threadShape, mentionIntegrity, paragraphShape, fabricatedSpecifics,
   slopPhrases, contrastTell, burstiness, ruleOfThree, hookPresent, baitHook,
 ];
 
@@ -452,6 +486,7 @@ export function styleRulesFromChecks(ctx: CheckContext): string {
     ruleFor('slop_phrases'),
     ruleFor('bait_hook'),
     ruleFor('platform_length'),
+    ruleFor('thread_shape'),
     ruleFor('mention_integrity'),
   ].filter((l): l is string => Boolean(l));
 

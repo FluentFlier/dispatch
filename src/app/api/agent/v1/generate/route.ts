@@ -20,7 +20,7 @@ const RequestSchema = z.object({
   systemOverride: z.string().max(5000).optional(),
   topic: z.string().max(500).optional(),
   platform: z.enum(['twitter', 'linkedin', 'instagram', 'threads']).optional(),
-  contentType: z.enum(['post', 'reply', 'comment', 'hooks', 'caption']).optional(),
+  contentType: z.enum(['post', 'thread', 'reply', 'comment', 'hooks', 'caption']).optional(),
   fast: z.boolean().optional(),
   useVoice: z.boolean().optional(),
 });

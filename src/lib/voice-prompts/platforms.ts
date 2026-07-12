@@ -3,7 +3,7 @@
  */
 
 export type VoicePlatform = 'twitter' | 'linkedin' | 'instagram' | 'threads';
-export type VoiceContentType = 'post' | 'reply' | 'comment' | 'hooks' | 'caption';
+export type VoiceContentType = 'post' | 'thread' | 'reply' | 'comment' | 'hooks' | 'caption';
 
 export const PLATFORM_PLAYBOOKS: Record<VoicePlatform, string> = {
   twitter: `TWITTER / X
@@ -35,6 +35,8 @@ export const PLATFORM_PLAYBOOKS: Record<VoicePlatform, string> = {
 
 export const CONTENT_TYPE_HINTS: Record<VoiceContentType, string> = {
   post: 'Primary post: full structure, native length, one clear CTA.',
+  thread:
+    'THREAD MODE (X/Twitter thread). Write 5 to 9 tweets. Each tweet carries ONE idea and MUST be 280 characters or fewer. Separate tweets with a line containing only --- (three hyphens, nothing else on the line). The first tweet is the hook and must work standalone; the final tweet lands the takeaway with a soft CTA. No numbering required, no hashtag spam.',
   reply: 'Reply: respond to the specific point; no re-introduction of the creator.',
   comment: 'Comment: 1 to 3 sentences max; helpful or witty, never preachy.',
   hooks:
