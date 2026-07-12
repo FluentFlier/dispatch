@@ -144,6 +144,14 @@ export async function exchangeOAuthCodeViaApi(
     if (exchanged.ok && exchanged.payload.refreshToken) {
       return exchanged.payload;
     }
+    // The authorization code is single-use: a definitive 4xx (bad/consumed
+    // code, PKCE mismatch) means the backend rejected and consumed it, so
+    // retrying with another client_type can only produce a misleading
+    // "Invalid or expired code". Only fall through to the next client_type
+    // on transport errors / 5xx, where the code may still be live.
+    if (!exchanged.ok && exchanged.status >= 400 && exchanged.status < 500) {
+      return null;
+    }
   }
   return null;
 }
