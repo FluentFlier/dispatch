@@ -339,13 +339,20 @@ export async function chatCompletion(
       // event's request_id is synthetic (llm.ts has no pipeline request
       // context) - it still answers "how often does the primary provider
       // fail over" in aggregate, which is the observability spec 3.3 asks for.
-      const { emitPipelineEvent } = await import('@/lib/content-pipeline/events');
-      const { createRequestId } = await import('@/lib/logger');
-      await emitPipelineEvent({
-        requestId: createRequestId(),
-        event: 'provider_retry',
-        detail: { from: primary.label, to: fallback.label, reason: err.message },
-      });
+      // Emit is best-effort observability - it must NEVER prevent the failover
+      // itself. A throw from the dynamic imports (not just from the swallow-safe
+      // emit) would otherwise leak a quota error past the fallback below.
+      try {
+        const { emitPipelineEvent } = await import('@/lib/content-pipeline/events');
+        const { createRequestId } = await import('@/lib/logger');
+        await emitPipelineEvent({
+          requestId: createRequestId(),
+          event: 'provider_retry',
+          detail: { from: primary.label, to: fallback.label, reason: err.message },
+        });
+      } catch {
+        // Observability must not block failover.
+      }
       // Use the fallback's own model, not the primary's override.
       return callProviderWithJsonFallback(fallback, systemPrompt, userPrompt, { ...options, model: undefined }, true);
     }

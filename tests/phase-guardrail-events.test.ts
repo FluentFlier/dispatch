@@ -46,6 +46,24 @@ describe('Phase: Guardrail Consolidation - events.ts', () => {
     expect(getSwallowedEventErrorCount()).toBe(1);
   });
 
+  it('EVALS_MODE short-circuits before any DB call (guards the promptfoo CLI)', async () => {
+    const getServiceClient = vi.fn();
+    vi.doMock('@/lib/insforge/server', () => ({ getServiceClient }));
+    const prev = process.env.EVALS_MODE;
+    process.env.EVALS_MODE = '1';
+    try {
+      const { emitPipelineEvent, getSwallowedEventErrorCount, resetSwallowedEventErrorCount } = await import('@/lib/content-pipeline/events');
+      resetSwallowedEventErrorCount();
+      await expect(emitPipelineEvent({ requestId: 'req_eval', event: 'compact_mode' })).resolves.toBeUndefined();
+      // Deliberate no-op: never touches the client, and is NOT counted as a swallowed error.
+      expect(getServiceClient).not.toHaveBeenCalled();
+      expect(getSwallowedEventErrorCount()).toBe(0);
+    } finally {
+      if (prev === undefined) delete process.env.EVALS_MODE;
+      else process.env.EVALS_MODE = prev;
+    }
+  });
+
   it('defaults detail to an empty object when omitted', async () => {
     const insertMock = vi.fn().mockResolvedValue({ error: null });
     vi.doMock('@/lib/insforge/server', () => ({

@@ -72,3 +72,49 @@ describe('Phase: LLM failover', () => {
     await expect(chatCompletion('sys', 'user')).rejects.toThrow(/429/);
   });
 });
+
+// Provider-retry observability (spec 3.3). Uses doMock so the events emitter
+// (and a deliberately-throwing variant) can be injected around the failover.
+describe('Phase: LLM failover - provider_retry observability', () => {
+  beforeEach(() => {
+    vi.resetModules();
+    process.env.LLM_BASE_URL = 'https://api.groq.com/openai/v1';
+    process.env.LLM_API_KEY = 'groq-key';
+    process.env.LLM_MODEL = 'llama-3.3-70b-versatile';
+    process.env.HUGGINGFACE_API_KEY = 'hf-key';
+    delete process.env.LLM_FALLBACK_BASE_URL;
+    delete process.env.LLM_FALLBACK_API_KEY;
+    delete process.env.LLM_FALLBACK_MODEL;
+  });
+  afterEach(() => {
+    process.env = { ...OLD_ENV };
+    vi.restoreAllMocks();
+  });
+
+  it('emits a provider_retry event when the primary fails over', async () => {
+    const emit = vi.fn().mockResolvedValue(undefined);
+    vi.doMock('@/lib/content-pipeline/events', () => ({ emitPipelineEvent: emit }));
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce(res(429, { error: { message: 'daily limit' } }))
+      .mockResolvedValueOnce(res(200, { choices: [{ message: { content: 'from-hf' } }] }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const { chatCompletion: cc } = await import('@/lib/llm');
+    expect(await cc('sys', 'user')).toBe('from-hf');
+    expect(emit).toHaveBeenCalledTimes(1);
+    expect(emit.mock.calls[0][0]).toMatchObject({ event: 'provider_retry' });
+  });
+
+  it('still fails over even when the events emitter throws (observability must not block failover)', async () => {
+    vi.doMock('@/lib/content-pipeline/events', () => ({
+      emitPipelineEvent: vi.fn().mockRejectedValue(new Error('events module blew up')),
+    }));
+    const fetchSpy = vi.fn()
+      .mockResolvedValueOnce(res(429, { error: { message: 'daily limit' } }))
+      .mockResolvedValueOnce(res(200, { choices: [{ message: { content: 'from-hf' } }] }));
+    vi.stubGlobal('fetch', fetchSpy);
+
+    const { chatCompletion: cc } = await import('@/lib/llm');
+    expect(await cc('sys', 'user')).toBe('from-hf'); // failover completed despite the emit throw
+  });
+});
