@@ -93,14 +93,21 @@ async function finishSessionSync(): Promise<boolean> {
 }
 
 async function completeOAuthSignIn(code: string, codeVerifier: string): Promise<boolean> {
-  const res = await fetch("/api/auth/oauth/exchange", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "same-origin",
-    body: JSON.stringify({ code, codeVerifier }),
-  });
-  if (!res.ok) return false;
+  try {
+    await fetch("/api/auth/oauth/exchange", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ code, codeVerifier }),
+    });
+  } catch {
+    /* fall through to the session check */
+  }
 
+  // Verify the session even when the exchange call above failed: with
+  // duplicated effects (React StrictMode) or a double navigation, two
+  // exchanges race on the same single-use code — the loser gets a 4xx while
+  // the winner has already set the auth cookies.
   const verify = await fetch("/api/auth/session", {
     cache: "no-store",
     credentials: "same-origin",
@@ -112,6 +119,10 @@ async function completeOAuthSignIn(code: string, codeVerifier: string): Promise<
   };
   return Boolean(session.authenticated && session.hasRefreshToken);
 }
+
+// Module-scoped: survives React StrictMode's unmount/remount cycle, so the
+// single-use OAuth code is exchanged exactly once per page load.
+const handledOAuthCodes = new Set<string>();
 
 export default function LoginPage() {
   const [ready, setReady] = useState(false);
@@ -144,16 +155,22 @@ export default function LoginPage() {
       setStatus("Completing sign-in...");
       const code = params.get("insforge_code");
       const codeVerifier = sessionStorage.getItem(INSFORGE_PKCE_VERIFIER_KEY);
+      // Strip the code from the URL BEFORE the async exchange and dedupe by
+      // code: the code is single-use, and a second effect run (StrictMode
+      // remount, double navigation) racing the same code makes the backend
+      // reject one exchange with "PKCE verification failed" / "Invalid or
+      // expired code" and the user sees a sign-in failure.
+      window.history.replaceState(null, "", "/login");
       if (!code || !codeVerifier) {
         setError("Sign-in failed. Please try again.");
-        window.history.replaceState(null, "", "/login");
         setReady(true);
         return;
       }
+      if (handledOAuthCodes.has(code)) return;
+      handledOAuthCodes.add(code);
 
       const ok = await completeOAuthSignIn(code, codeVerifier);
       sessionStorage.removeItem(INSFORGE_PKCE_VERIFIER_KEY);
-      window.history.replaceState(null, "", "/login");
 
       if (ok) {
         await redirectAfterAuth();
