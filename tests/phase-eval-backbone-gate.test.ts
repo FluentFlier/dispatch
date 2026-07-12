@@ -4,7 +4,7 @@
  * Categories come from the description prefix: "core/story/..." -> "core/story".
  */
 import { describe, it, expect } from 'vitest';
-import { categoryOf, summarize, gate } from '../evals/compare-baseline';
+import { categoryOf, summarize, gate, categoryDeltas } from '../evals/compare-baseline';
 
 const rows = (spec: Array<[string, boolean]>) => spec.map(([description, success]) => ({ description, success }));
 
@@ -47,5 +47,17 @@ describe('gate', () => {
   it('treats a category missing from current as a failure (cases must not vanish silently)', () => {
     const current = { overall: 0.95, categories: { 'core/story': 0.95 } };
     expect(gate(current, baseline).ok).toBe(false);
+  });
+});
+
+describe('categoryDeltas', () => {
+  it('reports before/after/delta per category present in either run', () => {
+    const baseline = { overall: 0.9, categories: { 'adversarial/fabrication-bait': 0.6, 'core/story': 0.9 } };
+    const current = { overall: 0.95, categories: { 'adversarial/fabrication-bait': 0.9, 'core/story': 0.92 } };
+    const deltas = categoryDeltas(current, baseline);
+    const fab = deltas.find((d) => d.category === 'adversarial/fabrication-bait')!;
+    expect(fab.before).toBe(0.6);
+    expect(fab.after).toBe(0.9);
+    expect(fab.delta).toBeCloseTo(0.3, 5);
   });
 });

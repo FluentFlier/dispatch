@@ -60,6 +60,20 @@ export function gate(current: Summary, baseline: Summary): { ok: boolean; reason
   return { ok: reasons.length === 0, reasons };
 }
 
+export function categoryDeltas(
+  current: Summary,
+  baseline: Summary,
+): Array<{ category: string; before: number; after: number; delta: number }> {
+  const categories = new Set([...Object.keys(baseline.categories), ...Object.keys(current.categories)]);
+  return Array.from(categories)
+    .map((category) => {
+      const before = baseline.categories[category] ?? 0;
+      const after = current.categories[category] ?? 0;
+      return { category, before, after, delta: after - before };
+    })
+    .sort((a, b) => a.category.localeCompare(b.category));
+}
+
 /** Adapt to promptfoo's output JSON. If the shape differs, fix HERE only. */
 export function extractRows(promptfooJson: unknown): Row[] {
   const j = promptfooJson as { results?: { results?: Array<{ success?: boolean; testCase?: { description?: string }; description?: string }> } };
@@ -87,6 +101,12 @@ function main() {
   const baseline = JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) as Summary;
   const g = gate(current, baseline);
   console.log(`overall: ${(current.overall * 100).toFixed(1)}% (baseline ${(baseline.overall * 100).toFixed(1)}%)`);
+
+  console.log('\nper-category (before -> after):');
+  for (const d of categoryDeltas(current, baseline)) {
+    const arrow = d.delta > 0 ? 'UP' : d.delta < 0 ? 'DOWN' : 'FLAT';
+    console.log(`  ${d.category}: ${(d.before * 100).toFixed(1)}% -> ${(d.after * 100).toFixed(1)}% (${arrow} ${(d.delta * 100).toFixed(1)}pt)`);
+  }
 
   // Adaptation (documented, not in gate() itself): the 92% overall floor exists
   // to catch FUTURE regressions. If the baseline itself was already recorded

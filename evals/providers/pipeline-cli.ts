@@ -20,6 +20,10 @@ delete process.env.LLM_FALLBACK_BASE_URL;
 delete process.env.LLM_FALLBACK_API_KEY;
 delete process.env.LLM_FALLBACK_MODEL;
 
+// Gate pipeline_events writes off - see src/lib/content-pipeline/events.ts. Eval
+// runs must never write rows into the real pipeline_events table.
+process.env.EVALS_MODE = '1';
+
 import { runContentPipeline } from '../../src/lib/content-pipeline';
 
 interface CaseVars {

@@ -39,10 +39,15 @@ const chatCompletion = vi.fn(async (system: string, _user: string, _opts?: unkno
       gap_questions: [],
     });
   }
-  // Otherwise a generation stage. Carries a markdown token and a real em dash
-  // (unicode escape below, not a literal glyph in this source file) so the
-  // finalize/strip guarantees can be asserted for real.
-  return 'We shipped the thing today. **bold** and a dash \u2014 done.';
+  // Otherwise a generation stage. Carries a real em dash (unicode escape
+  // below, not a literal glyph in this source file) so the finalize/strip
+  // guarantee is still asserted for real, but is otherwise clean and 400+
+  // chars: compact mode now runs the Gate A/B enforcement checks (this
+  // task) after its edit pass, and a short or markdown-laced draft would
+  // trip the platform_length/markdown hard checks and add an unwanted
+  // targeted-revise call that scenario A's exact call-count assertions
+  // aren't testing for.
+  return 'We shipped the thing today after three weeks of steady testing across the whole team, and it finally landed clean without any surprises along the way \u2014 done. '.repeat(3).trim();
 });
 
 vi.mock('@/lib/llm', () => ({

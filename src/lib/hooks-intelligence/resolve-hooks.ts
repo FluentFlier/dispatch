@@ -19,6 +19,8 @@ export interface HookExplanation {
 export interface ResolvedHooksResult {
   hooks: ExtractedHook[];
   explanations: HookExplanation[];
+  /** True when the DB-learned path produced zero hooks and static fallback filled the list. */
+  usedStaticFallback: boolean;
 }
 
 export interface GetHooksOptions {
@@ -65,10 +67,11 @@ export async function getBestHooksForGeneration(
           source: 'mined',
           reason: 'Selected by Thompson sampling from your niche corpus',
         }));
-        return { hooks, explanations };
+        return { hooks, explanations, usedStaticFallback: false };
       }
     } catch (e) {
-      // phase3: emit hook_fallback_static event
+      // Caller (index.ts) emits pipeline_events 'hook_fallback_static' off the
+      // usedStaticFallback flag below - no DB call from this low-level module.
       console.warn('[hooks] niche retrieval failed, using static fallback', e);
     }
   }
@@ -98,5 +101,5 @@ export async function getBestHooksForGeneration(
       reason: `Bootstrap hook (score ${Math.round(h.score.total)}/100)`,
     });
   }
-  return { hooks: hooks.slice(0, limit), explanations: explanations.slice(0, limit) };
+  return { hooks: hooks.slice(0, limit), explanations: explanations.slice(0, limit), usedStaticFallback: true };
 }

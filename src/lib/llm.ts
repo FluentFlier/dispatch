@@ -29,9 +29,11 @@ const DEFAULT_MAX_TOKENS = 1024;
 const DEFAULT_TEMPERATURE = 0.7;
 
 /** How many times to retry a 429 (rate limit) before giving up. */
-const MAX_RATE_LIMIT_RETRIES = 4;
+const MAX_RATE_LIMIT_RETRIES = 2;
 /** Cap any single backoff wait so a call never hangs too long. */
 const MAX_BACKOFF_MS = 12_000;
+/** Floor on every backoff wait - sub-1s backoff is no backoff at all. */
+const MIN_BACKOFF_MS = 1_000;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -50,21 +52,25 @@ function isReasoningModel(model: string): boolean {
 /**
  * Determines how long to wait before retrying a rate-limited request.
  * Honors the provider's hint (Retry-After header or "try again in Xs" in the
- * body) when present, else falls back to exponential backoff. Capped.
+ * body) when present, else falls back to exponential backoff. Every branch is
+ * floored at MIN_BACKOFF_MS and carries up to 250ms of random jitter (full
+ * jitter, avoids synchronized retry storms across concurrent requests) before
+ * being capped.
  */
-function backoffMs(attempt: number, retryAfterHeader: string | null, bodyText: string): number {
+export function backoffMs(attempt: number, retryAfterHeader: string | null, bodyText: string): number {
+  const jitter = () => Math.random() * 250;
   // 1. Retry-After header (seconds)
   const headerSecs = retryAfterHeader ? Number(retryAfterHeader) : NaN;
   if (Number.isFinite(headerSecs) && headerSecs >= 0) {
-    return Math.min(headerSecs * 1000 + 250, MAX_BACKOFF_MS);
+    return Math.min(Math.max(headerSecs * 1000, MIN_BACKOFF_MS) + jitter(), MAX_BACKOFF_MS);
   }
   // 2. Provider message hint, e.g. "Please try again in 3.6s"
   const match = bodyText.match(/try again in ([\d.]+)\s*s/i);
   if (match) {
-    return Math.min(Number(match[1]) * 1000 + 250, MAX_BACKOFF_MS);
+    return Math.min(Math.max(Number(match[1]) * 1000, MIN_BACKOFF_MS) + jitter(), MAX_BACKOFF_MS);
   }
-  // 3. Exponential backoff: 1s, 2s, 4s, 8s ...
-  return Math.min(1000 * 2 ** attempt, MAX_BACKOFF_MS);
+  // 3. Exponential backoff: 1s, 2s ...
+  return Math.min(Math.max(1000 * 2 ** attempt, MIN_BACKOFF_MS) + jitter(), MAX_BACKOFF_MS);
 }
 
 /** Options for a single chat completion. All optional. */
@@ -333,6 +339,26 @@ export async function chatCompletion(
   } catch (err) {
     // On quota/credit/rate-limit exhaustion, try the fallback provider.
     if (err instanceof LlmError && err.isQuota && fallback) {
+      // Dynamic imports (not static top-of-file): llm.ts is used by many
+      // non-pipeline callers (leads, signals, crons) that never pay the
+      // Next-runtime import cost unless a fallback actually fires. This
+      // event's request_id is synthetic (llm.ts has no pipeline request
+      // context) - it still answers "how often does the primary provider
+      // fail over" in aggregate, which is the observability spec 3.3 asks for.
+      // Emit is best-effort observability - it must NEVER prevent the failover
+      // itself. A throw from the dynamic imports (not just from the swallow-safe
+      // emit) would otherwise leak a quota error past the fallback below.
+      try {
+        const { emitPipelineEvent } = await import('@/lib/content-pipeline/events');
+        const { createRequestId } = await import('@/lib/logger');
+        await emitPipelineEvent({
+          requestId: createRequestId(),
+          event: 'provider_retry',
+          detail: { from: primary.label, to: fallback.label, reason: err.message },
+        });
+      } catch {
+        // Observability must not block failover.
+      }
       // Use the fallback's own model, not the primary's override.
       return callProviderWithJsonFallback(fallback, systemPrompt, userPrompt, { ...options, model: undefined }, true);
     }

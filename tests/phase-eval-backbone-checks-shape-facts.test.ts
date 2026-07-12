@@ -49,6 +49,23 @@ describe('check: fabricated_specifics (hard)', () => {
     const r = get(FLOWING + '\n\nEven Sundar Pichai reposted it.', 'fabricated_specifics');
     expect(r.pass).toBe(false);
   });
+  it('catches a fabricated proper noun that IS the sentence start (the fail-open this fixes)', () => {
+    // Previously: any 2+ word capped run beginning exactly at a sentence/line
+    // start was skipped outright, so a fabricated name as its OWN opening
+    // sentence went undetected. This is the case above ("Even Sundar Pichai
+    // reposted it.") already covers mid-sentence detection; this covers the
+    // gap where the fabricated name has nothing in front of it.
+    const r = get(FLOWING + '\n\nSundar Pichai even called to congratulate us.', 'fabricated_specifics');
+    expect(r.pass).toBe(false);
+    expect(r.evidence).toContain('Sundar Pichai');
+  });
+  it('does not flag a sentence opening with a common capitalized starter word', () => {
+    // Guards against the new false-positive class the fix above could
+    // introduce: "This Monday", "Every Tuesday", "Next Friday" etc. are
+    // ordinary sentence openers, not fabricated proper nouns.
+    const r = get(FLOWING + '\n\nThis Monday we finally shipped it.', 'fabricated_specifics');
+    expect(r.pass).toBe(true);
+  });
   it('ignores whitelisted small/round numbers and weekdays', () => {
     const r = get(FLOWING + '\n\nTop 3 lessons landed on Tuesday.', 'fabricated_specifics');
     expect(r.pass).toBe(true);

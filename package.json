@@ -25,7 +25,7 @@
     "brain:backfill": "npx @insforge/cli db import db/backfill-creator-brain.sql -y",
     "deploy:vercel": "bash scripts/deploy-vercel.sh",
     "eval:smoke": "promptfoo eval --env-file .env.local -c evals/promptfooconfig.smoke.ts -o evals/out/smoke.json",
-    "eval:full": "promptfoo eval --env-file .env.local -c evals/promptfooconfig.full.ts -o evals/out/full.json",
+    "eval:full": "promptfoo eval --env-file .env.local -c evals/promptfooconfig.full.ts -o evals/out/full.json --no-cache",
     "eval:gate": "npx tsx evals/compare-baseline.ts evals/out/full.json",
     "eval:baseline": "npx tsx evals/compare-baseline.ts evals/out/full.json --write"
   },
