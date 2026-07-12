@@ -159,6 +159,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
             .upsert(
               {
                 user_id: user.id,
+                // Match onboarding/ingest: voice-context reads user_settings with
+                // a workspace_id filter when a workspace is active, so a null-
+                // workspace row would be invisible and leave the banner lit.
+                workspace_id: workspaceId,
                 key: setting.key,
                 value: setting.value,
                 updated_at: new Date().toISOString(),

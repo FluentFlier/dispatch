@@ -122,6 +122,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .from('user_settings')
       .upsert({
         user_id: user.id,
+        // voice-context reads these keys with a workspace_id filter when a
+        // workspace is active — write the same workspace_id onboarding/ingest
+        // uses so a manually-completed Voice Lab profile isn't invisible to
+        // generation (would leave the "voice profile incomplete" banner lit).
+        workspace_id: workspaceId ?? null,
         key: setting.key,
         value: setting.value,
         updated_at: new Date().toISOString(),
