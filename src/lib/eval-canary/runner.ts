@@ -13,7 +13,6 @@
  */
 import { runContentPipeline } from '@/lib/content-pipeline';
 import { runChecks, hardFailures, type CheckContext } from '@/lib/content-pipeline/checks';
-import { chatCompletion } from '@/lib/llm';
 import type { CreatorProfileForPrompt } from '@/lib/ai';
 import type { VoiceContentType } from '@/lib/voice-prompts';
 import type { VocabularyFingerprint, StructuralPatterns } from '@/lib/voice-context';
@@ -64,15 +63,38 @@ function ctxFromCase(c: CanaryCase): CheckContext {
   };
 }
 
+// Judge routes to Cerebras directly (base URL + CEREBRAS_API_KEY), NOT through
+// the app's chatCompletion router. Same split as the promptfoo eval suite
+// (evals/shared.ts): the generator runs on the Groq LLM_* router and the judge
+// on a SEPARATE Cerebras key, so 50 daily judge calls never contend with the
+// generation rate limit (and never burn the exhausted Groq free-tier budget).
+// EVAL_JUDGE_MODEL is the model pin (gpt-oss-120b, served by Cerebras).
+// Fail-open on any error: a flaky judge must not fire the alarm; hard checks
+// still catch mechanical drift.
+const CEREBRAS_JUDGE_URL = 'https://api.cerebras.ai/v1/chat/completions';
+
 async function judgeCanary(text: string, userPrompt: string): Promise<{ pass: boolean; error?: string }> {
   const judgeModel = process.env.EVAL_JUDGE_MODEL;
   if (!judgeModel) return { pass: true, error: 'EVAL_JUDGE_MODEL unset' };
+  const apiKey = process.env.CEREBRAS_API_KEY;
+  if (!apiKey) return { pass: true, error: 'CEREBRAS_API_KEY unset' };
   try {
-    const raw = await chatCompletion(
-      'You are a strict content quality judge. Respond with JSON only, no prose: {"sounds_human":"pass|fail","on_brief":"pass|fail","reason":"one sentence"}',
-      `USER REQUEST:\n${userPrompt}\n\nPOST:\n---\n${text}\n---\n\nsounds_human: would a busy professional believe a human wrote this? on_brief: does it deliver the request without inventing facts, statistics, people, or anecdotes?`,
-      { model: judgeModel, temperature: 0, maxTokens: 200 },
-    );
+    const res = await fetch(CEREBRAS_JUDGE_URL, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+      body: JSON.stringify({
+        model: judgeModel,
+        temperature: 0,
+        max_tokens: 200,
+        messages: [
+          { role: 'system', content: 'You are a strict content quality judge. Respond with JSON only, no prose: {"sounds_human":"pass|fail","on_brief":"pass|fail","reason":"one sentence"}' },
+          { role: 'user', content: `USER REQUEST:\n${userPrompt}\n\nPOST:\n---\n${text}\n---\n\nsounds_human: would a busy professional believe a human wrote this? on_brief: does it deliver the request without inventing facts, statistics, people, or anecdotes?` },
+        ],
+      }),
+    });
+    if (!res.ok) return { pass: true, error: `judge_http_${res.status}` };
+    const body = (await res.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    const raw = body.choices?.[0]?.message?.content ?? '';
     const j = JSON.parse(raw.slice(raw.indexOf('{'), raw.lastIndexOf('}') + 1)) as { sounds_human?: string; on_brief?: string };
     return { pass: j.sounds_human === 'pass' && j.on_brief === 'pass' };
   } catch {
