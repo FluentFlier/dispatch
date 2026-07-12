@@ -14,6 +14,10 @@ interface IcpManagerProps {
   onSettingsSaved: (settings: DirectorySettingsRow) => void;
   onDiscoveryComplete?: () => void;
   toast?: (message: string, type?: 'success' | 'error') => void;
+  /** Kicks off the streamed directory scrape; the page switches to the feed view. */
+  onRunScrape?: () => void;
+  /** True while a scrape is in flight — disables the Run scrape button. */
+  scraping?: boolean;
 }
 
 /** Does the current working ICP (mirrored into settings) have anything to save? */
@@ -37,6 +41,8 @@ export function IcpManager({
   onSettingsSaved,
   onDiscoveryComplete,
   toast,
+  onRunScrape,
+  scraping,
 }: IcpManagerProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -260,6 +266,18 @@ export function IcpManager({
               {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
               Discover ({selected.size})
             </button>
+            {onRunScrape && (
+              <button
+                type="button"
+                onClick={onRunScrape}
+                disabled={Boolean(scraping)}
+                title="Run the live directory scrape and switch to the feed"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary hover:border-accent-primary/40 disabled:opacity-40 min-h-[34px]"
+              >
+                {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
+                Run scrape
+              </button>
+            )}
           </div>
         </div>
 

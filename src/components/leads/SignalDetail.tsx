@@ -20,6 +20,7 @@ import {
   SIGNAL_CONNECT_LIMIT,
   type SignalSendChannel,
 } from './signal-outreach';
+import { signalButtonBusy, type SignalDetailAction } from '@/lib/leads/busy';
 
 /** Short human label for the chosen send channel, shown on the Approve button. */
 function channelActionLabel(channel: SignalSendChannel): string {
@@ -44,8 +45,8 @@ interface SignalDetailProps {
   /** Current draft text for this signal (edited in place); empty means "not drafted yet". */
   draft: string;
   onDraftChange: (v: string) => void;
-  /** True while a draft/send request for this signal is in flight. */
-  busy: boolean;
+  /** The single in-flight action for THIS signal, or null when idle. */
+  busyAction: SignalDetailAction | null;
   /** Inline guard notice (from an expected 422 block) to render, or null. */
   notice: string | null;
   onDraft: () => void;
@@ -69,11 +70,12 @@ export function SignalDetail({
   card,
   draft,
   onDraftChange,
-  busy,
+  busyAction,
   notice,
   onDraft,
   onSend,
 }: SignalDetailProps) {
+  const { draftBusy, sendBusy, anyBusy } = signalButtonBusy(busyAction);
   const badge = sourceBadge(card);
   const reachable = isReachable(card);
   const contact = card.contact;
@@ -197,7 +199,7 @@ export function SignalDetail({
         </div>
       ) : (
         !alreadySent && (
-          <Button variant="primary" size="sm" onClick={onDraft} loading={busy}>
+          <Button variant="primary" size="sm" onClick={onDraft} loading={draftBusy}>
             <Sparkles className="h-4 w-4" /> Draft message
           </Button>
         )
@@ -210,13 +212,14 @@ export function SignalDetail({
             variant="primary"
             size="sm"
             onClick={onSend}
-            disabled={!plan.sendable || overLimit || busy}
+            disabled={!plan.sendable || overLimit || anyBusy}
+            loading={sendBusy}
             title={plan.sendable ? undefined : 'No messaging channel on this signal — copy the draft to send by hand.'}
           >
             {plan.channel === 'gmail' ? <Mail className="h-4 w-4" /> : <Send className="h-4 w-4" />}{' '}
             {channelActionLabel(plan.channel)}
           </Button>
-          <Button variant="ghost" size="sm" onClick={onDraft} loading={busy}>
+          <Button variant="ghost" size="sm" onClick={onDraft} loading={draftBusy} disabled={anyBusy}>
             <RefreshCw className="h-4 w-4" /> Regenerate
           </Button>
         </div>

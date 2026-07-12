@@ -17,11 +17,11 @@ import {
 
 const NAV = [
   { label: 'Home', icon: Home, active: true },
-  { label: 'Signals', icon: Radio },
-  { label: 'Create', icon: PenLine },
-  { label: 'Calendar', icon: CalendarDays },
-  { label: 'Replies', icon: MessageCircle },
-  { label: 'Leads', icon: Target },
+  { label: 'Signals', icon: Radio, active: false },
+  { label: 'Create', icon: PenLine, active: false },
+  { label: 'Calendar', icon: CalendarDays, active: false },
+  { label: 'Replies', icon: MessageCircle, active: false },
+  { label: 'Leads', icon: Target, active: false },
 ] as const;
 
 const PIPELINE = [
