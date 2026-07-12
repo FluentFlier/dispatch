@@ -2,13 +2,17 @@ import { chatCompletion } from '@/lib/llm';
 import { checkGlobalLlmBudget } from '@/lib/llm-budget';
 import { runChecks, hardFailures, type CheckContext, type CheckResult } from './checks';
 import { stripEmDashes } from './finalize';
+import { emitPipelineEvent } from './events';
 import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 
 /**
  * Enforcement core (spec 3.2): shared by the full and compact pipelines so
  * the check-gate -> targeted-revise -> escalate-once -> best-of-select flow
- * exists exactly once. No DB event emission here - callers (index.ts,
- * compact.ts) own emitting pipeline_events at their own decision points.
+ * exists exactly once. targetedRevise/escalateOnce emit their own
+ * pipeline_events rows (hard_check_failed/targeted_revise/escalated) since
+ * this is the one place both pipelines' gates run through - callers
+ * (index.ts, compact.ts) still own the final-state events
+ * (shipped_below_threshold, judge_parse_error) at their own decision points.
  */
 
 export interface EnforceCandidate {
@@ -71,10 +75,14 @@ export async function targetedRevise(
   text: string,
   ctx: CheckContext,
   model: string | undefined,
+  requestId: string,
+  stage: string,
 ): Promise<{ text: string; checkResults: CheckResult[]; revisedForChecks: boolean }> {
   const checkResults = runChecks(text, ctx);
   const fails = hardFailures(checkResults);
   if (fails.length === 0) return { text, checkResults, revisedForChecks: false };
+
+  await emitPipelineEvent({ requestId, event: 'hard_check_failed', detail: { stage, checkIds: fails.map((f) => f.id) } });
 
   const revisedText = stripEmDashes(
     await chatCompletion(
@@ -83,6 +91,7 @@ export async function targetedRevise(
       { temperature: 0.4, maxTokens: 1200, model },
     ),
   );
+  await emitPipelineEvent({ requestId, event: 'targeted_revise', detail: { stage, checkIds: fails.map((f) => f.id) } });
   return { text: revisedText, checkResults: runChecks(revisedText, ctx), revisedForChecks: true };
 }
 
@@ -97,10 +106,14 @@ export async function targetedRevise(
  */
 export async function escalateOnce(
   regenerate: (smartModel: string) => Promise<string>,
+  requestId: string,
+  stage: string,
 ): Promise<string | null> {
   const { resolveModel } = await import('@/lib/ai-tiers');
   const smartModel = resolveModel('smart');
   if (!smartModel) return null;
   if ((await checkGlobalLlmBudget()) === 'blocked') return null;
-  return regenerate(smartModel);
+  const text = await regenerate(smartModel);
+  await emitPipelineEvent({ requestId, event: 'escalated', detail: { stage, to_model: smartModel } });
+  return text;
 }

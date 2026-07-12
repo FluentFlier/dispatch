@@ -57,6 +57,7 @@ describe('Phase: Guardrail Consolidation - enforce.ts core', () => {
       vi.resetModules();
       chatCompletion.mockReset();
       vi.doMock('@/lib/llm', () => ({ chatCompletion: (...a: unknown[]) => chatCompletion(...a) }));
+      vi.doMock('@/lib/content-pipeline/events', () => ({ emitPipelineEvent: vi.fn().mockResolvedValue(undefined) }));
     });
 
     it('is a no-op (no LLM call) when all hard checks already pass', async () => {
@@ -66,7 +67,7 @@ describe('Phase: Guardrail Consolidation - enforce.ts core', () => {
       });
       const { targetedRevise } = await import('@/lib/content-pipeline/enforce');
       const ctx = { contentType: 'post', userPrompt: 'x' } as const;
-      const result = await targetedRevise('a clean draft with nothing wrong in it whatsoever today', ctx, undefined);
+      const result = await targetedRevise('a clean draft with nothing wrong in it whatsoever today', ctx, undefined, 'req_test', 'test-stage');
       expect(result.revisedForChecks).toBe(false);
       expect(chatCompletion).not.toHaveBeenCalled();
     });
@@ -75,7 +76,7 @@ describe('Phase: Guardrail Consolidation - enforce.ts core', () => {
       chatCompletion.mockResolvedValue('fixed draft text');
       const { targetedRevise } = await import('@/lib/content-pipeline/enforce');
       const ctx = { contentType: 'post', userPrompt: 'x' } as const;
-      const result = await targetedRevise('bad — draft with an em dash', ctx, undefined);
+      const result = await targetedRevise('bad — draft with an em dash', ctx, undefined, 'req_test', 'test-stage');
       expect(chatCompletion).toHaveBeenCalledTimes(1);
       expect(result.revisedForChecks).toBe(true);
       expect(result.text).toBe('fixed draft text');
@@ -83,14 +84,17 @@ describe('Phase: Guardrail Consolidation - enforce.ts core', () => {
   });
 
   describe('escalateOnce', () => {
-    beforeEach(() => vi.resetModules());
+    beforeEach(() => {
+      vi.resetModules();
+      vi.doMock('@/lib/content-pipeline/events', () => ({ emitPipelineEvent: vi.fn().mockResolvedValue(undefined) }));
+    });
 
     it('returns null (no-op) when no smart model tier is configured', async () => {
       vi.doMock('@/lib/ai-tiers', () => ({ resolveModel: vi.fn().mockReturnValue(undefined) }));
       vi.doMock('@/lib/llm-budget', () => ({ checkGlobalLlmBudget: vi.fn().mockResolvedValue('disabled') }));
       const { escalateOnce } = await import('@/lib/content-pipeline/enforce');
       const regenerate = vi.fn();
-      const result = await escalateOnce(regenerate);
+      const result = await escalateOnce(regenerate, 'req_test', 'test-stage');
       expect(result).toBeNull();
       expect(regenerate).not.toHaveBeenCalled();
     });
@@ -100,7 +104,7 @@ describe('Phase: Guardrail Consolidation - enforce.ts core', () => {
       vi.doMock('@/lib/llm-budget', () => ({ checkGlobalLlmBudget: vi.fn().mockResolvedValue('blocked') }));
       const { escalateOnce } = await import('@/lib/content-pipeline/enforce');
       const regenerate = vi.fn();
-      const result = await escalateOnce(regenerate);
+      const result = await escalateOnce(regenerate, 'req_test', 'test-stage');
       expect(result).toBeNull();
       expect(regenerate).not.toHaveBeenCalled();
     });
@@ -110,7 +114,7 @@ describe('Phase: Guardrail Consolidation - enforce.ts core', () => {
       vi.doMock('@/lib/llm-budget', () => ({ checkGlobalLlmBudget: vi.fn().mockResolvedValue('ok') }));
       const { escalateOnce } = await import('@/lib/content-pipeline/enforce');
       const regenerate = vi.fn().mockResolvedValue('escalated text');
-      const result = await escalateOnce(regenerate);
+      const result = await escalateOnce(regenerate, 'req_test', 'test-stage');
       expect(regenerate).toHaveBeenCalledWith('smart-model');
       expect(result).toBe('escalated text');
     });

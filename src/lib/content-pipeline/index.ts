@@ -14,6 +14,8 @@ export { stripMarkdownFormatting, enforceParagraphFloor } from './finalize';
 import { isCompactMode, runCompactPipeline } from './compact';
 import { styleRulesFromChecks, runChecks, hardFailures, type CheckContext } from './checks';
 import { targetedRevise, escalateOnce, selectBest, type EnforceCandidate } from './enforce';
+import { emitPipelineEvent } from './events';
+import { createRequestId } from '@/lib/logger';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -52,6 +54,12 @@ export interface ContentPipelineInput {
   structural?: StructuralPatterns;
   /** Run the learned-hook rewrite stage even when the creator has their own opening style. */
   forceHooks?: boolean;
+  /** Correlates every pipeline_events row for one generation request. Generated
+   * internally when omitted - callers only need to pass it if they want to
+   * correlate pipeline events with their own request-scoped logging. */
+  requestId?: string;
+  /** Attached to pipeline_events rows when known; nullable, best-effort. */
+  userId?: string;
 }
 
 export interface ContentPipelineResult {
@@ -193,6 +201,7 @@ export async function runContentPipeline(
   input: ContentPipelineInput,
 ): Promise<ContentPipelineResult> {
   const stagesCompleted: PipelineStage[] = [];
+  const requestId = input.requestId ?? createRequestId();
   const useVoice = input.useVoice !== false;
   const profile = useVoice ? input.profile : null;
   const skipEval = input.fast || !useVoice;
@@ -206,7 +215,11 @@ export async function runContentPipeline(
   // Small models can't survive the full 6-11 rewrite chain - route prose to
   // the 2-call compact pipeline (env LLM_PIPELINE_MODE overrides detection).
   if (isProse && isCompactMode(input.model)) {
-    return runCompactPipeline(input);
+    await emitPipelineEvent({
+      requestId, userId: input.userId, event: 'compact_mode',
+      detail: { model: input.model ?? process.env.LLM_MODEL },
+    });
+    return runCompactPipeline({ ...input, requestId });
   }
 
   // --- Stage 1: Base ---
@@ -229,9 +242,10 @@ export async function runContentPipeline(
       stagesCompleted.push('humanize');
       // Gate A (voice-off path): targeted revise runs, no escalation ladder -
       // per this task's scope decision, escalation only exists on the
-      // voice-on path (there is nothing to escalate to here). task5: emit hard_check_failed
+      // voice-on path (there is nothing to escalate to here). hard_check_failed
+      // is emitted inside targetedRevise itself when a hard check first fails.
       const voiceOffCtx = buildCheckContext(input, contentType, fullContext, null);
-      const voiceOffGate = await targetedRevise(text, voiceOffCtx, input.model);
+      const voiceOffGate = await targetedRevise(text, voiceOffCtx, input.model, requestId, 'humanize');
       text = voiceOffGate.text;
       const voiceOffFails = hardFailures(voiceOffGate.checkResults);
       const voiceOffFlags = voiceOffFails.length ? ['hard_check_failed', ...voiceOffFails.map((f) => f.id)] : [];
@@ -280,6 +294,9 @@ export async function runContentPipeline(
     });
     usedHookIds = resolved.hooks.map((h) => h.id);
     hookExplanations = resolved.explanations;
+    if (resolved.usedStaticFallback) {
+      await emitPipelineEvent({ requestId, userId: input.userId, event: 'hook_fallback_static', detail: { vertical } });
+    }
     text = await runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model, baseCheckCtx);
     stagesCompleted.push('hooks');
   }
@@ -307,9 +324,8 @@ export async function runContentPipeline(
   const flags: string[] = [];
   if (isProse) {
     const gateACtx = buildCheckContext(input, contentType, fullContext, profile);
-    const gateA = await targetedRevise(text, gateACtx, input.model);
+    const gateA = await targetedRevise(text, gateACtx, input.model, requestId, 'humanize');
     text = gateA.text;
-    // task5: emit targeted_revise when gateA.revisedForChecks
   }
 
   // EMAIL VOICE is a 1:1 register (greetings, sign-offs, warmth) - useful for
@@ -351,6 +367,9 @@ Return ONLY the final post.`;
       evaluation = await evaluateDraft(text, profile, voiceStageContext || undefined, evalContentType);
       lastActionWasRevise = false;
 
+      if (evaluation.parse_error) {
+        await emitPipelineEvent({ requestId, event: 'judge_parse_error', detail: { stage: 'voice-evaluate' } });
+      }
       // Parse glitch (not a real quality failure) — keep the draft, stop revising.
       if (evaluation.parse_error) break;
       if (evaluationPasses(evaluation)) break;
@@ -411,7 +430,6 @@ Return ONLY the revised post.`;
   const judgeFailing = Boolean(evaluation && !evaluation.pass && !evaluation.parse_error);
   if (stillHardFailing || judgeFailing) {
     const escalatedText = await escalateOnce(async (smartModel) => {
-      // task5: emit escalated
       const voiceSystem = buildSystemPrompt(profile, voiceStageContext || undefined);
       const revisePrompt = `Revise the draft below so it sounds more like the creator and fixes every issue noted. Keep the topic, facts, and overall structure.
 
@@ -430,7 +448,7 @@ Return ONLY the revised post.`;
       return stripEmDashes(
         await chatCompletion(voiceSystem, revisePrompt, { temperature: 0.6, maxTokens: 1200, model: smartModel }),
       );
-    });
+    }, requestId, 'voice');
 
     if (escalatedText) {
       const escChecks = runChecks(escalatedText, gateBCtx);
@@ -443,10 +461,11 @@ Return ONLY the revised post.`;
   text = best.text;
   evaluation = best.evaluation;
   const finalHardFails = hardFailures(best.checkResults);
-  if (finalHardFails.length > 0) flags.push('hard_check_failed', ...finalHardFails.map((f) => f.id));
-  // task5: emit hard_check_failed when finalHardFails.length > 0 (best still fails after Gate B)
+  if (finalHardFails.length > 0) {
+    flags.push('hard_check_failed', ...finalHardFails.map((f) => f.id));
+    await emitPipelineEvent({ requestId, userId: input.userId, event: 'shipped_below_threshold', detail: { stage: 'final', checkIds: finalHardFails.map((f) => f.id) } });
+  }
 
-  // task5: emit shipped_below_threshold when evaluation && !evaluation.pass (ships anyway - best-of already ran)
   return finalizeResult(
     text,
     true,

@@ -14,6 +14,8 @@ import type { ContentPipelineInput, ContentPipelineResult } from './index';
 import { styleRulesFromChecks, runChecks, hardFailures, type CheckContext } from './checks';
 import { targetedRevise, escalateOnce, selectBest, type EnforceCandidate } from './enforce';
 import { SLOP_WORDS, SLOP_PHRASES } from './slop-lexicon';
+import { emitPipelineEvent } from './events';
+import { createRequestId } from '@/lib/logger';
 
 /**
  * Compact 2-call pipeline for small models (Llama-8B on the HF router, Groq
@@ -155,6 +157,7 @@ Return ONLY the final post.`;
 export async function runCompactPipeline(
   input: ContentPipelineInput,
 ): Promise<ContentPipelineResult> {
+  const requestId = input.requestId ?? createRequestId();
   const useVoice = input.useVoice !== false;
   const profile = useVoice ? input.profile : null;
   const contentType = input.contentType ?? 'post';
@@ -199,9 +202,8 @@ export async function runCompactPipeline(
   // calls (initial + escalated) = 6 LLM calls total, never more - escalation
   // is bounded to run at most once regardless of outcome.
   const checkCtx = buildCheckContext(input);
-  const gate = await targetedRevise(text, checkCtx, input.model);
+  const gate = await targetedRevise(text, checkCtx, input.model, requestId, 'compact-edit');
   text = gate.text;
-  // task5: emit targeted_revise when gate.revisedForChecks
 
   // Single evaluation for scoring - relaxed threshold, no revise loop. A small
   // model revising off a small model's notes destroys more than it fixes.
@@ -210,6 +212,9 @@ export async function runCompactPipeline(
   const evalContext = contentType === 'post' ? stripSections(input.contextAdditions, ['EMAIL VOICE']) : input.contextAdditions;
   if (useVoice && profile) {
     evaluation = await evaluateDraft(text, profile, evalContext || undefined, evalContentType, 7);
+    if (evaluation.parse_error) {
+      await emitPipelineEvent({ requestId, event: 'judge_parse_error', detail: { stage: 'compact-evaluate' } });
+    }
     stagesCompleted.push('evaluate');
   }
 
@@ -218,7 +223,6 @@ export async function runCompactPipeline(
   const judgeFailing = Boolean(evaluation && !evaluation.pass && !evaluation.parse_error);
   if (stillHardFailing || judgeFailing) {
     const escalatedText = await escalateOnce(async (smartModel) => {
-      // task5: emit escalated
       const preCleaned = deterministicPreClean(text, preserve);
       return stripEmDashes(
         await chatCompletion(buildCompactEditSystem(input), `DRAFT:\n---\n${preCleaned}\n---`, {
@@ -227,7 +231,7 @@ export async function runCompactPipeline(
           model: smartModel,
         }),
       );
-    });
+    }, requestId, 'compact-edit');
     if (escalatedText) {
       const escChecks = runChecks(escalatedText, checkCtx);
       let escEvaluation: VoiceEvaluationMatrix | undefined;
@@ -242,12 +246,13 @@ export async function runCompactPipeline(
   text = best.text;
   evaluation = best.evaluation;
   const finalHardFails = hardFailures(best.checkResults);
-  // task5: emit hard_check_failed when finalHardFails.length (best still fails after Gate B)
   const flags = [
     ...(evaluation && !evaluation.pass ? ['below_voice_threshold'] : []),
     ...(finalHardFails.length ? ['hard_check_failed', ...finalHardFails.map((f) => f.id)] : []),
   ];
-  // task5: emit shipped_below_threshold when evaluation && !evaluation.pass (ships anyway - best-of already ran)
+  if (finalHardFails.length > 0) {
+    await emitPipelineEvent({ requestId, userId: input.userId, event: 'shipped_below_threshold', detail: { stage: 'compact-edit', checkIds: finalHardFails.map((f) => f.id) } });
+  }
 
   return finalizeResult(
     text,

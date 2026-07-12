@@ -333,6 +333,19 @@ export async function chatCompletion(
   } catch (err) {
     // On quota/credit/rate-limit exhaustion, try the fallback provider.
     if (err instanceof LlmError && err.isQuota && fallback) {
+      // Dynamic imports (not static top-of-file): llm.ts is used by many
+      // non-pipeline callers (leads, signals, crons) that never pay the
+      // Next-runtime import cost unless a fallback actually fires. This
+      // event's request_id is synthetic (llm.ts has no pipeline request
+      // context) - it still answers "how often does the primary provider
+      // fail over" in aggregate, which is the observability spec 3.3 asks for.
+      const { emitPipelineEvent } = await import('@/lib/content-pipeline/events');
+      const { createRequestId } = await import('@/lib/logger');
+      await emitPipelineEvent({
+        requestId: createRequestId(),
+        event: 'provider_retry',
+        detail: { from: primary.label, to: fallback.label, reason: err.message },
+      });
       // Use the fallback's own model, not the primary's override.
       return callProviderWithJsonFallback(fallback, systemPrompt, userPrompt, { ...options, model: undefined }, true);
     }
