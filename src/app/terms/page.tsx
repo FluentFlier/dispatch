@@ -3,8 +3,9 @@ import type { Metadata } from 'next';
 import { PRODUCT_NAME } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: `Terms of Service — ${PRODUCT_NAME}`,
+  title: 'Terms of Service',
   description: `Terms of service for ${PRODUCT_NAME}.`,
+  alternates: { canonical: '/terms' },
 };
 
 function Section({

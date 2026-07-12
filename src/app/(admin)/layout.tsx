@@ -5,6 +5,10 @@ import { ToastProvider } from '@/components/ui/Toast';
 
 export const dynamic = 'force-dynamic';
 
+export const metadata = {
+  robots: { index: false, follow: false },
+};
+
 /**
  * Admin route group layout.
  * Skips creator onboarding gate; requires ADMIN_EMAILS allowlist instead.

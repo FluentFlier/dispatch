@@ -1,4 +1,6 @@
 import type { createClient } from '@insforge/sdk';
+import { resolveUnipileTarget } from '@/lib/onboarding/import-posts';
+import { logInfo } from '@/lib/logger';
 import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
 import {
   getLinkedInApiMode,
@@ -46,6 +48,73 @@ export function parseLinkedInPublicIdentifier(input: string): string {
   }
 }
 
+type StoredLinkedInAccount = {
+  unipile_account_id: string | null;
+  account_id: string | null;
+};
+
+/**
+ * Re-resolves a possibly-stale unipile_account_id to the live one.
+ *
+ * Unipile re-issues account.id on every LinkedIn session re-auth (~daily), so the
+ * id cached in social_accounts starts returning 404 and every outreach/verification
+ * call fails with a spurious "Account not found" until the user reconnects. This
+ * mirrors the publish/metrics-sync self-heal: verify the stored id, and when it is
+ * stale recover the current id by the stable identity (account_id = publicIdentifier
+ * / member id). Returns null when Unipile is unreachable so callers fall back to the
+ * stored id — unconfigured/local environments then behave exactly as before.
+ */
+async function healUnipileAccountId(
+  storedId: string,
+  storedAccountId: string | null,
+): Promise<{ accountId: string; refreshed: boolean } | null> {
+  try {
+    const target = await resolveUnipileTarget(storedId, storedAccountId, 'linkedin');
+    if (target?.unipileAccountId) {
+      return { accountId: target.unipileAccountId, refreshed: target.refreshed };
+    }
+  } catch {
+    // Unipile unreachable / unexpected shape — caller falls back to the stored id.
+  }
+  return null;
+}
+
+/** Writes the recovered account id back so the next lookup hits the fast path. */
+async function persistHealedAccountId(
+  client: InsforgeClient,
+  staleId: string,
+  freshId: string,
+  scope: { column: 'user_id' | 'workspace_id'; value: string },
+): Promise<void> {
+  await client.database
+    .from('social_accounts')
+    .update({ unipile_account_id: freshId })
+    .eq('unipile_account_id', staleId)
+    .eq('platform', 'linkedin')
+    .eq(scope.column, scope.value);
+  logInfo('[leads] Healed rotated Unipile account id', { [scope.column]: scope.value });
+}
+
+/**
+ * Resolves the live account id for a stored row, healing + persisting a rotated id.
+ * Falls back to the stored id when Unipile can't confirm (never regresses).
+ */
+async function liveAccountId(
+  client: InsforgeClient,
+  row: StoredLinkedInAccount | null,
+  scope: { column: 'user_id' | 'workspace_id'; value: string },
+): Promise<string | null> {
+  const storedId = row?.unipile_account_id ?? null;
+  if (!storedId) return null;
+
+  const healed = await healUnipileAccountId(storedId, row?.account_id ?? null);
+  if (!healed) return storedId;
+  if (healed.refreshed) {
+    await persistHealedAccountId(client, storedId, healed.accountId, scope);
+  }
+  return healed.accountId;
+}
+
 export async function getLinkedInUnipileAccountId(
   client: InsforgeClient,
   userId: string,
@@ -53,7 +122,7 @@ export async function getLinkedInUnipileAccountId(
 ): Promise<string | null> {
   let query = client.database
     .from('social_accounts')
-    .select('unipile_account_id')
+    .select('unipile_account_id, account_id')
     .eq('user_id', userId)
     .eq('platform', 'linkedin')
     .not('unipile_account_id', 'is', null);
@@ -64,7 +133,10 @@ export async function getLinkedInUnipileAccountId(
 
   const { data } = await query.limit(1).maybeSingle();
 
-  return (data?.unipile_account_id as string) ?? null;
+  return liveAccountId(client, data as StoredLinkedInAccount | null, {
+    column: 'user_id',
+    value: userId,
+  });
 }
 
 export async function resolveLinkedInProfile(
@@ -280,14 +352,17 @@ export async function getWorkspaceLinkedInAccountId(
 ): Promise<string | null> {
   const { data } = await client.database
     .from('social_accounts')
-    .select('unipile_account_id')
+    .select('unipile_account_id, account_id')
     .eq('workspace_id', workspaceId)
     .eq('platform', 'linkedin')
     .not('unipile_account_id', 'is', null)
     .limit(1)
     .maybeSingle();
 
-  return (data?.unipile_account_id as string) ?? null;
+  return liveAccountId(client, data as StoredLinkedInAccount | null, {
+    column: 'workspace_id',
+    value: workspaceId,
+  });
 }
 
 export async function sendLinkedInDirectMessage(

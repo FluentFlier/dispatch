@@ -1,6 +1,10 @@
 import { createClient } from '@insforge/sdk';
 import { verifyDraftToken } from '@/lib/sms/draft-token';
 
+export const metadata = {
+  robots: { index: false, follow: false },
+};
+
 /**
  * Public, login-free draft view opened from an SMS magic link. The signed token
  * carries the draft id + owner + expiry, so we can render the draft without a

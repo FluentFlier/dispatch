@@ -3,8 +3,9 @@ import type { Metadata } from 'next';
 import { PRODUCT_NAME } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: `Privacy Policy — ${PRODUCT_NAME}`,
+  title: 'Privacy Policy',
   description: `Privacy policy for ${PRODUCT_NAME}.`,
+  alternates: { canonical: '/privacy' },
 };
 
 export default function PrivacyPage(): JSX.Element {

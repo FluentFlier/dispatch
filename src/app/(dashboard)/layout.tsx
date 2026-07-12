@@ -22,6 +22,10 @@ import {
   isSchemaMismatchError,
 } from '@/lib/db/setup-gate';
 
+export const metadata = {
+  robots: { index: false, follow: false },
+};
+
 export default async function DashboardLayout({
   children,
 }: {

@@ -4,8 +4,9 @@ import CalendlyEmbed from '@/components/book-demo/CalendlyEmbed';
 import { PRODUCT_NAME } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: `Book a demo — ${PRODUCT_NAME}`,
+  title: 'Book a demo',
   description: 'Schedule a founder-led walkthrough of Content OS.',
+  alternates: { canonical: '/book-demo' },
 };
 
 /**
