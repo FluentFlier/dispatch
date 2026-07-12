@@ -15,14 +15,18 @@ import {
   Users,
 } from 'lucide-react';
 
-const NAV = [
+const NAV: ReadonlyArray<{
+  label: string;
+  icon: typeof Home;
+  active?: boolean;
+}> = [
   { label: 'Home', icon: Home, active: true },
   { label: 'Signals', icon: Radio },
   { label: 'Create', icon: PenLine },
   { label: 'Calendar', icon: CalendarDays },
   { label: 'Replies', icon: MessageCircle },
   { label: 'Leads', icon: Target },
-] as const;
+];
 
 const PIPELINE = [
   { label: 'Signals', value: '18', color: 'bg-[#315fe8]' },

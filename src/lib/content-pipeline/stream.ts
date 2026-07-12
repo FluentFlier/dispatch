@@ -68,7 +68,8 @@ export async function streamCreatorDraft(
     try {
       const vertical = topWeightedVertical(profile);
       const resolved = await getBestHooksForGeneration(input.hooksClient, {
-        topicText: input.userPrompt,
+        nicheId: (profile as { niche_id?: string | null } | null)?.niche_id ?? undefined,
+        topicText: input.userPrompt.slice(0, 1000),
         vertical,
         limit: 5,
       });

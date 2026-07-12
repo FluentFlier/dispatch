@@ -71,6 +71,7 @@ const SIGNAL_ENGINE_ONLY_TYPES = new Set<string>([
   'funding_round',
   'role_change',
   'accelerator_join',
+  'keyword_match',
 ]);
 
 /**

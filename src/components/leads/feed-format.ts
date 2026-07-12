@@ -43,6 +43,7 @@ export function signalTypeLabel(type: SignalType): string {
     role_change: 'New role',
     launch: 'Launched',
     other: 'Signal',
+    keyword_match: 'Posted about topic',
   };
   return labels[type] ?? 'Signal';
 }

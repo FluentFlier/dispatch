@@ -1,8 +1,11 @@
 import type { createClient } from '@insforge/sdk';
 import { classifyPostHybrid, classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
+import { classifyKeywordPost } from '@/lib/signals/detect/keyword-match';
 import {
   filterPostsSinceCursor,
+  filterSearchPostsSinceCursor,
   newestPostId,
+  newestPostedAt,
 } from '@/lib/signals/ingest/normalize';
 import { createSignalEvent, getEvent, upsertRawPost } from '@/lib/signals/store';
 import { runSignalActions } from '@/lib/signals/actions';
@@ -60,7 +63,13 @@ export async function processIngestedPosts(
   workspaceId: string,
   source: SignalSourceRow,
   posts: IngestedPost[],
-  opts: { dryRun?: boolean; maxItems?: number; rules?: SignalRuleRow[] } = {},
+  opts: {
+    dryRun?: boolean;
+    maxItems?: number;
+    rules?: SignalRuleRow[];
+    /** Workspace ICP description; enables the keyword-match relevance gate. */
+    icpDescription?: string | null;
+  } = {},
 ): Promise<ProcessBatchResult> {
   const result: ProcessBatchResult = {
     postsIngested: 0,
@@ -68,9 +77,41 @@ export async function processIngestedPosts(
     errors: [],
   };
 
-  const cursor = (source.cursor_json ?? {}) as { last_seen_post_id?: string };
+  const cursor = (source.cursor_json ?? {}) as {
+    last_seen_post_id?: string;
+    last_seen_posted_at?: string;
+  };
   const maxItems = opts.maxItems ?? 5;
-  const fresh = filterPostsSinceCursor(posts, cursor.last_seen_post_id, maxItems);
+  const isKeywordSource = source.source_type === 'keyword_search';
+
+  // Keyword-search result sets overlap run-to-run and the anchor post can drop
+  // out of the window, so those sources use a time-window cursor instead of
+  // last_seen_post_id anchoring.
+  let fresh = isKeywordSource
+    ? filterSearchPostsSinceCursor(posts, cursor.last_seen_posted_at, maxItems)
+    : filterPostsSinceCursor(posts, cursor.last_seen_post_id, maxItems);
+
+  // Keyword sources: drop already-ingested posts before spending relevance-LLM
+  // calls or attempting duplicate events (the overlap window re-fetches posts
+  // near the cursor by design; the raw-post unique index makes this cheap).
+  if (isKeywordSource && fresh.length > 0 && !opts.dryRun) {
+    try {
+      const { data: seen } = await client.database
+        .from('signal_raw_posts')
+        .select('external_post_id')
+        .eq('workspace_id', workspaceId)
+        .eq('platform', source.platform)
+        .in('external_post_id', fresh.map((p) => p.externalPostId));
+      const seenIds = new Set((seen ?? []).map((r) => String(r.external_post_id)));
+      fresh = fresh.filter((p) => !seenIds.has(p.externalPostId));
+    } catch (err) {
+      // Pre-dedupe is an optimization; on failure the dedupe_key still guards.
+      logInfo('keyword pre-dedupe query failed; relying on dedupe_key', {
+        sourceId: source.id,
+        error: String(err),
+      });
+    }
+  }
 
   const sourceIsHighValue = isHighValueSource(source.source_type);
   let llmConfirmsUsed = 0;
@@ -86,7 +127,21 @@ export async function processIngestedPosts(
     const capAvailable = llmConfirmsUsed < MAX_LLM_CONFIRMS_PER_BATCH;
     const highValueSource = sourceIsHighValue && capAvailable;
 
-    const { signal: classified, escalated } = await classifyPostHybridWithMeta(post, { highValueSource });
+    // Keyword sources bypass the GTM classifier entirely: the X search already
+    // matched the post, so detection is deterministic, with an optional
+    // ICP-relevance LLM gate that shares the batch LLM cap.
+    let classified;
+    let escalated = false;
+    if (isKeywordSource) {
+      const relevanceWillRun = Boolean(opts.icpDescription?.trim()) && capAvailable;
+      classified = await classifyKeywordPost(post, source, {
+        icpDescription: opts.icpDescription,
+        skipRelevance: !capAvailable,
+      });
+      if (relevanceWillRun) escalated = true;
+    } else {
+      ({ signal: classified, escalated } = await classifyPostHybridWithMeta(post, { highValueSource }));
+    }
     if (escalated) {
       // A real LLM call happened: count it against the cap.
       llmConfirmsUsed += 1;
@@ -144,11 +199,18 @@ export async function processIngestedPosts(
   }
 
   const latestId = newestPostId(posts) ?? cursor.last_seen_post_id;
-  if (latestId && !opts.dryRun) {
+  const latestPostedAt = isKeywordSource
+    ? (newestPostedAt(posts) ?? cursor.last_seen_posted_at)
+    : undefined;
+  if ((latestId || latestPostedAt) && !opts.dryRun) {
     await client.database
       .from('signal_sources')
       .update({
-        cursor_json: { ...cursor, last_seen_post_id: latestId },
+        cursor_json: {
+          ...cursor,
+          ...(latestId ? { last_seen_post_id: latestId } : {}),
+          ...(latestPostedAt ? { last_seen_posted_at: latestPostedAt } : {}),
+        },
         updated_at: new Date().toISOString(),
       })
       .eq('id', source.id);

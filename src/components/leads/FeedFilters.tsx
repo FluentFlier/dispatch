@@ -39,6 +39,7 @@ const SIGNAL_OPTIONS: Array<{ key: SignalType | 'all'; label: string }> = [
   { key: 'funding_round', label: 'Raised funding' },
   { key: 'role_change', label: 'New role' },
   { key: 'launch', label: 'Launched' },
+  { key: 'keyword_match', label: 'Posted about topic' },
 ];
 
 interface FeedFiltersProps {

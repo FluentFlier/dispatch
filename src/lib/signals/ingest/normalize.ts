@@ -86,3 +86,46 @@ export function filterPostsSinceCursor(
 export function newestPostId(posts: IngestedPost[]): string | undefined {
   return posts[0]?.externalPostId;
 }
+
+/** Overlap window: posts slightly older than the cursor are kept so a slow
+ *  search index never drops a post; the raw-post unique index dedupes them. */
+const SEARCH_CURSOR_OVERLAP_MS = 10 * 60 * 1000;
+
+/**
+ * Cursor filter for keyword-search sources. Search result sets overlap
+ * run-to-run and the anchor post can drop out of the window entirely, so the
+ * `last_seen_post_id` anchoring of `filterPostsSinceCursor` misbehaves here.
+ * Instead: keep posts newer than the last-seen timestamp (minus an overlap
+ * window), newest first, capped. Posts without a timestamp are kept —
+ * downstream DB dedupe drops re-ingests.
+ */
+export function filterSearchPostsSinceCursor(
+  posts: IngestedPost[],
+  lastSeenPostedAt: string | undefined,
+  maxItems: number,
+): IngestedPost[] {
+  const sorted = [...posts].sort((a, b) => {
+    const ta = a.postedAt ? new Date(a.postedAt).getTime() : 0;
+    const tb = b.postedAt ? new Date(b.postedAt).getTime() : 0;
+    return tb - ta;
+  });
+
+  if (!lastSeenPostedAt) return sorted.slice(0, maxItems);
+
+  const floor = new Date(lastSeenPostedAt).getTime() - SEARCH_CURSOR_OVERLAP_MS;
+  return sorted
+    .filter((p) => !p.postedAt || new Date(p.postedAt).getTime() > floor)
+    .slice(0, maxItems);
+}
+
+/** Newest posted_at in a batch (ISO), for advancing the search cursor. */
+export function newestPostedAt(posts: IngestedPost[]): string | undefined {
+  let newest: string | undefined;
+  for (const p of posts) {
+    if (!p.postedAt) continue;
+    if (!newest || new Date(p.postedAt).getTime() > new Date(newest).getTime()) {
+      newest = p.postedAt;
+    }
+  }
+  return newest;
+}
