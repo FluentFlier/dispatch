@@ -139,6 +139,38 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       items: rawItems.filter((item) => item.id),
     });
 
+    // Seed the imported posts as voice samples so connecting + importing an
+    // account actually completes the voice profile. Without this the "voice
+    // profile incomplete" banner stayed lit forever after a LinkedIn connect:
+    // completeness reads user_settings.sample_posts / voice_source, which the
+    // post persistence above never touched (voice-context `starved` check).
+    if (samples.length > 0) {
+      // Best-effort: a seeding failure must never fail the import itself.
+      try {
+        const voiceSamples = samples
+          .slice(0, 20)
+          .map((s) => ({ content: s.content, platform: s.platform }));
+        for (const setting of [
+          { key: 'sample_posts', value: JSON.stringify(voiceSamples) },
+          { key: 'voice_source', value: 'imported' },
+        ]) {
+          await client.database
+            .from('user_settings')
+            .upsert(
+              {
+                user_id: user.id,
+                key: setting.key,
+                value: setting.value,
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: 'user_id,key' },
+            );
+        }
+      } catch (seedErr) {
+        console.warn('[voice-lab/import-from-account] voice-sample seed failed (non-critical):', seedErr);
+      }
+    }
+
     return NextResponse.json({
       samples,
       count: samples.length,

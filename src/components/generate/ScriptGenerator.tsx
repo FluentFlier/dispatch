@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback, type KeyboardEvent, useMemo } from 'react';
-import { ArrowUp, Loader2, Square, Plus } from 'lucide-react';
+import { ArrowUp, Loader2, Square, Plus, AudioLines, Send, Check } from 'lucide-react';
 import { MicDictate } from './MicDictate';
 import { assembleGeneratePrompt } from '@/lib/generate-prompt';
 import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
+import { LinkedInComposer } from './LinkedInComposer';
 import { usePillars } from '@/hooks/usePillars';
 import { DASHBOARD_PLATFORMS, PLATFORM_LABELS, type DashboardPlatform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
@@ -193,7 +194,7 @@ export function ScriptGenerator({
     [mentionSeed, initialMentions],
   );
   const { pillars: pillarList, loading: pillarsLoading, getLabel } = usePillars();
-  const { preferredPostLength, voiceEnabled, loading: prefLoading, savePreferredPostLength } = useCreatorPreferences();
+  const { preferredPostLength, voiceEnabled, loading: prefLoading, savePreferredPostLength, saveVoiceEnabled } = useCreatorPreferences();
 
   const [pillar, setPillar] = useState(initialPillar);
   const [input, setInput] = useState('');
@@ -211,6 +212,8 @@ export function ScriptGenerator({
     return [];
   });
   const [loading, setLoading] = useState(false);
+  const [plusMenuOpen, setPlusMenuOpen] = useState(false);
+  const [publishOpen, setPublishOpen] = useState(false);
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [stage, setStage] = useState<GenStage | null>(null);
   const [error, setError] = useState('');
@@ -432,6 +435,14 @@ export function ScriptGenerator({
     void savePreferredPostLength(next);
   }
 
+  function toggleVoice() {
+    setUseVoice((prev) => {
+      const next = !prev;
+      void saveVoiceEnabled(next);
+      return next;
+    });
+  }
+
   const platformLabel = PLATFORM_LABELS[platform];
   const isEmpty = messages.length === 0 && !loading;
 
@@ -576,10 +587,52 @@ export function ScriptGenerator({
           className="w-full resize-none bg-transparent px-4 py-3 font-body text-[15px] leading-relaxed text-ink placeholder:text-ink3 focus:outline-none"
         />
         <div className="flex items-center justify-between border-t border-hair px-3 py-2">
-          <MicDictate
-            onText={(t) => setInput((cur) => (cur ? `${cur} ${t}` : t))}
-            title="Dictate"
-          />
+          <div className="flex items-center gap-1">
+            {/* ChatGPT-style "+" menu: per-draft voice toggle + publish. */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setPlusMenuOpen((o) => !o)}
+                aria-label="More options"
+                aria-expanded={plusMenuOpen}
+                className="flex h-9 w-9 items-center justify-center rounded-full text-ink3 transition-colors hover:bg-paper2 hover:text-ink2"
+              >
+                <Plus className="h-4 w-4" />
+              </button>
+              {plusMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setPlusMenuOpen(false)} />
+                  <div className="absolute bottom-11 left-0 z-20 w-52 overflow-hidden rounded-xl border border-hair bg-paper py-1 shadow-soft">
+                    <button
+                      type="button"
+                      onClick={() => { toggleVoice(); }}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-ink2 transition-colors hover:bg-paper2"
+                    >
+                      <AudioLines className="h-4 w-4 text-ink3" />
+                      <span className="flex-1">Voice</span>
+                      <span className={`text-[11px] font-medium ${useVoice ? 'text-ink' : 'text-ink3'}`}>
+                        {useVoice ? 'On' : 'Off'}
+                      </span>
+                      {useVoice && <Check className="h-3.5 w-3.5 text-ink" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => { setPlusMenuOpen(false); setPublishOpen(true); }}
+                      disabled={!lastDraft.trim()}
+                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-ink2 transition-colors hover:bg-paper2 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      <Send className="h-4 w-4 text-ink3" />
+                      <span className="flex-1">Publish{lastDraft.trim() ? '' : ' (draft first)'}</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+            <MicDictate
+              onText={(t) => setInput((cur) => (cur ? `${cur} ${t}` : t))}
+              title="Dictate"
+            />
+          </div>
           {loading ? (
             <button
               type="button"
@@ -602,6 +655,13 @@ export function ScriptGenerator({
           )}
         </div>
       </div>
+
+      <LinkedInComposer
+        open={publishOpen}
+        onClose={() => setPublishOpen(false)}
+        initialText={lastDraft}
+        platform={platform}
+      />
     </div>
   );
 }
