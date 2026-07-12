@@ -4,7 +4,6 @@ import {
   Radio,
   ExternalLink,
   Linkedin,
-  Twitter,
   Building2,
   Sparkles,
   Send,
@@ -13,6 +12,7 @@ import {
   Info,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { XLogo } from '@/components/ui/BrandIcons';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import { sourceBadge, signalTypeLabel, isReachable } from './feed-format';
 import {
@@ -20,6 +20,7 @@ import {
   SIGNAL_CONNECT_LIMIT,
   type SignalSendChannel,
 } from './signal-outreach';
+import { signalButtonBusy, type SignalDetailAction } from '@/lib/leads/busy';
 
 /** Short human label for the chosen send channel, shown on the Approve button. */
 function channelActionLabel(channel: SignalSendChannel): string {
@@ -44,8 +45,11 @@ interface SignalDetailProps {
   /** Current draft text for this signal (edited in place); empty means "not drafted yet". */
   draft: string;
   onDraftChange: (v: string) => void;
-  /** True while a draft/send request for this signal is in flight. */
-  busy: boolean;
+  /**
+   * Which action is in flight for this signal, or null. Bound per-button so
+   * drafting does not blank the Send button and vice versa.
+   */
+  busyAction: SignalDetailAction | null;
   /** Inline guard notice (from an expected 422 block) to render, or null. */
   notice: string | null;
   onDraft: () => void;
@@ -69,7 +73,7 @@ export function SignalDetail({
   card,
   draft,
   onDraftChange,
-  busy,
+  busyAction,
   notice,
   onDraft,
   onSend,
@@ -82,6 +86,8 @@ export function SignalDetail({
   const isConnect = plan.channel === 'linkedin_connect';
   const overLimit = isConnect && draft.length > SIGNAL_CONNECT_LIMIT;
   const alreadySent = card.status === 'sent';
+  // Per-action flags so drafting and sending spin independently.
+  const { draftBusy, sendBusy, anyBusy } = signalButtonBusy(busyAction);
 
   return (
     <div className="space-y-4 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
@@ -136,7 +142,7 @@ export function SignalDetail({
           )}
           {contact.x_handle && (
             <a href={`https://x.com/${contact.x_handle.replace(/^@/, '')}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-accent-primary hover:underline ml-2">
-              <Twitter className="h-3.5 w-3.5" /> {contact.x_handle}
+              <XLogo className="h-3.5 w-3.5" /> {contact.x_handle}
             </a>
           )}
         </div>
@@ -197,7 +203,7 @@ export function SignalDetail({
         </div>
       ) : (
         !alreadySent && (
-          <Button variant="primary" size="sm" onClick={onDraft} loading={busy}>
+          <Button variant="primary" size="sm" onClick={onDraft} loading={draftBusy}>
             <Sparkles className="h-4 w-4" /> Draft message
           </Button>
         )
@@ -210,13 +216,14 @@ export function SignalDetail({
             variant="primary"
             size="sm"
             onClick={onSend}
-            disabled={!plan.sendable || overLimit || busy}
+            loading={sendBusy}
+            disabled={!plan.sendable || overLimit || anyBusy}
             title={plan.sendable ? undefined : 'No messaging channel on this signal — copy the draft to send by hand.'}
           >
             {plan.channel === 'gmail' ? <Mail className="h-4 w-4" /> : <Send className="h-4 w-4" />}{' '}
             {channelActionLabel(plan.channel)}
           </Button>
-          <Button variant="ghost" size="sm" onClick={onDraft} loading={busy}>
+          <Button variant="ghost" size="sm" onClick={onDraft} loading={draftBusy}>
             <RefreshCw className="h-4 w-4" /> Regenerate
           </Button>
         </div>

@@ -12,12 +12,18 @@ import {
   Building2,
   Linkedin,
   Globe,
-  Twitter,
   MessageSquare,
+  Clock,
+  Check,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { YCLogo, XLogo } from '@/components/ui/BrandIcons';
 import type { SignalLeadWithContacts, LeadPlaybook } from '@/lib/signals/types';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
+import { leadButtonBusy, type LeadDetailAction } from '@/lib/leads/busy';
+import { linkedInBadgeState } from '@/lib/leads/verified-badge';
+
+export type { LeadDetailAction };
 
 /** LinkedIn connect-note character ceiling; drafts over this can't be approved. */
 export const CONNECT_LIMIT = 300;
@@ -87,18 +93,30 @@ function AboutText({ text }: { text: string }) {
 
 interface LeadDetailProps {
   lead: SignalLeadWithContacts;
-  company: YcCompanyDetail | 'loading' | undefined;
+  company: YcCompanyDetail | 'loading' | 'error' | undefined;
+  /** Retry a failed company-info fetch (re-arms the parent's fetch effect). */
+  onRetryCompany?: () => void;
   draft: string;
   onDraftChange: (v: string) => void;
-  busy: boolean;
+  busyAction: LeadDetailAction | null;
   followed: boolean;
-  onDraft: () => void;
-  onApprove: (channel?: 'linkedin_connect' | 'x_dm') => void;
+  /** Draft / regenerate. An optional instruction rewrites in that direction. */
+  onDraft: (rewriteInstruction?: string) => void;
+  /** Run the full voice + critique loop for a higher-fidelity rewrite (slower). */
+  onPolish?: () => void;
+  onApprove: (channel?: 'linkedin_connect' | 'linkedin_dm' | 'x_dm') => void;
   onEmail: () => void;
   onDismiss: () => void;
+  onSnooze?: () => void;
   onResolve: (force?: boolean) => void;
   onFollow: () => void;
   onPlanNurture?: () => void;
+  /** Persist free-text edits to the plan (why / angle / step labels). */
+  onEditPlan?: (edit: { whyThem?: string; angle?: string; stepLabels?: string[] }) => void;
+  onToggleStep?: (stepIndex: number, status: 'pending' | 'done') => void;
+  onDraftFollowup?: () => void;
+  onCheckConnection?: () => void;
+  accepted?: boolean;
 }
 
 interface LeadNote {
@@ -118,21 +136,36 @@ interface LeadNote {
 export function LeadDetail({
   lead,
   company,
+  onRetryCompany,
   draft,
   onDraftChange,
-  busy,
+  busyAction,
   followed,
   onDraft,
+  onPolish,
   onApprove,
   onEmail,
   onDismiss,
+  onSnooze,
   onResolve,
   onFollow,
   onPlanNurture,
+  onEditPlan,
+  onToggleStep,
+  onDraftFollowup,
+  onCheckConnection,
+  accepted,
 }: LeadDetailProps) {
+  // Per-action flags: a spinner shows only on the button whose action is live.
+  // `anyBusy` gates send/email/dismiss so an unrelated in-flight action can't be
+  // double-submitted, without skeletoning those buttons.
+  const { draftBusy, planBusy, approveBusy, resolveBusy, followupBusy, checkBusy, anyBusy } =
+    leadButtonBusy(busyAction);
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [noteText, setNoteText] = useState('');
   const [notesLoading, setNotesLoading] = useState(false);
+  // Free-text "how to change it" instruction for a targeted rewrite of the draft.
+  const [rewriteInstruction, setRewriteInstruction] = useState('');
 
   const loadNotes = useCallback(async () => {
     setNotesLoading(true);
@@ -174,8 +207,9 @@ export function LeadDetail({
   const overLimit = draft.length > CONNECT_LIMIT;
   const fact = lead.source_fact as { batch?: string; tagline?: string };
 
-  const detail = company && company !== 'loading' ? company : null;
+  const detail = company && company !== 'loading' && company !== 'error' ? company : null;
   const loadingCompany = company === 'loading';
+  const companyError = company === 'error';
   const tagline = detail?.oneLiner || lead.tagline || null;
   const website = detail?.website || lead.website || null;
   const ycUrl = detail?.ycUrl || (lead.external_id && lead.source === 'yc_directory'
@@ -243,7 +277,16 @@ export function LeadDetail({
       </div>
 
       {/* Body: About on the left, info box + tags on the right */}
-      {loadingCompany && !detail ? (
+      {companyError && !detail ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-border bg-bg-tertiary px-3 py-2 text-sm text-text-secondary">
+          <span>Could not load company info.</span>
+          {onRetryCompany && (
+            <Button variant="ghost" size="sm" onClick={onRetryCompany}>
+              <RefreshCw className="h-3.5 w-3.5" /> Retry
+            </Button>
+          )}
+        </div>
+      ) : loadingCompany && !detail ? (
         <div className="h-28 rounded-lg bg-bg-tertiary animate-pulse" />
       ) : (
         <div className="flex flex-col sm:flex-row gap-4">
@@ -274,11 +317,11 @@ export function LeadDetail({
             {/* Social / quick links, right below the tags */}
             <div className="flex flex-wrap gap-2 pt-0.5">
               {website && <IconLink href={website} title="Website"><Globe className="h-4 w-4" /></IconLink>}
-              {ycUrl && <IconLink href={ycUrl} title="YC page"><ExternalLink className="h-4 w-4" /></IconLink>}
+              {ycUrl && <IconLink href={ycUrl} title="YC page"><YCLogo className="h-4 w-4" /></IconLink>}
               {(detail?.linkedinUrl || contact?.linkedin_url) && (
                 <IconLink href={(detail?.linkedinUrl || contact?.linkedin_url)!} title="LinkedIn"><Linkedin className="h-4 w-4" /></IconLink>
               )}
-              {detail?.twitterUrl && <IconLink href={detail.twitterUrl} title="X / Twitter"><Twitter className="h-4 w-4" /></IconLink>}
+              {detail?.twitterUrl && <IconLink href={detail.twitterUrl} title="X / Twitter"><XLogo className="h-4 w-4" /></IconLink>}
             </div>
           </div>
         </div>
@@ -298,7 +341,7 @@ export function LeadDetail({
       {noContact ? (
         <div className="bg-bg-tertiary rounded-md p-3 text-sm text-text-secondary flex items-center justify-between gap-3">
           <span>No reachable contact found. This lead can&apos;t be messaged yet.</span>
-          <Button variant="ghost" size="sm" onClick={() => onResolve(false)} loading={busy}>Try to resolve</Button>
+          <Button variant="ghost" size="sm" onClick={() => onResolve(false)} loading={resolveBusy}>Try to resolve</Button>
         </div>
       ) : contact ? (
         <div className="flex items-center justify-between gap-3">
@@ -310,9 +353,24 @@ export function LeadDetail({
                 LinkedIn <ExternalLink className="h-3 w-3" />
               </a>
             )}
+            {linkedInBadgeState(contact) === 'verified' ? (
+              <span
+                title="LinkedIn profile confirmed via your connected account"
+                className="inline-flex items-center gap-1 ml-2 rounded-full bg-sage-light px-1.5 py-0.5 text-[11px] font-medium text-accent-secondary align-middle"
+              >
+                <Check className="h-3 w-3" /> Verified
+              </span>
+            ) : linkedInBadgeState(contact) === 'unverified' ? (
+              <span
+                title="Not verified yet - this profile link may be out of date. Rescan to check."
+                className="ml-2 text-[11px] text-text-tertiary align-middle"
+              >
+                Unverified
+              </span>
+            ) : null}
           </p>
           {/* Rescan: force a fresh contact re-pull (e.g. wrong/stale founder). */}
-          <Button variant="ghost" size="sm" onClick={() => onResolve(true)} loading={busy} title="Re-pull the founder contact from source">
+          <Button variant="ghost" size="sm" onClick={() => onResolve(true)} loading={resolveBusy} title="Re-pull the founder contact from source">
             <RefreshCw className="h-3.5 w-3.5" /> Rescan
           </Button>
         </div>
@@ -324,18 +382,44 @@ export function LeadDetail({
           <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5" /> Nurture plan
           </p>
-          {onPlanNurture && lead.contact_status === 'resolved' && !lead.playbook && (
-            <Button variant="secondary" size="sm" onClick={onPlanNurture} loading={busy}>
-              Plan outreach
+          {onPlanNurture && lead.contact_status === 'resolved' && (
+            <Button variant="secondary" size="sm" onClick={onPlanNurture} loading={planBusy}>
+              {lead.playbook ? 'Regenerate plan' : 'Plan outreach'}
             </Button>
           )}
         </div>
         {lead.playbook ? (
-          <PlaybookView playbook={lead.playbook as LeadPlaybook} stage={lead.nurture_stage} due={lead.next_action_at} />
+          <PlaybookView playbook={lead.playbook as LeadPlaybook} stage={lead.nurture_stage} due={lead.next_action_at} onToggleStep={onToggleStep} onEditPlan={onEditPlan} />
         ) : (
           <p className="text-xs text-text-tertiary">
             Generate a 4-step plan: research → comment → connect → follow-up DM. Connect note drafts in your voice.
           </p>
+        )}
+
+        {/* Sequence follow-up: after the connect is sent, confirm acceptance,
+            then draft + approve the DM step. */}
+        {lead.nurture_stage === 'connect_sent' && (
+          <div className="mt-1 flex items-center justify-between gap-2 rounded-md border border-accent-primary/25 bg-accent-primary/5 px-3 py-2">
+            <span className="text-xs text-text-secondary flex items-center gap-1.5">
+              {accepted && <Check className="h-3.5 w-3.5 text-accent-secondary" />}
+              {accepted
+                ? 'Connection accepted — send the follow-up DM.'
+                : 'Connect sent. Check if they have accepted.'}
+            </span>
+            {lead.outreach?.channel === 'linkedin_dm' && lead.outreach?.draft_text ? (
+              <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_dm')} loading={approveBusy}>
+                <Send className="h-4 w-4" /> Approve DM
+              </Button>
+            ) : accepted && onDraftFollowup ? (
+              <Button variant="secondary" size="sm" onClick={onDraftFollowup} loading={followupBusy}>
+                <Sparkles className="h-4 w-4" /> Draft follow-up DM
+              </Button>
+            ) : onCheckConnection ? (
+              <Button variant="ghost" size="sm" onClick={onCheckConnection} loading={checkBusy}>
+                <RefreshCw className="h-4 w-4" /> Check if accepted
+              </Button>
+            ) : null}
+          </div>
         )}
       </section>
 
@@ -402,7 +486,7 @@ export function LeadDetail({
           </div>
         </div>
       ) : (
-        <Button variant="primary" size="sm" onClick={onDraft} loading={busy}>
+        <Button variant="primary" size="sm" onClick={() => onDraft()} loading={draftBusy}>
           <Sparkles className="h-4 w-4" /> Draft message
         </Button>
       )}
@@ -411,30 +495,65 @@ export function LeadDetail({
       {draft && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           {hasLinkedIn && (
-            <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_connect')} disabled={noContact || overLimit || busy}>
+            <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_connect')} loading={approveBusy} disabled={noContact || overLimit || anyBusy}>
               <Send className="h-4 w-4" /> LinkedIn
             </Button>
           )}
           {xHandle && (
-            <Button variant="primary" size="sm" onClick={() => onApprove('x_dm')} disabled={noContact || busy}>
-              <Twitter className="h-4 w-4" /> X DM
+            <Button variant="primary" size="sm" onClick={() => onApprove('x_dm')} loading={approveBusy} disabled={noContact || anyBusy}>
+              <XLogo className="h-4 w-4" /> X DM
             </Button>
           )}
           {!hasLinkedIn && !xHandle && (
-            <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_connect')} disabled={noContact || overLimit || busy}>
+            <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_connect')} loading={approveBusy} disabled={noContact || overLimit || anyBusy}>
               <Send className="h-4 w-4" /> Approve
             </Button>
           )}
           {leadEmail && (
-            <Button variant="secondary" size="sm" onClick={onEmail} disabled={busy} title={`Cold email ${leadEmail} (opt-in)`}>
+            <Button variant="secondary" size="sm" onClick={onEmail} disabled={anyBusy} title={`Cold email ${leadEmail} (opt-in)`}>
               <Mail className="h-4 w-4" /> Email
             </Button>
           )}
-          <Button variant="ghost" size="sm" onClick={onDraft} loading={busy}>
+          <Button variant="ghost" size="sm" onClick={() => onDraft()} loading={draftBusy} title="Re-roll a fresh draft">
             <RefreshCw className="h-4 w-4" /> Regenerate
           </Button>
+          {onPolish && (
+            <Button variant="ghost" size="sm" onClick={onPolish} loading={draftBusy} title="Run the full voice loop for a higher-fidelity rewrite (slower)">
+              <Sparkles className="h-4 w-4" /> Polish
+            </Button>
+          )}
+          {onSnooze && (
+            <Button variant="ghost" size="sm" onClick={onSnooze} title="Hide until tomorrow's digest">
+              <Clock className="h-4 w-4" /> Snooze
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={onDismiss}>
             <X className="h-4 w-4" /> Dismiss
+          </Button>
+        </div>
+      )}
+
+      {/* Rewrite-with-instruction: steer the next generation instead of a blind re-roll. */}
+      {draft && (
+        <div className="flex items-center gap-2">
+          <input
+            value={rewriteInstruction}
+            onChange={(e) => setRewriteInstruction(e.target.value)}
+            placeholder="Tell the model how to change it, e.g. 'shorter, more casual'"
+            aria-label="Rewrite instruction"
+            className="flex-1 rounded-md border border-border bg-bg-primary px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && rewriteInstruction.trim()) onDraft(rewriteInstruction.trim());
+            }}
+          />
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => onDraft(rewriteInstruction.trim() || undefined)}
+            loading={draftBusy}
+            disabled={!rewriteInstruction.trim()}
+          >
+            <Sparkles className="h-4 w-4" /> Rewrite
           </Button>
         </div>
       )}
@@ -446,13 +565,95 @@ function PlaybookView({
   playbook,
   stage,
   due,
+  onToggleStep,
+  onEditPlan,
 }: {
   playbook: LeadPlaybook;
   stage?: string | null;
   due?: string | null;
+  onToggleStep?: (stepIndex: number, status: 'pending' | 'done') => void;
+  onEditPlan?: (edit: { whyThem?: string; angle?: string; stepLabels?: string[] }) => void;
 }) {
+  const doneCount = playbook.steps.filter((s) => s.status === 'done').length;
+  const [editing, setEditing] = useState(false);
+  const [whyThem, setWhyThem] = useState(playbook.whyThem);
+  const [angle, setAngle] = useState(playbook.angle);
+  const [stepLabels, setStepLabels] = useState(playbook.steps.map((s) => s.label));
+
+  // Re-seed the editable copy whenever the underlying plan changes (e.g. after a
+  // regenerate), so a stale draft is never shown when the user opens the editor.
+  useEffect(() => {
+    if (editing) return;
+    setWhyThem(playbook.whyThem);
+    setAngle(playbook.angle);
+    setStepLabels(playbook.steps.map((s) => s.label));
+  }, [editing, playbook]);
+
+  if (editing) {
+    return (
+      <div className="space-y-2 text-sm">
+        <label className="block">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Why them</span>
+          <textarea
+            value={whyThem}
+            onChange={(e) => setWhyThem(e.target.value)}
+            rows={2}
+            className="mt-1 w-full rounded-md border border-border bg-bg-primary p-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+          />
+        </label>
+        <label className="block">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Angle</span>
+          <textarea
+            value={angle}
+            onChange={(e) => setAngle(e.target.value)}
+            rows={2}
+            className="mt-1 w-full rounded-md border border-border bg-bg-primary p-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+          />
+        </label>
+        <div className="space-y-1">
+          <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Steps</span>
+          {stepLabels.map((label, i) => (
+            <input
+              key={`edit-step-${i}`}
+              value={label}
+              onChange={(e) => setStepLabels((prev) => prev.map((l, j) => (j === i ? e.target.value : l)))}
+              aria-label={`Step ${i + 1} label`}
+              className="w-full rounded-md border border-border bg-bg-primary px-2 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+            />
+          ))}
+        </div>
+        <div className="flex items-center gap-2 pt-1">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              onEditPlan?.({ whyThem: whyThem.trim(), angle: angle.trim(), stepLabels: stepLabels.map((l) => l.trim()) });
+              setEditing(false);
+            }}
+          >
+            <Check className="h-4 w-4" /> Save plan
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => setEditing(false)}>
+            Cancel
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-2 text-sm">
+      {onEditPlan && (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="text-xs font-medium text-accent-primary hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary rounded"
+          >
+            Edit plan
+          </button>
+        </div>
+      )}
       <p className="text-text-secondary">
         <span className="font-medium text-text-primary">Why: </span>
         {playbook.whyThem}
@@ -472,13 +673,36 @@ function PlaybookView({
           Target post ({playbook.targetPost.source}): {playbook.targetPost.excerpt}
         </p>
       )}
-      <ol className="list-decimal list-inside space-y-1 text-xs text-text-secondary">
-        {playbook.steps.map((s) => (
-          <li key={`${s.type}-${s.label}`} className={s.status === 'done' ? 'line-through opacity-60' : ''}>
-            {s.label}
-          </li>
-        ))}
-      </ol>
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Steps</span>
+        <span className="text-[11px] text-text-tertiary">{doneCount}/{playbook.steps.length} done</span>
+      </div>
+      <ul className="space-y-1">
+        {playbook.steps.map((s, i) => {
+          const done = s.status === 'done';
+          return (
+            <li key={`${s.type}-${i}`}>
+              <button
+                type="button"
+                disabled={!onToggleStep}
+                onClick={() => onToggleStep?.(i, done ? 'pending' : 'done')}
+                className="group flex w-full items-start gap-2 rounded-md px-1.5 py-1 text-left text-xs hover:bg-bg-primary disabled:cursor-default disabled:hover:bg-transparent"
+              >
+                <span
+                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                    done ? 'border-accent-primary bg-accent-primary text-white' : 'border-border text-transparent group-hover:border-accent-primary/50'
+                  }`}
+                >
+                  <Check className="h-3 w-3" />
+                </span>
+                <span className={done ? 'text-text-tertiary line-through' : 'text-text-secondary'}>
+                  {s.label}
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

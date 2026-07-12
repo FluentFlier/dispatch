@@ -17,6 +17,9 @@ interface LeadCardProps {
   onSelect: () => void;
   /** Keyboard handler so arrow-key navigation can be owned by the parent list. */
   onKeyDown?: (e: React.KeyboardEvent<HTMLButtonElement>) => void;
+  /** When provided, renders a bulk-select checkbox in a left gutter. */
+  checked?: boolean;
+  onToggleSelect?: () => void;
 }
 
 /**
@@ -27,7 +30,7 @@ interface LeadCardProps {
  * get a pin marker. The whole row is a button so it is keyboard-focusable and
  * announces itself via `aria-label` for screen readers.
  */
-export function LeadCard({ card, selected, followed, onSelect, onKeyDown }: LeadCardProps) {
+export function LeadCard({ card, selected, followed, onSelect, onKeyDown, checked, onToggleSelect }: LeadCardProps) {
   const badge = sourceBadge(card);
   const reachable = isReachable(card);
   const pill = contactPillLabel(card);
@@ -38,6 +41,21 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown }: Lead
   const scoreLabel = scoreChip(card.score);
 
   return (
+    <div className={`flex items-stretch border-b border-border last:border-0 ${followed ? 'bg-sage-light/40' : ''}`}>
+      {onToggleSelect && (
+        <label
+          className="flex items-center pl-3 pr-1 cursor-pointer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <input
+            type="checkbox"
+            checked={Boolean(checked)}
+            onChange={onToggleSelect}
+            aria-label={`Select ${card.companyName ?? 'lead'}`}
+            className="h-4 w-4 rounded border-border accent-accent-primary cursor-pointer"
+          />
+        </label>
+      )}
     <button
       type="button"
       id={card.id}
@@ -48,11 +66,11 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown }: Lead
       }${signal ? `, ${signal}` : ''}, ${pill}${scoreLabel ? `, score ${scoreLabel}` : ''}`}
       onClick={onSelect}
       onKeyDown={onKeyDown}
-      className={`w-full text-left px-4 py-3 border-b border-border last:border-0 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-inset ${
+      className={`flex-1 min-w-0 text-left px-4 py-3 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-inset ${
         selected
           ? 'bg-bg-primary border-l-2 border-l-accent-primary'
           : 'hover:bg-bg-tertiary'
-      } ${followed ? 'bg-sage-light/40' : ''}`}
+      }`}
     >
       {/* Top line: source badge + score */}
       <div className="flex items-center justify-between gap-2">
@@ -91,6 +109,19 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown }: Lead
         <p className="text-xs text-text-tertiary line-clamp-1 mt-0.5">{summary}</p>
       ) : null}
 
+      {/* Founder + their exact title (as they list it: Founder, CEO, Co-founder…).
+          Shown explicitly so it's clear WHO the outreach targets and their role. */}
+      {card.contact?.name && (
+        <p className="text-[11px] text-text-secondary line-clamp-1 mt-1">
+          {card.contact.name}
+          {card.contact.role ? (
+            <span className="text-text-tertiary"> · {card.contact.role}</span>
+          ) : (
+            <span className="text-amber-600"> · role unknown</span>
+          )}
+        </p>
+      )}
+
       {/* Contact-status pill */}
       <div className="mt-1.5">
         <span
@@ -104,5 +135,6 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown }: Lead
         </span>
       </div>
     </button>
+    </div>
   );
 }
