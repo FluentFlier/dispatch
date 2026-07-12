@@ -12,6 +12,12 @@ vi.mock('@/lib/voice-evaluator', async (importOriginal) => {
 
 import { isCompactMode, runCompactPipeline } from '@/lib/content-pipeline/compact';
 
+// 400+ chars so it clears the linkedin platform_length hard check (compact
+// mode now runs Gate A/B enforcement after the edit pass, this task) -
+// 'a drafted post' was 14 chars and tripped an unwanted targeted-revise call
+// that these tests' exact chatCompletion call counts aren't testing for.
+const DRAFT_TEXT = 'We shipped the thing today after three weeks of steady testing across the whole team, and it finally landed clean without any surprises along the way. '.repeat(3).trim();
+
 const PROFILE = { display_name: 'Ani', voice_description: 'punchy', voice_rules: 'DO: short' };
 const CONTEXT = [
   'BACKGROUND FACTS (use specific details, never genericize):\nBuilt Ada.',
@@ -20,7 +26,7 @@ const CONTEXT = [
 ].join('\n\n');
 
 beforeEach(() => {
-  chatCompletion.mockReset().mockResolvedValue('a drafted post');
+  chatCompletion.mockReset().mockResolvedValue(DRAFT_TEXT);
   evaluateDraft.mockReset().mockResolvedValue({
     persona_fidelity: 8, uniqueness: 8, specificity: 8, so_what: 8,
     pain_resonance: 8, ai_slop: 2, revision_notes: '', pass: true,

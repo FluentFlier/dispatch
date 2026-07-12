@@ -9,6 +9,7 @@ import {
   HUMANIZER_PROMPT,
   VOICE_APPLY_PROMPT,
 } from './humanizer-prompts';
+import { allSlopRegexes } from './content-pipeline/slop-lexicon';
 
 export type HumanizePass = 'pre_clean' | 'clean' | 'audit' | 'voice';
 
@@ -18,21 +19,13 @@ export interface HumanizePipelineResult {
 }
 
 /**
- * Deterministic AI-writing patterns. Each match is a "tell" that the text reads
- * like generic LLM output. Used as a floor under the ML detector and for cheap pre-clean.
+ * Deterministic AI-writing patterns, derived from the single lexicon
+ * (src/lib/content-pipeline/slop-lexicon.ts) so this detector and the
+ * checks.ts slop_phrases check can never diverge (Phase 3: guardrail
+ * consolidation). Em/en dash detection stays here explicitly - the lexicon
+ * covers vocabulary/phrases, not raw punctuation.
  */
-export const AI_SLOP_PATTERNS: RegExp[] = [
-  /\b(delve|tapestry|leverage|foster|landscape|nuanced|multifaceted|comprehensive|robust|holistic|pivotal|crucial|paramount|innovative|transformative|utilize|realm|underscore|testament|seamless|elevate|empower|unlock|harness|navigate|cultivate|embark|profound)\b/gi,
-  /\bin today'?s (?:fast-paced |digital |modern |competitive )?world\b/gi,
-  /\bit'?s (?:worth|important) (?:noting|to note|mentioning)\b/gi,
-  /\b(?:in conclusion|to sum up|in summary|ultimately,|at the end of the day)\b/gi,
-  /\blet'?s (?:dive|unpack|explore|break (?:it|this) down)\b/gi,
-  /\bnot only\b[^.]*\bbut also\b/gi,
-  /\bwhether you'?re\b/gi,
-  /\bgame[- ]chang(?:er|ing)\b/gi,
-  /—/g,
-  /–/g,
-];
+export const AI_SLOP_PATTERNS: RegExp[] = [...allSlopRegexes(), /—/g, /–/g];
 
 const AI_WORD_REPLACEMENTS: Array<[RegExp, string]> = [
   [/\butilize\b/gi, 'use'],

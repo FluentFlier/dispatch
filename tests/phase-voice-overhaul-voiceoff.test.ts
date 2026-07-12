@@ -4,7 +4,11 @@ const chatCompletion = vi.fn().mockResolvedValue('draft text');
 vi.mock('@/lib/llm', () => ({
   chatCompletion: (...args: unknown[]) => chatCompletion(...args),
 }));
-const humanizePipeline = vi.fn().mockResolvedValue({ text: 'humanized text', passes: ['pre_clean', 'clean', 'audit'] });
+// 400+ chars so it clears the linkedin platform_length hard check (Gate A
+// now runs on the voice-off path too) - a short fixture here would trigger
+// an unwanted targeted-revise call and this test isn't testing that gate.
+const HUMANIZED_TEXT = 'humanized text about shipping the onboarding flow after careful review and testing across the team. '.repeat(5).trim();
+const humanizePipeline = vi.fn().mockResolvedValue({ text: HUMANIZED_TEXT, passes: ['pre_clean', 'clean', 'audit'] });
 vi.mock('@/lib/humanizer', () => ({
   humanizePipeline: (...args: unknown[]) => humanizePipeline(...args),
 }));
@@ -34,7 +38,7 @@ describe('voice-off prose still gets humanized', () => {
     });
     expect(humanizePipeline).toHaveBeenCalledTimes(1);
     expect(result.stagesCompleted).toEqual(['base', 'humanize']);
-    expect(result.text).toBe('humanized text');
+    expect(result.text).toBe(HUMANIZED_TEXT);
   });
 
   it('fast voice-off skips the heavy pass unless humanizeAlways', async () => {

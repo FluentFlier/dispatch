@@ -125,6 +125,68 @@ select:focus {
     box-shadow: 0 20px 50px -30px rgba(23, 23, 23, 0.12);
   }
 
+  /* Legacy base fill — warm translucent inset so the silk still reads through
+     panels, inputs, and chat bubbles instead of an opaque paper block.
+     Written as raw CSS (not @apply) so opacity modifiers resolve on the
+     custom oklch palette. Values mirror tailwind.config.ts exactly. */
+  .editorial .bg-bg-primary {
+    background-color: oklch(97.5% 0.004 85 / 0.8);
+    backdrop-filter: blur(4px);
+  }
+  .editorial .hover\:bg-bg-primary:hover {
+    background-color: oklch(97.5% 0.004 85);
+  }
+
+  /* Legacy text tokens → ink scale. */
+  .editorial .text-text-primary {
+    color: oklch(18% 0.012 55);
+  }
+  .editorial .text-text-secondary {
+    color: oklch(43% 0.014 65);
+  }
+  .editorial .text-text-tertiary {
+    color: oklch(49% 0.014 65);
+  }
+  .editorial .text-text-inverse {
+    color: oklch(99.2% 0.002 85);
+  }
+
+  /* Legacy accent tokens → Content Relay cobalt / teal. */
+  .editorial .text-accent-primary {
+    color: oklch(57% 0.24 260);
+  }
+  .editorial .text-accent-secondary {
+    color: oklch(44% 0.1 145);
+  }
+  .editorial .bg-accent-primary {
+    background-color: oklch(57% 0.24 260);
+    color: oklch(99.2% 0.002 85);
+  }
+  .editorial .hover\:bg-accent-dark:hover {
+    background-color: oklch(47% 0.22 260);
+  }
+  .editorial .bg-accent-light {
+    background-color: oklch(57% 0.24 260 / 0.1);
+  }
+  .editorial .border-accent-primary {
+    border-color: oklch(57% 0.24 260);
+  }
+
+  /* Legacy coral → flame; legacy sage → teal (workflow status accents). */
+  .editorial .text-coral,
+  .editorial .text-coral-dark {
+    color: oklch(62% 0.2 35);
+  }
+  .editorial .bg-coral-light {
+    background-color: oklch(62% 0.2 35 / 0.1);
+  }
+  .editorial .text-sage {
+    color: oklch(44% 0.1 145);
+  }
+  .editorial .bg-sage-light {
+    background-color: oklch(44% 0.1 145 / 0.1);
+  }
+
   .btn-primary {
     @apply inline-flex items-center justify-center gap-2 min-h-[48px] px-6 rounded-full text-[15px] font-medium text-paper bg-ink transition-all hover:-translate-y-px shadow-[0_12px_40px_-12px_rgba(23,23,23,0.45)] disabled:opacity-50 disabled:pointer-events-none;
   }

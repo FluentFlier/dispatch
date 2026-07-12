@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, Pencil, Search, Star, Trash2, X } from 'lucide-react';
+import { Check, Download, Loader2, Pencil, Search, Star, Trash2, X } from 'lucide-react';
 import { IcpChat } from '@/components/leads/IcpChat';
 import type { DirectorySettingsRow, IcpProfileRow } from '@/lib/signals/types';
 
@@ -13,9 +13,9 @@ interface IcpManagerProps {
   onProfilesChange: (profiles: IcpProfileRow[]) => void;
   onSettingsSaved: (settings: DirectorySettingsRow) => void;
   onDiscoveryComplete?: () => void;
-  /** Kick off the streamed directory scrape (parent switches to the feed to show progress). */
+  /** Kick off a full directory scrape (hands off to the feed's live progress). */
   onRunScrape?: () => void;
-  /** True while the parent's scrape is in flight; disables the Scrape button. */
+  /** Whether a scrape is currently running (drives the scrape button state). */
   scraping?: boolean;
   toast?: (message: string, type?: 'success' | 'error') => void;
 }
@@ -41,7 +41,7 @@ export function IcpManager({
   onSettingsSaved,
   onDiscoveryComplete,
   onRunScrape,
-  scraping,
+  scraping = false,
   toast,
 }: IcpManagerProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -211,18 +211,6 @@ export function IcpManager({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {onRunScrape && (
-              <button
-                type="button"
-                onClick={onRunScrape}
-                disabled={scraping}
-                title="Scrape your enabled lead sources with the current ICP"
-                className="inline-flex items-center gap-1.5 rounded-md bg-accent-primary px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 min-h-[34px]"
-              >
-                {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-                {scraping ? 'Scraping…' : 'Scrape now'}
-              </button>
-            )}
             {!showSave ? (
               <button
                 type="button"
@@ -278,6 +266,18 @@ export function IcpManager({
               {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
               Discover ({selected.size})
             </button>
+            {onRunScrape && (
+              <button
+                type="button"
+                onClick={() => onRunScrape()}
+                disabled={scraping}
+                title="Scrape the directories now and jump to the live feed"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary hover:border-accent-primary/40 disabled:opacity-40 min-h-[34px]"
+              >
+                {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {scraping ? 'Scraping…' : 'Scrape now'}
+              </button>
+            )}
           </div>
         </div>
 

@@ -136,8 +136,8 @@ describe('LLM provider abstraction', () => {
       const caught = await chatCompletion('s', 'u').catch((e) => e);
       expect(caught.status).toBe(429);
       expect(caught.isQuota).toBe(true);
-      // Initial attempt + 4 retries = 5 calls.
-      expect((fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(5);
+      // Initial attempt + 2 retries = 3 calls (spec 3.4: max 2 retries).
+      expect((fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(3);
     });
 
     it('retries 429 then succeeds when a later attempt clears', async () => {

@@ -52,9 +52,20 @@ describe('check: bait_hook (hard)', () => {
     expect(r.pass).toBe(false);
     expect(r.severity).toBe('hard');
   });
-  it('fails broetry ladders (4+ consecutive short lines)', () => {
-    const broetry = 'Remote work.\nIt changed.\nEverything we knew.\nForever, honestly.\n\n' + BASE;
+  it('fails broetry ladders (5+ consecutive short unmarked lines)', () => {
+    // Raised from 4 to 5 lines and tightened the per-line word cap in the
+    // recalibration below - a bare 4-line ladder false-positived on
+    // legitimate short listicles (Phase 1 session note, Task 4 minor).
+    const broetry = 'Remote work.\nIt changed.\nEverything.\nForever.\nHonestly.\n\n' + BASE;
     expect(get(broetry, 'bait_hook').pass).toBe(false);
+  });
+  it('does not flag a legitimate numbered listicle (the false-positive this recalibration fixes)', () => {
+    const listicle = '1. Ship fast\n2. Talk to users\n3. Charge money\n4. Repeat forever\n\n' + BASE;
+    expect(get(listicle, 'bait_hook').pass).toBe(true);
+  });
+  it('does not flag a short 4-line poem opener', () => {
+    const poem = 'The office emptied out.\nThe calendar too.\nWork kept shipping anyway.\nNobody asked why.\n\n' + BASE;
+    expect(get(poem, 'bait_hook').pass).toBe(true);
   });
   it('passes a normal strong hook', () => {
     expect(get(BASE, 'bait_hook').pass).toBe(true);

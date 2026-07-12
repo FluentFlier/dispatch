@@ -12,6 +12,13 @@ import type { VocabularyFingerprint, StructuralPatterns } from '@/lib/voice-cont
 import { finalizeResult, stripEmDashes } from './finalize';
 export { stripMarkdownFormatting, enforceParagraphFloor } from './finalize';
 import { isCompactMode, runCompactPipeline } from './compact';
+import { styleRulesFromChecks, runChecks, hardFailures, type CheckContext } from './checks';
+import { targetedRevise, escalateOnce, selectBest, type EnforceCandidate } from './enforce';
+import { emitPipelineEvent } from './events';
+import { createRequestId } from '@/lib/logger';
+import { callStageChecked } from './stage-contract';
+import { withSpan, flushAfterResponse } from '@/lib/observability/langfuse';
+import { recordGenerationOutcome } from '@/lib/observability/generation-outcome';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -50,6 +57,12 @@ export interface ContentPipelineInput {
   structural?: StructuralPatterns;
   /** Run the learned-hook rewrite stage even when the creator has their own opening style. */
   forceHooks?: boolean;
+  /** Correlates every pipeline_events row for one generation request. Generated
+   * internally when omitted - callers only need to pass it if they want to
+   * correlate pipeline events with their own request-scoped logging. */
+  requestId?: string;
+  /** Attached to pipeline_events rows when known; nullable, best-effort. */
+  userId?: string;
 }
 
 export interface ContentPipelineResult {
@@ -66,14 +79,21 @@ export interface ContentPipelineResult {
   humanizePasses?: string[];
 }
 
+/**
+ * Bump the patch suffix on ANY change to a prompt string in this file,
+ * compact.ts, humanizer.ts, or voice-evaluator.ts (RUNBOOK rule). Tagged on
+ * every Langfuse trace so quality trends segment by prompt generation.
+ */
+export const PROMPT_VERSION = '2026-07-12.1';
+
 const BASE_SYSTEM = `You are an expert social content strategist writing for real creators.
 
-Your job in this pass: write the SUBSTANCE — clear message, specific details, strong structure.
+Your job in this pass: write the SUBSTANCE, the clear message, specific details, strong structure.
 Do NOT worry about hooks or personal voice yet. Focus on:
 - One clear takeaway the reader cares about
-- Concrete details (names, numbers, moments) — never vague claims
+- Concrete details (names, numbers, moments), never vague claims
 - Platform-native length and format
-- Plain text only — no markdown, no em dashes, no title/headline unless requested
+- No title or headline unless requested
 
 Write like a smart person outlining their post before polishing it.`;
 
@@ -83,7 +103,6 @@ Rewrite ONLY the opening and tighten structure using the hook examples provided.
 - First 1-2 lines must stop the scroll (adapt hook STRUCTURE, not copy topics)
 - Keep all facts and body content from the draft
 - Do not add generic AI phrasing
-- Plain text only, no em dashes
 - The creator's own voice and opening style win on any conflict with the examples`;
 
 function topWeightedVertical(profile: CreatorProfileForPrompt | null): HookVertical | undefined {
@@ -102,11 +121,34 @@ function formatHookExamples(hooks: Array<{ id: string; text: string; author: str
 }
 
 /**
+ * Builds the CheckContext shared by styleRulesFromChecks and the enforcement
+ * gates (Task 3+). Single construction site so all three always agree on
+ * platform/contentType/mentions for a given request.
+ */
+function buildCheckContext(
+  input: ContentPipelineInput,
+  contentType: string,
+  sourceContext: string | undefined,
+  profile: CreatorProfileForPrompt | null,
+): CheckContext {
+  return {
+    platform: input.platform,
+    contentType,
+    sourceContext,
+    userPrompt: input.userPrompt,
+    profile: profile ? { display_name: profile.display_name } : null,
+    mentions: input.mentions,
+  };
+}
+
+/**
  * Stage 1 — Base draft: substance + platform format, minimal voice.
  */
 async function runBaseStage(
   input: ContentPipelineInput,
   substanceContext: string | undefined,
+  checkCtx: CheckContext,
+  requestId: string,
 ): Promise<string> {
   const composeHints = buildVoiceComposeHints(input.platform, input.contentType ?? 'post', {
     creatorHookPattern: input.structural?.hook_pattern,
@@ -118,8 +160,9 @@ async function runBaseStage(
   const taskHint = input.platform
     ? `Platform: ${input.platform}. Match native format and length.`
     : undefined;
+  const rules = styleRulesFromChecks(checkCtx);
 
-  const merged = [composeHints, taskHint, mentionHint, substanceContext].filter(Boolean).join('\n\n');
+  const merged = [composeHints, taskHint, mentionHint, rules, substanceContext].filter(Boolean).join('\n\n');
   // Even with a systemOverride, keep the merged block (task hint, @mentions,
   // substance context). Previously the override replaced everything but
   // composeHints, so override callers silently lost their mentions and drafted
@@ -129,7 +172,7 @@ async function runBaseStage(
     : `${BASE_SYSTEM}\n\n${merged}`;
 
   return stripEmDashes(
-    await chatCompletion(system, input.userPrompt, { temperature: 0.75, maxTokens: 1200, model: input.model }),
+    await callStageChecked(system, input.userPrompt, { temperature: 0.75, model: input.model }, 'base', requestId, ''),
   );
 }
 
@@ -142,6 +185,8 @@ async function runHookStage(
   userPrompt: string,
   substanceContext: string | undefined,
   model: string | undefined,
+  checkCtx: CheckContext,
+  requestId: string,
 ): Promise<string> {
   if (hooks.length === 0) return baseText;
 
@@ -149,12 +194,11 @@ async function runHookStage(
   // Give the hook stage the same voice signal the base stage got. The structural
   // patterns (how they open) and fingerprint let the opener match the creator's
   // own style instead of a generic scroll-stopper.
-  const system = substanceContext
-    ? `${HOOK_SYSTEM}\n\n${substanceContext}`
-    : HOOK_SYSTEM;
+  const rules = styleRulesFromChecks(checkCtx);
+  const system = [HOOK_SYSTEM, rules, substanceContext].filter(Boolean).join('\n\n');
   const prompt = `ORIGINAL REQUEST:\n${userPrompt}\n\nBASE DRAFT:\n---\n${baseText}\n---\n\nHOOK EXAMPLES (adapt structure to this topic):\n${examples}\n\nRewrite with a stronger hook opening. Return ONLY the full post.`;
 
-  return stripEmDashes(await chatCompletion(system, prompt, { temperature: 0.7, maxTokens: 1200, model }));
+  return stripEmDashes(await callStageChecked(system, prompt, { temperature: 0.7, model }, 'hooks', requestId, baseText));
 }
 
 /**
@@ -165,10 +209,11 @@ async function runHookStage(
  * Hooks on substance preserve facts; humanize before voice removes AI tells first;
  * voice last makes it sound like THEM without reintroducing slop.
  */
-export async function runContentPipeline(
+async function runContentPipelineInner(
   input: ContentPipelineInput,
 ): Promise<ContentPipelineResult> {
   const stagesCompleted: PipelineStage[] = [];
+  const requestId = input.requestId ?? createRequestId();
   const useVoice = input.useVoice !== false;
   const profile = useVoice ? input.profile : null;
   const skipEval = input.fast || !useVoice;
@@ -177,15 +222,22 @@ export async function runContentPipeline(
 
   const contentType = input.contentType ?? 'post';
   const isProse = contentType === 'post' || contentType === 'reply' || contentType === 'comment';
+  const evalContentType = contentType === 'reply' || contentType === 'comment' ? contentType : 'post';
 
   // Small models can't survive the full 6-11 rewrite chain - route prose to
   // the 2-call compact pipeline (env LLM_PIPELINE_MODE overrides detection).
   if (isProse && isCompactMode(input.model)) {
-    return runCompactPipeline(input);
+    await emitPipelineEvent({
+      requestId, userId: input.userId, event: 'compact_mode',
+      detail: { model: input.model ?? process.env.LLM_MODEL },
+    });
+    return runCompactPipeline({ ...input, requestId });
   }
 
   // --- Stage 1: Base ---
-  let text = await runBaseStage(input, substanceContext);
+  const baseCheckCtx = buildCheckContext(input, contentType, substanceContext, profile);
+  let text = await withSpan('stage:base', { model: input.model ?? process.env.LLM_MODEL ?? 'env-default' },
+    () => runBaseStage(input, substanceContext, baseCheckCtx, requestId));
   stagesCompleted.push('base');
 
   // Voice-off: substance + humanize. "No voice" must still read like a human
@@ -201,7 +253,16 @@ export async function runContentPipeline(
       });
       text = h.text;
       stagesCompleted.push('humanize');
-      return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, h.passes, undefined);
+      // Gate A (voice-off path): targeted revise runs, no escalation ladder -
+      // per this task's scope decision, escalation only exists on the
+      // voice-on path (there is nothing to escalate to here). hard_check_failed
+      // is emitted inside targetedRevise itself when a hard check first fails.
+      const voiceOffCtx = buildCheckContext(input, contentType, fullContext, null);
+      const voiceOffGate = await targetedRevise(text, voiceOffCtx, input.model, requestId, 'humanize');
+      text = voiceOffGate.text;
+      const voiceOffFails = hardFailures(voiceOffGate.checkResults);
+      const voiceOffFlags = voiceOffFails.length ? ['hard_check_failed', ...voiceOffFails.map((f) => f.id)] : [];
+      return finalizeResult(text, isProse, undefined, false, voiceOffFlags, stagesCompleted, h.passes, undefined);
     }
     if (input.humanizeAlways) {
       const h = await humanizePipeline(text, { skipVoice: true, skipAudit: true });
@@ -246,7 +307,11 @@ export async function runContentPipeline(
     });
     usedHookIds = resolved.hooks.map((h) => h.id);
     hookExplanations = resolved.explanations;
-    text = await runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model);
+    if (resolved.usedStaticFallback) {
+      await emitPipelineEvent({ requestId, userId: input.userId, event: 'hook_fallback_static', detail: { vertical } });
+    }
+    text = await withSpan('stage:hooks', { hookCount: resolved.hooks.length },
+      () => runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model, baseCheckCtx, requestId));
     stagesCompleted.push('hooks');
   }
 
@@ -255,15 +320,26 @@ export async function runContentPipeline(
   const shouldHumanize = input.humanizeAlways || isProse;
 
   if (shouldHumanize) {
-    const humanized = await humanizePipeline(text, {
+    const humanized = await withSpan('stage:humanize', {}, () => humanizePipeline(text, {
       profile: null,
       skipVoice: true,
       skipAudit: false,
       vocabulary: input.vocabulary,
-    });
+    }));
     text = humanized.text;
     humanizePasses = humanized.passes;
     stagesCompleted.push('humanize');
+  }
+
+  // --- Gate A: check gate after humanize (spec 3.2) ---
+  // Runs for every prose output regardless of voice-on/off - hard checks
+  // like em-dash/markdown/fabricated-specifics matter either way. `fast`
+  // mode already returned earlier in this function and never reaches here.
+  const flags: string[] = [];
+  if (isProse) {
+    const gateACtx = buildCheckContext(input, contentType, fullContext, profile);
+    const gateA = await targetedRevise(text, gateACtx, input.model, requestId, 'humanize');
+    text = gateA.text;
   }
 
   // EMAIL VOICE is a 1:1 register (greetings, sign-offs, warmth) - useful for
@@ -287,7 +363,9 @@ ${text}
 
 Return ONLY the final post.`;
 
-    text = stripEmDashes(await chatCompletion(voiceSystem, voicePrompt, { temperature: 0.68, maxTokens: 1200, model: input.model }));
+    const preVoiceText = text;
+    text = stripEmDashes(await withSpan('stage:voice', { model: input.model ?? process.env.LLM_MODEL ?? 'env-default' },
+      () => callStageChecked(voiceSystem, voicePrompt, { temperature: 0.68, model: input.model }, 'voice', requestId, preVoiceText)));
     stagesCompleted.push('voice');
   }
 
@@ -298,16 +376,17 @@ Return ONLY the final post.`;
   const maxIterations = input.maxIterations ?? 2;
 
   if (!skipEval && useVoice) {
-    const evalContentType =
-      contentType === 'reply' || contentType === 'comment' ? contentType : 'post';
-
     let lastActionWasRevise = false;
 
     for (let i = 0; i < maxIterations; i++) {
       iterations = i + 1;
-      evaluation = await evaluateDraft(text, profile, voiceStageContext || undefined, evalContentType);
+      evaluation = await withSpan('stage:evaluate', { iteration: i + 1 },
+        () => evaluateDraft(text, profile, voiceStageContext || undefined, evalContentType));
       lastActionWasRevise = false;
 
+      if (evaluation.parse_error) {
+        await emitPipelineEvent({ requestId, event: 'judge_parse_error', detail: { stage: 'voice-evaluate' } });
+      }
       // Parse glitch (not a real quality failure) — keep the draft, stop revising.
       if (evaluation.parse_error) break;
       if (evaluationPasses(evaluation)) break;
@@ -332,7 +411,8 @@ ${evaluation.revision_notes || 'Sound more like the creator. Less generic.'}
 Return ONLY the revised post.`;
 
       const voiceSystem = buildSystemPrompt(profile, voiceStageContext || undefined);
-      text = stripEmDashes(await chatCompletion(voiceSystem, revisePrompt, { temperature: 0.7, maxTokens: 1200, model: input.model }));
+      const preReviseText = text;
+      text = stripEmDashes(await callStageChecked(voiceSystem, revisePrompt, { temperature: 0.7, model: input.model }, 'revise', requestId, preReviseText));
       revised = true;
       lastActionWasRevise = true;
 
@@ -353,10 +433,56 @@ Return ONLY the revised post.`;
     // draft, not the text we return. Re-evaluate the final draft so score matches
     // output. A parse glitch on this final pass keeps the prior evaluation.
     if (lastActionWasRevise) {
-      const finalEval = await evaluateDraft(text, profile, voiceStageContext || undefined, evalContentType);
+      const finalEval = await withSpan('stage:evaluate', { iteration: iterations + 1, final: true },
+        () => evaluateDraft(text, profile, voiceStageContext || undefined, evalContentType));
       if (!finalEval.parse_error) evaluation = finalEval;
     }
     stagesCompleted.push('evaluate');
+  }
+
+  // --- Gate B: final check gate + bounded escalation (spec 3.2) ---
+  const gateBCtx = buildCheckContext(input, contentType, voiceStageContext, profile);
+  const finalChecks = runChecks(text, gateBCtx);
+  const candidates: EnforceCandidate[] = [{ text, checkResults: finalChecks, evaluation }];
+
+  const stillHardFailing = hardFailures(finalChecks).length > 0;
+  const judgeFailing = Boolean(evaluation && !evaluation.pass && !evaluation.parse_error);
+  if (stillHardFailing || judgeFailing) {
+    const escalatedText = await escalateOnce(async (smartModel) => {
+      const voiceSystem = buildSystemPrompt(profile, voiceStageContext || undefined);
+      const revisePrompt = `Revise the draft below so it sounds more like the creator and fixes every issue noted. Keep the topic, facts, and overall structure.
+
+ORIGINAL REQUEST:
+${input.userPrompt}
+
+CURRENT DRAFT:
+---
+${text}
+---
+
+ISSUES TO FIX:
+${[...hardFailures(finalChecks).map((f) => `- ${f.id}: ${f.fixHint}`), evaluation?.revision_notes ? `- voice: ${evaluation.revision_notes}` : ''].filter(Boolean).join('\n')}
+
+Return ONLY the revised post.`;
+      return stripEmDashes(
+        await chatCompletion(voiceSystem, revisePrompt, { temperature: 0.6, maxTokens: 1200, model: smartModel }),
+      );
+    }, requestId, 'voice');
+
+    if (escalatedText) {
+      const escChecks = runChecks(escalatedText, gateBCtx);
+      const escEvaluation = await evaluateDraft(escalatedText, profile, voiceStageContext || undefined, evalContentType);
+      candidates.push({ text: escalatedText, checkResults: escChecks, evaluation: escEvaluation });
+    }
+  }
+
+  const best = selectBest(candidates);
+  text = best.text;
+  evaluation = best.evaluation;
+  const finalHardFails = hardFailures(best.checkResults);
+  if (finalHardFails.length > 0) {
+    flags.push('hard_check_failed', ...finalHardFails.map((f) => f.id));
+    await emitPipelineEvent({ requestId, userId: input.userId, event: 'shipped_below_threshold', detail: { stage: 'final', checkIds: finalHardFails.map((f) => f.id) } });
   }
 
   return finalizeResult(
@@ -364,11 +490,45 @@ Return ONLY the revised post.`;
     true,
     evaluation,
     revised,
-    evaluation && !evaluation.pass ? ['below_voice_threshold'] : [],
+    [...(evaluation && !evaluation.pass ? ['below_voice_threshold'] : []), ...flags],
     stagesCompleted,
     humanizePasses,
     usedHookIds,
     iterations,
     hookExplanations,
   );
+}
+
+/**
+ * Public entry: same signature and behavior as runContentPipelineInner. Adds
+ * a Langfuse trace (no-op without keys), a fire-and-forget outcome record,
+ * and a post-response flush. Phase 4 is observation only - errors here can
+ * never fail generation (withSpan/flushAfterResponse never throw on their
+ * own, and any error inside the wrapped fn still propagates unchanged).
+ *
+ * requestId is generated here (once) and threaded into the inner call so the
+ * outcome record's request_id matches every degradation event the inner
+ * pipeline emits for the same generation - the whole point of a shared
+ * request_id (see ContentPipelineInput.requestId doc).
+ */
+export async function runContentPipeline(
+  input: ContentPipelineInput,
+): Promise<ContentPipelineResult> {
+  const requestId = input.requestId ?? createRequestId();
+  try {
+    return await withSpan('generation', {
+      requestId,
+      model: input.model ?? process.env.LLM_MODEL ?? 'env-default',
+      promptVersion: PROMPT_VERSION,
+      platform: input.platform,
+      contentType: input.contentType ?? 'post',
+      useVoice: input.useVoice !== false,
+    }, async () => {
+      const result = await runContentPipelineInner({ ...input, requestId });
+      void recordGenerationOutcome(requestId, input, result).catch(() => undefined);
+      return result;
+    });
+  } finally {
+    flushAfterResponse();
+  }
 }

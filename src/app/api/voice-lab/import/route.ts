@@ -3,6 +3,7 @@ import { lookup } from 'dns/promises';
 import { isIP } from 'node:net';
 import { getAuthenticatedUser } from '@/lib/insforge/server';
 import { guardAiRequest } from '@/lib/ai-guard';
+import { classifyUrl, scrapeLinkedIn, scrapeViaTinyFish } from '@/lib/voice-lab/scrape-url';
 import { z } from 'zod';
 
 const ImportSchema = z.object({
@@ -215,15 +216,34 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   for (const url of parsed.data.urls) {
     try {
-      const readable = await fetchReadable(url);
       const platform = detectPlatform(url);
-      for (const content of chunkSamples(readable.body)) {
-        samples.push({
-          content,
-          platform,
-          sourceUrl: url,
-          title: readable.title,
-        });
+      // LinkedIn gates guest access, so the generic reader only ever returns its
+      // login wall — route LinkedIn urls to a real scraper (Apify/TinyFish).
+      // Their output is already one-post-per-item, so it skips chunkSamples.
+      if (classifyUrl(url) !== 'web') {
+        for (const content of await scrapeLinkedIn(url)) {
+          samples.push({ content, platform, sourceUrl: url });
+        }
+        continue;
+      }
+
+      // Non-LinkedIn: try the fast/free reader first; if it can't read the page
+      // (paywall, JS-gated, thin content) fall back to the TinyFish browser agent.
+      let contents: string[];
+      let title: string | undefined;
+      try {
+        const readable = await fetchReadable(url);
+        contents = chunkSamples(readable.body);
+        title = readable.title;
+      } catch (readerErr) {
+        try {
+          contents = await scrapeViaTinyFish(url);
+        } catch {
+          throw readerErr;
+        }
+      }
+      for (const content of contents) {
+        samples.push({ content, platform, sourceUrl: url, title });
       }
     } catch (err) {
       failures.push({

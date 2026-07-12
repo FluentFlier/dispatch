@@ -561,7 +561,7 @@ function OnboardingInner() {
             <p className="mt-3 text-sm leading-7 text-ink">{baseline.voiceSummary}</p>
           </div>
 
-          <div className={`grid gap-3 ${baseline.emailsAnalyzed > 0 ? 'grid-cols-3' : 'grid-cols-2'}`}>
+          <div className={`grid gap-3 ${baseline.emailsAnalyzed > 0 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'}`}>
             <div className="rounded-lg border border-hair bg-paper2 p-4">
               <p className="text-[11px] font-mono uppercase tracking-wider text-ink3">Posts read</p>
               <p className="mt-1 font-serif text-2xl text-ink">{baseline.postsAnalyzed}</p>
