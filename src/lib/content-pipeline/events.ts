@@ -37,6 +37,11 @@ export type PipelineEventType =
   | 'provider_retry'
   | 'shipped_below_threshold'
   | 'stage_contract_violation'
+  // Research stage (Stage 0, opt-in): research_failed is a degradation
+  // (requested research did not enrich the draft); research_complete is an
+  // observation row like generation_complete - keep it out of degradation lists.
+  | 'research_complete'
+  | 'research_failed'
   // Not a degradation: one row per finished generation (Phase 4 observation
   // record). This is the DENOMINATOR dashboards divide every other event
   // count by to get a rate - keep it out of any "degradation types" list.

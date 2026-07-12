@@ -25,6 +25,8 @@ export interface VoicePipelineInput {
   hooksClient?: InsforgeClient;
   vocabulary?: VocabularyFingerprint;
   structural?: StructuralPatterns;
+  /** Stage 0: web-research the brief before drafting (best-effort). */
+  research?: boolean;
 }
 
 export interface VoicePipelineResult {
@@ -72,6 +74,7 @@ export async function generateWithVoicePipeline(
     hooksClient: input.hooksClient,
     vocabulary: input.vocabulary,
     structural: input.structural,
+    research: input.research,
   };
 
   const result: ContentPipelineResult = await runContentPipeline(pipelineInput);

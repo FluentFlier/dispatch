@@ -15,6 +15,7 @@ import { isCompactMode, runCompactPipeline } from './compact';
 import { styleRulesFromChecks, runChecks, hardFailures, type CheckContext } from './checks';
 import { targetedRevise, escalateOnce, selectBest, type EnforceCandidate } from './enforce';
 import { emitPipelineEvent } from './events';
+import { runResearchStage } from './research';
 import { createRequestId } from '@/lib/logger';
 import { callStageChecked } from './stage-contract';
 import { withSpan, flushAfterResponse } from '@/lib/observability/langfuse';
@@ -23,6 +24,7 @@ import { recordGenerationOutcome } from '@/lib/observability/generation-outcome'
 type InsforgeClient = ReturnType<typeof createClient>;
 
 export type PipelineStage =
+  | 'research'
   | 'base'
   | 'hooks'
   | 'humanize'
@@ -57,6 +59,12 @@ export interface ContentPipelineInput {
   structural?: StructuralPatterns;
   /** Run the learned-hook rewrite stage even when the creator has their own opening style. */
   forceHooks?: boolean;
+  /**
+   * Stage 0 (opt-in): web-research the brief before drafting and inject the
+   * findings as a RESEARCH NOTES context section. Best-effort - a missing
+   * APIFY_TOKEN, timeout, or empty result set skips research silently.
+   */
+  research?: boolean;
   /** Correlates every pipeline_events row for one generation request. Generated
    * internally when omitted - callers only need to pass it if they want to
    * correlate pipeline events with their own request-scoped logging. */
@@ -84,7 +92,7 @@ export interface ContentPipelineResult {
  * compact.ts, humanizer.ts, or voice-evaluator.ts (RUNBOOK rule). Tagged on
  * every Langfuse trace so quality trends segment by prompt generation.
  */
-export const PROMPT_VERSION = '2026-07-12.1';
+export const PROMPT_VERSION = '2026-07-12.2';
 
 const BASE_SYSTEM = `You are an expert social content strategist writing for real creators.
 
@@ -217,12 +225,31 @@ async function runContentPipelineInner(
   const useVoice = input.useVoice !== false;
   const profile = useVoice ? input.profile : null;
   const skipEval = input.fast || !useVoice;
-  const substanceContext = substanceContextOnly(input.contextAdditions);
-  const fullContext = input.contextAdditions;
+
+  // --- Stage 0: Research (opt-in, best-effort) ---
+  // Runs before the context split so both the full and compact paths draft
+  // against the findings, and the fabricated_specifics check sees them as
+  // sourced context instead of invented numbers.
+  let contextAdditions = input.contextAdditions;
+  if (input.research) {
+    const researchBlock = await withSpan('stage:research', {}, () =>
+      runResearchStage({ userPrompt: input.userPrompt, requestId, userId: input.userId }));
+    if (researchBlock) {
+      contextAdditions = [contextAdditions, researchBlock].filter(Boolean).join('\n\n');
+      stagesCompleted.push('research');
+    }
+  }
+
+  const substanceContext = substanceContextOnly(contextAdditions);
+  const fullContext = contextAdditions;
 
   const contentType = input.contentType ?? 'post';
-  const isProse = contentType === 'post' || contentType === 'reply' || contentType === 'comment';
+  const isProse =
+    contentType === 'post' || contentType === 'thread' || contentType === 'reply' || contentType === 'comment';
   const evalContentType = contentType === 'reply' || contentType === 'comment' ? contentType : 'post';
+  // Threads are ----separated tweet sequences; merging their "paragraphs"
+  // into 3-sentence blocks would destroy the tweet boundaries.
+  const enforceParagraphs = isProse && contentType !== 'thread';
 
   // Small models can't survive the full 6-11 rewrite chain - route prose to
   // the 2-call compact pipeline (env LLM_PIPELINE_MODE overrides detection).
@@ -231,7 +258,7 @@ async function runContentPipelineInner(
       requestId, userId: input.userId, event: 'compact_mode',
       detail: { model: input.model ?? process.env.LLM_MODEL },
     });
-    return runCompactPipeline({ ...input, requestId });
+    return runCompactPipeline({ ...input, requestId, contextAdditions });
   }
 
   // --- Stage 1: Base ---
@@ -262,17 +289,17 @@ async function runContentPipelineInner(
       text = voiceOffGate.text;
       const voiceOffFails = hardFailures(voiceOffGate.checkResults);
       const voiceOffFlags = voiceOffFails.length ? ['hard_check_failed', ...voiceOffFails.map((f) => f.id)] : [];
-      return finalizeResult(text, isProse, undefined, false, voiceOffFlags, stagesCompleted, h.passes, undefined);
+      return finalizeResult(text, enforceParagraphs, undefined, false, voiceOffFlags, stagesCompleted, h.passes, undefined);
     }
     if (input.humanizeAlways) {
       const h = await humanizePipeline(text, { skipVoice: true, skipAudit: true });
       text = h.text;
       stagesCompleted.push('humanize');
-      return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, h.passes, undefined);
+      return finalizeResult(text, enforceParagraphs, undefined, false, [], stagesCompleted, h.passes, undefined);
     }
     // revised=false: no revise loop runs on the voice-off path, so the draft was
     // never revised (was mislabeled true, showing a false "(revised)" badge).
-    return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, undefined, undefined);
+    return finalizeResult(text, enforceParagraphs, undefined, false, [], stagesCompleted, undefined, undefined);
   }
 
   // Fast mode / non-prose: base + light humanize
@@ -281,11 +308,11 @@ async function runContentPipelineInner(
       const h = await humanizePipeline(text, { skipVoice: true, skipAudit: true });
       text = h.text;
       stagesCompleted.push('humanize');
-      return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, h.passes, undefined);
+      return finalizeResult(text, enforceParagraphs, undefined, false, [], stagesCompleted, h.passes, undefined);
     }
     // revised=false: fast/non-prose skips the revise loop (was passing skipEval,
     // which is true in fast mode -> a false "(revised)" badge).
-    return finalizeResult(text, isProse, undefined, false, [], stagesCompleted, undefined, undefined);
+    return finalizeResult(text, enforceParagraphs, undefined, false, [], stagesCompleted, undefined, undefined);
   }
 
   // --- Stage 2: Hooks ---
@@ -487,7 +514,7 @@ Return ONLY the revised post.`;
 
   return finalizeResult(
     text,
-    true,
+    enforceParagraphs,
     evaluation,
     revised,
     [...(evaluation && !evaluation.pass ? ['below_voice_threshold'] : []), ...flags],

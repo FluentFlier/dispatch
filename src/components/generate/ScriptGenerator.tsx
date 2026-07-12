@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef, useCallback, type KeyboardEvent, useMemo } from 'react';
-import { ArrowUp, Loader2, Square, Plus, AudioLines, Send, Check } from 'lucide-react';
+import { ArrowUp, Loader2, Square, Plus, AudioLines, Send, Check, History, Trash2 } from 'lucide-react';
 import { MicDictate } from './MicDictate';
 import { assembleGeneratePrompt } from '@/lib/generate-prompt';
 import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
@@ -179,6 +179,27 @@ interface ScriptGeneratorProps {
 }
 
 const CHAT_KEY = 'generate:script:chat';
+const CHAT_ID_KEY = 'generate:script:chat-id';
+
+interface ChatSummary {
+  id: string;
+  title: string;
+  platform?: string | null;
+  updated_at: string;
+}
+
+function formatChatDate(iso: string): string {
+  try {
+    const d = new Date(iso);
+    const today = new Date();
+    const sameDay = d.toDateString() === today.toDateString();
+    return sameDay
+      ? d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
+      : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  } catch {
+    return '';
+  }
+}
 
 export function ScriptGenerator({
   initialResult = '',
@@ -214,6 +235,12 @@ export function ScriptGenerator({
   const [loading, setLoading] = useState(false);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [history, setHistory] = useState<ChatSummary[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(() => {
+    try { return sessionStorage.getItem(CHAT_ID_KEY); } catch { return null; }
+  });
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [stage, setStage] = useState<GenStage | null>(null);
   const [error, setError] = useState('');
@@ -257,6 +284,108 @@ export function ScriptGenerator({
     if (streamingId) return;
     try { sessionStorage.setItem(CHAT_KEY, JSON.stringify(messages)); } catch {}
   }, [messages, streamingId]);
+
+  // Server-side history: sync the conversation after each completed exchange
+  // (debounced, best-effort - sessionStorage above is the immediate fallback).
+  const conversationIdRef = useRef(conversationId);
+  conversationIdRef.current = conversationId;
+  const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const creatingRef = useRef(false);
+  useEffect(() => {
+    if (streamingId) return;
+    if (!messages.some((m) => m.role === 'assistant' && m.content.trim())) return;
+    if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    const snapshot = messages;
+    syncTimerRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          if (conversationIdRef.current) {
+            await fetchWithAuth(`/api/chats/${conversationIdRef.current}`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messages: snapshot }),
+            });
+          } else if (!creatingRef.current) {
+            creatingRef.current = true;
+            const res = await fetchWithAuth('/api/chats', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messages: snapshot, platform, pillar }),
+            });
+            if (res.ok) {
+              const data = await res.json();
+              const id = data?.chat?.id as string | undefined;
+              if (id) {
+                setConversationId(id);
+                try { sessionStorage.setItem(CHAT_ID_KEY, id); } catch {}
+              }
+            }
+            creatingRef.current = false;
+          }
+        } catch {
+          creatingRef.current = false;
+          // History sync is best-effort; the chat stays in sessionStorage.
+        }
+      })();
+    }, 800);
+    return () => {
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    };
+  }, [messages, streamingId, platform, pillar]);
+
+  const openHistory = useCallback(async () => {
+    setHistoryOpen((open) => !open);
+    if (historyOpen) return;
+    setHistoryLoading(true);
+    try {
+      const res = await fetchWithAuth('/api/chats', { method: 'GET' });
+      if (res.ok) {
+        const data = await res.json();
+        setHistory(Array.isArray(data?.chats) ? (data.chats as ChatSummary[]) : []);
+      }
+    } catch {
+      // leave whatever list we had
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [historyOpen]);
+
+  const loadConversation = useCallback(async (id: string) => {
+    setHistoryOpen(false);
+    try {
+      const res = await fetchWithAuth(`/api/chats/${id}`, { method: 'GET' });
+      if (!res.ok) return;
+      const data = await res.json();
+      const chat = data?.chat;
+      if (!chat || !Array.isArray(chat.messages)) return;
+      abortRef.current?.abort();
+      setMessages(chat.messages as ChatMessage[]);
+      setConversationId(id);
+      if (isPlatform(chat.platform)) setPlatform(chat.platform);
+      if (typeof chat.pillar === 'string' && chat.pillar) setPillar(chat.pillar);
+      setInput('');
+      setError('');
+      try {
+        sessionStorage.setItem(CHAT_ID_KEY, id);
+        sessionStorage.setItem(CHAT_KEY, JSON.stringify(chat.messages));
+      } catch {}
+    } catch {
+      // load is best-effort; current chat stays untouched
+    }
+  }, []);
+
+  const deleteConversation = useCallback(async (id: string) => {
+    setHistory((prev) => prev.filter((c) => c.id !== id));
+    if (conversationIdRef.current === id) {
+      setConversationId(null);
+      try { sessionStorage.removeItem(CHAT_ID_KEY); } catch {}
+    }
+    try {
+      await fetchWithAuth(`/api/chats/${id}`, { method: 'DELETE' });
+    } catch {
+      // best-effort; row stays server-side and reappears on next open
+    }
+  }, []);
 
   // Scroll only the chat pane — scrollIntoView would also move ancestor
   // containers and jump the whole page down to the latest draft.
@@ -427,7 +556,11 @@ export function ScriptGenerator({
     setMessages([]);
     setInput('');
     setError('');
-    try { sessionStorage.removeItem(CHAT_KEY); } catch {}
+    setConversationId(null);
+    try {
+      sessionStorage.removeItem(CHAT_KEY);
+      sessionStorage.removeItem(CHAT_ID_KEY);
+    } catch {}
   }, []);
 
   function changeLength(next: PostLength) {
@@ -565,16 +698,68 @@ export function ScriptGenerator({
             ))}
           </div>
 
-          {messages.length > 0 && (
+          <div className="relative ml-auto flex items-center gap-1">
             <button
               type="button"
-              onClick={newChat}
-              className="ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 text-ink3 transition-colors hover:text-ink2"
+              onClick={() => void openHistory()}
+              aria-label="Chat history"
+              aria-expanded={historyOpen}
+              className="flex items-center gap-1 rounded-full px-2.5 py-1 text-ink3 transition-colors hover:text-ink2"
             >
-              <Plus className="h-3.5 w-3.5" />
-              New
+              <History className="h-3.5 w-3.5" />
+              History
             </button>
-          )}
+            {messages.length > 0 && (
+              <button
+                type="button"
+                onClick={newChat}
+                className="flex items-center gap-1 rounded-full px-2.5 py-1 text-ink3 transition-colors hover:text-ink2"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New
+              </button>
+            )}
+            {historyOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setHistoryOpen(false)} />
+                <div className="absolute bottom-8 right-0 z-20 max-h-80 w-72 overflow-y-auto rounded-xl border border-hair bg-paper py-1 shadow-soft">
+                  {historyLoading && (
+                    <div className="flex items-center gap-2 px-3 py-2 text-[13px] text-ink3">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+                    </div>
+                  )}
+                  {!historyLoading && history.length === 0 && (
+                    <p className="px-3 py-2 text-[13px] text-ink3">No saved chats yet.</p>
+                  )}
+                  {history.map((chat) => (
+                    <div
+                      key={chat.id}
+                      className={`group flex items-center gap-2 px-3 py-2 transition-colors hover:bg-paper2 ${
+                        chat.id === conversationId ? 'bg-paper2' : ''
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => void loadConversation(chat.id)}
+                        className="min-w-0 flex-1 text-left"
+                      >
+                        <span className="block truncate text-[13px] text-ink2">{chat.title}</span>
+                        <span className="text-[11px] text-ink3">{formatChatDate(chat.updated_at)}</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void deleteConversation(chat.id)}
+                        aria-label={`Delete "${chat.title}"`}
+                        className="hidden rounded p-1 text-ink3 transition-colors hover:text-accent-primary group-hover:block"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
 
         <textarea
