@@ -37,6 +37,11 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ['@hello-pangea/dnd', '@insforge/sdk', 'lenis'],
+  experimental: {
+    // Next 14.2: opt-in flag for src/instrumentation.ts (stable in Next 15).
+    // Langfuse OTel registration lives there; no-op without LANGFUSE_* keys.
+    instrumentationHook: true,
+  },
   async headers() {
     return [
       {
