@@ -13,6 +13,10 @@ interface IcpManagerProps {
   onProfilesChange: (profiles: IcpProfileRow[]) => void;
   onSettingsSaved: (settings: DirectorySettingsRow) => void;
   onDiscoveryComplete?: () => void;
+  /** Kick off the streamed directory scrape (parent switches to the feed to show progress). */
+  onRunScrape?: () => void;
+  /** True while the parent's scrape is in flight; disables the Scrape button. */
+  scraping?: boolean;
   toast?: (message: string, type?: 'success' | 'error') => void;
 }
 
@@ -36,6 +40,8 @@ export function IcpManager({
   onProfilesChange,
   onSettingsSaved,
   onDiscoveryComplete,
+  onRunScrape,
+  scraping,
   toast,
 }: IcpManagerProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -205,6 +211,18 @@ export function IcpManager({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {onRunScrape && (
+              <button
+                type="button"
+                onClick={onRunScrape}
+                disabled={scraping}
+                title="Scrape your enabled lead sources with the current ICP"
+                className="inline-flex items-center gap-1.5 rounded-md bg-accent-primary px-3 py-1.5 text-xs font-medium text-white disabled:opacity-50 min-h-[34px]"
+              >
+                {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+                {scraping ? 'Scraping…' : 'Scrape now'}
+              </button>
+            )}
             {!showSave ? (
               <button
                 type="button"
