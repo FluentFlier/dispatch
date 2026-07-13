@@ -459,6 +459,26 @@ const FIXED_STYLE_LINES = {
 };
 
 /**
+ * Retrospective cues in the user's own request. When present, the post is about
+ * a PAST event (reflecting / remembering), so it must be written looking back in
+ * past tense — never "I just got back from" present-tense immediacy. Deterministic
+ * and model-agnostic: fires off the request wording, so it works even when the
+ * model would otherwise ignore the cue or when memory retrieval is empty.
+ */
+const RETROSPECTIVE_RE =
+  /\b(remember(ing|ed)?|looking back|reflect(ing|ion)?|recap|throwback|nostalg|revisit|that (time|day|event|trip|night)|back (when|then|in \d{4})|last (year|month|week|summer|winter|spring|fall|night)|(years?|months?|weeks?|days?) ago|a while ago|used to|earlier this (year|month|week))\b/i;
+
+function temporalFramingRule(userPrompt: string): string | undefined {
+  if (!RETROSPECTIVE_RE.test(userPrompt)) return undefined;
+  return (
+    'TEMPORAL FRAMING (the request is about a PAST event — reflecting or remembering, ' +
+    'not breaking news): write in past tense as a reflection looking back. Do NOT open ' +
+    'with present-tense immediacy such as "I just got back from", "I am at", or "I just ' +
+    'left". Frame it as remembering something that already happened.'
+  );
+}
+
+/**
  * Generates the style-rules prompt block FROM the registry. Every hard check
  * with a ruleText contributes its rule line only when the check applies to
  * ctx (mirroring the exact gating runChecks itself uses), so prompt and
@@ -476,6 +496,7 @@ export function styleRulesFromChecks(ctx: CheckContext): string {
 
   const lines = [
     'HARD RULES:',
+    temporalFramingRule(ctx.userPrompt),
     ruleFor('markdown'),
     ruleFor('em_dash'),
     FIXED_STYLE_LINES.concreteDetails,
