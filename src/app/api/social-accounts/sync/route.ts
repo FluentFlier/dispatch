@@ -8,10 +8,10 @@ import {
 /**
  * POST /api/social-accounts/sync
  *
- * Polls Unipile GET /accounts, then stores connected accounts for the current user.
- *
- * Security: Unipile's GET /accounts returns all accounts for the shared API key.
- * The shared sync helper skips any account already claimed by a different user.
+ * Binds the account the user just connected. Because the shared Unipile API key's
+ * GET /accounts has no per-user filter, we diff against the pre-connect snapshot
+ * (written by /connect/unipile) and bind only the newly-appeared account. No
+ * snapshot → binds nothing (identity is never guessed from the shared list).
  */
 export async function POST(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();

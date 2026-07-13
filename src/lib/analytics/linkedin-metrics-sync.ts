@@ -1,7 +1,11 @@
 import type { createClient } from '@insforge/sdk';
 import { buildPostIdCandidates } from '@/lib/engagement/unipile-reactions';
-import { fetchPostsFromUnipile, resolveUnipileTarget } from '@/lib/onboarding/import-posts';
-import { hasPostMetrics, metricsPatchFromNormalized } from '@/lib/analytics/post-metrics';
+import {
+  fetchPostsFromUnipile,
+  resolveUnipileTarget,
+  type OnboardingPlatform,
+} from '@/lib/onboarding/import-posts';
+import { metricsPatchFromNormalized } from '@/lib/analytics/post-metrics';
 import {
   extractLinkedInMetrics,
   extractLinkedInPublishedAt,
@@ -68,15 +72,16 @@ export function providerPostIdsMatch(a: string, b: string): boolean {
  * Resolves (and heals) the user's LinkedIn Unipile account. Works even when
  * unipile_account_id was never persisted but account_id (public identifier) was.
  */
-export async function resolveLinkedInSyncTarget(
+export async function resolveUnipileSyncTarget(
   client: InsforgeClient,
   userId: string,
+  platform: OnboardingPlatform = 'linkedin',
 ): Promise<LinkedInSyncTarget | null> {
   const { data: account } = await client.database
     .from('social_accounts')
     .select('unipile_account_id, account_id')
     .eq('user_id', userId)
-    .eq('platform', 'linkedin')
+    .eq('platform', platform)
     .limit(1)
     .maybeSingle();
 
@@ -85,7 +90,7 @@ export async function resolveLinkedInSyncTarget(
 
   const storedId = row.unipile_account_id ?? 'stale';
   try {
-    const target = await resolveUnipileTarget(storedId, row.account_id, 'linkedin');
+    const target = await resolveUnipileTarget(storedId, row.account_id, platform);
     if (!target?.unipileAccountId || target.providerUserIds.length === 0) return null;
 
     if (target.refreshed) {
@@ -93,8 +98,8 @@ export async function resolveLinkedInSyncTarget(
         .from('social_accounts')
         .update({ unipile_account_id: target.unipileAccountId })
         .eq('user_id', userId)
-        .eq('platform', 'linkedin');
-      logInfo('[analytics-sync] Healed rotated Unipile account id', { userId });
+        .eq('platform', platform);
+      logInfo('[analytics-sync] Healed rotated Unipile account id', { userId, platform });
     }
 
     return {
@@ -102,9 +107,14 @@ export async function resolveLinkedInSyncTarget(
       providerUserIds: target.providerUserIds,
     };
   } catch (e) {
-    logError('[analytics-sync] Unipile account resolve failed', { userId }, e);
+    logError('[analytics-sync] Unipile account resolve failed', { userId, platform }, e);
     return null;
   }
+}
+
+/** Back-compat wrapper — LinkedIn is the default target. */
+export function resolveLinkedInSyncTarget(client: InsforgeClient, userId: string) {
+  return resolveUnipileSyncTarget(client, userId, 'linkedin');
 }
 
 /**
@@ -117,6 +127,7 @@ export async function backfillLinkedInMetricsFromPostList(
   target: LinkedInSyncTarget,
   jobs: LinkedInJobRow[],
   maxPosts = 60,
+  platform: OnboardingPlatform = 'linkedin',
 ): Promise<number> {
   if (!process.env.UNIPILE_API_KEY || !process.env.UNIPILE_DSN || jobs.length === 0) {
     return 0;
@@ -127,7 +138,7 @@ export async function backfillLinkedInMetricsFromPostList(
     listResult = await fetchPostsFromUnipile(
       target.providerUserIds,
       target.unipileAccountId,
-      'linkedin',
+      platform,
       maxPosts,
     );
   } catch (e) {
@@ -145,17 +156,9 @@ export async function backfillLinkedInMetricsFromPostList(
     const patch = lookupMetricsPatch(metricsIndex, job.provider_post_id);
     if (!patch || Object.keys(patch).length === 0) continue;
 
-    const { data: post } = await client.database
-      .from('posts')
-      .select('views, likes, saves, comments, shares')
-      .eq('id', job.post_id)
-      .eq('user_id', userId)
-      .maybeSingle();
-
-    if (post && hasPostMetrics(post as Parameters<typeof hasPostMetrics>[0])) {
-      continue;
-    }
-
+    // Always overwrite with the freshest list counts. The list only returns
+    // recent posts, so this refreshes engagement as it grows — the old
+    // hasPostMetrics skip froze imported posts at their import-time snapshot.
     const listItem = listResult.rawItems.find((item) => {
       if (item.id && providerPostIdsMatch(item.id, job.provider_post_id)) return true;
       const socialId = (item as { social_id?: unknown }).social_id;

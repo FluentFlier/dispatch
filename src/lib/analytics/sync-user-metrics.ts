@@ -7,6 +7,7 @@ import { fetchInstagramMetrics } from '@/lib/platforms/instagram-metrics';
 import {
   backfillLinkedInMetricsFromPostList,
   resolveLinkedInSyncTarget,
+  resolveUnipileSyncTarget,
 } from '@/lib/analytics/linkedin-metrics-sync';
 import { logError, logInfo } from '@/lib/logger';
 
@@ -89,12 +90,15 @@ export async function syncUserPostMetrics(
 
   const linkedInTarget = await resolveLinkedInSyncTarget(client, userId);
   const linkedInJobs: Array<{ post_id: string; provider_post_id: string }> = [];
+  const twitterJobs: Array<{ post_id: string; provider_post_id: string }> = [];
   const otherJobs: PublishJobRow[] = [];
 
   for (const job of (jobs ?? []) as PublishJobRow[]) {
     if (!SUPPORTED.has(job.platform) || !job.provider_post_id) continue;
     if (job.platform === 'linkedin') {
       linkedInJobs.push({ post_id: job.post_id, provider_post_id: job.provider_post_id });
+    } else if (job.platform === 'twitter') {
+      twitterJobs.push({ post_id: job.post_id, provider_post_id: job.provider_post_id });
     } else {
       otherJobs.push(job);
     }
@@ -186,7 +190,32 @@ export async function syncUserPostMetrics(
     }
   }
 
-  // 3) X / Instagram (token-based).
+  // 2b) X/Twitter via the SAME Unipile list backfill as LinkedIn. The old
+  // token path (fetchTweetMetrics) is dead under Unipile because access_token
+  // is stored empty, so X metrics never synced — this fixes that.
+  if (twitterJobs.length > 0) {
+    if (!process.env.UNIPILE_API_KEY?.trim() || !process.env.UNIPILE_DSN?.trim()) {
+      skipped += twitterJobs.length;
+      reason = reason ?? 'UNIPILE_API_KEY / UNIPILE_DSN not configured';
+    } else {
+      const twitterTarget = await resolveUnipileSyncTarget(client, userId, 'twitter');
+      if (!twitterTarget) {
+        skipped += twitterJobs.length;
+        reason = reason ?? 'X account not resolvable via Unipile';
+      } else {
+        updated += await backfillLinkedInMetricsFromPostList(
+          client,
+          userId,
+          twitterTarget,
+          twitterJobs,
+          MAX_JOBS,
+          'twitter',
+        );
+      }
+    }
+  }
+
+  // 3) Instagram (token-based). X/LinkedIn handled above via Unipile.
   for (const job of otherJobs) {
     if (!job.provider_post_id) {
       skipped += 1;

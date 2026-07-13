@@ -63,12 +63,15 @@ export function extractLinkedInMetrics(payload: unknown): NormalizedMetrics {
     // LinkedIn "impressions" are our normalized "views".
     // Unipile v1 uses flat *_counter + analytics.impressions; v2 renames to
     // analytics.impressions_counter / reactions_counter / comments_counter.
+    // X/Twitter Unipile payloads use impression_count / view_count.
     views: readCount(
       analytics.impressions,
       analytics.impressions_counter,
       analytics.users_reached_counter,
       root.impressions_counter,
       root.views_count,
+      root.impression_count,
+      root.view_count,
     ),
     likes: readCount(
       analytics.reactions,
@@ -76,6 +79,8 @@ export function extractLinkedInMetrics(payload: unknown): NormalizedMetrics {
       root.reaction_counter,
       root.reactions_counter,
       root.like_count,
+      root.favorite_count,
+      root.likes,
     ),
     comments: readCount(
       analytics.comments,
@@ -83,8 +88,10 @@ export function extractLinkedInMetrics(payload: unknown): NormalizedMetrics {
       root.comment_counter,
       root.comments_counter,
       root.comments_count,
+      root.reply_count,
+      root.replies,
     ),
-    // Reposts are the closest analogue to "shares" (v2 typo: resposts_counter).
+    // Reposts/retweets are the closest analogue to "shares" (v2 typo: resposts_counter).
     shares: readCount(
       analytics.reposts,
       analytics.reposts_counter,
@@ -92,6 +99,8 @@ export function extractLinkedInMetrics(payload: unknown): NormalizedMetrics {
       root.reposts_counter,
       root.reposts_count,
       root.resposts_counter,
+      root.retweet_count,
+      root.quote_count,
     ),
     follows: readCount(
       analytics.followers_gained_from_this_post,
@@ -100,6 +109,14 @@ export function extractLinkedInMetrics(payload: unknown): NormalizedMetrics {
     ),
   };
 }
+
+/**
+ * Platform-neutral aliases. The extractor above reads a superset of Unipile
+ * field names (LinkedIn + X), and unknown fields resolve to undefined, so the
+ * same function works for X posts. New callers should use these names.
+ */
+export const extractUnipilePostMetrics = extractLinkedInMetrics;
+export const extractUnipilePublishedAt = extractLinkedInPublishedAt;
 
 /**
  * Fetches metrics + publish timestamp for a LinkedIn post through Unipile.

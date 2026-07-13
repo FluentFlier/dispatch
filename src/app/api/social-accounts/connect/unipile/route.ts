@@ -1,11 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/insforge/server';
+import { getAuthenticatedUser, getServiceClient } from '@/lib/insforge/server';
 import {
   getUnipileApiBase,
   getUnipileApiKey,
   getUnipileServerUrl,
   isUnipileConfigured,
 } from '@/lib/unipile/config';
+
+/**
+ * Snapshot the shared subscription's current account IDs BEFORE the user connects.
+ * On return, /api/social-accounts/sync diffs against this to identify the exact
+ * account THIS user just connected — the shared key's GET /accounts otherwise
+ * gives no per-user signal. Best-effort: never blocks the connect flow.
+ */
+async function snapshotUnipileAccounts(userId: string, apiBase: string, apiKey: string) {
+  try {
+    const res = await fetch(`${apiBase}/accounts`, {
+      headers: { 'X-API-KEY': apiKey, accept: 'application/json' },
+      cache: 'no-store',
+    });
+    if (!res.ok) return;
+    const data = (await res.json()) as Record<string, unknown>;
+    const list =
+      (data.items as Array<{ id?: string }> | undefined) ??
+      (data.accounts as Array<{ id?: string }> | undefined) ??
+      (data.data as Array<{ id?: string }> | undefined) ??
+      [];
+    const ids = list.map((a) => a.id).filter((id): id is string => Boolean(id));
+    await getServiceClient()
+      .database.from('unipile_connect_snapshots')
+      .upsert(
+        { user_id: userId, account_ids: ids, created_at: new Date().toISOString() },
+        { onConflict: 'user_id' },
+      );
+  } catch (err) {
+    console.warn('[unipile/connect] snapshot failed (non-fatal):', err);
+  }
+}
 
 /**
  * GET /api/social-accounts/connect/unipile
@@ -61,6 +92,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const providerParam = request.nextUrl.searchParams.get('provider')?.toLowerCase();
   const scopedProvider = providerParam ? PROVIDER_ENUM[providerParam] : undefined;
   const providers = scopedProvider ? [scopedProvider] : ['LINKEDIN', 'TWITTER'];
+
+  // Record which accounts already exist so the post-connect sync can pick out
+  // the one this user is about to add (shared-key subscription has no per-user filter).
+  await snapshotUnipileAccounts(user.id, apiBase, apiKey);
 
   // api_url = the Unipile server URL (required). notify_url = our webhook (optional).
   const requestBody: Record<string, unknown> = {

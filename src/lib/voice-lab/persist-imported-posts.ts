@@ -1,11 +1,16 @@
 import { randomUUID } from 'crypto';
 import type { getServerClient } from '@/lib/insforge/server';
 import { buildIdempotencyKey } from '@/lib/publish-queue';
-import {
-  extractLinkedInMetrics,
-  extractLinkedInPublishedAt,
-} from '@/lib/platforms/linkedin-metrics';
 import { metricsPatchFromNormalized, hasPostMetrics } from '@/lib/analytics/post-metrics';
+import {
+  extractUnipilePostMetrics,
+  extractUnipilePublishedAt,
+} from '@/lib/platforms/linkedin-metrics';
+
+/** Platforms whose Unipile post payloads carry engagement counters we can read. */
+function unipileMetricsSupported(platform: string): boolean {
+  return platform === 'linkedin' || platform === 'twitter';
+}
 
 // Extracted from the import-from-account route so it can be unit-tested
 // directly. Next.js route modules may only export HTTP handlers, so this
@@ -111,10 +116,10 @@ export async function persistImportedPosts({
         .maybeSingle();
 
       if (existingPost) {
-        if (platform === 'linkedin') {
-          const patch = metricsPatchFromNormalized(extractLinkedInMetrics(item));
+        if (unipileMetricsSupported(platform)) {
+          const patch = metricsPatchFromNormalized(extractUnipilePostMetrics(item));
           if (!hasPostMetrics(existingPost) && Object.keys(patch).length > 0) {
-            const publishedAt = extractLinkedInPublishedAt(item);
+            const publishedAt = extractUnipilePublishedAt(item);
             const postPatch: Record<string, string | number> = { ...patch };
             if (publishedAt) postPatch.posted_date = publishedAt.split('T')[0];
             await client.database.from('posts').update(postPatch).eq('id', existingJob.post_id);
@@ -129,10 +134,12 @@ export async function persistImportedPosts({
 
     // Unipile list payloads often include impression/reaction counters — seed
     // analytics immediately instead of waiting for a later metrics sync.
-    const importedMetrics =
-      platform === 'linkedin' ? metricsPatchFromNormalized(extractLinkedInMetrics(item)) : {};
-    const importedPublishedAt =
-      platform === 'linkedin' ? extractLinkedInPublishedAt(item) : undefined;
+    const importedMetrics = unipileMetricsSupported(platform)
+      ? metricsPatchFromNormalized(extractUnipilePostMetrics(item))
+      : {};
+    const importedPublishedAt = unipileMetricsSupported(platform)
+      ? extractUnipilePublishedAt(item)
+      : undefined;
 
     // Create a posts row for this historically-published post
     const postId = randomUUID();

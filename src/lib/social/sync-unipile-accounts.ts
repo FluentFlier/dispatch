@@ -43,6 +43,36 @@ function mapUnipilePlatform(account: UnipileAccount) {
   return null;
 }
 
+/**
+ * Picks the accounts safe to bind to the connecting user. An account qualifies
+ * only if it appeared AFTER the pre-connect snapshot, isn't owned by another
+ * user, and is the ONLY new account of its platform. Two concurrent connects
+ * produce >1 new account of a platform → ambiguous → bound to nobody here
+ * (the state-bound webhook resolves those). This is the guard against the old
+ * "grab the first id Unipile returns" cross-wiring bug — keep it pure + tested.
+ */
+export function pickAccountsToBind(
+  accounts: UnipileAccount[],
+  snapshotIds: Set<string>,
+  claimedByOthers: Set<string>,
+): UnipileAccount[] {
+  const seen = new Set<string>();
+  const byPlatform = new Map<string, UnipileAccount[]>();
+  for (const account of accounts) {
+    if (seen.has(account.id)) continue;
+    seen.add(account.id);
+    if (snapshotIds.has(account.id) || claimedByOthers.has(account.id)) continue;
+    const platform = mapUnipilePlatform(account);
+    if (!platform) continue;
+    const group = byPlatform.get(platform) ?? [];
+    group.push(account);
+    byPlatform.set(platform, group);
+  }
+  return Array.from(byPlatform.values())
+    .filter((group) => group.length === 1)
+    .map((group) => group[0]);
+}
+
 export async function syncUnipileAccountsForUser(
   userId: string,
 ): Promise<UnipileAccountsSyncResult> {
@@ -75,6 +105,23 @@ export async function syncUnipileAccountsForUser(
   }
 
   const serviceClient = getServiceClient();
+
+  // Pre-connect snapshot written by /connect/unipile. Its absence means this
+  // call is NOT a fresh connect (e.g. a settings-page load) — bind nothing, so
+  // we never re-derive identity from the shared list (the old cross-wiring bug).
+  const { data: snapRow } = await serviceClient.database
+    .from('unipile_connect_snapshots')
+    .select('account_ids')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!snapRow) {
+    return { synced: 0, workspaceId, message: 'No pending connect — nothing to bind' };
+  }
+  const snapshotIds = new Set(
+    ((snapRow as { account_ids?: string[] }).account_ids ?? []).filter(Boolean),
+  );
+
   const { data: allClaimed } = await serviceClient.database
     .from('social_accounts')
     .select('unipile_account_id, user_id')
@@ -87,32 +134,16 @@ export async function syncUnipileAccountsForUser(
       .filter(Boolean),
   );
 
-  const seen = new Set<string>();
-  const dedupedAccounts = accounts.filter((account) => {
-    if (seen.has(account.id)) return false;
-    seen.add(account.id);
-    return true;
-  });
+  const clearSnapshot = () =>
+    serviceClient.database.from('unipile_connect_snapshots').delete().eq('user_id', userId);
+
+  const toBind = pickAccountsToBind(accounts, snapshotIds, claimedByOthers);
 
   let synced = 0;
-  for (const account of dedupedAccounts) {
-    if (claimedByOthers.has(account.id)) {
-      console.warn('[sync/unipile] Skipping account owned by another user:', `${account.id.slice(0, 8)}...`);
-      continue;
-    }
-
-    const platform = mapUnipilePlatform(account);
-    if (!platform) continue;
-
+  for (const account of toBind) {
+    const platform = mapUnipilePlatform(account)!;
     const accountName = account.name ?? account.connection_params?.im?.username ?? null;
     const accountId = account.connection_params?.im?.publicIdentifier ?? account.username ?? null;
-
-    console.log(
-      `[sync/unipile] ${platform} account_id (publicIdentifier):`,
-      accountId,
-      '| unipile_id:',
-      `${account.id.slice(0, 8)}...`,
-    );
 
     const { data: existing } = await client.database
       .from('social_accounts')
@@ -150,5 +181,6 @@ export async function syncUnipileAccountsForUser(
     synced++;
   }
 
+  await clearSnapshot();
   return { synced, workspaceId };
 }

@@ -2,8 +2,8 @@
 
 import { ArrowUpDown } from 'lucide-react';
 import type { Post } from '@/lib/types';
-import type { Status } from '@/lib/constants';
-import { STATUSES } from '@/lib/constants';
+import type { Status, Platform } from '@/lib/constants';
+import { STATUSES, PLATFORM_LABELS } from '@/lib/constants';
 import StatusBadge from '@/components/ui/StatusBadge';
 import PillarBadge from '@/components/ui/PillarBadge';
 import { postPillars } from '@/lib/pillars';
@@ -121,7 +121,7 @@ export default function PostTable({ posts, selected, onSelect, onSelectAll, onCl
                   ))}
                 </div>
               </td>
-              <td className="py-2.5 px-2 font-mono text-[12px] text-ink2 capitalize">{post.platform}</td>
+              <td className="py-2.5 px-2 font-mono text-[12px] text-ink2">{PLATFORM_LABELS[post.platform as Platform] ?? post.platform}</td>
               <td className="py-2.5 px-2">
                 <StatusBadge status={post.status} />
               </td>
