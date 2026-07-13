@@ -502,18 +502,29 @@ export default function LibraryPage() {
         </div>
       ) : view === 'card' ? (
         <div className="space-y-3">
-          <label className="flex w-fit items-center gap-2 cursor-pointer text-[13px] text-text-secondary hover:text-text-primary select-none">
-            <input
-              type="checkbox"
-              checked={selected.size === filtered.length && filtered.length > 0}
-              ref={(el) => {
-                if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length;
-              }}
-              onChange={toggleSelectAll}
-              className="w-4 h-4 accent-accent-primary"
-            />
-            Select all ({filtered.length})
-          </label>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 rounded-md border border-border bg-bg-secondary px-3 py-2 min-h-[44px] text-[13px] font-medium text-text-primary hover:border-border-hover transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={selected.size === filtered.length && filtered.length > 0}
+                ref={(el) => {
+                  if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length;
+                }}
+                readOnly
+                className="w-4 h-4 accent-accent-primary pointer-events-none"
+              />
+              {selected.size === filtered.length && filtered.length > 0
+                ? 'Deselect all'
+                : `Select all (${filtered.length})`}
+            </button>
+            {selected.size > 0 && (
+              <span className="font-mono text-[12px] text-text-secondary">{selected.size} selected</span>
+            )}
+          </div>
           <PostGrid
             posts={filtered}
             selected={selected}

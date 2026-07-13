@@ -14,6 +14,7 @@ import GenerateVariantsSection from '@/components/library/GenerateVariantsSectio
 import BulkPublishPanel from '@/components/library/BulkPublishPanel';
 import dynamic from 'next/dynamic';
 import { logEditFeedback } from '@/lib/hooks-intelligence/edit-feedback';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 const EngagementInbox = dynamic(() => import('@/components/engagement/EngagementInbox'), {
   ssr: false,
@@ -110,7 +111,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
   const autoSave = useCallback(async () => {
     try {
-      const res = await fetch(`/api/posts/${post.id}`, {
+      const res = await fetchWithAuth(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -160,7 +161,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
     }
     setForm((f) => ({ ...f, status }));
     try {
-      const res = await fetch(`/api/posts/${post.id}`, {
+      const res = await fetchWithAuth(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, updated_at: new Date().toISOString() }),
@@ -176,7 +177,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
   const handlePerfSave = async (data: Record<string, unknown>) => {
     try {
-      const res = await fetch(`/api/posts/${post.id}`, {
+      const res = await fetchWithAuth(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -197,11 +198,21 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   };
 
   const handleDelete = async () => {
-    if (!confirm('Delete this post?')) return;
+    // Deletes ONLY the tool's post row (InsForge). Does NOT touch the live
+    // LinkedIn/X post — the DELETE route makes no provider call.
+    if (!confirm('Remove this post from the tool? (Your live LinkedIn/X post is not affected.)')) return;
     setDeleting(true);
     try {
-      await fetch(`/api/posts/${post.id}`, { method: 'DELETE' });
-      toast('Post deleted');
+      // fetchWithAuth so an expired access token refreshes+retries instead of
+      // 401ing; and check res.ok so a failed delete never falsely reports success
+      // (the old plain fetch() toasted "deleted" then the post reappeared).
+      const res = await fetchWithAuth(`/api/posts/${post.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        toast('Delete failed', 'error');
+        setDeleting(false);
+        return;
+      }
+      toast('Post removed from the tool');
       onDelete();
     } catch {
       toast('Delete failed', 'error');
@@ -214,7 +225,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
       ? `Write a social media caption for this script. Be concise, punchy, no em dashes:\n\n${form.script}`
       : `Write a strong hook (first line) for this content. No em dashes:\n\n${form.script}`;
     try {
-      const res = await fetch('/api/generate', {
+      const res = await fetchWithAuth('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),
@@ -250,7 +261,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   /** PATCH just the pillars (synced primary + weights) for this post. */
   async function persistPillars(pillars: string[], weights: Record<string, number>) {
     try {
-      const res = await fetch(`/api/posts/${post.id}`, {
+      const res = await fetchWithAuth(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
