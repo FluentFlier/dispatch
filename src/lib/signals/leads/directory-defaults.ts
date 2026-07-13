@@ -57,8 +57,9 @@ export const LEAD_SOURCE_UI: Array<{
   {
     key: 'web_discovery',
     label: 'Web discovery (ICP search)',
+    // TinyFish is the primary scraper (Google); Serper is the fallback.
     hint: isSerperWebDiscoveryConfigured()
-      ? 'Google + your ICP — any vertical'
+      ? 'TinyFish + Serper fallback + your ICP — any vertical'
       : 'TinyFish + your ICP — any vertical',
     disabled: () => !isWebDiscoveryConfigured(),
   },

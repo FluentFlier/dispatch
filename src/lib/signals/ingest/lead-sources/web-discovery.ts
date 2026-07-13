@@ -141,15 +141,17 @@ function mapTinyfishCompanies(result: Record<string, unknown>): IngestedLead[] {
 }
 
 /**
- * TinyFish fallback when Serper is absent: agent reads a DuckDuckGo HTML results
- * page for the ICP query and extracts matching companies.
+ * Primary scraper: the TinyFish agent reads a Google results page for the ICP
+ * query and extracts matching companies. TinyFish drives a real browser, so it
+ * handles Google's JS/anti-scrape better than a raw fetch would; Serper is the
+ * fallback in discoverWebLeads when this returns nothing or errors.
  */
 export async function discoverWebLeadsViaTinyfish(ctx: DiscoveryContext): Promise<IngestedLead[]> {
   if (!isTinyFishConfigured() || !isLlmConfigured()) return [];
   const query = buildSearchQueries(ctx)[0];
   if (!query) return [];
 
-  const url = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(`${query} companies`)}`;
+  const url = `https://www.google.com/search?q=${encodeURIComponent(`${query} companies`)}`;
   const goal =
     `From these search results, extract up to ${Math.min(ctx.maxLeads, MAX_EXTRACT)} real ` +
     `companies or organizations that match this ICP: "${query}". For each return ` +
@@ -180,8 +182,8 @@ export async function discoverWebLeadsViaTinyfish(ctx: DiscoveryContext): Promis
 }
 
 /**
- * ICP → Google (Serper) → page text (Jina) → LLM structured extract.
- * Falls back to TinyFish + DuckDuckGo when Serper is not configured.
+ * Web lead discovery. TinyFish is the MAIN scraper (agent on Google); Serper is
+ * the FALLBACK, used only when TinyFish is unavailable, errors, or finds nothing.
  */
 export async function discoverWebLeads(
   ctx: DiscoveryContext,
@@ -189,11 +191,32 @@ export async function discoverWebLeads(
 ): Promise<IngestedLead[]> {
   if (!isWebDiscoveryConfigured()) return [];
 
-  if (!isSerperWebDiscoveryConfigured()) {
+  // Primary: TinyFish.
+  if (isTinyFishConfigured()) {
     const tinyfish = deps.tinyfishDiscover ?? discoverWebLeadsViaTinyfish;
-    return tinyfish(ctx);
+    try {
+      const leads = await tinyfish(ctx);
+      if (leads.length > 0) return leads;
+      if (signalsDebugEnabled()) {
+        console.log('[web-discovery] TinyFish returned 0 leads, falling back to Serper');
+      }
+    } catch (err) {
+      console.warn(
+        `[web-discovery] TinyFish failed, falling back to Serper: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
+  // Fallback: Serper (Google search API) → page text (Jina) → LLM extract.
+  if (!isSerperWebDiscoveryConfigured()) return [];
+  return discoverWebLeadsViaSerper(ctx, deps);
+}
+
+/** Fallback path: ICP → Serper (Google) → page text (Jina) → LLM structured extract. */
+async function discoverWebLeadsViaSerper(
+  ctx: DiscoveryContext,
+  deps: WebDiscoveryDeps = {},
+): Promise<IngestedLead[]> {
   const debug = signalsDebugEnabled();
   const search = deps.search ?? serperSearch;
   const read = deps.read ?? jinaRead;
