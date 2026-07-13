@@ -46,7 +46,7 @@ export default function SeriesCard({
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-serif text-[18px] font-normal tracking-[-0.02em] text-ink truncate">
+              <h3 className="text-[18px] font-normal tracking-[-0.02em] text-ink truncate">
                 {series.name}
               </h3>
               <span
@@ -75,7 +75,7 @@ export default function SeriesCard({
                   style={{ width: `${progress}%` }}
                 />
               </div>
-              <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink3">
+              <p className="text-[11px] tracking-[0.08em] text-ink3">
                 {completedParts} of {total} parts complete
               </p>
             </div>

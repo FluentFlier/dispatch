@@ -26,7 +26,7 @@ interface PredictResult {
 }
 
 const TIER_COLOR: Record<PredictResult['tier'], string> = {
-  strong: 'text-teal',
+  strong: 'text-ink',
   average: 'text-ink2',
   weak: 'text-flame',
 };
@@ -49,11 +49,10 @@ function PredictPanel({ result }: { result: PredictResult }) {
   return (
     <div className="bg-bg-secondary border border-border rounded-[10px] p-3 space-y-2">
       <div className="flex items-center justify-between">
-        <p className="font-body text-[11px] uppercase tracking-wide text-text-secondary">
+        <p className="font-body text-[11px] tracking-wide text-text-secondary">
           Performance Prediction
         </p>
-        <span
-          className={`font-body text-[11px] font-medium px-2 py-0.5 rounded-full border ${TIER_COLOR[result.tier]} border-current/20`}
+        <span className={`font-body text-[11px] font-medium px-2 py-0.5 rounded-full border ${TIER_COLOR[result.tier]} border-current/20`}
         >
           {result.tier.charAt(0).toUpperCase() + result.tier.slice(1)} - {result.score}/100
         </span>
@@ -109,7 +108,7 @@ interface GenerateOutputProps {
 function scoreColor(value: number, invert = false): string {
   const good = invert ? value <= 30 : value >= 80;
   const mid = invert ? value <= 60 : value >= 60;
-  if (good) return 'text-teal';
+  if (good) return 'text-ink';
   if (mid) return 'text-ink2';
   return 'text-flame';
 }
@@ -147,7 +146,7 @@ function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
         Voice QA
       </p>
       {hasHeader && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-[12px]">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12px]">
           {voice_match_score !== undefined && (
             <span className={scoreColor(voice_match_score)}>
               Voice match: {voice_match_score}%
@@ -165,21 +164,21 @@ function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
             </span>
           )}
           {evaluation?.pass !== undefined && (
-            <span className={evaluation.pass ? 'text-teal' : 'text-ink2'}>
+            <span className={evaluation.pass ? 'text-ink' : 'text-ink2'}>
               {evaluation.pass ? 'Passed' : 'Below threshold'}
             </span>
           )}
         </div>
       )}
       {pipeline_stages && pipeline_stages.length > 0 && (
-        <p className="font-mono text-[10px] text-ink3">
+        <p className="text-[10px] text-ink3">
           Pipeline: {pipeline_stages.join(' → ')}
           {humanize_passes?.length ? ` · humanize: ${humanize_passes.join(', ')}` : ''}
         </p>
       )}
       {hook_explanations && hook_explanations.length > 0 && (
         <div className="space-y-1 border-t border-hair pt-2">
-          <p className="font-mono text-[10px] uppercase tracking-wide text-ink3">Hooks used (learned)</p>
+          <p className="text-[10px] tracking-wide text-ink3">Hooks used (learned)</p>
           {hook_explanations.slice(0, 3).map((h) => (
             <p key={h.id} className="font-body text-[11px] text-ink2 leading-snug">
               &ldquo;{h.text}&hellip;&rdquo; — {h.reason}
@@ -196,17 +195,17 @@ function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
             const pct = invert ? (10 - raw) * 10 : raw * 10;
             return (
               <div key={key} className="text-center">
-                <p className={`font-mono text-[13px] font-medium ${scoreColor(pct, invert)}`}>
+                <p className={`text-[13px] font-medium tabular-nums ${scoreColor(pct, invert)}`}>
                   {display}
                 </p>
-                <p className="font-mono text-[10px] uppercase tracking-[0.08em] text-ink3">{label}</p>
+                <p className="text-[10px] tracking-[0.08em] text-ink3">{label}</p>
               </div>
             );
           })}
         </div>
       )}
       {evaluation?.revision_notes && !evaluation.pass && (
-        <p className="font-mono text-[11px] text-ink3 leading-snug">
+        <p className="text-[11px] text-ink3 leading-snug">
           {evaluation.revision_notes}
         </p>
       )}
@@ -392,8 +391,8 @@ export function GenerateOutput({
   return (
     <div className="space-y-4">
       {published && (
-        <div className="flex items-center justify-between gap-3 rounded-lg border border-teal/30 bg-teal/5 px-4 py-3">
-          <span className="text-sm font-medium text-teal">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-lime/25 bg-lime/15 px-4 py-3">
+          <span className="text-sm font-medium text-ink">
             Posted to {PLATFORM_LABELS[published.platform] ?? published.platform}
           </span>
           {published.url && (
@@ -475,7 +474,7 @@ export function GenerateOutput({
             </Button>
             <Button variant="ghost" size="sm" onClick={handleScore} loading={scoring}>
               {aiScore !== null ? (
-                <span className={`font-mono ${aiScore > 60 ? 'text-flame' : aiScore > 30 ? 'text-ink2' : 'text-teal'}`}>
+                <span className={`tabular-nums ${aiScore > 60 ? 'text-flame' : aiScore > 30 ? 'text-ink2' : 'text-ink'}`}>
                   AI Score: {aiScore}/100
                 </span>
               ) : 'Check AI Score'}

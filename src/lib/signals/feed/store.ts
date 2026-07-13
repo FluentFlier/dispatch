@@ -13,6 +13,7 @@ import type { createClient } from '@insforge/sdk';
 import { listLeads } from '@/lib/signals/leads/store';
 import { listEventsWithPosts } from '@/lib/signals/store';
 import { normalizeEvent, normalizeLead, type UnifiedLeadCard } from '@/lib/signals/feed/normalize';
+import type { LeadStatus } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -25,6 +26,7 @@ export interface FeedFilters {
   source?: string;
   kind?: 'signal' | 'directory' | 'engager';
   signalType?: string;
+  needsReply?: boolean;
   limit?: number;
 }
 
@@ -68,9 +70,19 @@ export async function buildUnifiedFeed(
   filters: FeedFilters = {},
 ): Promise<UnifiedLeadCard[]> {
   const limit = Math.min(Math.max(filters.limit ?? FEED_PAGE_LIMIT, 1), 300);
+  const needsReply = filters.needsReply ?? filters.status === 'needs_reply';
+  const leadStatus =
+    filters.status && filters.status !== 'all' && filters.status !== 'needs_reply'
+      ? (filters.status as LeadStatus)
+      : undefined;
+
   const [leads, events] = await Promise.all([
-    listLeads(client, workspaceId, { limit }),
+    listLeads(client, workspaceId, { limit, status: leadStatus, needsReply: needsReply || undefined }),
     listEventsWithPosts(client, workspaceId, { limit }),
   ]);
-  return mergeFeed(leads.map(normalizeLead), events.map(normalizeEvent), { ...filters, limit });
+  let cards = mergeFeed(leads.map(normalizeLead), events.map(normalizeEvent), { ...filters, limit });
+  if (needsReply) {
+    cards = cards.filter((c) => c.needsReply || c.nurtureStage === 'replied');
+  }
+  return cards;
 }

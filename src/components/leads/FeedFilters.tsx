@@ -4,11 +4,11 @@ import { Search, ArrowUpDown } from 'lucide-react';
 import type { LeadStatus, SignalType } from '@/lib/signals/types';
 
 /** Sort orders the feed list supports. */
-export type FeedSort = 'score' | 'recency';
+export type FeedSort = 'score' | 'warm' | 'recency';
 
 /** Every filter the feed UI can drive. `status`/`source`/`signalType` map to feed query params; the rest are client-side. */
 export interface FeedFilterState {
-  status: LeadStatus | 'all';
+  status: LeadStatus | 'needs_reply' | 'all';
   source: string;
   signalType: SignalType | 'all';
   vertical: string;
@@ -16,7 +16,8 @@ export interface FeedFilterState {
   sort: FeedSort;
 }
 
-const STATUS_OPTIONS: Array<{ key: LeadStatus | 'all'; label: string }> = [
+const STATUS_OPTIONS: Array<{ key: LeadStatus | 'needs_reply' | 'all'; label: string }> = [
+  { key: 'needs_reply', label: 'Needs reply' },
   { key: 'new', label: 'New' },
   { key: 'drafted', label: 'Drafted' },
   { key: 'approved', label: 'Approved' },
@@ -27,9 +28,12 @@ const STATUS_OPTIONS: Array<{ key: LeadStatus | 'all'; label: string }> = [
 
 const SOURCE_OPTIONS: Array<{ key: string; label: string }> = [
   { key: 'all', label: 'All sources' },
+  { key: 'manual', label: 'Imported' },
   { key: 'x', label: 'X (live)' },
   { key: 'linkedin', label: 'LinkedIn (live)' },
+  { key: 'web_discovery', label: 'Web discovery' },
   { key: 'yc_directory', label: 'YC directory' },
+  { key: 'yc_launches', label: 'YC launches' },
   { key: 'product_hunt', label: 'Product Hunt' },
 ];
 
@@ -141,15 +145,19 @@ export function FeedFilters({ state, onChange, verticals }: FeedFiltersProps) {
           />
         </div>
 
-        {/* Sort toggle */}
+        {/* Sort toggle: score → warm → recency */}
         <button
           type="button"
-          onClick={() => set({ sort: state.sort === 'score' ? 'recency' : 'score' })}
-          aria-label={`Sort by ${state.sort === 'score' ? 'score' : 'recency'}, click to change`}
+          onClick={() =>
+            set({
+              sort: state.sort === 'score' ? 'warm' : state.sort === 'warm' ? 'recency' : 'score',
+            })
+          }
+          aria-label={`Sort by ${state.sort}, click to change`}
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-secondary px-2.5 py-1.5 text-xs text-text-secondary cursor-pointer hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
         >
           <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
-          {state.sort === 'score' ? 'Score' : 'Recent'}
+          {state.sort === 'score' ? 'Score' : state.sort === 'warm' ? 'Warm' : 'Recent'}
         </button>
       </div>
     </div>

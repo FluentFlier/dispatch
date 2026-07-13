@@ -231,7 +231,7 @@ export default function SeriesPage() {
       ) : seriesList.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <Layers className="w-12 h-12 text-text-secondary mb-4" />
-          <h2 className="font-serif text-[20px] font-normal tracking-[-0.02em] text-ink mb-1">
+          <h2 className="text-[20px] font-normal tracking-[-0.02em] text-ink mb-1">
             No series yet
           </h2>
           <p className="text-text-secondary text-[13px] mb-4">

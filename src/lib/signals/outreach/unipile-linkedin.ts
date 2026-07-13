@@ -301,6 +301,8 @@ export async function searchLinkedInPerson(query: {
   name: string;
   company: string;
   accountId: string;
+  /** Override the default "name company" keyword string (e.g. "CEO Acme Inc"). */
+  keywords?: string;
 }): Promise<LinkedInPersonSearchResult | null> {
   if (!query.accountId) return null;
 
@@ -310,7 +312,7 @@ export async function searchLinkedInPerson(query: {
     const res = await unipileJsonPost(`/linkedin/search?${params.toString()}`, {
       api,
       category: 'people',
-      keywords: `${query.name} ${query.company}`.trim(),
+      keywords: (query.keywords ?? `${query.name} ${query.company}`).trim(),
     });
 
     if (!res.ok) {
@@ -386,5 +388,27 @@ export async function sendLinkedInDirectMessage(
   return {
     success: true,
     externalId: json.id ?? json.chat_id,
+  };
+}
+
+/** Sends a message into an existing LinkedIn chat thread (preferred for replies). */
+export async function sendLinkedInChatMessage(
+  accountId: string,
+  chatId: string,
+  text: string,
+): Promise<SendResult> {
+  const res = await unipileFormPost(`/chats/${encodeURIComponent(chatId)}/messages`, {
+    account_id: accountId,
+    text: text.slice(0, 1900),
+  });
+
+  if (!res.ok) {
+    return { success: false, error: await parseUnipileError(res) };
+  }
+
+  const json = (await res.json()) as { id?: string; message_id?: string };
+  return {
+    success: true,
+    externalId: json.id ?? json.message_id ?? chatId,
   };
 }

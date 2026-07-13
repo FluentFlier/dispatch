@@ -108,7 +108,7 @@ export default function PillarMultiSelect({
                 className="flex-1 accent-accent-primary"
                 aria-label={`${getLabel(slug)} importance`}
               />
-              <span className="text-[11px] font-mono text-text-secondary w-8 text-right tabular-nums">
+              <span className="text-[11px] text-text-secondary w-8 text-right tabular-nums">
                 {weights[slug] ?? DEFAULT_PILLAR_WEIGHT}
               </span>
             </div>

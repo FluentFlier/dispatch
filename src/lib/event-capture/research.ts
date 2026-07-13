@@ -107,7 +107,7 @@ interface SerperResponse {
  * Falls back gracefully: if Serper returns no results or the API key is missing,
  * returns an empty array so the enrich cron continues with generic questions.
  */
-export async function serperSearch(query: string): Promise<SerperResult[]> {
+export async function serperSearch(query: string, num = 5): Promise<SerperResult[]> {
   const apiKey = process.env.SERPER_API_KEY;
   if (!apiKey) {
     console.warn('[research] SERPER_API_KEY not configured — skipping web search');
@@ -121,7 +121,7 @@ export async function serperSearch(query: string): Promise<SerperResult[]> {
         'X-API-KEY': apiKey,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ q: query, num: 5 }),
+      body: JSON.stringify({ q: query, num }),
     });
 
     if (!res.ok) {

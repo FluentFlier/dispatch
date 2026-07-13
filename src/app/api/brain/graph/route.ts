@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { listBrainPages } from '@/lib/brain/pages';
 import { buildBrainGraph } from '@/lib/brain/graph';
+import { deriveBrainInsights } from '@/lib/brain/insights';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 
 /**
@@ -18,11 +19,13 @@ export async function GET(): Promise<NextResponse> {
     const workspaceId = (await getActiveWorkspaceId(user.id)) ?? undefined;
     const pages = await listBrainPages(client, user.id, workspaceId);
     const graph = buildBrainGraph(pages);
+    const insights = deriveBrainInsights(pages, graph);
 
     return NextResponse.json({
       provisioned: pages.length > 0,
       page_count: pages.length,
       last_updated: pages[0]?.updated_at ?? null,
+      insights,
       ...graph,
     });
   } catch (err) {

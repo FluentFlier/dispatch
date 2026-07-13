@@ -34,7 +34,7 @@ function statusLabel(queue: InboxComment['queue']): string {
 
 function statusTone(queue: InboxComment['queue']): string {
   if (!queue) return 'text-ink2 bg-paper2/80';
-  if (queue.status === 'sent') return 'text-teal bg-teal/10';
+  if (queue.status === 'sent') return 'text-ink bg-lime/15';
   if (queue.status === 'draft' || queue.status === 'approved') return 'text-blue bg-blue/10';
   if (queue.status === 'failed') return 'text-flame bg-flame/10';
   return 'text-ink2 bg-paper2/80';
@@ -272,7 +272,7 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
   return (
     <div className={compact ? 'space-y-4' : 'space-y-6'}>
       {summary && !isEmpty && !compact && (
-        <p className="font-mono text-[12px] tracking-[0.02em] text-ink3">
+        <p className="text-[12px] tracking-[0.02em] text-ink3">
           {summary.comments} comment{summary.comments === 1 ? '' : 's'} across {summary.posts}{' '}
           post{summary.posts === 1 ? '' : 's'} · {summary.needs_reply} need
           {summary.needs_reply === 1 ? 's' : ''} a reply · {summary.drafted} drafted · {summary.sent}{' '}
@@ -318,7 +318,7 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-md bg-coral-light text-accent-primary mb-5">
             <MessageCircle className="h-7 w-7" strokeWidth={1.75} />
           </div>
-          <h2 className="font-serif font-normal tracking-[-0.025em] text-ink text-[22px]">No comments yet</h2>
+          <h2 className="font-normal tracking-[-0.025em] text-ink text-[22px]">No comments yet</h2>
           <p className="mt-2 text-sm text-text-secondary max-w-sm mx-auto leading-relaxed">
             {connected === false
               ? 'Connect your LinkedIn or X account in settings, then sync to pull comments on your posts.'
@@ -386,8 +386,8 @@ function PostCommentGroup({
   return (
     <section className="rounded-lg border border-border bg-bg-secondary shadow-card overflow-hidden">
       <div className="px-4 py-3 border-b border-hair bg-bg-tertiary/60">
-        <h2 className="font-serif font-normal tracking-[-0.025em] text-ink text-[18px] leading-tight">{group.post_title}</h2>
-        <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-ink3">
+        <h2 className="font-normal tracking-[-0.025em] text-ink text-[18px] leading-tight">{group.post_title}</h2>
+        <p className="mt-1.5 text-[11px] tracking-[0.08em] text-ink3">
           {group.post_platform} · {group.stats.total} comment
           {group.stats.total === 1 ? '' : 's'}
           {needs > 0 && ` · ${needs} waiting for you`}
@@ -436,9 +436,9 @@ function CommentRow({
     <li className="p-4 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="font-mono text-[13px] font-medium text-ink">{authorLabel(item)}</p>
+          <p className="text-[13px] font-medium text-ink">{authorLabel(item)}</p>
           {comment.author_headline && (
-            <p className="font-mono text-[11px] text-ink3 mt-0.5 line-clamp-1">{comment.author_headline}</p>
+            <p className="text-[11px] text-ink3 mt-0.5 line-clamp-1">{comment.author_headline}</p>
           )}
         </div>
         <span

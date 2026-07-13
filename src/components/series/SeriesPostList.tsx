@@ -3,7 +3,7 @@
 import { Plus, ArrowUp, ArrowDown } from 'lucide-react';
 import type { Post, Series } from '@/lib/types';
 import PillarDot from '@/components/PillarDot';
-import StatusBadge from '@/components/StatusBadge';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 interface SeriesPostListProps {
   series: Series;

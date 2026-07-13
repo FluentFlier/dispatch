@@ -11,6 +11,7 @@ import { SignalDetail } from '@/components/leads/SignalDetail';
 import { EngagerDetail, type EngagerDetailAction } from '@/components/leads/EngagerDetail';
 import { resolveSignalOutreach } from '@/components/leads/signal-outreach';
 import { AdvancedDrawer } from '@/components/leads/AdvancedDrawer';
+import { LeadImportDrawer } from '@/components/leads/LeadImportDrawer';
 import { SignalsSetup } from '@/components/leads/SignalsSetup';
 import { IcpManager } from '@/components/leads/IcpManager';
 import {
@@ -25,7 +26,7 @@ import type {
   IcpProfileRow,
   SignalLeadWithContacts,
 } from '@/lib/signals/types';
-import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
+import { normalizeLead, type UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import type { WarmContactRow } from '@/lib/social-graph/types';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import {
@@ -122,6 +123,7 @@ export default function LeadsPage() {
   // top-N sorted slice, so raising N appends lower-ranked cards with no dupes.
   const [feedLimit, setFeedLimit] = useState(FEED_PAGE_SIZE);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   // Header toggle: "feed" is the unified lead list (default); "setup" is the
   // signal + directory configuration surface folded in from the retired /signals page.
   const [view, setView] = useState<'feed' | 'setup'>('feed');
@@ -244,9 +246,21 @@ export default function LeadsPage() {
   // on the matching feed card so the list stays consistent without a refetch.
   const mergeLead = useCallback((updated: SignalLeadWithContacts) => {
     setLeadsById((prev) => ({ ...prev, [updated.id]: updated }));
+    const cardPatch = normalizeLead(updated);
     setCards((prev) =>
       prev.map((c) =>
-        c.id === updated.id ? { ...c, status: updated.lead_status, contactStatus: updated.contact_status, score: updated.rank_score ?? c.score } : c,
+        c.id === updated.id
+          ? {
+              ...c,
+              status: cardPatch.status,
+              contactStatus: cardPatch.contactStatus,
+              score: cardPatch.score,
+              needsReply: cardPatch.needsReply,
+              nurtureStage: cardPatch.nurtureStage,
+              contact: cardPatch.contact,
+              detectedAt: cardPatch.detectedAt,
+            }
+          : c,
       ),
     );
   }, []);
@@ -340,6 +354,13 @@ export default function LeadsPage() {
     });
     const sorted = filtered.slice().sort((a, b) => {
       if (filters.sort === 'recency') return Date.parse(b.detectedAt) - Date.parse(a.detectedAt);
+      if (filters.sort === 'warm') {
+        const warmRank = (c: UnifiedLeadCard) =>
+          (c.needsReply ? 1000 : 0) +
+          (c.nurtureStage === 'replied' ? 500 : 0) +
+          c.score;
+        return warmRank(b) - warmRank(a);
+      }
       return b.score - a.score;
     });
     // Followed companies pinned on top (stable within each group).
@@ -560,6 +581,69 @@ export default function LeadsPage() {
       toast('Could not draft follow-up.', 'error');
     } finally {
       setBusy(null);
+    }
+  };
+
+  const handleDraftReply = async (id: string, rewriteInstruction?: string) => {
+    setBusy({ id, action: 'reply' });
+    try {
+      const payload: Record<string, unknown> = {};
+      if (rewriteInstruction) payload.rewriteInstruction = rewriteInstruction;
+      const res = await fetch(`/api/leads/${id}/draft-reply`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      mergeLead(data.lead);
+      setDrafts((d) => ({ ...d, [id]: data.draftText }));
+      toast('Reply drafted — review and send.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not draft reply.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleSendReply = async (id: string) => {
+    setBusy({ id, action: 'approve' });
+    try {
+      const res = await fetch(`/api/leads/${id}/reply`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ messageText: drafts[id] }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'blocked');
+      mergeLead(data.lead);
+      toast('Reply sent.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not send reply.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleMarkConversion = async (
+    id: string,
+    stage: 'interested' | 'meeting_booked' | 'not_now' | 'lost',
+  ) => {
+    try {
+      const res = await fetch(`/api/leads/${id}`, {
+        method: 'PATCH',
+        headers: jsonHeaders,
+        body: JSON.stringify({
+          conversion_stage: stage,
+          needs_reply: false,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      mergeLead(data.lead);
+      toast(stage === 'meeting_booked' ? 'Marked meeting booked.' : 'Outcome updated.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not update outcome.', 'error');
     }
   };
 
@@ -1000,6 +1084,7 @@ export default function LeadsPage() {
             onRefresh={refetchList}
             onOpenDrawer={() => setDrawerOpen(true)}
             onExport={handleExport}
+            onImport={() => setImportOpen(true)}
           />
         }
       />
@@ -1063,7 +1148,7 @@ export default function LeadsPage() {
       {/* Demo-data notice: the feed is the built-in seed set, not live scrapes. */}
       {!loading && demoData && (
         <div className="flex items-center gap-2 rounded-lg border border-amber-400/40 bg-amber-50/60 px-4 py-2 text-xs text-amber-800">
-          <span className="inline-flex items-center rounded-full bg-amber-400/20 px-2 py-0.5 font-medium uppercase tracking-wide">
+          <span className="inline-flex items-center rounded-full bg-amber-400/20 px-2 py-0.5 font-medium tracking-wide">
             Demo data
           </span>
           <span>These are sample companies. Connect live scraping to see real leads for your ICP.</span>
@@ -1230,6 +1315,9 @@ export default function LeadsPage() {
                   handleTogglePlaybookStep(selectedLead.id, stepIndex, status)
                 }
                 onDraftFollowup={() => handleDraftFollowup(selectedLead.id)}
+                onDraftReply={() => handleDraftReply(selectedLead.id)}
+                onSendReply={() => handleSendReply(selectedLead.id)}
+                onMarkConversion={(stage) => handleMarkConversion(selectedLead.id, stage)}
                 onCheckConnection={() => handleCheckConnection(selectedLead.id)}
                 accepted={acceptedIds.has(selectedLead.id)}
               />
@@ -1258,6 +1346,16 @@ export default function LeadsPage() {
         onSettingsSaved={(s) => setSettings(s)}
         onFollowedChange={setFollowed}
         onDiscoveryComplete={() => void loadBootstrap()}
+        toast={toast}
+      />
+
+      <LeadImportDrawer
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onComplete={() => {
+          void loadBootstrap();
+          void refetchList();
+        }}
         toast={toast}
       />
     </div>

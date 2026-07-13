@@ -371,7 +371,7 @@ export function SignalsSetup() {
                 key={s.id}
                 className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-primary px-2.5 py-1 text-xs text-text-primary"
               >
-                <span className="uppercase text-[10px] text-text-tertiary">{s.platform}</span>
+                <span className="text-[10px] text-text-tertiary">{s.platform}</span>
                 {s.label || s.handle_or_url}
               </span>
             ))}

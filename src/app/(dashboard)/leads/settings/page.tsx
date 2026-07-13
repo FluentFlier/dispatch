@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { useToast } from '@/components/ui/Toast';
 import type { DirectorySettingsRow } from '@/lib/signals/types';
+import { normalizeMeetingLink } from '@/lib/signals/leads/meeting-link';
 
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
@@ -20,12 +21,17 @@ export default function LeadSettingsPage() {
   const { toast } = useToast();
   const [settings, setSettings] = useState<DirectorySettingsRow | null>(null);
   const [saving, setSaving] = useState(false);
+  const [meetingPreview, setMeetingPreview] = useState<string | null>(null);
   const detectedTz = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
 
   useEffect(() => {
     void fetch('/api/leads/settings')
       .then((r) => r.json())
-      .then((d) => setSettings(d.settings))
+      .then((d) => {
+        setSettings(d.settings);
+        const link = normalizeMeetingLink(d.settings?.meeting_link);
+        setMeetingPreview(link ? `${link.label} · ${link.url}` : null);
+      })
       .catch(() => toast('Could not load settings.', 'error'));
   }, [toast]);
 
@@ -46,6 +52,7 @@ export default function LeadSettingsPage() {
           digest_top_n: settings.digest_top_n,
           digest_channels: settings.digest_channels,
           sender_identity: settings.sender_identity,
+          meeting_link: settings.meeting_link,
         }),
       });
       const data = await res.json();
@@ -130,6 +137,33 @@ export default function LeadSettingsPage() {
             {ch === 'today' ? 'Today tab (always on)' : `${ch} digest`}
           </label>
         ))}
+      </Card>
+
+      <Card className="p-5 space-y-3">
+        <h2 className="text-sm font-medium text-text-primary">Meeting link</h2>
+        <p className="text-xs text-text-tertiary">
+          Paste your Calendly, Google Calendar, Cal.com, or HubSpot scheduling URL.
+          Reply drafts will offer this link when moving toward a call.
+        </p>
+        <label className="block text-sm text-text-secondary">
+          Scheduling URL
+          <input
+            value={settings.meeting_link ?? ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              patch({ meeting_link: value || null });
+              const link = normalizeMeetingLink(value);
+              setMeetingPreview(link ? `${link.label} · ${link.url}` : value.trim() ? 'Invalid URL — use https://…' : null);
+            }}
+            placeholder="https://calendly.com/you/15min"
+            className="mt-1 block w-full max-w-md rounded-md border border-border bg-bg-primary px-3 py-2 text-sm"
+          />
+          {meetingPreview && (
+            <span className={`text-xs mt-1 block ${meetingPreview.startsWith('Invalid') ? 'text-red-600' : 'text-accent-secondary'}`}>
+              {meetingPreview}
+            </span>
+          )}
+        </label>
       </Card>
 
       <Card className="p-5 space-y-3">

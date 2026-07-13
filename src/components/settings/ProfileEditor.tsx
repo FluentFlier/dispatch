@@ -219,7 +219,7 @@ export default function ProfileEditor({
                     className="flex-1 accent-accent-primary"
                     aria-label={`${pillar.name || "Pillar"} importance`}
                   />
-                  <span className="text-[11px] font-mono text-text-secondary w-8 text-right tabular-nums">
+                  <span className="text-[11px] text-text-secondary w-8 text-right tabular-nums">
                     {pillar.weight ?? DEFAULT_PILLAR_WEIGHT}
                   </span>
                 </div>
@@ -386,7 +386,7 @@ function PillarBrowser({
               >
                 <span>{s.name}</span>
                 {s.tag === "trending" && (
-                  <span className="text-[9px] uppercase tracking-wide text-accent-primary">Trending</span>
+                  <span className="text-[9px] tracking-wide text-accent-primary">Trending</span>
                 )}
                 <span className="text-text-secondary">{added ? "✓" : "+"}</span>
               </button>

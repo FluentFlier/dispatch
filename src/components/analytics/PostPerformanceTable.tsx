@@ -35,7 +35,7 @@ export default function PostPerformanceTable({ posts }: PostPerformanceTableProp
     <section className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
+          <h2 className="text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
             <BarChart3 size={20} className="text-ink3" /> All Posts
           </h2>
           <p className="text-sm text-text-secondary mt-1">
@@ -77,28 +77,28 @@ export default function PostPerformanceTable({ posts }: PostPerformanceTableProp
           <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="border-b border-hair bg-bg-tertiary/50">
-                <th className="text-left px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium">
+                <th className="text-left px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium">
                   Post
                 </th>
-                <th className="text-left px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium hidden sm:table-cell">
+                <th className="text-left px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium hidden sm:table-cell">
                   Platform
                 </th>
-                <th className="text-right px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium">
+                <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium">
                   Views
                 </th>
-                <th className="text-right px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium">
+                <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium">
                   Likes
                 </th>
-                <th className="text-right px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium">
+                <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium">
                   Saves
                 </th>
-                <th className="text-right px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium hidden md:table-cell">
+                <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium hidden md:table-cell">
                   Comments
                 </th>
-                <th className="text-right px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium hidden md:table-cell">
+                <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium hidden md:table-cell">
                   Shares
                 </th>
-                <th className="text-right px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium hidden lg:table-cell">
+                <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium hidden lg:table-cell">
                   Posted
                 </th>
               </tr>
@@ -120,22 +120,22 @@ export default function PostPerformanceTable({ posts }: PostPerformanceTableProp
                   <td className="px-4 py-3 text-ink2 text-xs font-medium hidden sm:table-cell">
                     {PLATFORM_LABELS[post.platform] ?? post.platform}
                   </td>
-                  <td className={`px-4 py-3 text-right font-mono tabular-nums ${hasPostMetrics(post) ? 'text-ink' : 'text-ink3'}`}>
+                  <td className={`px-4 py-3 text-right tabular-nums ${hasPostMetrics(post) ? 'text-ink' : 'text-ink3'}`}>
                     {(post.views ?? 0).toLocaleString()}
                   </td>
-                  <td className={`px-4 py-3 text-right font-mono tabular-nums ${(post.likes ?? 0) > 0 ? 'text-ink' : 'text-ink3'}`}>
+                  <td className={`px-4 py-3 text-right tabular-nums ${(post.likes ?? 0) > 0 ? 'text-ink' : 'text-ink3'}`}>
                     {(post.likes ?? 0).toLocaleString()}
                   </td>
-                  <td className={`px-4 py-3 text-right font-mono tabular-nums ${(post.saves ?? 0) > 0 ? 'text-ink' : 'text-ink3'}`}>
+                  <td className={`px-4 py-3 text-right tabular-nums ${(post.saves ?? 0) > 0 ? 'text-ink' : 'text-ink3'}`}>
                     {(post.saves ?? 0).toLocaleString()}
                   </td>
-                  <td className={`px-4 py-3 text-right font-mono tabular-nums hidden md:table-cell ${(post.comments ?? 0) > 0 ? 'text-ink' : 'text-ink3'}`}>
+                  <td className={`px-4 py-3 text-right tabular-nums hidden md:table-cell ${(post.comments ?? 0) > 0 ? 'text-ink' : 'text-ink3'}`}>
                     {(post.comments ?? 0).toLocaleString()}
                   </td>
-                  <td className={`px-4 py-3 text-right font-mono tabular-nums hidden md:table-cell ${(post.shares ?? 0) > 0 ? 'text-ink' : 'text-ink3'}`}>
+                  <td className={`px-4 py-3 text-right tabular-nums hidden md:table-cell ${(post.shares ?? 0) > 0 ? 'text-ink' : 'text-ink3'}`}>
                     {(post.shares ?? 0).toLocaleString()}
                   </td>
-                  <td className="px-4 py-3 text-right font-mono text-[11px] text-ink3 hidden lg:table-cell">
+                  <td className="px-4 py-3 text-right text-[11px] text-ink3 tabular-nums hidden lg:table-cell">
                     {formatDateShort(post.posted_date ?? post.updated_at)}
                   </td>
                 </tr>

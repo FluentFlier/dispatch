@@ -125,7 +125,7 @@ Return ONLY a JSON array of strings — exactly one reply per comment, in the sa
             >
               {/* Original comment */}
               <div className="flex items-start gap-2">
-                <span className="font-mono text-[10px] tracking-[0.08em] uppercase text-ink3 shrink-0 mt-0.5">
+                <span className="text-[10px] tracking-[0.08em] text-ink3 shrink-0 mt-0.5">
                   Comment
                 </span>
                 <p className="font-body text-[12px] text-text-secondary leading-relaxed flex-1">
@@ -134,7 +134,7 @@ Return ONLY a JSON array of strings — exactly one reply per comment, in the sa
               </div>
               {/* Generated reply */}
               <div className="flex items-start gap-2 pt-2 border-t border-border">
-                <span className="font-mono text-[10px] tracking-[0.08em] uppercase text-flame shrink-0 mt-0.5">
+                <span className="text-[10px] tracking-[0.08em] text-flame shrink-0 mt-0.5">
                   Reply
                 </span>
                 <p className="font-body text-[13px] text-text-primary leading-[1.55] flex-1">

@@ -25,7 +25,7 @@ export function CharCount({ text, platform }: CharCountProps) {
   else if (pct >= 0.8) color = 'text-amber-400';
 
   return (
-    <span className={`font-mono text-[11px] ${color} tabular-nums`}>
+    <span className={`text-[11px] ${color} tabular-nums`}>
       {count}/{limit}
     </span>
   );

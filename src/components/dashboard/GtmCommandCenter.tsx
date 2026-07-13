@@ -50,7 +50,7 @@ function LimitBar({
     <div className="rounded-2xl border border-hair bg-white/80 p-3 backdrop-blur-sm">
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="text-ink2">{label}</span>
-        <span className={`font-mono tabular-nums ${hot ? 'text-flame' : 'text-ink'}`}>
+        <span className={`tabular-nums ${hot ? 'text-flame' : 'text-ink'}`}>
           {used}/{max}
         </span>
       </div>
@@ -124,7 +124,7 @@ export function GtmCommandCenter() {
       <div className="p-5 md:p-6 border-b border-hair">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-hair bg-white/80 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.12em] text-ink2">
+            <span className="inline-flex items-center gap-2 rounded-full border border-hair bg-white/80 px-3 py-1 text-[11px] font-medium tracking-[0.01em] text-ink2">
               <Target className="h-3 w-3" />
               GTM pipeline
             </span>
@@ -141,7 +141,7 @@ export function GtmCommandCenter() {
             <span
               className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium ${
                 sendingLive
-                  ? 'border border-teal/20 bg-teal/10 text-teal'
+                  ? 'border border-lime/25 bg-lime/15 text-ink'
                   : 'border border-hair bg-paper2 text-ink3'
               }`}
             >
@@ -175,30 +175,30 @@ export function GtmCommandCenter() {
         <div className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-3">
           <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
             <p className="text-xs text-ink2">New / planned</p>
-            <p className="font-mono text-2xl font-semibold text-ink tabular-nums">{pipeline.discovered}</p>
+            <p className="text-2xl font-semibold text-ink tabular-nums">{pipeline.discovered}</p>
           </div>
           <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
             <p className="text-xs text-ink2">Commenting</p>
-            <p className="font-mono text-2xl font-semibold text-ink tabular-nums">{pipeline.engaging}</p>
+            <p className="text-2xl font-semibold text-ink tabular-nums">{pipeline.engaging}</p>
           </div>
           <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
             <p className="text-xs text-ink2">Connect queued</p>
-            <p className="font-mono text-2xl font-semibold text-ink tabular-nums">{pipeline.connectReady}</p>
+            <p className="text-2xl font-semibold text-ink tabular-nums">{pipeline.connectReady}</p>
           </div>
           <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
             <p className="text-xs text-ink2">Connect sent</p>
-            <p className="font-mono text-2xl font-semibold text-ink tabular-nums">{pipeline.connectSent}</p>
+            <p className="text-2xl font-semibold text-ink tabular-nums">{pipeline.connectSent}</p>
           </div>
           <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
             <p className="text-xs text-ink2">DM ready</p>
-            <p className="font-mono text-2xl font-semibold text-teal tabular-nums">{pipeline.dmReady}</p>
+            <p className="text-2xl font-semibold text-lilac tabular-nums">{pipeline.dmReady}</p>
           </div>
         </div>
 
         <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="rounded-2xl border border-hair bg-paper2/60 p-3 sm:col-span-1">
             <p className="text-xs text-ink2">Sent today</p>
-            <p className="font-mono text-2xl font-semibold text-flame tabular-nums">{pipeline.sentToday}</p>
+            <p className="text-2xl font-semibold text-flame tabular-nums">{pipeline.sentToday}</p>
           </div>
           <LimitBar
             label="LinkedIn invites today"
@@ -258,7 +258,7 @@ export function GtmCommandCenter() {
 
         <div className="p-5 md:p-6">
           <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-teal" />
+            <Sparkles className="h-4 w-4 text-lilac" />
             DMs due
           </h3>
           {dmsDue.length === 0 ? (
@@ -269,7 +269,7 @@ export function GtmCommandCenter() {
                 <li key={l.id}>
                   <Link
                     href={`/leads?lead=${l.id}`}
-                    className="flex items-center justify-between rounded-xl border border-hair bg-white/70 px-3 py-2 text-sm hover:border-teal/30 transition-colors"
+                    className="flex items-center justify-between rounded-xl border border-hair bg-white/70 px-3 py-2 text-sm hover:border-lilac/30 transition-colors"
                   >
                     <span className="font-medium text-ink truncate">{l.company_name}</span>
                     <ArrowRight className="h-4 w-4 text-ink3 shrink-0" />
@@ -282,7 +282,7 @@ export function GtmCommandCenter() {
 
         <div className="p-5 md:p-6">
           <h3 className="text-sm font-semibold text-ink flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-teal" />
+            <MessageSquare className="h-4 w-4 text-lilac" />
             Comments to approve
           </h3>
           {commentDrafts.length === 0 ? (

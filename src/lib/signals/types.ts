@@ -1,5 +1,7 @@
 /** Content OS Signals — shared types */
 
+export type ConversionStage = 'interested' | 'meeting_booked' | 'not_now' | 'won' | 'lost';
+
 export type NurtureStage =
   | 'discovered'
   | 'planned'
@@ -176,7 +178,14 @@ export interface SignalEventWithPost extends SignalEventRow {
 
 // --- Directory Lead Engine ---
 
-export type LeadSource = 'yc_directory' | 'yc_launches' | 'product_hunt' | 'manual';
+export type LeadSource =
+  | 'web_discovery'
+  | 'yc_directory'
+  | 'yc_launches'
+  | 'product_hunt'
+  | 'linkedin'
+  | 'x'
+  | 'manual';
 
 export type LeadContactStatus = 'unresolved' | 'resolved' | 'no_contact';
 
@@ -247,6 +256,10 @@ export interface SignalLeadRow {
   nurture_stage?: NurtureStage | string | null;
   playbook?: LeadPlaybook | Record<string, unknown> | null;
   next_action_at?: string | null;
+  needs_reply?: boolean;
+  unipile_chat_id?: string | null;
+  last_inbound_at?: string | null;
+  conversion_stage?: ConversionStage | string | null;
   first_seen_at: string;
   last_seen_at: string;
   digest_date: string | null;
@@ -293,6 +306,8 @@ export interface DirectorySettingsRow {
   digest_channels: { today: boolean; slack: boolean; email: boolean };
   digest_top_n: number;
   sender_identity: string | null;
+  /** Scheduling URL (Calendly, Google Calendar, etc.) for reply/DM drafts. */
+  meeting_link: string | null;
   digest_delivered_at: string | null;
   created_at: string;
   updated_at: string;

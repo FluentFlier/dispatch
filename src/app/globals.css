@@ -24,7 +24,7 @@
 body {
   background: var(--bg-primary);
   color: var(--text-primary);
-  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-hanken), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   font-size: 15px;
   line-height: 1.55;
@@ -36,7 +36,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: var(--font-hanken), system-ui, sans-serif;
   line-height: 1.2;
   letter-spacing: 0;
   color: var(--text-primary);
@@ -75,7 +75,7 @@ select:focus {
     @apply max-w-[1100px] mx-auto space-y-6 pt-1 pb-8;
   }
 
-  /* Editorial page title — DM Sans semibold like landing section headlines. */
+  /* Editorial page title — Hanken semibold (DESIGN.md title ramp). */
   .page-title {
     @apply text-[clamp(28px,3.5vw,36px)] font-semibold leading-[1.05] tracking-[-0.03em] text-ink;
   }
@@ -84,9 +84,21 @@ select:focus {
     @apply mt-2 max-w-2xl text-[15px] leading-relaxed text-ink2;
   }
 
-  /* Mono eyebrow above a page/section title (e.g. "02 / THE PROBLEM"). */
+  /* Semantic type ramp (DESIGN.md §3) — prefer these over arbitrary text-[Npx]. */
+  .text-title {
+    @apply text-[1.25rem] font-bold leading-[1.15] tracking-[-0.02em] text-ink;
+  }
+  .text-body {
+    @apply text-base font-normal leading-[1.75] text-ink;
+  }
+  .text-label {
+    @apply text-[0.75rem] font-semibold leading-[1.2] tracking-[0.02em] text-ink3;
+  }
+
+  /* Eyebrow above a page/section title — sentence case, one voice (Hanken),
+     no mono, no all-caps (DESIGN.md §3). */
   .page-eyebrow {
-    @apply font-mono text-[11.5px] uppercase tracking-[0.12em] text-ink3;
+    @apply text-[12px] font-semibold tracking-[0.01em] text-ink3;
   }
 
   /* Hairline rule used to separate major sections on the editorial grid. */
@@ -94,13 +106,31 @@ select:focus {
     @apply border-t border-hair;
   }
 
+  /* Flat-Until-Lifted (DESIGN.md §4): product surfaces are flat with a hairline
+     and translucency; shadows are reserved for the dominant proof, never
+     ambient fog. Default cards no longer carry a drop shadow. */
   .card-surface {
-    @apply rounded-xl border border-hair bg-white/90 p-4 shadow-[0_20px_50px_-30px_rgba(23,23,23,0.12)] backdrop-blur-sm;
+    @apply rounded-surface border border-hair bg-white/90 p-4 backdrop-blur-sm;
   }
 
-  /* Legacy dashboard panels — maps old class combos to landing-style surfaces. */
+  /* Command-center lift — the single soft shadow, for the dominant card only. */
+  .lift-soft {
+    box-shadow:
+      0 24px 60px -34px rgba(24, 22, 20, 0.3),
+      0 8px 22px -18px rgba(24, 22, 20, 0.2);
+  }
+
+  /* Hard printed-offset languages for illustrated / poster evidence. */
+  .offset-compact {
+    box-shadow: 7px 8px 0 oklch(18% 0.012 55);
+  }
+  .offset-poster {
+    box-shadow: 14px 16px 0 oklch(18% 0.012 55);
+  }
+
+  /* Legacy shadow utility → flat. Panels rely on hairline + translucency. */
   .shadow-card {
-    box-shadow: 0 20px 50px -30px rgba(23, 23, 23, 0.12);
+    box-shadow: none;
   }
 
   .border-border.bg-bg-secondary,
@@ -118,11 +148,12 @@ select:focus {
     @apply border-hair;
   }
 
+  /* Legacy panels stay flat (Flat-Until-Lifted); hairline handles separation. */
   .editorial .rounded-lg.bg-bg-secondary,
   .editorial .rounded-xl.bg-bg-secondary,
   .editorial .rounded-lg.bg-bg-elevated,
   .editorial .rounded-xl.bg-bg-elevated {
-    box-shadow: 0 20px 50px -30px rgba(23, 23, 23, 0.12);
+    box-shadow: none;
   }
 
   /* Legacy base fill — warm translucent inset so the silk still reads through
@@ -188,15 +219,15 @@ select:focus {
   }
 
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 min-h-[48px] px-6 rounded-full text-[15px] font-medium text-paper bg-ink transition-all hover:-translate-y-px shadow-[0_12px_40px_-12px_rgba(23,23,23,0.45)] disabled:opacity-50 disabled:pointer-events-none;
+    @apply inline-flex items-center justify-center gap-2 min-h-[48px] px-6 rounded-control text-[15px] font-medium text-paper bg-ink transition-all hover:-translate-y-px shadow-[0_12px_40px_-12px_rgba(23,23,23,0.45)] disabled:opacity-50 disabled:pointer-events-none;
   }
 
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 min-h-[48px] px-5 rounded-full text-[15px] font-medium text-ink bg-white/90 border border-hair2 backdrop-blur-sm hover:border-blue hover:bg-white transition-all disabled:opacity-50;
+    @apply inline-flex items-center justify-center gap-2 min-h-[48px] px-5 rounded-control text-[15px] font-medium text-ink bg-white/90 border border-hair2 backdrop-blur-sm hover:border-blue hover:bg-white transition-all disabled:opacity-50;
   }
 
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-full text-sm font-medium text-ink2 hover:text-ink hover:bg-paper2 transition-colors;
+    @apply inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-control text-sm font-medium text-ink2 hover:text-ink hover:bg-paper2 transition-colors;
   }
 
   .field-label {
@@ -208,19 +239,20 @@ select:focus {
   }
 
   .select-field {
-    @apply w-full min-h-[48px] appearance-none bg-white border border-hair rounded-lg px-3 py-2 text-[15px] text-ink cursor-pointer transition-colors;
+    @apply w-full min-h-[48px] appearance-none bg-white border border-hair rounded-control px-3 py-2 text-[15px] text-ink cursor-pointer transition-colors;
   }
 
   .chip {
     @apply inline-flex items-center px-3 py-1.5 rounded-badge text-xs font-medium min-h-[32px];
   }
 
+  /* Compact system label — sentence case, semibold, one voice (DESIGN.md §3). */
   .section-label {
-    @apply font-mono text-[11px] uppercase tracking-[0.12em] text-ink3;
+    @apply text-[12px] font-semibold tracking-[0.01em] text-ink3;
   }
 
   .empty-state {
-    @apply rounded-xl border border-dashed border-hair bg-white/60 p-5 text-sm text-ink2;
+    @apply rounded-card border border-dashed border-hair bg-white/60 p-5 text-sm text-ink2;
   }
 }
 
@@ -328,7 +360,7 @@ select:focus {
 .editorial {
   background: #fbfaf7;
   color: #171717;
-  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-hanken), system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   font-size: 16px;

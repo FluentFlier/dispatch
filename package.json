@@ -52,6 +52,7 @@
     "motion": "^12.40.0",
     "next": "14.2.21",
     "openai": "^6.45.0",
+    "pdf-parse": "^2.4.5",
     "qss": "^3.0.0",
     "react": "^18.3.1",
     "react-archer": "^5.1.0",
@@ -62,11 +63,13 @@
     "twilio": "^6.0.2",
     "twitter-api-v2": "^1.29.0",
     "unipile-node-sdk": "^1.9.3",
+    "xlsx": "^0.18.5",
     "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/js-yaml": "4.0.9",
     "@types/node": "^22.10.0",
+    "@types/pdf-parse": "^1.1.5",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "autoprefixer": "^10.4.20",

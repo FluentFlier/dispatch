@@ -3,6 +3,7 @@ import { getServiceClient } from '@/lib/insforge/server';
 import { fetchUnipileAccountDetails, mapPlatform } from '@/lib/social/unipile';
 import { isValidUnipileAuth, validateUnipileWebhookAuth } from '@/lib/webhooks/unipile-auth';
 import { ensureSoloWorkspace } from '@/lib/workspace';
+import { handleInboundUnipileMessage } from '@/lib/signals/leads/inbound-message';
 
 interface UnipileWebhookPayload {
   event?: string;
@@ -337,6 +338,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         },
         { onConflict: 'workspace_id,provider_event_id', ignoreDuplicates: true },
       );
+  }
+
+  const inbound = await handleInboundUnipileMessage(client, payload as Record<string, unknown>);
+  if (inbound.handled && inbound.leadId) {
+    return NextResponse.json({ ok: true, leadId: inbound.leadId });
+  }
+  if (inbound.handled) {
+    return NextResponse.json({ ok: true, skipped: inbound.skipped ?? true });
   }
 
   return NextResponse.json({ ok: true });

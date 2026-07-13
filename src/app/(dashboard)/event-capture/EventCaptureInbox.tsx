@@ -84,7 +84,7 @@ export function EventCaptureInbox({
         <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-md bg-coral-light text-accent-primary mb-5">
           <CalendarDays className="h-7 w-7" strokeWidth={1.75} />
         </div>
-        <h2 className="font-serif text-[20px] text-text-primary">No events yet</h2>
+        <h2 className="text-[20px] text-text-primary">No events yet</h2>
         <p className="mt-2 text-sm text-text-secondary max-w-sm mx-auto leading-relaxed">
           Connect a calendar in Settings. After you attend an event, it shows up
           here so you can turn it into a post.
@@ -161,7 +161,7 @@ export function EventCaptureInbox({
                   className="flex-1 text-left px-4 py-3"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="text-xs font-mono uppercase tracking-wide text-accent-primary">
+                    <span className="text-xs tracking-wide text-accent-primary">
                       {c.event_type}
                     </span>
                     <span className="text-xs text-text-tertiary shrink-0">

@@ -19,6 +19,7 @@ export type LeadBusyAction =
   | 'resolve'
   | 'check'
   | 'followup'
+  | 'reply'
   | 'send'
   // Engager (post-engager) detail panel actions.
   | 'connect'
@@ -52,7 +53,8 @@ export interface LeadButtonBusy {
   resolveBusy: boolean;
   followupBusy: boolean;
   checkBusy: boolean;
-  /** True while ANY action runs; gates send/email to avoid double-submit. */
+  replyBusy: boolean;
+  /** True while ANY action runs; gates send/email to dismiss to avoid double-submit. */
   anyBusy: boolean;
 }
 
@@ -61,10 +63,11 @@ export function leadButtonBusy(action: LeadDetailAction | null): LeadButtonBusy 
   return {
     draftBusy: action === 'draft',
     planBusy: action === 'plan',
-    approveBusy: action === 'approve',
+    approveBusy: action === 'approve' || action === 'reply',
     resolveBusy: action === 'resolve',
     followupBusy: action === 'followup',
     checkBusy: action === 'check',
+    replyBusy: action === 'reply',
     anyBusy: action !== null,
   };
 }

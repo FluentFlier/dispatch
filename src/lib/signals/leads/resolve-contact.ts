@@ -21,9 +21,8 @@ export interface ResolveResult {
  *   4. Unipile name search          → deterministic match      [gated on Unipile account]
  *   5. no_contact
  *
- * Enrichment steps 2-4 are no-ops until their providers are wired with the
- * confirmed Apify actor id / query strings, so a lead with a scraped URL
- * resolves and one without lands in no_contact — enough to drive the UI today.
+ * Batch sync (fastOnly) also runs Serper founder lookup + Unipile executive search
+ * (~1-3s each) before marking no_contact.
  */
 export async function resolveLeadContacts(
   client: InsforgeClient,

@@ -1,12 +1,11 @@
 import type { createClient } from '@insforge/sdk';
 import type { IngestedLead, LeadSource } from '@/lib/signals/types';
-import { fetchDirectoryLeads, DirectoryScrapeError } from '@/lib/signals/ingest/tinyfish-fetch';
-import { fetchIcpDiscoveryLeads } from '@/lib/signals/ingest/icp-discovery';
 import { icpToSearchQuery } from '@/lib/signals/icp/parse-description';
-import { DIRECTORY_QUERIES } from '@/lib/signals/ingest/directory-queries';
+import { runLeadDiscovery } from '@/lib/signals/ingest/lead-sources';
 import {
   getDirectorySettings,
-  listLeads,
+  ensureDirectorySourcesEnabled,
+  getLead,
   updateLead,
   upsertIngestedLeads,
 } from '@/lib/signals/leads/store';
@@ -15,11 +14,14 @@ import { computeFitScore, computeRankScore } from '@/lib/signals/leads/score';
 import { scoreIcpFit } from '@/lib/signals/leads/icp-score';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import { signalsDebugEnabled, signalsEnrichInlineEnabled } from '@/lib/signals/ingest/config';
+import { defaultEnabledSources } from '@/lib/signals/leads/directory-defaults';
 import { mapWithConcurrency } from '@/lib/util/concurrency';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
 const MAX_LEADS_PER_RUN = 200;
+/** Cap batch contact resolution so sync stays within the function timeout. */
+const MAX_BATCH_RESOLVE = 40;
 
 /**
  * Cap on concurrent scoreIcpFit (LLM) calls during the re-score pass. Matches
@@ -79,10 +81,9 @@ const PCT = {
 } as const;
 
 /**
- * One directory sync for a workspace: scrape each enabled directory (failures
- * isolated per-source), upsert with rename detection, resolve contacts for
- * still-unresolved leads, then re-score every lead. Idempotent — safe to run
- * repeatedly; only genuinely new anchors insert.
+ * One directory sync for a workspace: run each enabled discovery adapter
+ * (web, directories, social — failures isolated per-source), upsert with rename
+ * detection, resolve contacts, then re-score every lead.
  */
 export async function syncWorkspaceDirectory(
   client: InsforgeClient,
@@ -96,7 +97,7 @@ export async function syncWorkspaceDirectory(
       // Progress reporting must never break the sync itself.
     }
   };
-  const settings = await getDirectorySettings(client, workspaceId);
+  const settings = await ensureDirectorySourcesEnabled(client, workspaceId);
   const today = new Date().toISOString().slice(0, 10);
   const debug = signalsDebugEnabled();
   const result: DirectorySyncResult = {
@@ -116,75 +117,42 @@ export async function syncWorkspaceDirectory(
     );
   }
 
-  // --- Scrape enabled sources (isolated) ---
   const icpQuery = icpToSearchQuery(
     settings.icp_verticals ?? [],
     settings.icp_keywords ?? [],
     settings.icp_description,
   );
-  const collected: IngestedLead[] = [];
-  // Guard: an empty enabled_sources (e.g. the user unchecked the last source in the
-  // Advanced drawer) must not silently scrape nothing — fall back to the default YC
-  // directory so a workspace always has a working source.
   const activeSources =
     settings.enabled_sources.length > 0
       ? settings.enabled_sources
-      : (['yc_directory'] as typeof settings.enabled_sources);
-  const sources = activeSources.filter((s) => DIRECTORY_QUERIES[s]);
-  emit({ phase: 'scraping', label: 'Starting scrape…', pct: PCT.scrapeStart });
-  let sourceIdx = 0;
-  for (const source of activeSources) {
-    if (!DIRECTORY_QUERIES[source]) {
-      if (debug) console.log(`[directory-sync] ${source} skipped — no query config`);
-      continue;
-    }
-    emit({
-      phase: 'scraping',
-      label: `Scraping ${source.replace(/_/g, ' ')}…`,
-      pct: phasePct(PCT.scrapeStart, PCT.scrapeEnd, sourceIdx, sources.length),
-      current: sourceIdx,
-      total: sources.length,
-    });
-    try {
-      const leads = await fetchDirectoryLeads(source, { icpQuery });
-      collected.push(...leads);
-      result.perSource.push({ source, count: leads.length });
-      if (debug) console.log(`[directory-sync] ${source} → ${leads.length} leads`);
-    } catch (err) {
-      const msg = err instanceof DirectoryScrapeError ? err.message : String(err);
-      result.perSource.push({ source, count: 0, error: msg });
-      result.warnings.push(`${source} failed: ${msg}`);
-      // Always logged (not just under debug): a scrape failure is operationally
-      // important even when the endpoint still returns 200 to the caller.
-      console.error(`[directory-sync] ${source} failed:`, msg);
-    }
-    sourceIdx += 1;
-  }
+      : defaultEnabledSources();
 
-  // ICP-driven discovery (BigSet-style): extra pass when ICP is configured.
-  if (icpQuery || settings.icp_description?.trim()) {
-    emit({ phase: 'discovery', label: 'Discovering ICP matches…', pct: PCT.scrapeEnd });
-    try {
-      const icpLeads = await fetchIcpDiscoveryLeads(settings);
-      const before = collected.length;
-      const seen = new Set(collected.map((l) => l.externalId));
-      for (const lead of icpLeads) {
-        if (!seen.has(lead.externalId)) {
-          collected.push(lead);
-          seen.add(lead.externalId);
-        }
-      }
-      const added = collected.length - before;
-      result.perSource.push({ source: 'manual', count: added });
-      if (debug) console.log(`[directory-sync] icp-discovery → ${added} new leads`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      result.warnings.push(`icp_discovery failed: ${msg}`);
-      console.error('[directory-sync] icp_discovery failed:', msg);
-    }
-  }
+  emit({ phase: 'discovery', label: 'Discovering leads…', pct: PCT.scrapeStart });
 
-  // Per-run budget cap (log when truncated — no silent cap).
+  const discovery = await runLeadDiscovery({
+    enabledSources: activeSources,
+    icpDescription: settings.icp_description,
+    icpVerticals: settings.icp_verticals ?? [],
+    icpKeywords: settings.icp_keywords ?? [],
+    icpQuery,
+    maxLeads: MAX_LEADS_PER_RUN,
+    onAdapterStart: (source, index, total) => {
+      emit({
+        phase: 'scraping',
+        label: `Discovering via ${source.replace(/_/g, ' ')}…`,
+        pct: phasePct(PCT.scrapeStart, PCT.scrapeEnd, index, total),
+        current: index,
+        total,
+      });
+    },
+  });
+
+  const collected: IngestedLead[] = discovery.leads;
+  result.perSource.push(...discovery.perSource);
+  result.warnings.push(...discovery.warnings);
+
+  emit({ phase: 'discovery', label: 'Discovery complete', pct: PCT.scrapeEnd });
+
   let batch = collected;
   if (batch.length > MAX_LEADS_PER_RUN) {
     console.warn(`[directory-sync] capping ${batch.length} → ${MAX_LEADS_PER_RUN} leads this run`);
@@ -202,16 +170,12 @@ export async function syncWorkspaceDirectory(
     pct: PCT.savingEnd,
   });
 
-  // --- Resolve + score ---
-  // Auto-resolve every scraped lead inline via the FAST YC-detail lookup (one
-  // HTTP fetch each) so contacts are populated without a manual click. The slow
-  // TinyFish agent fallback stays off unless SIGNALS_ENRICH_INLINE is set —
-  // fastOnly keeps the scrape within the request timeout.
   const fastOnly = !signalsEnrichInlineEnabled();
-  const leads = await listLeads(client, workspaceId, { limit: MAX_LEADS_PER_RUN });
+  const resolveIds = upsert.leadIds.slice(0, MAX_BATCH_RESOLVE);
+  const leads = (
+    await Promise.all(resolveIds.map((id) => getLead(client, workspaceId, id)))
+  ).filter((l): l is NonNullable<typeof l> => l !== null);
 
-  // Phase A (sequential): resolve contacts. External HTTP per lead, kept
-  // serial to avoid hammering the resolution providers.
   for (let i = 0; i < leads.length; i += 1) {
     const lead = leads[i];
     emit({
@@ -221,8 +185,6 @@ export async function syncWorkspaceDirectory(
       current: i + 1,
       total: leads.length,
     });
-    // Retry anything not yet resolved (unresolved AND prior no_contact) — a lead
-    // marked no_contact before the fast YC-detail lookup existed can now resolve.
     if (lead.contact_status !== 'resolved') {
       const res = await resolveLeadContacts(client, workspaceId, lead, { enrich: true, fastOnly });
       if (res.status === 'resolved') result.resolved += 1;
@@ -231,16 +193,6 @@ export async function syncWorkspaceDirectory(
     }
   }
 
-  // Phase B (bounded-concurrent): LLM-graded ICP fit per lead. This is the
-  // only step whose scheduling changes - same inputs/outputs as the prior
-  // serial loop, just run with up to ICP_CONCURRENCY in flight at once.
-  //
-  // Per-workspace daily budget gate: each scored lead is one LLM call, and a run
-  // scores up to MAX_LEADS_PER_RUN (200) leads — repeatable via "Scrape now".
-  // Without a cap this alone could drain provider credits. checkAndIncrementUsage
-  // enforces the workspace's daily haiku cap; once hit, remaining leads fall back
-  // to the neutral 0.5 score (deterministic `fit` then dominates the blend), so
-  // ranking still degrades gracefully instead of erroring.
   emit({ phase: 'scoring', label: `Scoring ${leads.length} leads for fit…`, pct: PCT.resolveEnd });
   const icpConfigured = settings.icp_verticals.length > 0 || settings.icp_keywords.length > 0;
   let scored = 0;
@@ -275,14 +227,10 @@ export async function syncWorkspaceDirectory(
     return fit;
   });
 
-  // Phase C (sequential): blend, rank, and persist. DB writes stay serial.
   emit({ phase: 'ranking', label: 'Ranking leads…', pct: PCT.scoringEnd });
   for (let i = 0; i < leads.length; i += 1) {
     const lead = leads[i];
     const fit = computeFitScore(lead, settings);
-    // LLM-graded ICP fit dominates the blend; the deterministic heuristic
-    // `fit` above only breaks ties (and is the sole signal when the LLM call
-    // fails closed to neutral 0.5).
     const blendedFit = Number((0.7 * icpFits[i] + 0.3 * fit).toFixed(3));
     const rank = computeRankScore(lead, blendedFit, today);
     await updateLead(client, workspaceId, lead.id, { fit_score: blendedFit, rank_score: rank });
@@ -299,11 +247,6 @@ export async function syncWorkspaceDirectory(
   return result;
 }
 
-/**
- * Linearly interpolate an overall-bar percentage within a phase's [start,end]
- * band given progress `i`/`n`. Returns `start` when `n` is 0 so an empty phase
- * never divides by zero or moves the bar backwards.
- */
 function phasePct(start: number, end: number, i: number, n: number): number {
   if (n <= 0) return start;
   const frac = Math.min(1, Math.max(0, i / n));

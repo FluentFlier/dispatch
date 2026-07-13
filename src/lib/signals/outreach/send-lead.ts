@@ -3,6 +3,7 @@ import { assertOutreachAllowed, assertLinkedInProfileLookupAllowed } from '@/lib
 import { awaitInterCallDelay } from '@/lib/signals/safety/humanize';
 import { logSignalAudit } from '@/lib/signals/safety/audit';
 import { getDirectorySettings, getLead, logLeadEvent, updateLead } from '@/lib/signals/leads/store';
+import { insertLeadMessage } from '@/lib/signals/leads/messages';
 import {
   checkDailyUsage,
   incrementDailyUsage,
@@ -323,6 +324,16 @@ async function sendLeadLinkedInDm(
     identifier,
     externalId: sendResult.externalId,
   });
+  await insertLeadMessage(client, {
+    workspaceId,
+    leadId,
+    direction: 'outbound',
+    channel: 'linkedin_dm',
+    body: messageText,
+    externalMessageId: sendResult.externalId ?? null,
+    chatId: sendResult.externalId ?? null,
+    senderProviderId: profile.providerId,
+  }).catch(() => undefined);
   await updateLead(client, workspaceId, leadId, {
     lead_status: 'sent',
     nurture_stage: 'dm_sent',

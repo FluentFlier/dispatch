@@ -13,7 +13,7 @@ export const adminCardInset = 'rounded-lg border border-hair bg-paper2/80 p-3';
 export const adminTableWrap = 'overflow-x-auto card-surface p-0';
 
 export const adminTableHead =
-  'border-b border-hair bg-paper2/80 text-left text-ink3 text-xs uppercase tracking-wide';
+  'border-b border-hair bg-paper2/80 text-left text-ink3 text-xs tracking-wide';
 
 export const adminTableRow = 'bg-white/80 hover:bg-paper2/60 transition-colors';
 

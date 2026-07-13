@@ -291,16 +291,67 @@ async function syncBrainWins(
   });
 }
 
+async function syncBrainStories(
+  client: InsforgeClient,
+  userId: string,
+  workspaceId?: string,
+): Promise<number> {
+  let query = client.database
+    .from('story_bank')
+    .select('id, title, body, category, tags')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  if (workspaceId) query = query.eq('workspace_id', workspaceId);
+
+  const { data: stories } = await query;
+  let synced = 0;
+
+  for (const row of stories ?? []) {
+    const story = row as {
+      id: string;
+      title: string;
+      body: string | null;
+      category: string | null;
+      tags: string[] | null;
+    };
+    const content = story.body?.trim() ?? '';
+    if (!content && !story.title?.trim()) continue;
+
+    await putBrainPage(client, userId, {
+      slug: BRAIN_SLUG.story(story.id),
+      title: story.title || 'Story',
+      tags: ['story', ...(story.tags ?? [])],
+      body: JSON.stringify(
+        {
+          story_id: story.id,
+          title: story.title,
+          content: content.slice(0, 4000),
+          category: story.category,
+          tags: story.tags ?? [],
+          synced_at: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+      workspaceId,
+    });
+    synced++;
+  }
+
+  return synced;
+}
+
 /**
  * Full brain refresh: provisions, syncs profile, syncs all recent published posts,
- * and updates wins page. workspaceId scopes all writes to the correct workspace
- * namespace so agency clients don't share brain content.
+ * stories, and updates wins page.
  */
 export async function syncCreatorBrainFull(
   client: InsforgeClient,
   userId: string,
   workspaceId?: string,
-): Promise<{ synced_posts: number }> {
+): Promise<{ synced_posts: number; synced_stories: number }> {
   await provisionCreatorBrain(client, userId, workspaceId);
   await syncBrainFromProfile(client, userId, workspaceId);
 
@@ -321,8 +372,9 @@ export async function syncCreatorBrainFull(
   // Run syncBrainWins once here after all posts are synced, not inside each
   // syncBrainPublishedPost call (which caused N redundant top-5 queries).
   await syncBrainWins(client, userId, workspaceId);
+  const synced_stories = await syncBrainStories(client, userId, workspaceId);
 
-  return { synced_posts: synced };
+  return { synced_posts: synced, synced_stories };
 }
 
 /**

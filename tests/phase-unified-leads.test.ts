@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('@/lib/llm', () => ({
   chatCompletion: vi.fn(),
+  isLlmConfigured: () => false,
 }));
 import { chatCompletion } from '@/lib/llm';
 import { confirmSignalWithLLM } from '@/lib/signals/detect/llm-confirm';

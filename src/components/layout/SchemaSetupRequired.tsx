@@ -6,7 +6,7 @@ export default function SchemaSetupRequired() {
   return (
     <div className="editorial flex min-h-screen items-center justify-center bg-paper px-6 text-ink">
       <div className="max-w-lg space-y-3 text-center">
-        <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-ink2">
+        <p className="text-[11px] font-medium tracking-[0.01em] text-ink2">
           Setup required
         </p>
         <h1 className="text-xl font-semibold tracking-tight">Database not provisioned</h1>

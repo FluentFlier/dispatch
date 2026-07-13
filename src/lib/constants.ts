@@ -83,15 +83,3 @@ export function normalizeDashboardPlatform(value: string | null | undefined): Da
 
 export const PRIORITIES = ['low', 'medium', 'high'] as const;
 export type Priority = typeof PRIORITIES[number];
-
-export const NAV_ITEMS = [
-  { label: 'Dashboard', href: '/dashboard', icon: 'home' },
-  { label: 'Generate', href: '/generate', icon: 'wand' },
-  { label: 'Library', href: '/library', icon: 'grid' },
-  { label: 'Calendar', href: '/calendar', icon: 'calendar' },
-  { label: 'Story Bank', href: '/story-bank', icon: 'archive' },
-  { label: 'Ideas', href: '/ideas', icon: 'lightbulb' },
-  { label: 'Series', href: '/series', icon: 'layers' },
-  { label: 'Analytics', href: '/analytics', icon: 'bar-chart' },
-  { label: 'Settings', href: '/settings', icon: 'gear' },
-] as const;

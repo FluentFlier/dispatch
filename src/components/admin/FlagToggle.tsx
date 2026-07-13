@@ -59,8 +59,7 @@ export function FlagToggle({ name, enabled, description }: FlagToggleProps) {
         aria-pressed={current}
         aria-label={`Toggle ${name}`}
       >
-        <span
-          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+        <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
             current ? 'translate-x-6' : 'translate-x-1'
           }`}
         />

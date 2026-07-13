@@ -97,7 +97,7 @@ export function SignalDetail({
           <Building2 className="h-5 w-5 text-text-tertiary" aria-hidden="true" />
         </div>
         <div className="min-w-0">
-          <p className="inline-flex items-center gap-1 text-xs font-mono uppercase tracking-wide text-coral-dark">
+          <p className="inline-flex items-center gap-1 text-xs tracking-wide text-coral-dark">
             <Radio className="h-3 w-3" aria-hidden="true" /> {badge.label} live signal
           </p>
           <h2 className="text-xl font-display text-text-primary truncate">
@@ -112,7 +112,7 @@ export function SignalDetail({
       {/* Signal summary */}
       {card.signalSummary && (
         <div>
-          <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary mb-1">What happened</p>
+          <p className="text-xs tracking-wide text-text-tertiary mb-1">What happened</p>
           <p className="text-sm text-text-secondary leading-relaxed">{card.signalSummary}</p>
         </div>
       )}

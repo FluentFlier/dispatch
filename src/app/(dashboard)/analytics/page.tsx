@@ -258,7 +258,7 @@ export default function AnalyticsPage() {
       <section id="intelligence" className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
+            <h2 className="text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
               <Sparkles className="h-5 w-5 text-accent-primary" />
               Hook examples
             </h2>
@@ -312,7 +312,7 @@ export default function AnalyticsPage() {
                   <div className="text-sm leading-snug text-text-primary line-clamp-3 flex-1">“{hook.text}”</div>
                   <div className="mt-3 flex items-center justify-between text-xs">
                     <div className="text-text-secondary">@{String(hook.author ?? '').replace(/^@+/, '')} • {hook.verticals?.[0] || 'general'}</div>
-                    <div className="font-mono text-accent-primary font-semibold">{hook.score}</div>
+                    <div className="text-accent-primary font-semibold">{hook.score}</div>
                   </div>
                   <div className="mt-2 flex items-center gap-2">
                     <CopyButton text={hook.text} className="text-[10px] px-2 py-0.5" />
@@ -384,9 +384,9 @@ export default function AnalyticsPage() {
               { label: 'Other', count: realLeadCounts?.Other || 0, color: 'text-text-tertiary', desc: 'Casual engagers' },
             ].map((bucket, i) => (
               <div key={i} className="rounded-lg border border-border/60 p-4 bg-bg">
-                <div className={`font-mono text-3xl font-semibold tabular-nums tracking-tight ${bucket.color}`}>{bucket.count}</div>
+                <div className={`text-3xl font-semibold tabular-nums tracking-tight ${bucket.color}`}>{bucket.count}</div>
                 <div className="font-medium text-sm mt-1">{bucket.label}</div>
-                <div className="font-mono text-[10px] uppercase tracking-[0.06em] text-text-tertiary mt-1">{bucket.desc}</div>
+                <div className="text-[10px] tracking-[0.06em] text-text-tertiary mt-1">{bucket.desc}</div>
               </div>
             ))}
           </div>
@@ -490,7 +490,7 @@ function BestTimesSection({
       {data && (data.bestWeekdays.length > 0 || data.bestHours.length > 0) ? (
         <div className="mt-4 grid grid-cols-1 gap-6 sm:grid-cols-2">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Best days</p>
+            <p className="text-xs font-medium tracking-wide text-text-tertiary">Best days</p>
             <ul className="mt-2 space-y-1.5">
               {data.bestWeekdays.map((w) => (
                 <li key={`wd-${w.index}`} className="flex items-center justify-between text-sm">
@@ -501,7 +501,7 @@ function BestTimesSection({
             </ul>
           </div>
           <div>
-            <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Best hours</p>
+            <p className="text-xs font-medium tracking-wide text-text-tertiary">Best hours</p>
             <ul className="mt-2 space-y-1.5">
               {data.bestHours.map((h) => (
                 <li key={`hr-${h.index}`} className="flex items-center justify-between text-sm">
@@ -544,7 +544,7 @@ function AlgorithmPlaybookSection({ algorithm }: { algorithm: AlgorithmPanel | n
       <p className="mt-2 text-sm text-text-secondary">{algorithm.model}</p>
 
       <div className="mt-4">
-        <p className="text-xs font-medium uppercase tracking-wide text-text-tertiary">Ranking signals that matter</p>
+        <p className="text-xs font-medium tracking-wide text-text-tertiary">Ranking signals that matter</p>
         <ul className="mt-2 space-y-2">
           {algorithm.signals.map((s) => (
             <li key={s.signal} className="text-sm">
@@ -562,7 +562,7 @@ function AlgorithmPlaybookSection({ algorithm }: { algorithm: AlgorithmPanel | n
 
       <div className="mt-5 grid grid-cols-1 gap-5 sm:grid-cols-2">
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-emerald-500">Rewards</p>
+          <p className="text-xs font-medium tracking-wide text-emerald-500">Rewards</p>
           <ul className="mt-2 space-y-1.5">
             {algorithm.rewards.map((r) => (
               <li key={r} className="text-sm text-text-secondary">
@@ -572,7 +572,7 @@ function AlgorithmPlaybookSection({ algorithm }: { algorithm: AlgorithmPanel | n
           </ul>
         </div>
         <div>
-          <p className="text-xs font-medium uppercase tracking-wide text-red-500">Suppresses reach</p>
+          <p className="text-xs font-medium tracking-wide text-red-500">Suppresses reach</p>
           <ul className="mt-2 space-y-1.5">
             {algorithm.penalties.map((p) => (
               <li key={p} className="text-sm text-text-secondary">
@@ -677,7 +677,7 @@ function LogPerformanceSection({
 
   return (
     <section className="bg-bg-secondary border border-border rounded-lg p-6">
-      <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink mb-2 flex items-center gap-2.5">
+      <h2 className="text-[24px] font-normal tracking-[-0.025em] text-ink mb-2 flex items-center gap-2.5">
         <BarChart3 size={20} className="text-ink3" /> Log Performance
       </h2>
 
@@ -882,7 +882,7 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
   return (
     <section className="bg-bg-secondary border border-border rounded-lg p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
+        <h2 className="text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
           <Sparkles size={20} className="text-ink3" /> Weekly Review
         </h2>
         {!showForm && (
@@ -1035,7 +1035,7 @@ Give me exactly 3 blunt, actionable recommendations for next week. Be direct and
                       year: "numeric",
                     })}
                   </span>
-                  <span className="text-text-secondary flex items-center gap-2 font-mono text-[11px] tracking-[0.02em]">
+                  <span className="text-text-secondary flex items-center gap-2 text-[11px] tracking-[0.02em]">
                     {r.posts_published} posts / {r.total_views} views
                     {expanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                   </span>
@@ -1215,7 +1215,7 @@ Which tags should I keep and which should I cut? Be specific and blunt. Suggest 
   return (
     <section className="bg-bg-secondary border border-border rounded-lg p-6 space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
+        <h2 className="text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
           <Hash size={20} className="text-ink3" /> Hashtag Vault
         </h2>
         {!showCreate && !editingId && (

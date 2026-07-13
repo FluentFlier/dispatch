@@ -25,7 +25,7 @@ export interface UnifiedContact {
 export interface UnifiedLeadCard {
   id: string;
   kind: 'signal' | 'directory' | 'engager';
-  source: 'x' | 'linkedin' | 'yc_directory' | 'yc_launches' | 'product_hunt' | 'manual';
+  source: 'x' | 'linkedin' | 'web_discovery' | 'yc_directory' | 'yc_launches' | 'product_hunt' | 'manual';
   companyName: string | null;
   tagline: string | null;
   signalType: SignalType | null;
@@ -40,6 +40,8 @@ export interface UnifiedLeadCard {
   detectedAt: string;
   /** Nurture sequence stage for engager cards; absent for signal/directory cards. */
   nurtureStage?: NurtureStage | null;
+  /** True when the prospect replied and is waiting on you. */
+  needsReply?: boolean;
 }
 
 /**
@@ -139,6 +141,18 @@ export function normalizeEvent(e: SignalEventWithPost): UnifiedLeadCard {
  * post-ICP-scoring rank) over fit_score, falling back to 0 when neither is
  * set.
  */
+function warmFeedBoost(l: SignalLeadWithContacts): number {
+  let boost = 0;
+  if (l.needs_reply) boost += 50;
+  if (l.nurture_stage === 'replied') boost += 15;
+  if (l.nurture_stage === 'connect_sent' || l.nurture_stage === 'dm_sent') boost += 8;
+  if (l.last_inbound_at) {
+    const ageHours = (Date.now() - Date.parse(l.last_inbound_at)) / 3_600_000;
+    if (ageHours < 48) boost += 10;
+  }
+  return boost;
+}
+
 export function normalizeLead(l: SignalLeadWithContacts): UnifiedLeadCard {
   const pc = l.primary_contact ?? null;
   // A Product Hunt listing and a YC "launch" post ARE launch events, so they
@@ -163,8 +177,10 @@ export function normalizeLead(l: SignalLeadWithContacts): UnifiedLeadCard {
       ? { name: pc.name, role: pc.role, linkedin_url: pc.linkedin_url, x_handle: pc.x_handle, email: pc.email }
       : null,
     contactStatus: l.contact_status,
-    score: l.rank_score ?? l.fit_score ?? 0,
-    status: l.lead_status,
-    detectedAt: l.last_seen_at ?? l.first_seen_at,
+    score: (l.rank_score ?? l.fit_score ?? 0) + warmFeedBoost(l),
+    status: l.needs_reply ? 'needs_reply' : l.lead_status,
+    detectedAt: l.last_inbound_at ?? l.last_seen_at ?? l.first_seen_at,
+    nurtureStage: (l.nurture_stage as NurtureStage | null | undefined) ?? null,
+    needsReply: l.needs_reply ?? false,
   };
 }

@@ -167,7 +167,7 @@ export default function OutboundQueue() {
           {pending.map((task) => (
             <div key={task.id} className="rounded-lg border border-border/60 bg-bg p-4">
               <div className="mb-2 flex items-center gap-2 text-xs text-text-tertiary">
-                <span className={`rounded px-2 py-0.5 font-mono uppercase ${STATUS_STYLES[task.status] ?? ''}`}>
+                <span className={`rounded px-2 py-0.5 ${STATUS_STYLES[task.status] ?? ''}`}>
                   {task.status}
                 </span>
                 {task.target_author_name && <span>→ {task.target_author_name}</span>}
@@ -224,7 +224,7 @@ export default function OutboundQueue() {
               <ul className="mt-2 space-y-1">
                 {done.map((task) => (
                   <li key={task.id} className="flex items-center gap-2 text-xs text-text-tertiary">
-                    <span className={`rounded px-1.5 py-0.5 font-mono uppercase ${STATUS_STYLES[task.status] ?? ''}`}>
+                    <span className={`rounded px-1.5 py-0.5 ${STATUS_STYLES[task.status] ?? ''}`}>
                       {task.status}
                     </span>
                     <span className="truncate">{task.comment_text ?? task.kind}</span>

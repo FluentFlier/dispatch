@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
-import { listLeads } from '@/lib/signals/leads/store';
+import { listLeads, parseLeadListStatusParam } from '@/lib/signals/leads/store';
 import { errorResponse } from '@/lib/api-errors';
 import {
   checkLeadsSetup,
   isMissingRelationError,
   setupRequiredResponse,
 } from '@/lib/db/setup-gate';
-import type { LeadStatus } from '@/lib/signals/types';
 
 /**
  * GET /api/leads?status=new
@@ -22,7 +21,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
 
   const statusParam = request.nextUrl.searchParams.get('status');
-  const status = statusParam && statusParam !== 'all' ? (statusParam as LeadStatus) : undefined;
+  const listFilter = parseLeadListStatusParam(statusParam);
 
   try {
     const client = getServerClient();
@@ -34,7 +33,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       });
     }
 
-    const leads = await listLeads(client, workspaceId, { status });
+    const leads = await listLeads(client, workspaceId, listFilter);
     return NextResponse.json({ leads });
   } catch (err) {
     if (isMissingRelationError(err)) {

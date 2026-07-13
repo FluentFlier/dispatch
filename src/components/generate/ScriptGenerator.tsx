@@ -67,22 +67,39 @@ CTA: Ask if they knew this kind of research existed.
 No em dashes.`,
 };
 
+type MessageCompleteness = { starved?: boolean; voiceSource?: string } | null;
+
 type ChatMessage =
   | { id: string; role: 'user'; content: string }
-  | { id: string; role: 'assistant'; content: string; voiceMetrics?: GenerateVoiceMetrics };
+  | {
+      id: string;
+      role: 'assistant';
+      content: string;
+      voiceMetrics?: GenerateVoiceMetrics;
+      completeness?: MessageCompleteness;
+    };
 
-type GenStage = 'thinking' | 'writing' | 'revising';
+type GenStage = 'thinking' | 'writing' | 'revising' | 'polishing';
 
 type StreamEvent =
   | { type: 'stage'; stage: GenStage }
   | { type: 'token'; delta: string }
-  | { type: 'done'; text: string; used_hook_ids?: string[] }
+  | {
+      type: 'done';
+      text: string;
+      used_hook_ids?: string[];
+      ai_score?: number;
+      humanized?: boolean;
+      starved?: boolean;
+      voice_source?: string;
+    }
   | { type: 'error'; error: string };
 
 const STAGE_LABELS: Record<GenStage, string> = {
   thinking: 'Thinking through the angle…',
   writing: 'Writing your draft…',
   revising: 'Reworking the draft…',
+  polishing: 'Polishing out the AI tells…',
 };
 
 function isPlatform(value: unknown): value is DashboardPlatform {
@@ -410,20 +427,39 @@ export function ScriptGenerator({
     });
   }, []);
 
-  const finalizeMessage = useCallback((id: string, text: string, hookIds: string[]) => {
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    flushRef.current = null;
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === id && m.role === 'assistant'
-          ? { ...m, content: text, voiceMetrics: { used_hook_ids: hookIds } }
-          : m,
-      ),
-    );
-  }, []);
+  const finalizeMessage = useCallback(
+    (
+      id: string,
+      text: string,
+      hookIds: string[],
+      extra?: { ai_score?: number; starved?: boolean; voice_source?: string },
+    ) => {
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      flushRef.current = null;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === id && m.role === 'assistant'
+            ? {
+                ...m,
+                content: text,
+                voiceMetrics: {
+                  used_hook_ids: hookIds,
+                  ...(extra?.ai_score !== undefined ? { ai_score: extra.ai_score } : {}),
+                },
+                completeness:
+                  extra?.starved || extra?.voice_source
+                    ? { starved: extra.starved, voiceSource: extra.voice_source }
+                    : null,
+              }
+            : m,
+        ),
+      );
+    },
+    [],
+  );
 
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
@@ -483,7 +519,11 @@ export function ScriptGenerator({
             scheduleFlush(assistantId, acc);
           } else if (ev.type === 'done') {
             finalized = true;
-            finalizeMessage(assistantId, ev.text || acc, ev.used_hook_ids ?? []);
+            finalizeMessage(assistantId, ev.text || acc, ev.used_hook_ids ?? [], {
+              ai_score: ev.ai_score,
+              starved: ev.starved,
+              voice_source: ev.voice_source,
+            });
           } else if (ev.type === 'error') {
             throw new Error(ev.error);
           }
@@ -633,6 +673,7 @@ export function ScriptGenerator({
                     loading={false}
                     sourcePlatform={platform}
                     voiceMetrics={msg.voiceMetrics}
+                    completeness={msg.completeness}
                     onTextUpdate={updateDraft}
                     variant="simple"
                     savePillar={pillar}

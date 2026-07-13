@@ -83,7 +83,7 @@ export default function PublishTimeline({ limit = 8 }: { limit?: number }) {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <span className="text-[13px] text-ink capitalize">{job.platform}</span>
-                <span className="font-mono text-[10px] text-ink3 uppercase tracking-[0.08em]">{job.status}</span>
+                <span className="text-[10px] text-ink3 tracking-[0.08em]">{job.status}</span>
               </div>
               {job.last_error && (
                 <p className="text-[11px] text-[#F87171] mt-0.5 line-clamp-2">{job.last_error}</p>
