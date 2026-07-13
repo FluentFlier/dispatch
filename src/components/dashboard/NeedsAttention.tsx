@@ -18,7 +18,7 @@ export default function NeedsAttention({ items }: { items: AttentionItem[] }) {
       <div className="flex items-center gap-2 mb-3">
         <AlertTriangle size={16} className="text-amber-700 shrink-0" />
         <span className="section-label text-amber-800">Action needed</span>
-        <span className="ml-auto font-mono text-xs text-ink3">
+        <span className="ml-auto text-xs text-ink3 tabular-nums">
           {items.length} {items.length === 1 ? 'item' : 'items'}
         </span>
       </div>

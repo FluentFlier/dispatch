@@ -92,7 +92,7 @@ export default async function DashboardPage() {
     // No server-side auth -- show welcome state
     return (
       <div className="max-w-lg mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-        <span className="inline-flex items-center gap-2 rounded-full border border-hair bg-white/80 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink2 shadow-sm backdrop-blur-sm mb-4">
+        <span className="inline-flex items-center gap-2 rounded-badge border border-hair bg-white/80 px-3 py-1.5 text-[11.5px] font-semibold tracking-[0.01em] text-ink2 backdrop-blur-sm mb-4">
           <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue" aria-hidden />
           Content OS
         </span>
@@ -227,15 +227,15 @@ export default async function DashboardPage() {
         <DashboardWelcomeBanner />
       </Suspense>
 
-      <section className="card-surface overflow-hidden">
+      <section className="card-surface lift-soft overflow-hidden">
         <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.65fr]">
           <div className="p-6 md:p-8">
-            <span className="inline-flex items-center gap-2 rounded-full border border-hair bg-white/80 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink2 shadow-sm backdrop-blur-sm">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue shadow-[0_0_8px_#2563EB]" aria-hidden />
+            <span className="inline-flex items-center gap-2 rounded-badge border border-hair bg-white/80 px-3 py-1.5 text-[11.5px] font-semibold tracking-[0.01em] text-ink2 backdrop-blur-sm">
+              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue" aria-hidden />
               Dashboard
             </span>
             <div className="mt-4 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-teal/20 bg-teal/10 px-3 py-1 text-xs font-medium text-teal">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-lime/25 bg-lime/15 px-3 py-1 text-xs font-medium text-ink">
                 <Radio className="h-3.5 w-3.5" />
                 Workspace live
               </span>
@@ -331,7 +331,7 @@ export default async function DashboardPage() {
                         />
                         <div className="min-w-0">
                           <p className="truncate text-sm font-medium text-ink group-hover:text-blue">{post.title}</p>
-                          <p className="mt-0.5 font-mono text-xs text-ink3 capitalize">{post.platform}</p>
+                          <p className="mt-0.5 text-xs text-ink3 capitalize">{post.platform}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0 pl-4 sm:pl-0">
@@ -339,7 +339,7 @@ export default async function DashboardPage() {
                           {STATUS_LABELS[post.status]}
                         </span>
                         {post.scheduled_date && (
-                          <span className="font-mono text-xs text-ink3">{formatDateShort(post.scheduled_date)}</span>
+                          <span className="text-xs text-ink3 tabular-nums">{formatDateShort(post.scheduled_date)}</span>
                         )}
                       </div>
                     </Link>
@@ -434,7 +434,7 @@ export default async function DashboardPage() {
                       />
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-ink">{post.title}</p>
-                        <p className="mt-0.5 font-mono text-xs text-ink3">{STATUS_LABELS[post.status]} · {formatRelative(post.updated_at)}</p>
+                        <p className="mt-0.5 text-xs text-ink3">{STATUS_LABELS[post.status]} · {formatRelative(post.updated_at)}</p>
                       </div>
                     </Link>
                   </li>
@@ -462,8 +462,8 @@ function MetricTile({
   accent?: boolean;
 }) {
   return (
-    <div className="min-w-[88px] rounded-xl border border-hair bg-white/80 px-3 py-2.5 backdrop-blur-sm">
-      <p className={`font-mono text-xl font-semibold tabular-nums ${accent ? 'text-flame' : 'text-ink'}`}>{value}</p>
+    <div className="min-w-[88px] rounded-card border border-hair bg-white/80 px-3 py-2.5 backdrop-blur-sm">
+      <p className={`text-xl font-semibold tabular-nums ${accent ? 'text-flame' : 'text-ink'}`}>{value}</p>
       <p className="mt-0.5 text-[11px] text-ink2">{label}</p>
     </div>
   );
@@ -474,11 +474,11 @@ function SetupStep({ done, label, href }: { done: boolean; label: string; href: 
     <Link
       href={href}
       className={`flex items-center gap-2 rounded-lg px-2 py-2 text-sm transition-colors ${
-        done ? 'text-teal' : 'text-ink2 hover:bg-paper2/60'
+        done ? 'text-ink' : 'text-ink2 hover:bg-paper2/60'
       }`}
     >
       {done ? (
-        <CheckCircle2 size={16} className="text-teal shrink-0" />
+        <CheckCircle2 size={16} className="shrink-0 text-ink" />
       ) : (
         <span className="w-4 h-4 rounded-full border-2 border-hair shrink-0" />
       )}

@@ -520,7 +520,7 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
               </div>
 
               {/* Period label */}
-              <span className="font-mono text-[13px] uppercase tracking-[0.06em] text-ink font-medium hidden sm:block">
+              <span className="text-[13px] tracking-[0.06em] text-ink font-medium hidden sm:block">
                 {periodLabel}
               </span>
 
@@ -539,7 +539,7 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                   <button
                     key={v}
                     onClick={() => setViewMode(v)}
-                    className={`px-3 py-2 text-[11px] font-mono uppercase tracking-[0.08em] transition-colors ${
+                    className={`px-3 py-2 text-[11px] tracking-[0.08em] transition-colors ${
                       viewMode === v
                         ? "bg-accent-primary text-white"
                         : "text-ink3 hover:text-ink hover:bg-bg-tertiary"
@@ -613,7 +613,7 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                           className="w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-bg-tertiary transition-colors group"
                         >
                           <div className="w-24 shrink-0">
-                            <p className="text-[11px] font-mono text-ink3">
+                            <p className="text-[11px] text-ink3">
                               {p.scheduled_date
                                 ? new Date(p.scheduled_date + "T12:00:00Z").toLocaleDateString("en-US", {
                                     month: "short", day: "numeric", year: "numeric",
@@ -621,7 +621,7 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                                 : "Unscheduled"}
                             </p>
                             {p.scheduled_publish_at && (
-                              <p className="text-[10px] font-mono text-ink3">
+                              <p className="text-[10px] text-ink3">
                                 {new Date(p.scheduled_publish_at).toLocaleTimeString("en-US", {
                                   hour: "numeric", minute: "2-digit", timeZone: "UTC",
                                 })} UTC
@@ -632,11 +632,11 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                             <p className="text-[13px] font-medium text-text-primary truncate group-hover:text-ink">
                               {p.title}
                             </p>
-                            <p className="text-[11px] font-mono text-ink3 uppercase tracking-[0.06em]">
+                            <p className="text-[11px] text-ink3 tracking-[0.06em]">
                               {p.platform} · {postPillars(p).join(" · ")}
                             </p>
                           </div>
-                          <span className={`text-[10px] font-mono uppercase tracking-[0.08em] px-2 py-0.5 rounded ${
+                          <span className={`text-[10px] tracking-[0.08em] px-2 py-0.5 rounded ${
                             p.status === "posted" ? "bg-green-100 text-green-700" : "bg-bg-tertiary text-ink3"
                           }`}>
                             {p.status}

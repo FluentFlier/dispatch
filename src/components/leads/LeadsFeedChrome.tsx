@@ -10,6 +10,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   TrendingUp,
+  Upload,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -112,6 +113,7 @@ export function LeadsHeaderActions({
   onRefresh,
   onOpenDrawer,
   onExport,
+  onImport,
 }: {
   view: 'feed' | 'setup';
   scraping: boolean;
@@ -122,6 +124,7 @@ export function LeadsHeaderActions({
   onRefresh: () => void;
   onOpenDrawer: () => void;
   onExport: () => void;
+  onImport: () => void;
 }) {
   if (view !== 'feed') {
     return (
@@ -143,6 +146,9 @@ export function LeadsHeaderActions({
       </HeaderBtn>
       <HeaderBtn onClick={onExport} icon={<FileDown className="h-3.5 w-3.5" />}>
         Export CSV
+      </HeaderBtn>
+      <HeaderBtn onClick={onImport} icon={<Upload className="h-3.5 w-3.5" />}>
+        Import
       </HeaderBtn>
       <HeaderBtn onClick={onOpenDrawer} icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
         Advanced
@@ -174,7 +180,7 @@ export function LeadsFilteredEmptyState({
       <div className="p-3 rounded-lg bg-bg-tertiary">
         <SlidersHorizontal className="h-6 w-6 text-text-secondary" aria-hidden="true" />
       </div>
-      <h2 className="font-serif text-[20px] text-text-primary">No leads match these filters</h2>
+      <h2 className="text-[20px] text-text-primary">No leads match these filters</h2>
       <p className="text-sm text-text-secondary max-w-md">
         {signalHint
           ? 'Funding, new-role, and accelerator signals are detected from live X / LinkedIn posts by the Signal engine — the directory scrape only surfaces companies and launches. Configure the Signal engine in Setup, or clear the filter to see your scraped leads.'
@@ -201,7 +207,7 @@ export function LeadsEmptyState({ onScrape, scraping }: { onScrape: () => void; 
       <div className="p-3 rounded-lg bg-coral-light">
         <TrendingUp className="h-6 w-6 text-accent-primary" />
       </div>
-      <h2 className="font-serif text-[20px] text-text-primary">No leads yet today</h2>
+      <h2 className="text-[20px] text-text-primary">No leads yet today</h2>
       <p className="text-sm text-text-secondary max-w-sm">
         Scrape the directories now, or your next batch lands at your configured digest hour. Tune
         sources and ICP in Advanced.

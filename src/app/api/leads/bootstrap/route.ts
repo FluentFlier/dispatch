@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
-import { getDirectorySettings, listFollowedCompanies, listLeads } from '@/lib/signals/leads/store';
+import { getDirectorySettings, listFollowedCompanies, listLeads, parseLeadListStatusParam } from '@/lib/signals/leads/store';
 import { ensureSeedProfile } from '@/lib/signals/leads/icp-profiles';
 import { isLeadsDemoMode } from '@/lib/signals/ingest/config';
 import { errorResponse } from '@/lib/api-errors';
@@ -10,7 +10,6 @@ import {
   isMissingRelationError,
   setupRequiredResponse,
 } from '@/lib/db/setup-gate';
-import type { LeadStatus } from '@/lib/signals/types';
 
 /**
  * GET /api/leads/bootstrap
@@ -25,7 +24,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
 
   const statusParam = request.nextUrl.searchParams.get('status');
-  const status = statusParam && statusParam !== 'all' ? (statusParam as LeadStatus) : undefined;
+  const listFilter = parseLeadListStatusParam(statusParam);
 
   try {
     const client = getServerClient();
@@ -40,7 +39,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
 
     const [leads, settings, followedCompanies, profiles] = await Promise.all([
-      listLeads(client, workspaceId, { status }),
+      listLeads(client, workspaceId, listFilter),
       getDirectorySettings(client, workspaceId),
       listFollowedCompanies(client, workspaceId),
       ensureSeedProfile(client, workspaceId),

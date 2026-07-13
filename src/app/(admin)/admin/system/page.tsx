@@ -28,8 +28,7 @@ export default async function AdminSystemPage() {
         description={`${PRODUCT_NAME} dependency checks · ${new Date(health.timestamp).toLocaleString()}`}
       />
 
-      <div
-        className={`rounded-lg border p-4 ${
+      <div className={`rounded-lg border p-4 ${
           health.status === 'ok'
             ? 'border-emerald-200 bg-emerald-50'
             : 'border-amber-200 bg-amber-50'

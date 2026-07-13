@@ -7,7 +7,7 @@ import type { Post } from '@/lib/types';
 import type { PillarInfo } from '@/hooks/usePillars';
 import PillarDot from '@/components/PillarDot';
 import { postPillars } from '@/lib/pillars';
-import StatusBadge from '@/components/StatusBadge';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */

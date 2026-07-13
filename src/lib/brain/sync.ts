@@ -291,16 +291,71 @@ async function syncBrainWins(
   });
 }
 
+async function syncBrainStories(
+  client: InsforgeClient,
+  userId: string,
+  workspaceId?: string,
+): Promise<number> {
+  // story_bank stores mined memories, not title/body/category/tags columns.
+  // Derive the brain node fields from the real schema (raw_memory + mined_* + pillar).
+  let query = client.database
+    .from('story_bank')
+    .select('id, raw_memory, mined_angle, mined_hook, pillar')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  if (workspaceId) query = query.eq('workspace_id', workspaceId);
+
+  const { data: stories } = await query;
+  let synced = 0;
+
+  for (const row of stories ?? []) {
+    const story = row as {
+      id: string;
+      raw_memory: string | null;
+      mined_angle: string | null;
+      mined_hook: string | null;
+      pillar: string | null;
+    };
+    const title = story.mined_angle?.trim() || story.mined_hook?.trim() || 'Story';
+    const content = story.raw_memory?.trim() ?? '';
+    if (!content && title === 'Story') continue;
+    const tags = story.pillar ? [story.pillar] : [];
+
+    await putBrainPage(client, userId, {
+      slug: BRAIN_SLUG.story(story.id),
+      title,
+      tags: ['story', ...tags],
+      body: JSON.stringify(
+        {
+          story_id: story.id,
+          title,
+          content: content.slice(0, 4000),
+          category: story.pillar,
+          tags,
+          synced_at: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+      workspaceId,
+    });
+    synced++;
+  }
+
+  return synced;
+}
+
 /**
  * Full brain refresh: provisions, syncs profile, syncs all recent published posts,
- * and updates wins page. workspaceId scopes all writes to the correct workspace
- * namespace so agency clients don't share brain content.
+ * stories, and updates wins page.
  */
 export async function syncCreatorBrainFull(
   client: InsforgeClient,
   userId: string,
   workspaceId?: string,
-): Promise<{ synced_posts: number }> {
+): Promise<{ synced_posts: number; synced_stories: number }> {
   await provisionCreatorBrain(client, userId, workspaceId);
   await syncBrainFromProfile(client, userId, workspaceId);
 
@@ -321,8 +376,9 @@ export async function syncCreatorBrainFull(
   // Run syncBrainWins once here after all posts are synced, not inside each
   // syncBrainPublishedPost call (which caused N redundant top-5 queries).
   await syncBrainWins(client, userId, workspaceId);
+  const synced_stories = await syncBrainStories(client, userId, workspaceId);
 
-  return { synced_posts: synced };
+  return { synced_posts: synced, synced_stories };
 }
 
 /**

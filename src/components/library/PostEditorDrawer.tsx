@@ -576,7 +576,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </label>
 
               <div className="pt-2">
-                <span className="text-[10px] font-medium tracking-widest uppercase text-text-tertiary">
+                <span className="text-[10px] font-medium tracking-[0.01em] text-text-tertiary">
                   Publish
                 </span>
               </div>
@@ -593,7 +593,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               />
 
               <div className="pt-2">
-                <span className="text-[10px] font-medium tracking-widest uppercase text-text-tertiary">
+                <span className="text-[10px] font-medium tracking-[0.01em] text-text-tertiary">
                   Bulk publish
                 </span>
               </div>

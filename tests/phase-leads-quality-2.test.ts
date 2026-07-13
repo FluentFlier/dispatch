@@ -22,6 +22,7 @@ vi.mock('@/lib/signals/outreach/unipile-client', () => ({
 
 vi.mock('@/lib/llm', () => ({
   chatCompletion: vi.fn(),
+  isLlmConfigured: () => false,
 }));
 
 import { unipileJsonPost } from '@/lib/signals/outreach/unipile-client';

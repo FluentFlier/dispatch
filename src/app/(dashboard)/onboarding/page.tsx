@@ -377,10 +377,10 @@ function OnboardingInner() {
 
   return (
     <div className="mx-auto max-w-xl px-4 py-12">
-      <div className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-ink3">
+      <div className="mb-2 text-[11px] tracking-[0.12em] text-ink3">
         {PRODUCT_NAME} setup
       </div>
-      <h1 className="font-serif text-3xl font-normal tracking-[-0.03em] text-ink">
+      <h1 className="text-3xl font-normal tracking-[-0.03em] text-ink">
         {step === 'baseline'
           ? 'Your Creator Baseline'
           : step === 'ingest'
@@ -465,7 +465,7 @@ function OnboardingInner() {
                       {PLATFORM_LABEL[platform]}
                     </span>
                     {connected ? (
-                      <span className="flex items-center gap-1.5 text-xs text-teal">
+                      <span className="flex items-center gap-1.5 text-xs text-ink">
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         {connected.account_name ?? 'Connected'}
                       </span>
@@ -483,7 +483,7 @@ function OnboardingInner() {
                 <p className="mt-0.5 text-[11px] text-ink3">Sent emails for richer voice</p>
               </div>
               {gmailConnected ? (
-                <span className="flex items-center gap-1.5 text-xs text-teal">
+                <span className="flex items-center gap-1.5 text-xs text-ink">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Connected
                 </span>
@@ -547,7 +547,7 @@ function OnboardingInner() {
       {step === 'ingest' && (
         <div className="flex flex-col items-center rounded-lg border border-hair bg-paper2 px-8 py-16 text-center">
           <Loader2 className="h-10 w-10 animate-spin text-accent-primary" />
-          <p className="mt-6 font-serif text-xl text-ink">{statusLine}</p>
+          <p className="mt-6 text-xl text-ink">{statusLine}</p>
           <p className="mt-2 max-w-sm text-sm text-ink2">
             Pulling posts, voice specs, and profile — then verifying your brain pages…
           </p>
@@ -563,17 +563,17 @@ function OnboardingInner() {
 
           <div className={`grid gap-3 ${baseline.emailsAnalyzed > 0 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'}`}>
             <div className="rounded-lg border border-hair bg-paper2 p-4">
-              <p className="text-[11px] font-mono uppercase tracking-wider text-ink3">Posts read</p>
-              <p className="mt-1 font-serif text-2xl text-ink">{baseline.postsAnalyzed}</p>
+              <p className="text-[11px] tracking-[0.01em] text-ink3">Posts read</p>
+              <p className="mt-1 text-2xl text-ink">{baseline.postsAnalyzed}</p>
             </div>
             {baseline.emailsAnalyzed > 0 && (
               <div className="rounded-lg border border-hair bg-paper2 p-4">
-                <p className="text-[11px] font-mono uppercase tracking-wider text-ink3">Emails read</p>
-                <p className="mt-1 font-serif text-2xl text-ink">{baseline.emailsAnalyzed}</p>
+                <p className="text-[11px] tracking-[0.01em] text-ink3">Emails read</p>
+                <p className="mt-1 text-2xl text-ink">{baseline.emailsAnalyzed}</p>
               </div>
             )}
             <div className="rounded-lg border border-hair bg-paper2 p-4">
-              <p className="text-[11px] font-mono uppercase tracking-wider text-ink3">Sources</p>
+              <p className="text-[11px] tracking-[0.01em] text-ink3">Sources</p>
               <p className="mt-1 text-sm font-medium text-ink">{baseline.platforms.join(', ')}</p>
             </div>
           </div>
@@ -597,7 +597,7 @@ function OnboardingInner() {
             <ul className="mt-3 space-y-2">
               {baseline.voiceRules.slice(0, 6).map((rule) => (
                 <li key={rule} className="flex items-start gap-2 text-sm text-ink2">
-                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal" />
+                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink" />
                   {rule}
                 </li>
               ))}

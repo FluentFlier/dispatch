@@ -7,16 +7,17 @@ interface BrainGraphCanvasProps {
   graph: BrainGraph;
   selectedId: string | null;
   onSelect: (node: BrainGraphNode | null) => void;
+  /** Externally highlight a node (e.g. from a decision card). */
+  focusId?: string | null;
 }
 
-/** Node fill + radius per kind (editorial palette). */
 const KIND_STYLE: Record<BrainNodeKind, { fill: string; radius: number }> = {
-  core: { fill: '#2563EB', radius: 15 },
-  performance: { fill: '#0F766E', radius: 15 },
-  gtm: { fill: '#E8543A', radius: 14 },
-  references: { fill: '#8B7BB8', radius: 13 },
-  pillar: { fill: '#D4A054', radius: 12 },
-  post: { fill: '#5B8FA8', radius: 8 },
+  core: { fill: '#2563EB', radius: 13 },
+  performance: { fill: '#0F766E', radius: 14 },
+  gtm: { fill: '#E8543A', radius: 13 },
+  references: { fill: '#8B7BB8', radius: 12 },
+  pillar: { fill: '#171717', radius: 12 },
+  post: { fill: '#5B8FA8', radius: 7 },
   story: { fill: '#E07A5F', radius: 8 },
 };
 
@@ -31,63 +32,127 @@ export const KIND_LABELS: Record<BrainNodeKind, string> = {
 };
 
 const PROFILE_RADIUS = 24;
+const GOLDEN_ANGLE = 2.399963229728653;
 
 function nodeRadius(node: BrainGraphNode): number {
   if (node.id === 'profile') return PROFILE_RADIUS;
+  if (node.kind === 'post') {
+    const base = KIND_STYLE.post.radius;
+    return base + (node.weight ?? 0.15) * 11 + (node.highlight ? 2 : 0);
+  }
+  if (node.kind === 'pillar') {
+    const base = KIND_STYLE.pillar.radius;
+    return base + (node.weight ?? 0.15) * 6;
+  }
   return KIND_STYLE[node.kind].radius;
 }
 
-/** Static hub-and-spoke layout: profile center, rings by kind. */
-function layoutNodes(
-  graph: BrainGraph,
-  width: number,
-  height: number,
-): Map<string, { x: number; y: number }> {
-  const cx = width / 2;
-  const cy = height / 2;
-  const positions = new Map<string, { x: number; y: number }>();
-
-  const profile = graph.nodes.find((n) => n.id === 'profile');
-  if (profile) positions.set('profile', { x: cx, y: cy });
-
-  const rings: { kinds: BrainNodeKind[]; radius: number }[] = [
-    { kinds: ['core', 'performance', 'gtm', 'references'], radius: 0.22 },
-    { kinds: ['pillar'], radius: 0.34 },
-    { kinds: ['post', 'story'], radius: 0.44 },
-  ];
-
-  const placed = new Set(['profile']);
-
-  for (const ring of rings) {
-    const nodes = graph.nodes.filter((n) => ring.kinds.includes(n.kind) && n.id !== 'profile');
-    if (nodes.length === 0) continue;
-
-    const r = Math.min(width, height) * ring.radius;
-    nodes.forEach((node, i) => {
-      const angle = (i / nodes.length) * Math.PI * 2 - Math.PI / 2;
-      positions.set(node.id, {
-        x: cx + Math.cos(angle) * r,
-        y: cy + Math.sin(angle) * r,
-      });
-      placed.add(node.id);
-    });
-  }
-
-  // Anything unmatched lands on the outer ring.
-  const leftover = graph.nodes.filter((n) => !placed.has(n.id));
-  const outerR = Math.min(width, height) * 0.44;
-  leftover.forEach((node, i) => {
-    const angle = (i / Math.max(1, leftover.length)) * Math.PI * 2;
-    positions.set(node.id, {
-      x: cx + Math.cos(angle) * outerR,
-      y: cy + Math.sin(angle) * outerR,
-    });
-  });
-
-  return positions;
+interface Pt {
+  x: number;
+  y: number;
 }
 
-export function BrainGraphCanvas({ graph, selectedId, onSelect }: BrainGraphCanvasProps) {
+function forceLayout(graph: BrainGraph): Map<string, Pt> {
+  const pos = new Map<string, Pt>();
+  const nodes = graph.nodes;
+  const n = nodes.length;
+
+  nodes.forEach((node, i) => {
+    if (node.id === 'profile') {
+      pos.set(node.id, { x: 0, y: 0 });
+      return;
+    }
+    const angle = i * GOLDEN_ANGLE;
+    const radius = 0.12 + 0.62 * Math.sqrt(i / Math.max(1, n));
+    pos.set(node.id, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
+  });
+
+  if (n <= 1) return pos;
+
+  const k = Math.max(0.26, 0.85 * Math.sqrt(4 / n));
+  const idealLength = (a: BrainGraphNode, b: BrainGraphNode): number => {
+    const kinds = new Set([a.kind, b.kind]);
+    const involvesLeaf = kinds.has('post') || kinds.has('story');
+    if (kinds.has('pillar') && involvesLeaf) return k * 0.55;
+    if (involvesLeaf) return k * 0.7;
+    if (kinds.has('pillar')) return k * 1.15;
+    return k;
+  };
+
+  const nodeById = new Map(nodes.map((node) => [node.id, node]));
+  const edges = graph.edges
+    .map((e) => {
+      const source = nodeById.get(e.source);
+      const target = nodeById.get(e.target);
+      return source && target ? { source, target } : null;
+    })
+    .filter((e): e is { source: BrainGraphNode; target: BrainGraphNode } => e !== null);
+
+  const ITERATIONS = 260;
+  let temp = 0.32;
+  const disp = new Map<string, Pt>();
+
+  for (let iter = 0; iter < ITERATIONS; iter++) {
+    for (const node of nodes) disp.set(node.id, { x: 0, y: 0 });
+
+    for (let i = 0; i < n; i++) {
+      const a = nodes[i];
+      const pa = pos.get(a.id)!;
+      for (let j = i + 1; j < n; j++) {
+        const b = nodes[j];
+        const pb = pos.get(b.id)!;
+        let dx = pa.x - pb.x;
+        let dy = pa.y - pb.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist < 1e-4) {
+          dx = (Math.random() - 0.5) * 1e-3;
+          dy = (Math.random() - 0.5) * 1e-3;
+          dist = Math.hypot(dx, dy);
+        }
+        const force = (k * k) / dist;
+        const da = disp.get(a.id)!;
+        const db = disp.get(b.id)!;
+        da.x += (dx / dist) * force;
+        da.y += (dy / dist) * force;
+        db.x -= (dx / dist) * force;
+        db.y -= (dy / dist) * force;
+      }
+    }
+
+    for (const { source, target } of edges) {
+      const ps = pos.get(source.id)!;
+      const pt = pos.get(target.id)!;
+      const dx = ps.x - pt.x;
+      const dy = ps.y - pt.y;
+      const dist = Math.hypot(dx, dy) || 1e-4;
+      const L = idealLength(source, target);
+      const force = (dist * dist) / k / L;
+      const ux = dx / dist;
+      const uy = dy / dist;
+      const ds = disp.get(source.id)!;
+      const dt = disp.get(target.id)!;
+      ds.x -= ux * force;
+      ds.y -= uy * force;
+      dt.x += ux * force;
+      dt.y += uy * force;
+    }
+
+    for (const node of nodes) {
+      if (node.id === 'profile') continue;
+      const d = disp.get(node.id)!;
+      const p = pos.get(node.id)!;
+      const len = Math.hypot(d.x, d.y) || 1e-4;
+      p.x += (d.x / len) * Math.min(len, temp);
+      p.y += (d.y / len) * Math.min(len, temp);
+    }
+
+    temp *= 0.965;
+  }
+
+  return pos;
+}
+
+export function BrainGraphCanvas({ graph, selectedId, onSelect, focusId }: BrainGraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 800, h: 560 });
   const [hoverId, setHoverId] = useState<string | null>(null);
@@ -102,14 +167,42 @@ export function BrainGraphCanvas({ graph, selectedId, onSelect }: BrainGraphCanv
     return () => ro.disconnect();
   }, []);
 
-  const positions = useMemo(
-    () => layoutNodes(graph, size.w, size.h),
-    [graph, size.w, size.h],
-  );
+  const layout = useMemo(() => forceLayout(graph), [graph]);
+
+  const positions = useMemo(() => {
+    const pad = 56;
+    const out = new Map<string, Pt>();
+    if (layout.size === 0) return out;
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    layout.forEach((p) => {
+      minX = Math.min(minX, p.x);
+      minY = Math.min(minY, p.y);
+      maxX = Math.max(maxX, p.x);
+      maxY = Math.max(maxY, p.y);
+    });
+
+    const spanX = maxX - minX || 1;
+    const spanY = maxY - minY || 1;
+    const scale = Math.min((size.w - pad * 2) / spanX, (size.h - pad * 2) / spanY);
+    const offsetX = (size.w - spanX * scale) / 2;
+    const offsetY = (size.h - spanY * scale) / 2;
+
+    layout.forEach((p, id) => {
+      out.set(id, {
+        x: offsetX + (p.x - minX) * scale,
+        y: offsetY + (p.y - minY) * scale,
+      });
+    });
+    return out;
+  }, [layout, size.w, size.h]);
 
   const neighbors = useMemo(() => {
     const map = new Map<string, Set<string>>();
-    for (const n of graph.nodes) map.set(n.id, new Set());
+    for (const node of graph.nodes) map.set(node.id, new Set());
     for (const e of graph.edges) {
       map.get(e.source)?.add(e.target);
       map.get(e.target)?.add(e.source);
@@ -117,7 +210,7 @@ export function BrainGraphCanvas({ graph, selectedId, onSelect }: BrainGraphCanv
     return map;
   }, [graph]);
 
-  const activeId = hoverId ?? selectedId;
+  const activeId = hoverId ?? selectedId ?? focusId;
   const activeNeighbors = activeId ? neighbors.get(activeId) : null;
 
   const isDimmed = (id: string): boolean => {
@@ -128,7 +221,7 @@ export function BrainGraphCanvas({ graph, selectedId, onSelect }: BrainGraphCanv
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-hidden rounded-xl border border-hair bg-[radial-gradient(circle_at_center,#FFFFFF_0%,#F4F2EC_100%)]"
+      className="relative h-full w-full overflow-hidden rounded-surface border border-hair bg-[radial-gradient(120%_120%_at_50%_0%,#FFFFFF_0%,#F7F5EF_60%,#F1EEE6_100%)]"
     >
       <svg
         width={size.w}
@@ -142,17 +235,26 @@ export function BrainGraphCanvas({ graph, selectedId, onSelect }: BrainGraphCanv
           if (!s || !t) return null;
           const dim = isDimmed(e.source) && isDimmed(e.target);
           const isWin = e.kind === 'win';
+          const mx = (s.x + t.x) / 2;
+          const my = (s.y + t.y) / 2;
+          const dx = t.x - s.x;
+          const dy = t.y - s.y;
+          const nx = -dy;
+          const ny = dx;
+          const nlen = Math.hypot(nx, ny) || 1;
+          const bend = Math.min(28, Math.hypot(dx, dy) * 0.12);
+          const cx = mx + (nx / nlen) * bend;
+          const cy = my + (ny / nlen) * bend;
           return (
-            <line
+            <path
               key={`${e.source}->${e.target}-${i}`}
-              x1={s.x}
-              y1={s.y}
-              x2={t.x}
-              y2={t.y}
+              d={`M ${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`}
+              fill="none"
               stroke={isWin ? '#0F766E' : '#171717'}
-              strokeOpacity={dim ? 0.06 : isWin ? 0.45 : 0.14}
-              strokeWidth={isWin ? 1.5 : 1}
-              strokeDasharray={e.kind === 'pillar' ? '4 4' : undefined}
+              strokeOpacity={dim ? 0.05 : isWin ? 0.5 : 0.12}
+              strokeWidth={isWin ? 1.75 : 1}
+              strokeDasharray={e.kind === 'pillar' ? '4 5' : undefined}
+              strokeLinecap="round"
             />
           );
         })}
@@ -164,12 +266,23 @@ export function BrainGraphCanvas({ graph, selectedId, onSelect }: BrainGraphCanv
           const r = nodeRadius(node);
           const dim = isDimmed(node.id);
           const selected = selectedId === node.id;
-          const showLabel = r >= 12 || activeId === node.id || selected;
+          const focused = focusId === node.id;
+          const alwaysLabel =
+            node.id === 'profile' ||
+            node.kind === 'core' ||
+            node.kind === 'pillar' ||
+            node.kind === 'performance' ||
+            node.kind === 'gtm' ||
+            node.kind === 'references';
+          const showLabel =
+            alwaysLabel || activeId === node.id || selected || (node.kind === 'post' && (node.weight ?? 0) >= 0.72);
+          const pending = node.pending === true;
+
           return (
             <g
               key={node.id}
               transform={`translate(${p.x},${p.y})`}
-              style={{ opacity: dim ? 0.35 : 1, cursor: 'pointer' }}
+              style={{ opacity: dim ? 0.3 : pending ? 0.55 : 1, cursor: 'pointer', transition: 'opacity 0.15s ease' }}
               onPointerEnter={() => setHoverId(node.id)}
               onPointerLeave={() => setHoverId(null)}
               onClick={(e) => {
@@ -177,10 +290,20 @@ export function BrainGraphCanvas({ graph, selectedId, onSelect }: BrainGraphCanv
                 onSelect(node);
               }}
             >
-              {selected && (
-                <circle r={r + 6} fill="none" stroke={style.fill} strokeWidth={2} strokeOpacity={0.5} />
+              {node.highlight && !selected && (
+                <circle r={r + 3.5} fill="none" stroke="#0F766E" strokeWidth={1.5} strokeOpacity={0.55} />
               )}
-              <circle r={r} fill={style.fill} stroke="#FBFAF7" strokeWidth={node.id === 'profile' ? 3 : 2} />
+              {(selected || focused) && (
+                <circle r={r + 6} fill="none" stroke={style.fill} strokeWidth={2} strokeOpacity={0.55} />
+              )}
+              <circle
+                r={r}
+                fill={style.fill}
+                fillOpacity={pending ? 0.35 : 1}
+                stroke="#FBFAF7"
+                strokeWidth={node.id === 'profile' ? 3 : 2}
+                strokeDasharray={pending ? '3 3' : undefined}
+              />
               {showLabel && (
                 <text
                   x={0}
@@ -188,11 +311,11 @@ export function BrainGraphCanvas({ graph, selectedId, onSelect }: BrainGraphCanv
                   textAnchor="middle"
                   className="fill-ink"
                   style={{
-                    fontSize: node.id === 'profile' ? 13 : 11,
-                    fontWeight: node.id === 'profile' ? 600 : 500,
+                    fontSize: node.id === 'profile' ? 13 : node.kind === 'post' || node.kind === 'story' ? 10.5 : 11.5,
+                    fontWeight: node.id === 'profile' ? 700 : alwaysLabel ? 600 : 500,
                     paintOrder: 'stroke',
                     stroke: '#FBFAF7',
-                    strokeWidth: 3,
+                    strokeWidth: 3.5,
                   }}
                 >
                   {node.label}

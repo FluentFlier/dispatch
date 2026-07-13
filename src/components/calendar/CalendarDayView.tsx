@@ -104,24 +104,24 @@ export default function CalendarDayView({
       {/* ── Day header ── */}
       <div className="flex items-center gap-3 px-4 py-3 border-b border-hair shrink-0">
         <div>
-          <p className="text-[11px] font-mono uppercase tracking-[0.1em] text-ink3">
+          <p className="text-[11px] tracking-[0.1em] text-ink3">
             {DAY_NAMES[selectedDay.getDay()]}
           </p>
           <div className="flex items-baseline gap-1.5 mt-0.5">
             <span
-              className={`font-serif text-[32px] font-normal leading-none ${
+              className={`text-[32px] font-normal leading-none tabular-nums ${
                 isToday ? 'text-accent-primary' : 'text-ink'
               }`}
             >
               {selectedDay.getDate()}
             </span>
-            <span className="font-mono text-[13px] text-ink3">
+            <span className="text-[13px] text-ink3">
               {MONTH_NAMES_SHORT[selectedDay.getMonth()]} {selectedDay.getFullYear()}
             </span>
           </div>
         </div>
         {isToday && (
-          <span className="ml-auto text-[11px] font-mono uppercase tracking-[0.08em] text-accent-primary">
+          <span className="ml-auto text-[11px] tracking-[0.08em] text-accent-primary">
             Today
           </span>
         )}
@@ -130,7 +130,7 @@ export default function CalendarDayView({
       {/* ── All-day row ── */}
       {allDayPosts.length > 0 && (
         <div className="flex items-start gap-2 px-4 py-2 border-b border-hair bg-bg-tertiary/50 shrink-0">
-          <span className="text-[10px] font-mono uppercase tracking-[0.08em] text-ink3 w-14 shrink-0 pt-0.5">
+          <span className="text-[10px] tracking-[0.08em] text-ink3 w-14 shrink-0 pt-0.5 tabular-nums">
             All day
           </span>
           <div className="flex flex-wrap gap-1.5 flex-1">
@@ -166,7 +166,7 @@ export default function CalendarDayView({
                 style={{ top: h * HOUR_HEIGHT - 8, height: HOUR_HEIGHT }}
               >
                 {h > 0 && (
-                  <span className="text-[10px] font-mono text-ink3 select-none">
+                  <span className="text-[10px] text-ink3 select-none">
                     {formatHour(h)}
                   </span>
                 )}
@@ -232,7 +232,7 @@ export default function CalendarDayView({
                   >
                     {p.title}
                   </p>
-                  <p className="text-[10px] font-mono opacity-70" style={{ color }}>
+                  <p className="text-[10px] opacity-70" style={{ color }}>
                     {d.toLocaleTimeString('en-US', {
                       hour: 'numeric', minute: '2-digit', timeZone: 'UTC',
                     })} UTC · {p.platform}

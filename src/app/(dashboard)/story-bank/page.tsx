@@ -274,7 +274,7 @@ export default function StoryBankPage() {
       {filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-center">
           <Pickaxe className="w-12 h-12 text-text-secondary mb-4" />
-          <h2 className="font-serif text-[20px] font-normal tracking-[-0.02em] text-ink mb-1">
+          <h2 className="text-[20px] font-normal tracking-[-0.02em] text-ink mb-1">
             {stories.length === 0 ? "Mine your first memory" : "No stories match your filters"}
           </h2>
           <p className="text-text-secondary text-[13px] mb-2">

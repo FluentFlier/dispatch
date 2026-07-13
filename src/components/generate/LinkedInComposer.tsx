@@ -144,7 +144,7 @@ export function LinkedInComposer({ open, onClose, initialText, platform, onPubli
       <div className="w-full max-w-xl rounded-xl border border-hair bg-paper shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-hair px-5 py-3">
-          <h2 className="font-serif text-lg text-ink">Post to {label}</h2>
+          <h2 className="text-lg text-ink">Post to {label}</h2>
           <button onClick={onClose} aria-label="Close" className="text-ink3 hover:text-ink">
             <X className="h-5 w-5" />
           </button>
@@ -231,7 +231,7 @@ export function LinkedInComposer({ open, onClose, initialText, platform, onPubli
 
         {/* Live preview */}
         <div className="border-t border-hair bg-paper2 px-5 py-4">
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-ink3">Preview</p>
+          <p className="mb-2 text-[11px] font-medium tracking-wide text-ink3">Preview</p>
           <div className="rounded-lg border border-hair bg-paper p-4 shadow-sm">
             <div className="flex items-center gap-2">
               <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-primary text-xs font-semibold text-white">{initials}</div>

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
-import { listLeads } from '@/lib/signals/leads/store';
-import type { LeadStatus } from '@/lib/signals/types';
+import { listLeads, parseLeadListStatusParam } from '@/lib/signals/leads/store';
 
 /** Quote a CSV cell, escaping embedded quotes; join arrays with "; ". */
 function cell(value: unknown): string {
@@ -36,11 +35,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
 
   const statusParam = request.nextUrl.searchParams.get('status');
-  const status =
-    statusParam && statusParam !== 'all' ? (statusParam as LeadStatus) : undefined;
+  const listFilter = parseLeadListStatusParam(statusParam);
 
   const client = getServerClient();
-  const leads = await listLeads(client, workspaceId, { status, limit: 200 });
+  const leads = await listLeads(client, workspaceId, { ...listFilter, limit: 200 });
 
   const rows = leads.map((lead) => {
     const intent = (lead.intent_flags ?? {}) as Record<string, boolean>;

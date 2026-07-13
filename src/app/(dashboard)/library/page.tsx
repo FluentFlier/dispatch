@@ -382,8 +382,7 @@ export default function LibraryPage() {
       />
 
       {(importMessage || importError) && (
-        <div
-          className={`rounded-md border px-3 py-2 text-[12px] ${
+        <div className={`rounded-md border px-3 py-2 text-[12px] ${
             importError
               ? 'border-red-200 bg-red-50 text-red-800'
               : 'border-border bg-sage-light text-accent-secondary'
@@ -423,7 +422,7 @@ export default function LibraryPage() {
       {/* Bulk actions */}
       {selected.size > 0 && (
         <div className="flex items-center gap-3 bg-bg-tertiary border border-hair rounded-lg px-4 py-2">
-          <span className="font-mono text-[12px] text-ink3">{selected.size} selected</span>
+          <span className="text-[12px] text-ink3">{selected.size} selected</span>
           <button onClick={handleBulkDelete} className="flex items-center gap-1 text-[13px] text-accent-primary hover:opacity-80">
             <Trash2 className="w-3.5 h-3.5" /> Delete
           </button>
@@ -470,7 +469,7 @@ export default function LibraryPage() {
           {posts.length === 0 && (
             <FileText className="w-12 h-12 text-text-secondary mb-4" />
           )}
-          <h2 className="font-serif text-[22px] font-normal tracking-[-0.025em] text-ink mb-1">
+          <h2 className="text-[22px] font-normal tracking-[-0.025em] text-ink mb-1">
             {posts.length === 0 ? 'Nothing scripted yet' : 'No posts match your filters'}
           </h2>
           <p className="text-text-secondary text-[13px] mb-4">

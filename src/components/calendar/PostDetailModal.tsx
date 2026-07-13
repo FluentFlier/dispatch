@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { X, Send, Calendar, Trash2, ExternalLink, Loader2 } from 'lucide-react';
 import type { Post } from '@/lib/types';
 import PillarDot from '@/components/PillarDot';
-import StatusBadge from '@/components/StatusBadge';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 /* ------------------------------------------------------------------ */
 /*  Types & helpers                                                    */

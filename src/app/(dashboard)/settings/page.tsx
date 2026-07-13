@@ -70,7 +70,7 @@ function Section({
 
 function SubHeader({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-[11px] font-semibold tracking-[0.08em] uppercase text-text-secondary mb-3">
+    <h3 className="text-[11px] font-semibold tracking-[0.08em] text-text-secondary mb-3">
       {children}
     </h3>
   );

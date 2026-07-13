@@ -34,12 +34,12 @@ export default async function AdminSubscriptionsPage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {Object.entries(byPlan).map(([plan, count]) => (
           <div key={plan} className={`${adminCard} py-3`}>
-            <p className="text-[11px] uppercase text-text-tertiary">{plan}</p>
+            <p className="text-[11px] text-text-tertiary">{plan}</p>
             <p className="text-xl font-semibold text-text-primary tabular-nums">{count}</p>
           </div>
         ))}
         <div className={`${adminCard} py-3 border-amber-200 bg-amber-50`}>
-          <p className="text-[11px] uppercase text-amber-800/70">trialing</p>
+          <p className="text-[11px] text-amber-800/70">trialing</p>
           <p className="text-xl font-semibold text-amber-900 tabular-nums">{activeTrials}</p>
         </div>
       </div>
@@ -88,7 +88,7 @@ export default async function AdminSubscriptionsPage() {
         <div className="flex flex-wrap gap-3">
           {Object.entries(byStatus).map(([status, count]) => (
             <span key={status} className="text-sm text-text-secondary">
-              <span className="font-mono text-text-primary">{status}</span>: {count}
+              <span className="text-text-primary">{status}</span>: {count}
             </span>
           ))}
         </div>

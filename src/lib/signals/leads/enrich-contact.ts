@@ -1,6 +1,7 @@
 import type { createClient } from '@insforge/sdk';
 import { ApifyClient } from 'apify-client';
 import type { SignalLeadWithContacts } from '@/lib/signals/types';
+import { serperSearch } from '@/lib/event-capture/research';
 import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
 import { fetchYcFounders, findYcCompanyByName } from '@/lib/signals/ingest/yc-algolia';
 import type { YcFounder, YcNameMatch } from '@/lib/signals/ingest/yc-algolia';
@@ -43,7 +44,7 @@ export interface EnrichedContact {
   name?: string;
   role?: string;
   linkedinUrl?: string;
-  via: 'yc_detail' | 'tinyfish' | 'apify' | 'unipile' | 'web_search';
+  via: 'yc_detail' | 'tinyfish' | 'apify' | 'unipile' | 'web_search' | 'serper';
 }
 
 /**
@@ -71,6 +72,18 @@ export async function enrichFounderContact(
   // ICP-finder leads that land as source:'manual' without founder data.
   const viaRecovery = await enrichViaYcRecovery(lead);
   if (viaRecovery) return viaRecovery;
+
+  // Fast batch rungs (~1-3s each): Serper snippet scan + Unipile executive search.
+  // Safe in fastOnly — unlike the TinyFish agent (~60s) or Apify actor runs.
+  const viaSerper = await enrichViaSerperFounder(lead);
+  if (viaSerper) return viaSerper;
+  const accountId =
+    opts.client && opts.workspaceId
+      ? await getWorkspaceLinkedInAccountId(opts.client, opts.workspaceId)
+      : null;
+  const viaExec = await enrichViaUnipileExecutiveSearch(lead.company_name, accountId);
+  if (viaExec) return viaExec;
+
   if (opts.fastOnly) return null;
   // Universal rung: LLM web search works for ANY company (non-YC website / X /
   // non-YC ICP leads), so it runs first among the paid rungs. Its result is always
@@ -88,10 +101,6 @@ export async function enrichFounderContact(
   // is the last, deterministic attempt to turn that name into a reachable URL
   // before the lead is marked no_contact.
   const founderName = lead.contacts?.find((c) => c.name)?.name ?? undefined;
-  const accountId =
-    opts.client && opts.workspaceId
-      ? await getWorkspaceLinkedInAccountId(opts.client, opts.workspaceId)
-      : null;
   return enrichViaUnipileSearch({ companyName: lead.company_name, founderName, accountId });
 }
 
@@ -204,6 +213,79 @@ async function enrichViaTinyFish(
     }
     return null;
   }
+}
+
+/** Parses the first personal linkedin.com/in/ URL from arbitrary text. */
+export function parseLinkedInProfileUrl(text: string): string | null {
+  const match = text.match(/https?:\/\/(?:www\.)?linkedin\.com\/in\/[A-Za-z0-9\-_%]+/i);
+  return match?.[0] ?? null;
+}
+
+/**
+ * Fast founder lookup via Serper: searches "{company} founder CEO linkedin" and
+ * extracts a personal profile URL from organic snippets. No LLM required — safe
+ * for batch sync. Returns null when Serper is unconfigured or nothing matches.
+ */
+export async function enrichViaSerperFounder(
+  lead: Pick<SignalLeadWithContacts, 'company_name'>,
+  deps: { search?: typeof serperSearch } = {},
+): Promise<EnrichedContact | null> {
+  const company = lead.company_name?.trim();
+  if (!company) return null;
+  const search = deps.search ?? serperSearch;
+  const results = await search(`${company} founder CEO linkedin`, 8);
+  if (results.length === 0) return null;
+
+  for (const row of results) {
+    const blob = `${row.link ?? ''} ${row.title ?? ''} ${row.snippet ?? ''}`;
+    const linkedinUrl = parseLinkedInProfileUrl(blob);
+    if (!linkedinUrl) continue;
+    // Prefer results that mention the company in the snippet (reduces wrong-person hits).
+    const companyHit = new RegExp(company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(blob);
+    if (companyHit || row.link?.includes('linkedin.com/in/')) {
+      return { linkedinUrl, via: 'serper', role: 'Founder/CEO' };
+    }
+  }
+
+  // Last resort: any personal profile in the result set.
+  for (const row of results) {
+    const blob = `${row.link ?? ''} ${row.snippet ?? ''}`;
+    const linkedinUrl = parseLinkedInProfileUrl(blob);
+    if (linkedinUrl) return { linkedinUrl, via: 'serper', role: 'Founder/CEO' };
+  }
+  return null;
+}
+
+/**
+ * Unipile people-search by executive role + company when we have no founder name.
+ * Tries CEO then Founder keywords — fast enough for batch sync.
+ */
+export async function enrichViaUnipileExecutiveSearch(
+  companyName: string | null | undefined,
+  accountId: string | null | undefined,
+  deps: { search?: typeof searchLinkedInPerson } = {},
+): Promise<EnrichedContact | null> {
+  const company = companyName?.trim();
+  if (!company || !accountId) return null;
+  const search = deps.search ?? searchLinkedInPerson;
+
+  for (const role of ['CEO', 'Founder'] as const) {
+    const hit = await search({
+      name: role,
+      company,
+      accountId,
+      keywords: `${role} ${company}`,
+    });
+    if (!hit?.linkedinUrl) continue;
+    const headline = hit.role ?? '';
+    const looksRight =
+      /\b(ceo|founder|co-founder|cofounder|chief executive)\b/i.test(headline) ||
+      headline.toLowerCase().includes(company.toLowerCase().slice(0, 12));
+    if (looksRight) {
+      return { name: hit.name, role: hit.role, linkedinUrl: hit.linkedinUrl, via: 'unipile' };
+    }
+  }
+  return null;
 }
 
 /** Apify: run a configured LinkedIn profile/people-search actor by company + name. */

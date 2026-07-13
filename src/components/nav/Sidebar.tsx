@@ -1,43 +1,12 @@
 'use client';
 
-import { type ComponentType } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  BarChart3,
-  Brain,
-  CalendarDays,
-  FileText,
-  Home,
-  Lightbulb,
-  LogOut,
-  MessageSquare,
-  PenLine,
-  Settings,
-  SlidersHorizontal,
-  Target,
-} from 'lucide-react';
+import { LogOut } from 'lucide-react';
 import { getInsforgeClient } from '@/lib/insforge/client';
 import { PRODUCT_NAME } from '@/lib/brand';
-import { primaryNav, moreNav } from '@/lib/nav-config';
+import { primaryNav, moreNav, navIcons } from '@/lib/nav-config';
 import WorkspaceSwitcher from '@/components/nav/WorkspaceSwitcher';
-
-const navIcons: Record<string, ComponentType<{ className?: string }>> = {
-  '/dashboard': Home,
-  '/generate': PenLine,
-  '/library': FileText,
-  '/calendar': CalendarDays,
-  '/inbox': MessageSquare,
-  '/leads': Target,
-  '/brain': Brain,
-  '/event-capture': CalendarDays,
-  '/ideas': Lightbulb,
-  '/series': FileText,
-  '/story-bank': FileText,
-  '/voice-lab': SlidersHorizontal,
-  '/analytics': BarChart3,
-  '/settings': Settings,
-};
 
 const FOCUS =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/30 focus-visible:ring-offset-2';

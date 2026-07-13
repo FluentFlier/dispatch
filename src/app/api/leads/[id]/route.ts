@@ -3,7 +3,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { getLead, updateLead } from '@/lib/signals/leads/store';
 import { errorResponse } from '@/lib/api-errors';
-import type { LeadStatus } from '@/lib/signals/types';
+import type { ConversionStage, LeadStatus } from '@/lib/signals/types';
 
 /**
  * PATCH /api/leads/:id
@@ -22,6 +22,8 @@ export async function PATCH(
   const body = (await request.json().catch(() => ({}))) as {
     action?: 'dismiss' | 'snooze';
     status?: LeadStatus;
+    conversion_stage?: ConversionStage | null;
+    needs_reply?: boolean;
   };
 
   try {
@@ -33,6 +35,16 @@ export async function PATCH(
       const next = new Date();
       next.setDate(next.getDate() + 1);
       await updateLead(client, workspaceId, params.id, { digest_date: next.toISOString().slice(0, 10) });
+    } else if (body.conversion_stage !== undefined || body.needs_reply !== undefined) {
+      const clearsReply =
+        body.needs_reply === false ||
+        (body.conversion_stage !== undefined && body.conversion_stage !== null);
+      await updateLead(client, workspaceId, params.id, {
+        ...(body.conversion_stage !== undefined ? { conversion_stage: body.conversion_stage } : {}),
+        ...(clearsReply ? { needs_reply: false } : {}),
+        ...(body.needs_reply === true ? { needs_reply: true } : {}),
+        ...(body.conversion_stage === 'meeting_booked' ? { nurture_stage: 'closed' as const } : {}),
+      });
     } else {
       await updateLead(client, workspaceId, params.id, {
         lead_status: body.status ?? 'dismissed',

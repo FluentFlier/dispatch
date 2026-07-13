@@ -164,7 +164,7 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
             <p className="text-sm text-text-secondary">Opening in Write… you can edit and humanize it there.</p>
             {posts.map((p) => (
               <article key={p.id} className="rounded-lg border border-border bg-bg-primary p-4 space-y-2">
-                <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">{p.platform}</p>
+                <p className="text-xs tracking-wide text-text-tertiary">{p.platform}</p>
                 <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
                   {p.script ?? p.caption ?? ''}
                 </p>

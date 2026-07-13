@@ -363,7 +363,7 @@ export default function VoiceLabPage() {
           {connectedPlatforms.length > 0 && (
             <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
               <div>
-                <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">
+                <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">
                   Import from connected accounts
                 </h2>
                 <p className="mt-1 text-[13px] text-text-secondary">
@@ -405,7 +405,7 @@ export default function VoiceLabPage() {
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">
+                <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">
                   Import from public links
                 </h2>
                 <p className="mt-1 text-[13px] text-text-secondary">
@@ -443,7 +443,7 @@ export default function VoiceLabPage() {
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">
+                <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">
                   Paste or edit samples
                 </h2>
                 <p className="mt-1 text-[13px] text-text-secondary">
@@ -487,7 +487,7 @@ export default function VoiceLabPage() {
               <div key={index} className="space-y-3 rounded-md border border-border bg-bg-tertiary p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-[11px] uppercase text-text-tertiary">Sample {index + 1}</span>
+                    <span className="text-[11px] text-text-tertiary">Sample {index + 1}</span>
                     <span className="rounded-md bg-bg-secondary px-2 py-0.5 text-[11px] text-text-secondary">{sample.content.trim().length} chars</span>
                     {sample.sourceUrl && (
                       <a
@@ -574,7 +574,7 @@ export default function VoiceLabPage() {
         <div className="space-y-4">
           {/* Analysis Summary */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
-            <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Voice Snapshot</h2>
+            <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">Voice Snapshot</h2>
             <p className="text-[13px] text-text-tertiary leading-relaxed">{analysis.voice_summary}</p>
             <div className="flex flex-wrap gap-1.5 mt-2">
               {analysis.voice_rules.slice(0, 6).map((rule, i) => (
@@ -591,7 +591,7 @@ export default function VoiceLabPage() {
 
           {/* Gap Questions */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-4">
-            <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Quick Voice Interview</h2>
+            <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">Quick Voice Interview</h2>
             <p className="text-[13px] text-text-secondary">
               Answer these to fill in what the AI could not tell from your writing alone. Skip any you want.
             </p>
@@ -637,13 +637,13 @@ export default function VoiceLabPage() {
         <div className="space-y-4">
           {/* Voice Description */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
-            <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Your Voice</h2>
-            <p className="font-serif text-[17px] text-ink2 leading-[1.5]">{persona.voice_description}</p>
+            <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">Your Voice</h2>
+            <p className="text-[17px] text-ink2 leading-[1.5]">{persona.voice_description}</p>
           </div>
 
           {/* Voice Rules */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
-            <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Voice Rules</h2>
+            <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">Voice Rules</h2>
             <pre className="text-[12px] text-text-tertiary whitespace-pre-wrap leading-relaxed font-mono bg-bg-tertiary rounded-lg p-4">
               {persona.voice_rules}
             </pre>
@@ -651,7 +651,7 @@ export default function VoiceLabPage() {
 
           {/* Vocabulary */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
-            <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Vocabulary Fingerprint</h2>
+            <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">Vocabulary Fingerprint</h2>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <p className="section-label mb-1.5">Uses Often</p>
@@ -683,7 +683,7 @@ export default function VoiceLabPage() {
           {/* Exportable Prompt */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Exportable Persona Prompt</h2>
+              <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">Exportable Persona Prompt</h2>
               <button
                 onClick={copyExportPrompt}
                 className="flex items-center gap-1.5 text-[12px] text-text-secondary hover:text-text-tertiary transition-colors"
@@ -701,7 +701,7 @@ export default function VoiceLabPage() {
           {/* Default Post Length */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
             <div>
-              <h2 className="font-serif text-[19px] font-normal tracking-[-0.02em] text-ink">Default Post Length</h2>
+              <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">Default Post Length</h2>
               <p className="text-[12px] text-text-tertiary mt-1">Used as the default in Generate. Override per post anytime.</p>
             </div>
             <div className="flex gap-2 flex-wrap">

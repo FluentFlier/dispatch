@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { LlmError } from '@/lib/llm';
 import { streamCreatorDraft } from '@/lib/content-pipeline/stream';
+import { humanizePipeline, heuristicAiScore } from '@/lib/humanizer';
 import { formatSignalTopicsBlock, getSignalTopicsForGeneration } from '@/lib/signals/content-bridge';
 import { trackEvent } from '@/lib/analytics';
 
@@ -20,6 +21,8 @@ const RequestSchema = z.object({
   platform: z.enum(['twitter', 'linkedin', 'instagram', 'threads']).optional(),
   mode: z.enum(['draft', 'revise']).optional(),
   useVoice: z.boolean().optional(),
+  /** Auto-humanize the streamed draft (anti-slop clean + audit). Defaults on. */
+  humanize: z.boolean().optional(),
   mentions: z.array(z.string().max(100)).max(10).optional(),
 });
 
@@ -62,13 +65,19 @@ export async function POST(request: NextRequest): Promise<Response> {
     signalBlock = formatSignalTopicsBlock(topics);
   }
 
-  const { profile, contextAdditions } = useVoice
+  const voiceContext = useVoice
     ? await loadCreatorVoiceContext(client, user.id, {
         memoryQuery: parsed.data.topic ?? parsed.data.prompt.slice(0, 200),
         workspaceId: workspaceId ?? undefined,
         platform: parsed.data.platform,
       })
-    : { profile: null, contextAdditions: '' };
+    : null;
+  const profile = voiceContext?.profile ?? null;
+  const contextAdditions = voiceContext?.contextAdditions ?? '';
+  // Anti-slop pass preserves the creator's own vocabulary/signature phrases.
+  const vocabulary = voiceContext?.vocabulary;
+  const completeness = voiceContext?.completeness;
+  const autoHumanize = parsed.data.humanize !== false;
 
   const mergedContext = [contextAdditions, signalBlock].filter(Boolean).join('\n') || undefined;
 
@@ -107,13 +116,51 @@ export async function POST(request: NextRequest): Promise<Response> {
           },
         );
 
-        send({ type: 'done', text: result.text, used_hook_ids: result.usedHookIds });
+        // Auto-humanize: the streamed draft is one fast LLM pass, so it still
+        // carries AI tells. Run the anti-slop pipeline (clean + audit) as a
+        // "polishing" stage — voice is already applied in the streamed system
+        // prompt, so skipVoice avoids a redundant rewrite. This is what makes
+        // the default Write flow ship human-sounding drafts without a manual
+        // Polish tap.
+        let finalText = result.text;
+        let humanized = false;
+        if (autoHumanize) {
+          try {
+            send({ type: 'stage', stage: 'polishing' });
+            const polished = await humanizePipeline(result.text, {
+              profile: null,
+              skipVoice: true,
+              skipAudit: false,
+              vocabulary,
+            });
+            finalText = polished.text;
+            humanized = true;
+          } catch (humanizeErr) {
+            // Never fail the whole generation on a polish hiccup — keep the draft.
+            console.error('[generate/stream] auto-humanize failed (non-fatal):', humanizeErr);
+          }
+        }
+
+        // Free, synchronous slop estimate so the UI can show an AI score without
+        // an extra network/quota hit. Lower is better (fewer AI tells).
+        const aiSlop = heuristicAiScore(finalText);
+
+        send({
+          type: 'done',
+          text: finalText,
+          used_hook_ids: result.usedHookIds,
+          ai_score: aiSlop,
+          humanized,
+          starved: completeness?.starved ?? false,
+          voice_source: completeness?.voiceSource,
+        });
 
         void trackEvent('generation_complete', {
           platform: parsed.data.platform ?? 'unknown',
           hooks_used: result.usedHookIds.length,
           mode,
           streamed: true,
+          humanized,
         });
       } catch (err) {
         const message =

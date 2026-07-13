@@ -6,7 +6,7 @@ import { Droppable } from '@hello-pangea/dnd';
 import type { Post } from '@/lib/types';
 import { usePillars } from '@/hooks/usePillars';
 import PillarDot from '@/components/PillarDot';
-import StatusBadge from '@/components/StatusBadge';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */

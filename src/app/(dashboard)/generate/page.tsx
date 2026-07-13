@@ -141,7 +141,7 @@ function GeneratePageInner() {
   return (
     <div className="mx-auto max-w-xl px-4 py-6 sm:py-10">
       {isWelcome && !welcomeDismissed && (
-        <p className="mb-4 text-center text-sm text-teal">
+        <p className="mb-4 text-center text-sm text-ink">
           Your voice is ready.{" "}
           <button type="button" onClick={() => setWelcomeDismissed(true)} className="underline">
             Dismiss

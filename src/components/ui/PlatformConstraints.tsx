@@ -70,7 +70,7 @@ export function PlatformConstraints({ platform, hasImage = false, compact = fals
     <div className="bg-bg-tertiary border border-border rounded-md p-3 mt-2">
       <div className="flex items-center gap-1.5 mb-2">
         <Info size={12} className="text-text-tertiary" />
-        <span className="text-[10px] font-medium tracking-[0.08em] uppercase text-text-tertiary">
+        <span className="text-[10px] font-medium tracking-[0.08em] text-text-tertiary">
           {platform === 'twitter' ? 'X' : platform} rules
         </span>
       </div>

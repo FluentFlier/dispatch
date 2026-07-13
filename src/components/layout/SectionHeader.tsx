@@ -22,10 +22,10 @@ export function SectionHeader({
   return (
     <div className={`flex items-start justify-between gap-4 ${className}`}>
       <div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-hair bg-white/80 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink2 shadow-sm backdrop-blur-sm">
+        <span className="inline-flex items-center gap-2 rounded-badge border border-hair bg-white/80 px-3 py-1.5 text-[11.5px] font-semibold tracking-[0.01em] text-ink2 backdrop-blur-sm">
           <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full shadow-[0_0_8px_currentColor]"
-            style={{ backgroundColor: accent, color: accent }}
+            className="h-1.5 w-1.5 shrink-0 rounded-full"
+            style={{ backgroundColor: accent }}
             aria-hidden
           />
           {tag}

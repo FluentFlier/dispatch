@@ -324,7 +324,7 @@ export default function IdeasPage() {
             <button
               key={mode}
               onClick={() => setFilterMode(mode)}
-              className={`px-3 py-2 min-h-[44px] font-mono text-[11px] uppercase tracking-[0.08em] transition-colors ${
+              className={`px-3 py-2 min-h-[44px] text-[11px] tracking-[0.08em] transition-colors ${
                 filterMode === mode
                   ? "bg-coral-light text-accent-primary"
                   : "text-text-secondary hover:text-text-primary"
@@ -365,7 +365,7 @@ export default function IdeasPage() {
           {ideas.length === 0 && (
             <Lightbulb className="w-12 h-12 text-text-secondary mb-4" />
           )}
-          <h2 className="font-serif font-normal tracking-[-0.025em] text-ink text-[20px] mb-1">
+          <h2 className="font-normal tracking-[-0.025em] text-ink text-[20px] mb-1">
             {ideas.length === 0 ? "Nothing queued" : "No ideas match your filters"}
           </h2>
           <p className="text-text-secondary text-[13px]">
@@ -394,7 +394,7 @@ export default function IdeasPage() {
       <section id="intelligence" className="space-y-6 pt-4">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
+            <h2 className="text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
               <Sparkles className="h-5 w-5 text-accent-primary" />
               Intelligence &amp; Research Lab
             </h2>
@@ -447,7 +447,7 @@ export default function IdeasPage() {
                   <div className="text-sm leading-snug text-text-primary line-clamp-3 flex-1">“{hook.text}”</div>
                   <div className="mt-3 flex items-center justify-between text-xs">
                     <div className="text-text-secondary">@{String(hook.author ?? '').replace(/^@+/, '')} • {hook.verticals?.[0] || 'general'}</div>
-                    <div className="font-mono text-accent-primary font-semibold">{hook.score}</div>
+                    <div className="text-accent-primary font-semibold">{hook.score}</div>
                   </div>
                   <div className="mt-2 flex items-center gap-2">
                     <CopyButton text={hook.text} className="text-[10px] px-2 py-0.5" />

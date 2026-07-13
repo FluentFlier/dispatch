@@ -6,6 +6,21 @@
  * (e.g. Video studio — API stubs until pipeline ships).
  */
 
+import {
+  BarChart3,
+  Brain,
+  CalendarDays,
+  FileText,
+  Home,
+  Lightbulb,
+  MessageSquare,
+  PenLine,
+  Settings,
+  SlidersHorizontal,
+  Target,
+  type LucideIcon,
+} from 'lucide-react';
+
 export interface NavItem {
   name: string;
   href: string;
@@ -51,3 +66,24 @@ export const primaryNav = navItems.filter((item) => item.section === 'primary' &
 
 /** Visible secondary nav entries (sidebar "More" + mobile sheet). */
 export const moreNav = navItems.filter((item) => item.section === 'more' && !item.hidden);
+
+/**
+ * Single source of truth for nav icons, shared by the desktop `Sidebar` and the
+ * mobile `BottomBar` so the two chromes can never drift apart.
+ */
+export const navIcons: Record<string, LucideIcon> = {
+  '/dashboard': Home,
+  '/generate': PenLine,
+  '/library': FileText,
+  '/calendar': CalendarDays,
+  '/inbox': MessageSquare,
+  '/leads': Target,
+  '/brain': Brain,
+  '/event-capture': CalendarDays,
+  '/ideas': Lightbulb,
+  '/series': FileText,
+  '/story-bank': FileText,
+  '/voice-lab': SlidersHorizontal,
+  '/analytics': BarChart3,
+  '/settings': Settings,
+};

@@ -215,7 +215,7 @@ export default function GenerateVariantsSection({
     <div className="space-y-3">
       {/* Section header */}
       <div className="pt-3">
-        <span className="text-[10px] font-medium tracking-[0.10em] uppercase text-text-secondary">
+        <span className="text-[10px] font-medium tracking-[0.10em] text-text-secondary">
           GENERATE VARIANTS
         </span>
       </div>

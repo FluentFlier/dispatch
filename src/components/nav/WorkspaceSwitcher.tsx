@@ -108,7 +108,7 @@ export default function WorkspaceSwitcher() {
           )}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[10px] uppercase tracking-wide text-ink3">
+          <span className="block text-[10px] tracking-wide text-ink3">
             {active.type === 'client' ? 'Client' : 'Workspace'}
           </span>
           <span className="block truncate text-sm font-medium text-ink">{active.name}</span>

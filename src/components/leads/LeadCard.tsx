@@ -75,7 +75,7 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown, checke
       {/* Top line: source badge + score */}
       <div className="flex items-center justify-between gap-2">
         <span
-          className={`inline-flex items-center gap-1 text-[10px] font-mono uppercase tracking-wide px-1.5 py-0.5 rounded ${
+          className={`inline-flex items-center gap-1 text-[10px] tracking-wide px-1.5 py-0.5 rounded ${
             badge.live
               ? 'bg-coral-light text-coral-dark'
               : 'bg-accent-light text-accent-primary'
@@ -123,7 +123,7 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown, checke
       )}
 
       {/* Contact-status pill */}
-      <div className="mt-1.5">
+      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
         <span
           className={`text-[10px] px-1.5 py-0.5 rounded ${
             reachable
@@ -133,6 +133,11 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown, checke
         >
           {pill}
         </span>
+        {card.needsReply && (
+          <span className="text-[10px] px-1.5 py-0.5 rounded bg-coral-light text-coral-dark font-medium">
+            Needs reply
+          </span>
+        )}
       </div>
     </button>
     </div>

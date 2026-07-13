@@ -84,7 +84,7 @@ export default function PostTable({ posts, selected, onSelect, onSelectAll, onCl
             {COLUMNS.map(([key, label]) => (
               <th
                 key={key}
-                className="py-2 px-2 font-mono text-[11px] uppercase tracking-[0.08em] cursor-pointer hover:text-ink select-none"
+                className="py-2 px-2 text-[11px] tracking-[0.08em] cursor-pointer hover:text-ink select-none"
                 onClick={() => toggleSort(key)}
               >
                 <span className="inline-flex items-center gap-1">
@@ -125,8 +125,8 @@ export default function PostTable({ posts, selected, onSelect, onSelectAll, onCl
               <td className="py-2.5 px-2">
                 <StatusBadge status={post.status} />
               </td>
-              <td className="py-2.5 px-2 font-mono text-[12px] text-ink3">{formatDateShort(post.scheduled_date)}</td>
-              <td className="py-2.5 px-2 font-mono text-[12px] text-ink3">
+              <td className="py-2.5 px-2 text-[12px] text-ink3 tabular-nums">{formatDateShort(post.scheduled_date)}</td>
+              <td className="py-2.5 px-2 text-[12px] text-ink3 tabular-nums">
                 {post.views !== null ? `${post.views} views` : '--'}
               </td>
             </tr>

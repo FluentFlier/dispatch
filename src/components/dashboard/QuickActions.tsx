@@ -14,14 +14,14 @@ const actions = [
     description: 'See drafts, scheduled, and published content.',
     href: '/library',
     icon: FolderOpen,
-    accent: 'bg-teal/10 text-teal',
+    accent: 'bg-blue/10 text-blue',
   },
   {
     title: 'Inbox',
     description: 'Comment replies and warm contacts from your posts.',
     href: '/inbox',
     icon: MessageCircle,
-    accent: 'bg-paper2 text-ink2',
+    accent: 'bg-lilac/15 text-lilac',
   },
   {
     title: 'Leads',

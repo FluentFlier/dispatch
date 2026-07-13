@@ -57,7 +57,7 @@ export default function AudienceSection({
         <div className="mb-4 flex items-center gap-2">
           <ThumbsUp className="h-5 w-5 text-coral" />
           <h3 className="font-semibold">Reaction Breakdown</h3>
-          <span className="ml-auto font-mono text-xs text-text-tertiary">
+          <span className="ml-auto text-xs text-text-tertiary tabular-nums">
             {engagement.totalReactions} total
           </span>
         </div>
@@ -78,7 +78,7 @@ export default function AudienceSection({
                       style={{ width: `${maxReaction ? (count / maxReaction) * 100 : 0}%` }}
                     />
                   </div>
-                  <span className="w-10 shrink-0 text-right font-mono text-sm tabular-nums">
+                  <span className="w-10 shrink-0 text-right text-sm tabular-nums">
                     {count}
                   </span>
                 </div>
@@ -93,7 +93,7 @@ export default function AudienceSection({
         <div className="mb-4 flex items-center gap-2">
           <MessageSquare className="h-5 w-5 text-sage" />
           <h3 className="font-semibold">Top Commenters</h3>
-          <span className="ml-auto font-mono text-xs text-text-tertiary">
+          <span className="ml-auto text-xs text-text-tertiary tabular-nums">
             {engagement.totalComments} comments
           </span>
         </div>
@@ -103,7 +103,7 @@ export default function AudienceSection({
           <ul className="space-y-3">
             {engagement.topCommenters.map((c, i) => (
               <li key={`${c.handle ?? c.name}-${i}`} className="flex items-center gap-3">
-                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg font-mono text-xs text-text-tertiary">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg text-xs text-text-tertiary tabular-nums">
                   {i + 1}
                 </span>
                 <div className="min-w-0 flex-1">
@@ -112,7 +112,7 @@ export default function AudienceSection({
                     <div className="truncate text-xs text-text-tertiary">{c.headline}</div>
                   )}
                 </div>
-                <span className="shrink-0 rounded bg-sage/10 px-2 py-0.5 font-mono text-xs text-sage">
+                <span className="shrink-0 rounded bg-sage/10 px-2 py-0.5 text-xs text-sage tabular-nums">
                   {c.count}
                 </span>
               </li>

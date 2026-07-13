@@ -28,6 +28,8 @@ export function sourceBadge(card: UnifiedLeadCard): SourceBadge {
     case 'yc_directory':
     case 'yc_launches':
       return { label: 'YC', live: false };
+    case 'web_discovery':
+      return { label: 'Web', live: false };
     case 'product_hunt':
       return { label: 'Product Hunt', live: false };
     default:

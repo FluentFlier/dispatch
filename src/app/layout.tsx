@@ -89,7 +89,7 @@ export default function RootLayout({
       lang="en"
       className={`scroll-smooth ${dmSans.variable} ${fraunces.variable} ${hanken.variable} ${jetbrains.variable}`}
     >
-      <body className={dmSans.className}>{children}</body>
+      <body className={hanken.className}>{children}</body>
     </html>
   );
 }
