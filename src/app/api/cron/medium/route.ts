@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { waitUntil } from '@vercel/functions';
 import { logCronRun, cronStatusFromResults } from '@/lib/admin/cron-log';
 
 /**
@@ -89,17 +90,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const outcomes = await Promise.all(jobs);
-  const result = Object.fromEntries(outcomes);
+  // Do NOT block the HTTP response on the fan-out: sub-jobs (engagement-sync in
+  // particular) are unbounded batch jobs that run for minutes, but cron-job.org
+  // hard-kills the request at 30s → every run reported as a timeout (status=5).
+  // Each sub-job is its own Vercel invocation, so drain them via waitUntil and
+  // return immediately. The scheduler gets a fast 200; work continues server-side.
+  const dispatched = jobs.length;
+  waitUntil(
+    Promise.all(jobs).then((outcomes) => {
+      const result = Object.fromEntries(outcomes);
+      const { status, errorMessage } = cronStatusFromResults(result);
+      return logCronRun({
+        jobName: 'medium',
+        status,
+        durationMs: Date.now() - started,
+        summary: result,
+        errorMessage,
+      });
+    }),
+  );
 
-  const { status, errorMessage } = cronStatusFromResults(result);
-  void logCronRun({
-    jobName: 'medium',
-    status,
-    durationMs: Date.now() - started,
-    summary: result,
-    errorMessage,
-  });
-
-  return NextResponse.json(result);
+  return NextResponse.json({ ok: true, dispatched });
 }

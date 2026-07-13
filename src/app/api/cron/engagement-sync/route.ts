@@ -9,6 +9,22 @@ import { isEnabled } from '@/lib/feature-flags';
 import { logError, logInfo } from '@/lib/logger';
 import { usage } from '@/lib/hooks-intelligence/usage-tracker';
 
+// Hobby plan caps function runtime at 60s; keep the loop under it and return
+// cleanly instead of being killed mid-write.
+export const maxDuration = 60;
+const TIME_BUDGET_MS = 50_000; // stop starting new users past this; leaves headroom
+const CALL_TIMEOUT_MS = 20_000; // abandon a single hung provider call
+
+/** Reject a hung provider promise so one bad Unipile call can't stall the pass. */
+function withTimeout<T>(p: Promise<T>, label: string): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`${label} timed out after ${CALL_TIMEOUT_MS}ms`)), CALL_TIMEOUT_MS),
+    ),
+  ]);
+}
+
 /**
  * GET /api/cron/engagement-sync: pull comments for users with published posts.
  * Protected by CRON_SECRET Bearer token.
@@ -51,9 +67,24 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const nurtureEnabled =
       socialGraphAvailable() && (await isEnabled(client, 'loop_engager_nurture'));
 
-    for (const userId of userIds.slice(0, 50)) {
+    const deadline = Date.now() + TIME_BUDGET_MS;
+    const candidates = userIds.slice(0, 50);
+    let deferred = 0;
+
+    for (const userId of candidates) {
+      if (Date.now() > deadline) {
+        deferred = candidates.length - results.length;
+        logInfo('engagement-sync time budget reached, deferring remaining users', {
+          processed: results.length,
+          deferred,
+        });
+        break;
+      }
       try {
-        const result = await syncEngagementComments(client, userId, { fetchFromProvider: true });
+        const result = await withTimeout(
+          syncEngagementComments(client, userId, { fetchFromProvider: true }),
+          'syncEngagementComments',
+        );
         const row: (typeof results)[number] = {
           user_id: userId,
           synced: result.synced,
@@ -70,9 +101,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
               .limit(1)
               .maybeSingle();
             const workspaceId = (member?.workspace_id as string | undefined) ?? null;
-            const warmResult = await syncWarmContacts(client, userId, workspaceId, {
-              maxPosts: 5,
-            });
+            const warmResult = await withTimeout(
+              syncWarmContacts(client, userId, workspaceId, { maxPosts: 5 }),
+              'syncWarmContacts',
+            );
             row.warm_contacts_upserted = warmResult.contactsUpserted;
             if (warmResult.errors.length) {
               row.errors.push(...warmResult.errors.map((e) => `warm: ${e}`));
@@ -83,7 +115,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
             // are captured but never fail the surrounding sync.
             if (nurtureEnabled && workspaceId && !nurturedWorkspaces.has(workspaceId)) {
               nurturedWorkspaces.add(workspaceId);
-              const nurture = await runEngagerNurtureForWorkspace(client, workspaceId);
+              const nurture = await withTimeout(
+                runEngagerNurtureForWorkspace(client, workspaceId),
+                'runEngagerNurtureForWorkspace',
+              );
               row.engagers_nurtured =
                 nurture.planned + nurture.connectsSent + nurture.dmsSent;
               if (nurture.errors.length) {
@@ -135,8 +170,8 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    logInfo('engagement-sync cron complete', { users: results.length });
-    return NextResponse.json({ ok: true, users: results.length, results });
+    logInfo('engagement-sync cron complete', { users: results.length, deferred });
+    return NextResponse.json({ ok: true, users: results.length, deferred, results });
   } catch (err) {
     logError('engagement-sync cron error', {
       message: err instanceof Error ? err.message : String(err),
