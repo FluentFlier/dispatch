@@ -165,11 +165,14 @@ export default function LibraryPage() {
 
   // Bulk actions
   const handleBulkDelete = async () => {
-    if (!userId || selected.size === 0) return;
+    // Server authenticates from the httpOnly cookie — don't gate on the browser
+    // SDK's userId (it can lag), and use fetchWithAuth so a 401 refreshes+retries
+    // instead of silently failing (the old plain fetch() left delete broken).
+    if (selected.size === 0) return;
     if (!confirm(`Delete ${selected.size} post(s)?`)) return;
     const ids = Array.from(selected);
     await Promise.all(
-      ids.map((id) => fetch(`/api/posts/${id}`, { method: 'DELETE' }))
+      ids.map((id) => fetchWithAuth(`/api/posts/${id}`, { method: 'DELETE' }))
     );
     setSelected(new Set());
     fetchData();
@@ -498,12 +501,26 @@ export default function LibraryPage() {
           )}
         </div>
       ) : view === 'card' ? (
-        <PostGrid
-          posts={filtered}
-          selected={selected}
-          onSelect={toggleSelect}
-          onClickPost={openEditor}
-        />
+        <div className="space-y-3">
+          <label className="flex w-fit items-center gap-2 cursor-pointer text-[13px] text-text-secondary hover:text-text-primary select-none">
+            <input
+              type="checkbox"
+              checked={selected.size === filtered.length && filtered.length > 0}
+              ref={(el) => {
+                if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length;
+              }}
+              onChange={toggleSelectAll}
+              className="w-4 h-4 accent-accent-primary"
+            />
+            Select all ({filtered.length})
+          </label>
+          <PostGrid
+            posts={filtered}
+            selected={selected}
+            onSelect={toggleSelect}
+            onClickPost={openEditor}
+          />
+        </div>
       ) : (
         <PostTable
           posts={filtered}
