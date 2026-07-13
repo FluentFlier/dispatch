@@ -404,7 +404,7 @@ export function ScriptGenerator({
     }
   }, []);
 
-  // Scroll only the chat pane — scrollIntoView would also move ancestor
+  // Scroll only the chat pane - scrollIntoView would also move ancestor
   // containers and jump the whole page down to the latest draft.
   useEffect(() => {
     const el = scrollRef.current;
@@ -473,7 +473,7 @@ export function ScriptGenerator({
     let assembled: string;
     if (priorDraft) {
       assembled = assembleGeneratePrompt({
-        base: `Revise this ${platform} post based on the creator's latest message. Return ONLY the updated post — no commentary, no labels.`,
+        base: `Revise this ${platform} post based on the creator's latest message. Return ONLY the updated post - no commentary, no labels.`,
         thoughts: `CURRENT DRAFT:\n${priorDraft}\n\nCREATOR SAID:\n${trimmed}`,
         lengthHint: POST_LENGTH_CONFIG[postLength].hint,
       });
@@ -535,7 +535,7 @@ export function ScriptGenerator({
         if (acc.trim()) {
           finalizeMessage(assistantId, acc, []);
         } else {
-          // Nothing streamed yet — drop the exchange and hand the prompt back.
+          // Nothing streamed yet - drop the exchange and hand the prompt back.
           setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
           setInput(trimmed);
         }
@@ -628,7 +628,7 @@ export function ScriptGenerator({
               What are we creating today?
             </h1>
             <p className="mt-2 text-sm text-ink3">
-              Tell me the idea — I&apos;ll draft it in your voice for {platformLabel}.
+              Tell me the idea - I&apos;ll draft it in your voice for {platformLabel}.
             </p>
           </div>
         )}
@@ -696,124 +696,17 @@ export function ScriptGenerator({
       </div>
 
       <div className="sticky bottom-0 rounded-2xl border border-hair bg-paper shadow-soft">
-        <div className="flex flex-wrap items-center gap-2 border-b border-hair px-3 py-2 text-[12px]">
-          <select
-            value={pillar}
-            onChange={(e) => setPillar(e.target.value)}
-            disabled={pillarsLoading}
-            aria-label="Content pillar"
-            className="rounded-full border border-hair bg-paper2 px-2.5 py-1 text-ink2 focus:outline-none disabled:opacity-50"
-          >
-            {pillarList.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-
-          <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
-            {DASHBOARD_PLATFORMS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPlatform(p)}
-                className={`rounded-full px-2.5 py-0.5 transition-colors ${
-                  platform === p ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
-                }`}
-              >
-                {PLATFORM_LABELS[p]}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
-            {(Object.keys(POST_LENGTH_CONFIG) as PostLength[]).map((len) => (
-              <button
-                key={len}
-                type="button"
-                onClick={() => changeLength(len)}
-                className={`rounded-full px-2.5 py-0.5 transition-colors ${
-                  postLength === len ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
-                }`}
-              >
-                {POST_LENGTH_CONFIG[len].label}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative ml-auto flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => void openHistory()}
-              aria-label="Chat history"
-              aria-expanded={historyOpen}
-              className="flex items-center gap-1 rounded-full px-2.5 py-1 text-ink3 transition-colors hover:text-ink2"
-            >
-              <History className="h-3.5 w-3.5" />
-              History
-            </button>
-            {messages.length > 0 && (
-              <button
-                type="button"
-                onClick={newChat}
-                className="flex items-center gap-1 rounded-full px-2.5 py-1 text-ink3 transition-colors hover:text-ink2"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                New
-              </button>
-            )}
-            {historyOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setHistoryOpen(false)} />
-                <div className="absolute bottom-8 right-0 z-20 max-h-80 w-72 overflow-y-auto rounded-xl border border-hair bg-paper py-1 shadow-soft">
-                  {historyLoading && (
-                    <div className="flex items-center gap-2 px-3 py-2 text-[13px] text-ink3">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
-                    </div>
-                  )}
-                  {!historyLoading && history.length === 0 && (
-                    <p className="px-3 py-2 text-[13px] text-ink3">No saved chats yet.</p>
-                  )}
-                  {history.map((chat) => (
-                    <div
-                      key={chat.id}
-                      className={`group flex items-center gap-2 px-3 py-2 transition-colors hover:bg-paper2 ${
-                        chat.id === conversationId ? 'bg-paper2' : ''
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => void loadConversation(chat.id)}
-                        className="min-w-0 flex-1 text-left"
-                      >
-                        <span className="block truncate text-[13px] text-ink2">{chat.title}</span>
-                        <span className="text-[11px] text-ink3">{formatChatDate(chat.updated_at)}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void deleteConversation(chat.id)}
-                        aria-label={`Delete "${chat.title}"`}
-                        className="hidden rounded p-1 text-ink3 transition-colors hover:text-accent-primary group-hover:block"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={2}
           autoFocus
-          placeholder={lastDraft ? 'Ask for changes — shorter, punchier hook, add a CTA…' : 'What do you want to post about?'}
+          placeholder={lastDraft ? 'Ask for changes - shorter, punchier hook, add a CTA…' : 'What do you want to post about?'}
           className="w-full resize-none bg-transparent px-4 py-3 font-body text-[15px] leading-relaxed text-ink placeholder:text-ink3 focus:outline-none"
         />
         <div className="flex items-center justify-between border-t border-hair px-3 py-2">
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-2 text-[12px]">
             {/* ChatGPT-style "+" menu: per-draft voice toggle + publish. */}
             <div className="relative">
               <button
@@ -858,6 +751,111 @@ export function ScriptGenerator({
               onText={(t) => setInput((cur) => (cur ? `${cur} ${t}` : t))}
               title="Dictate"
             />
+
+            <select
+              value={pillar}
+              onChange={(e) => setPillar(e.target.value)}
+              disabled={pillarsLoading}
+              aria-label="Content pillar"
+              className="rounded-full border border-hair bg-paper2 px-2.5 py-1 text-ink2 focus:outline-none disabled:opacity-50"
+            >
+              {pillarList.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
+
+            <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
+              {DASHBOARD_PLATFORMS.map((p) => (
+                <button
+                  key={p}
+                  type="button"
+                  onClick={() => setPlatform(p)}
+                  className={`rounded-full px-2.5 py-0.5 transition-colors ${
+                    platform === p ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
+                  }`}
+                >
+                  {PLATFORM_LABELS[p]}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
+              {(Object.keys(POST_LENGTH_CONFIG) as PostLength[]).map((len) => (
+                <button
+                  key={len}
+                  type="button"
+                  onClick={() => changeLength(len)}
+                  className={`rounded-full px-2.5 py-0.5 transition-colors ${
+                    postLength === len ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
+                  }`}
+                >
+                  {POST_LENGTH_CONFIG[len].label}
+                </button>
+              ))}
+            </div>
+
+            <div className="relative flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => void openHistory()}
+                aria-label="Chat history"
+                aria-expanded={historyOpen}
+                className="flex items-center gap-1 rounded-full px-2.5 py-1 text-ink3 transition-colors hover:text-ink2"
+              >
+                <History className="h-3.5 w-3.5" />
+                History
+              </button>
+              {messages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={newChat}
+                  className="flex items-center gap-1 rounded-full px-2.5 py-1 text-ink3 transition-colors hover:text-ink2"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  New
+                </button>
+              )}
+              {historyOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setHistoryOpen(false)} />
+                  <div className="absolute bottom-11 left-0 z-20 max-h-80 w-72 overflow-y-auto rounded-xl border border-hair bg-paper py-1 shadow-soft">
+                    {historyLoading && (
+                      <div className="flex items-center gap-2 px-3 py-2 text-[13px] text-ink3">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+                      </div>
+                    )}
+                    {!historyLoading && history.length === 0 && (
+                      <p className="px-3 py-2 text-[13px] text-ink3">No saved chats yet.</p>
+                    )}
+                    {history.map((chat) => (
+                      <div
+                        key={chat.id}
+                        className={`group flex items-center gap-2 px-3 py-2 transition-colors hover:bg-paper2 ${
+                          chat.id === conversationId ? 'bg-paper2' : ''
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => void loadConversation(chat.id)}
+                          className="min-w-0 flex-1 text-left"
+                        >
+                          <span className="block truncate text-[13px] text-ink2">{chat.title}</span>
+                          <span className="text-[11px] text-ink3">{formatChatDate(chat.updated_at)}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteConversation(chat.id)}
+                          aria-label={`Delete "${chat.title}"`}
+                          className="hidden rounded p-1 text-ink3 transition-colors hover:text-accent-primary group-hover:block"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
           {loading ? (
             <button
