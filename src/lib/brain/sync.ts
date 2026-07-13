@@ -296,9 +296,11 @@ async function syncBrainStories(
   userId: string,
   workspaceId?: string,
 ): Promise<number> {
+  // story_bank stores mined memories, not title/body/category/tags columns.
+  // Derive the brain node fields from the real schema (raw_memory + mined_* + pillar).
   let query = client.database
     .from('story_bank')
-    .select('id, title, body, category, tags')
+    .select('id, raw_memory, mined_angle, mined_hook, pillar')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(30);
@@ -311,25 +313,27 @@ async function syncBrainStories(
   for (const row of stories ?? []) {
     const story = row as {
       id: string;
-      title: string;
-      body: string | null;
-      category: string | null;
-      tags: string[] | null;
+      raw_memory: string | null;
+      mined_angle: string | null;
+      mined_hook: string | null;
+      pillar: string | null;
     };
-    const content = story.body?.trim() ?? '';
-    if (!content && !story.title?.trim()) continue;
+    const title = story.mined_angle?.trim() || story.mined_hook?.trim() || 'Story';
+    const content = story.raw_memory?.trim() ?? '';
+    if (!content && title === 'Story') continue;
+    const tags = story.pillar ? [story.pillar] : [];
 
     await putBrainPage(client, userId, {
       slug: BRAIN_SLUG.story(story.id),
-      title: story.title || 'Story',
-      tags: ['story', ...(story.tags ?? [])],
+      title,
+      tags: ['story', ...tags],
       body: JSON.stringify(
         {
           story_id: story.id,
-          title: story.title,
+          title,
           content: content.slice(0, 4000),
-          category: story.category,
-          tags: story.tags ?? [],
+          category: story.pillar,
+          tags,
           synced_at: new Date().toISOString(),
         },
         null,

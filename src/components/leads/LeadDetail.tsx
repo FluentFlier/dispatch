@@ -590,7 +590,7 @@ export function LeadDetail({
       {/* Actions */}
       {draft && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          {inReplyMode && onSendReply ? (
+          {lead.needs_reply && onSendReply ? (
             <Button
               variant="primary"
               size="sm"
@@ -600,7 +600,7 @@ export function LeadDetail({
             >
               <Send className="h-4 w-4" /> Send reply
             </Button>
-          ) : hasLinkedIn && (
+          ) : inReplyMode ? null : hasLinkedIn && (
             <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_connect')} loading={approveBusy} disabled={noContact || overLimit || anyBusy}>
               <Send className="h-4 w-4" /> LinkedIn
             </Button>
