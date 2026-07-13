@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback, type KeyboardEvent, useMemo } from 'react';
-import { ArrowUp, Loader2, Square, Plus, AudioLines, Send, Check, History, Trash2 } from 'lucide-react';
+import { useEffect, useState, useRef, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent, useMemo } from 'react';
+import { ArrowUp, Loader2, Square, Plus, AudioLines, Send, Check, History, Trash2, Paperclip, X } from 'lucide-react';
 import { MicDictate } from './MicDictate';
 import { assembleGeneratePrompt } from '@/lib/generate-prompt';
 import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
@@ -167,7 +167,7 @@ function newId(): string {
 function buildFirstDraftBase(
   pillar: string,
   pillarLabel: string,
-  platform: DashboardPlatform,
+  platform: DashboardPlatform | null,
   promptTemplate?: string,
 ): string {
   if (promptTemplate) return promptTemplate;
@@ -178,6 +178,12 @@ Hook: One strong first line.
 Setup: 2-3 sentences of context or stakes.
 Story or data: 2-4 sentences of specific detail.
 Insight: 2-3 sentences of real takeaway.
+CTA: One direct question.`;
+  }
+  if (platform === null) {
+    return `Write a short post. Creator's voice only. No em dashes.
+HOOK: One bold first line.
+BODY: 3-4 beats, each one sentence.
 CTA: One direct question.`;
   }
   return `Write a ${platform} post script. Creator's voice only. Under 60 seconds when spoken. No em dashes.
@@ -194,6 +200,8 @@ interface ScriptGeneratorProps {
   initialMentions?: string[];
   autoGenerate?: boolean;
 }
+
+const PLATFORM_OPTIONS: (DashboardPlatform | null)[] = [null, ...DASHBOARD_PLATFORMS];
 
 const CHAT_KEY = 'generate:script:chat';
 const CHAT_ID_KEY = 'generate:script:chat-id';
@@ -236,7 +244,7 @@ export function ScriptGenerator({
 
   const [pillar, setPillar] = useState(initialPillar);
   const [input, setInput] = useState('');
-  const [platform, setPlatform] = useState<DashboardPlatform>(initialPlatform ?? 'linkedin');
+  const [platform, setPlatform] = useState<DashboardPlatform | null>(initialPlatform ?? 'linkedin');
   const [postLength, setPostLength] = useState<PostLength>(preferredPostLength);
   const [useVoice, setUseVoice] = useState(voiceEnabled);
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -261,6 +269,9 @@ export function ScriptGenerator({
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [stage, setStage] = useState<GenStage | null>(null);
   const [error, setError] = useState('');
+  const [attachments, setAttachments] = useState<{ id: string; name: string; text: string }[]>([]);
+  const [attaching, setAttaching] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const autoGenTriggered = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -327,7 +338,7 @@ export function ScriptGenerator({
             const res = await fetchWithAuth('/api/chats', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ messages: snapshot, platform, pillar }),
+              body: JSON.stringify({ messages: snapshot, ...(platform ? { platform } : {}), pillar }),
             });
             if (res.ok) {
               const data = await res.json();
@@ -404,6 +415,42 @@ export function ScriptGenerator({
     }
   }, []);
 
+  const handleFiles = useCallback(async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList).filter((f) =>
+      /\.(txt|md|pdf)$/i.test(f.name) || f.type === 'application/pdf' || f.type.startsWith('text/'),
+    );
+    if (files.length === 0) return;
+    setAttaching(true);
+    for (const file of files) {
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetchWithAuth('/api/generate/parse-file', { method: 'POST', body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { setError((data as { error?: string }).error ?? `Couldn't read ${file.name}`); continue; }
+        setAttachments((prev) => [...prev, { id: newId(), name: (data.name as string) ?? file.name, text: (data.text as string) ?? '' }]);
+      } catch {
+        setError(`Couldn't read ${file.name}`);
+      }
+    }
+    setAttaching(false);
+  }, []);
+
+  function onFileInputChange(e: ChangeEvent<HTMLInputElement>) {
+    if (e.target.files?.length) void handleFiles(e.target.files);
+    e.target.value = '';
+  }
+
+  function onComposerDrop(e: DragEvent<HTMLDivElement>) {
+    if (!e.dataTransfer.files?.length) return;
+    e.preventDefault();
+    void handleFiles(e.dataTransfer.files);
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }
+
   // Scroll only the chat pane - scrollIntoView would also move ancestor
   // containers and jump the whole page down to the latest draft.
   useEffect(() => {
@@ -470,18 +517,22 @@ export function ScriptGenerator({
     const pillarLabel = info?.label ?? getLabel(pillar);
     const mode: 'draft' | 'revise' = priorDraft ? 'revise' : 'draft';
 
+    const attachmentBlock = attachments.length
+      ? `\n\nATTACHED FILE CONTEXT:\n${attachments.map((a) => `[${a.name}]\n${a.text}`).join('\n\n')}`
+      : '';
+
     let assembled: string;
     if (priorDraft) {
       assembled = assembleGeneratePrompt({
-        base: `Revise this ${platform} post based on the creator's latest message. Return ONLY the updated post - no commentary, no labels.`,
-        thoughts: `CURRENT DRAFT:\n${priorDraft}\n\nCREATOR SAID:\n${trimmed}`,
+        base: `Revise this${platform ? ` ${platform}` : ''} post based on the creator's latest message. Return ONLY the updated post - no commentary, no labels.`,
+        thoughts: `CURRENT DRAFT:\n${priorDraft}\n\nCREATOR SAID:\n${trimmed}${attachmentBlock}`,
         lengthHint: POST_LENGTH_CONFIG[postLength].hint,
       });
     } else {
       const base = buildFirstDraftBase(pillar, pillarLabel, platform, info?.promptTemplate);
       assembled = assembleGeneratePrompt({
         base,
-        thoughts: trimmed,
+        thoughts: `${trimmed}${attachmentBlock}`,
         lengthHint: POST_LENGTH_CONFIG[postLength].hint,
       });
     }
@@ -491,6 +542,7 @@ export function ScriptGenerator({
     const assistantId = newId();
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: 'assistant', content: '' }]);
     setInput('');
+    setAttachments([]);
     setError('');
     setLoading(true);
     setStreamingId(assistantId);
@@ -506,7 +558,7 @@ export function ScriptGenerator({
         {
           prompt: assembled,
           topic: assembled.slice(0, 200),
-          platform,
+          ...(platform ? { platform } : {}),
           useVoice,
           mode,
           ...(mentions.length > 0 ? { mentions } : {}),
@@ -562,7 +614,7 @@ export function ScriptGenerator({
     }
   }, [
     loading, pillarsLoading, prefLoading, pillar, pillarList, getLabel,
-    platform, postLength, useVoice, stableInitialMentions, messages,
+    platform, postLength, useVoice, stableInitialMentions, messages, attachments,
     scheduleFlush, finalizeMessage,
   ]);
 
@@ -616,7 +668,7 @@ export function ScriptGenerator({
     });
   }
 
-  const platformLabel = PLATFORM_LABELS[platform];
+  const platformLabel = platform ? PLATFORM_LABELS[platform] : 'any platform';
   const isEmpty = messages.length === 0 && !loading;
 
   return (
@@ -671,7 +723,7 @@ export function ScriptGenerator({
                   <GenerateOutput
                     text={msg.content}
                     loading={false}
-                    sourcePlatform={platform}
+                    sourcePlatform={platform ?? undefined}
                     voiceMetrics={msg.voiceMetrics}
                     completeness={msg.completeness}
                     onTextUpdate={updateDraft}
@@ -695,15 +747,31 @@ export function ScriptGenerator({
         <div ref={bottomRef} />
       </div>
 
-      <div className="sticky bottom-0 rounded-2xl border border-hair bg-paper shadow-soft">
+      <div
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={onComposerDrop}
+        className="sticky bottom-0 rounded-2xl border border-hair bg-paper shadow-soft transition-shadow focus-within:border-accent focus-within:shadow-[0_0_0_3px_var(--accent-light)]"
+      >
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-4 pt-3">
+            {attachments.map((a) => (
+              <span key={a.id} className="inline-flex items-center gap-1 rounded-full border border-hair bg-paper2 px-2.5 py-1 text-[12px] text-ink2">
+                {a.name}
+                <button type="button" onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`} className="text-ink3 hover:text-ink">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+        )}
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          rows={2}
+          rows={3}
           autoFocus
           placeholder={lastDraft ? 'Ask for changes - shorter, punchier hook, add a CTA…' : 'What do you want to post about?'}
-          className="w-full resize-none bg-transparent px-4 py-3 font-body text-[15px] leading-relaxed text-ink placeholder:text-ink3 focus:outline-none"
+          className="w-full resize-none bg-transparent px-4 py-3 font-body text-[15px] leading-relaxed text-ink placeholder:text-ink3 focus:outline-none focus:shadow-none focus:border-transparent"
         />
         <div className="flex items-center justify-between border-t border-hair px-3 py-2">
           <div className="flex flex-wrap items-center gap-2 text-[12px]">
@@ -721,7 +789,7 @@ export function ScriptGenerator({
               {plusMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setPlusMenuOpen(false)} />
-                  <div className="absolute bottom-11 left-0 z-20 w-52 overflow-hidden rounded-xl border border-hair bg-paper py-1 shadow-soft">
+                  <div className="absolute bottom-11 left-0 z-20 w-64 overflow-hidden rounded-xl border border-hair bg-paper py-1 shadow-soft">
                     <button
                       type="button"
                       onClick={() => { toggleVoice(); }}
@@ -734,14 +802,53 @@ export function ScriptGenerator({
                       </span>
                       {useVoice && <Check className="h-3.5 w-3.5 text-ink" />}
                     </button>
+
+                    <div className="px-3 py-2">
+                      <p className="mb-1.5 text-[11px] font-medium text-ink3">Platform</p>
+                      <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
+                        {PLATFORM_OPTIONS.map((p) => (
+                          <button
+                            key={p ?? 'none'}
+                            type="button"
+                            onClick={() => setPlatform(p)}
+                            className={`flex-1 rounded-full px-2 py-1 text-[12px] transition-colors ${
+                              platform === p ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
+                            }`}
+                          >
+                            {p ? PLATFORM_LABELS[p] : 'None'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="px-3 py-2">
+                      <p className="mb-1.5 text-[11px] font-medium text-ink3">Length</p>
+                      <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
+                        {(Object.keys(POST_LENGTH_CONFIG) as PostLength[]).map((len) => (
+                          <button
+                            key={len}
+                            type="button"
+                            onClick={() => changeLength(len)}
+                            className={`flex-1 rounded-full px-2 py-1 text-[12px] transition-colors ${
+                              postLength === len ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
+                            }`}
+                          >
+                            {POST_LENGTH_CONFIG[len].label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => { setPlusMenuOpen(false); setPublishOpen(true); }}
-                      disabled={!lastDraft.trim()}
+                      disabled={!lastDraft.trim() || !platform}
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-ink2 transition-colors hover:bg-paper2 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Send className="h-4 w-4 text-ink3" />
-                      <span className="flex-1">Publish{lastDraft.trim() ? '' : ' (draft first)'}</span>
+                      <span className="flex-1">
+                        Publish{!lastDraft.trim() ? ' (draft first)' : !platform ? ' (pick a platform)' : ''}
+                      </span>
                     </button>
                   </div>
                 </>
@@ -752,47 +859,24 @@ export function ScriptGenerator({
               title="Dictate"
             />
 
-            <select
-              value={pillar}
-              onChange={(e) => setPillar(e.target.value)}
-              disabled={pillarsLoading}
-              aria-label="Content pillar"
-              className="rounded-full border border-hair bg-paper2 px-2.5 py-1 text-ink2 focus:outline-none disabled:opacity-50"
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf"
+              multiple
+              hidden
+              onChange={onFileInputChange}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={attaching}
+              aria-label="Attach file"
+              title="Attach a text file or PDF"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-ink3 transition-colors hover:bg-paper2 hover:text-ink2 disabled:opacity-50"
             >
-              {pillarList.map((p) => (
-                <option key={p.value} value={p.value}>{p.label}</option>
-              ))}
-            </select>
-
-            <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
-              {DASHBOARD_PLATFORMS.map((p) => (
-                <button
-                  key={p}
-                  type="button"
-                  onClick={() => setPlatform(p)}
-                  className={`rounded-full px-2.5 py-0.5 transition-colors ${
-                    platform === p ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
-                  }`}
-                >
-                  {PLATFORM_LABELS[p]}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
-              {(Object.keys(POST_LENGTH_CONFIG) as PostLength[]).map((len) => (
-                <button
-                  key={len}
-                  type="button"
-                  onClick={() => changeLength(len)}
-                  className={`rounded-full px-2.5 py-0.5 transition-colors ${
-                    postLength === len ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
-                  }`}
-                >
-                  {POST_LENGTH_CONFIG[len].label}
-                </button>
-              ))}
-            </div>
+              {attaching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+            </button>
 
             <div className="relative flex items-center gap-1">
               <button
@@ -884,7 +968,7 @@ export function ScriptGenerator({
         open={publishOpen}
         onClose={() => setPublishOpen(false)}
         initialText={lastDraft}
-        platform={platform}
+        platform={platform ?? 'linkedin'}
       />
     </div>
   );
