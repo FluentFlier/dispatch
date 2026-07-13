@@ -49,6 +49,7 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
   const { toast } = useToast();
   const [data, setData] = useState<EngagementInboxResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [connected, setConnected] = useState<boolean | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [sendingBulk, setSendingBulk] = useState(false);
@@ -94,6 +95,23 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
   useEffect(() => {
     loadInbox();
   }, [loadInbox]);
+
+  // Connection status drives the empty-state copy: a connected user must never
+  // be told to "Connect accounts" (they'd think their LinkedIn dropped).
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/social-accounts')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled) setConnected(((j?.accounts as unknown[]) ?? []).length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setConnected(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -212,6 +230,25 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
     setDraftEdits((prev) => ({ ...prev, [queueId]: text }));
   };
 
+  // Auto-sync once per session when the inbox is empty but an account IS
+  // connected: imported/published posts have publish_jobs rows, so the very
+  // first visit should pull their comments instead of showing an empty inbox.
+  // Session-scoped guard keeps Unipile calls bounded (cost) — repeat visits with
+  // genuinely zero comments won't re-hammer the provider.
+  const isEmptyNow = (data?.groups.length ?? 0) === 0;
+  useEffect(() => {
+    if (loading || syncing || connected !== true || !isEmptyNow) return;
+    const guardKey = `engagement-autosync:${postId ?? 'all'}`;
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(guardKey)) return;
+    try {
+      sessionStorage.setItem(guardKey, '1');
+    } catch {
+      /* private mode — proceed without the guard */
+    }
+    handleSync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, connected, isEmptyNow]);
+
   if (loading) {
     return (
       <div className={compact ? 'space-y-3' : 'space-y-6'}>
@@ -283,16 +320,23 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
           </div>
           <h2 className="font-serif font-normal tracking-[-0.025em] text-ink text-[22px]">No comments yet</h2>
           <p className="mt-2 text-sm text-text-secondary max-w-sm mx-auto leading-relaxed">
-            {postId
-              ? 'Sync comments on this post after you publish, or connect a social account in settings.'
-              : 'Publish a post and sync comments from your connected accounts. They will show up here grouped by post.'}
+            {connected === false
+              ? 'Connect your LinkedIn or X account in settings, then sync to pull comments on your posts.'
+              : postId
+                ? 'No comments on this post yet. Sync to check for new ones.'
+                : 'Sync to pull comments on your posts from your connected account. They will show up here grouped by post.'}
           </p>
           <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-            <Button variant="secondary" size="md" loading={syncing} onClick={handleSync}>
+            <Button
+              variant={connected === false ? 'secondary' : 'primary'}
+              size="md"
+              loading={syncing}
+              onClick={handleSync}
+            >
               <RefreshCw className="h-4 w-4" />
-              Sync now
+              {syncing ? 'Syncing…' : 'Sync now'}
             </Button>
-            {!postId && (
+            {connected === false && !postId && (
               <Link
                 href="/settings"
                 className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-md text-[15px] font-medium border border-border bg-bg-secondary text-text-primary hover:bg-bg-tertiary transition-colors"
