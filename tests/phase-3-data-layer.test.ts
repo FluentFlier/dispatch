@@ -127,19 +127,21 @@ describe('P3-3: syncBrainPublishedPost — syncBrainWins not called per post', (
           limit: topFiveQueryMock,
         };
       }
-      // Default: covers creator_brain_pages, feature_flags, and any other table
+      // Default: covers creator_brain_pages, feature_flags, publish_jobs, and any
+      // other table. Fully chainable so multi-.eq() lookups (e.g. publish_jobs
+      // provider_post_id) resolve to a null row instead of throwing.
       const singleMock = vi.fn().mockResolvedValue({ data: { id: 'bp-1', enabled: false }, error: null });
-      const selectAfterUpsert = vi.fn().mockReturnValue({ single: singleMock });
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: singleMock,
-            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-        }),
-        eq: vi.fn().mockReturnThis(),
-        upsert: vi.fn().mockReturnValue({ select: selectAfterUpsert }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const chain: any = {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+        single: singleMock,
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        upsert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: singleMock }) }),
       };
+      return chain;
     });
 
     vi.doMock('@/lib/brain/pages', () => ({

@@ -55,6 +55,12 @@ export interface CreatorVoiceContext {
 interface LoadVoiceContextOptions {
   /** Topic or post idea; triggers Supermemory retrieval when set */
   memoryQuery?: string;
+  /**
+   * How many memory documents to retrieve. Defaults to 3. The prompt classifier
+   * raises this (e.g. to 10) when a prompt references a specific past event, so a
+   * single old post can surface above generic history.
+   */
+  memoryLimit?: number;
   /** Skip brain, Supermemory, story bank, and L4 metrics (faster outreach drafts) */
   lightweight?: boolean;
   /** Max few-shot samples injected into the prompt */
@@ -177,8 +183,17 @@ export function buildVoiceContextAdditions({
   }
 
   if (memorySnippets?.length) {
+    // Frame retrieved memory as PAST content, not a style template. Each snippet
+    // carries its own date (written into the content at memory-write time). Without
+    // this instruction the model copies an old present-tense post verbatim — e.g.
+    // re-emitting "I just got back from…" on a "remember that event" prompt.
     sections.push(
-      `SEMANTIC MEMORY:\n${memorySnippets.join('\n---\n')}`,
+      'PAST CONTENT YOU HAVE ALREADY PUBLISHED (each shown with its date):\n' +
+        `${memorySnippets.join('\n---\n')}\n\n` +
+        'These are things you posted in the past. Do NOT reproduce them or reuse ' +
+        'their tense. If the user asks to reflect on, remember, or revisit one of ' +
+        'these, write in the present looking back on a past event — never as if it ' +
+        'is happening now.',
     );
   }
 
@@ -357,8 +372,19 @@ export async function loadCreatorVoiceContext(
       // Pass workspaceId so the READ tag (workspace_${ws}) matches the WRITE tag
       // used by onboarding persona + published-post storage. Without it the search
       // fell back to user_${userId} and never found workspace-scoped memories.
-      const results = await searchUserContext(userId, options.memoryQuery.trim(), 3, options.workspaceId);
-      const snippets = results.map((r) => r.content).filter((c): c is string => Boolean(c));
+      const results = await searchUserContext(
+        userId,
+        options.memoryQuery.trim(),
+        options.memoryLimit ?? 3,
+        options.workspaceId,
+      );
+      // Drop story_bank docs here: story content already reaches the prompt via
+      // the dedicated UNUSED STORY BANK ANGLES injection below, so surfacing it
+      // again as semantic memory would double-inject the same story.
+      const snippets = results
+        .filter((r) => r.metadata?.type !== 'story_bank')
+        .map((r) => r.content)
+        .filter((c): c is string => Boolean(c));
       if (snippets.length > 0) {
         memorySnippets = snippets;
       }

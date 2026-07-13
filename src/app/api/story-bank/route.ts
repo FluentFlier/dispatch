@@ -51,5 +51,26 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     .single();
 
   if (error) return errorResponse('Could not save story.', 500, error);
+
+  // L3: write captured stories into memory so raw memory dumps inform future
+  // drafts by semantic search, not only via the Story Bank angle injection.
+  try {
+    const storyContent = (parsed.data.body ?? parsed.data.title).trim();
+    const storyId = (data as { id?: string } | null)?.id;
+    if (storyContent && storyId) {
+      const { writeToMemory } = await import('@/lib/memory/write');
+      await writeToMemory(client, {
+        userId: user.id,
+        workspaceId,
+        kind: 'story_bank',
+        content: storyContent,
+        customId: `story_${storyId}`,
+        metadata: { category: parsed.data.category ?? '' },
+      });
+    }
+  } catch (err) {
+    console.error('[story-bank] memory write failed (non-blocking):', err);
+  }
+
   return NextResponse.json({ story: data }, { status: 201 });
 }

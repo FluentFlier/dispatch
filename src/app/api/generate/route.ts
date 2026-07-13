@@ -9,6 +9,7 @@ import { errorResponse } from '@/lib/api-errors';
 import { LlmError } from '@/lib/llm';
 import { formatSignalTopicsBlock, getSignalTopicsForGeneration } from '@/lib/signals/content-bridge';
 import { trackEvent } from '@/lib/analytics';
+import { classifyPromptForMemory } from '@/lib/memory/classify-prompt';
 
 // The voice pipeline runs several sequential LLM calls (base → hooks → humanize →
 // voice → evaluate) and can exceed the platform default function timeout, which
@@ -51,9 +52,16 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     signalBlock = formatSignalTopicsBlock(topics);
   }
 
+  // Classify the prompt to steer memory retrieval: entity-rich query + how hard
+  // to search. Runs on the cheap `fast` tier and never throws (degrades to the
+  // naive whole-prompt query), so it can't block generation.
+  const memoryPlan = await classifyPromptForMemory(parsed.data.prompt);
+  const memoryLimit = memoryPlan.time_scope === 'specific' ? 10 : 3;
+
   const { profile, contextAdditions, completeness, vocabulary, structural } = useVoice
     ? await loadCreatorVoiceContext(client, user.id, {
-        memoryQuery: parsed.data.topic ?? parsed.data.prompt.slice(0, 200),
+        memoryQuery: memoryPlan.search_query || parsed.data.topic || parsed.data.prompt.slice(0, 200),
+        memoryLimit,
         workspaceId: workspaceId ?? undefined,
         platform: parsed.data.platform,
       })

@@ -132,6 +132,33 @@ export async function PATCH(
         console.error('[posts] Auto-optimize trigger error:', err);
       });
     }
+
+    // L3: keep memory in sync with manual edits — reuses the existing content-diff
+    // above so trivial autosaves don't re-embed. Keyed on the URN when the post
+    // was published so the edit updates the same document as publish/import.
+    try {
+      const { data: jobRow } = await client
+        .database.from('publish_jobs')
+        .select('provider_post_id')
+        .eq('post_id', params.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+      const providerPostId = (jobRow as { provider_post_id: string | null } | null)?.provider_post_id ?? null;
+      const editedText = [data.hook, data.script, data.caption].filter(Boolean).join('\n\n').trim();
+      if (editedText) {
+        const { writeToMemory, buildPostMemoryCustomId } = await import('@/lib/memory/write');
+        await writeToMemory(client, {
+          userId: user.id,
+          workspaceId: data.workspace_id ?? existingPost?.workspace_id ?? null,
+          kind: 'edited_post',
+          content: `[Your ${data.platform ?? 'social'} post from ${data.posted_date ?? 'unknown date'}] — this ALREADY happened; reference as past.\n\n${editedText}`,
+          customId: buildPostMemoryCustomId(data.platform, providerPostId, params.id),
+          metadata: { platform: data.platform ?? '', posted_date: data.posted_date ?? '' },
+        });
+      }
+    } catch (err) {
+      console.error('[posts] memory write failed (non-blocking):', err);
+    }
   }
 
   return NextResponse.json({ post: data });
@@ -145,6 +172,22 @@ export async function DELETE(
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
   const client = getServerClient();
+
+  // Read identity BEFORE deleting so we can remove the matching memory document
+  // (retrieval must not keep surfacing "you wrote about X" for deleted content).
+  const { data: pre } = await client
+    .database.from('posts')
+    .select('platform, workspace_id')
+    .eq('id', params.id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+  const { data: jobRow } = await client
+    .database.from('publish_jobs')
+    .select('provider_post_id')
+    .eq('post_id', params.id)
+    .eq('user_id', user.id)
+    .maybeSingle();
+
   const { error } = await client
     .database.from('posts')
     .delete()
@@ -152,5 +195,19 @@ export async function DELETE(
     .eq('user_id', user.id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  try {
+    const preRow = pre as { platform: string | null; workspace_id: string | null } | null;
+    const providerPostId = (jobRow as { provider_post_id: string | null } | null)?.provider_post_id ?? null;
+    const { deleteFromMemory, buildPostMemoryCustomId } = await import('@/lib/memory/write');
+    await deleteFromMemory(
+      user.id,
+      preRow?.workspace_id ?? null,
+      buildPostMemoryCustomId(preRow?.platform, providerPostId, params.id),
+    );
+  } catch (err) {
+    console.error('[posts] memory delete failed (non-blocking):', err);
+  }
+
   return NextResponse.json({ success: true });
 }
