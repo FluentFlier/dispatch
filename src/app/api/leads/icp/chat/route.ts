@@ -47,6 +47,20 @@ const bodySchema = z.object({
  */
 const FIND_LEADS_RE = /\b(find|search|pull|get|show|fetch|surface|source|scan)\b[^.!?]*\bleads?\b/i;
 
+/**
+ * Deterministic guard: does this message read like an ICP definition rather than
+ * a greeting, a question, or a search command? Used so a weak/free classifier
+ * model that returns an empty icp_description never causes ICP setup to silently
+ * no-op — the raw message is saved as the brief instead.
+ */
+function looksLikeIcpDescription(message: string): boolean {
+  const m = message.trim();
+  if (m.split(/\s+/).length < 4) return false; // too short to be a real brief
+  if (/\?\s*$/.test(m)) return false; // a question, not a definition
+  if (/^(hi|hey|hello|thanks|thank you|ok|okay|yes|no|sure)\b/i.test(m)) return false;
+  return true;
+}
+
 interface ChatIntent {
   reply: string;
   /** Full, merged ICP description when the user is defining or changing it; empty to leave unchanged. */
@@ -159,12 +173,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       );
     }
 
+    // Deterministic ICP-setup fallback: if the classifier returned no brief but
+    // the message clearly describes an ICP (and isn't a search command), treat the
+    // raw message as the brief, merging into any existing ICP. Without this, a weak
+    // classifier that under-returns leaves the user "chatting" with nothing saved.
+    let icpBrief = intent.icp_description;
+    if (!icpBrief && !wantsDiscovery && looksLikeIcpDescription(parsed.data.message)) {
+      icpBrief = currentIcp
+        ? `${currentIcp}\n${parsed.data.message.trim()}`
+        : parsed.data.message.trim();
+    }
+
     let applied = false;
-    // Persist ICP only when the user actually changed it (non-empty and different).
-    if (intent.icp_description && intent.icp_description !== currentIcp) {
-      const icp = await parseIcpDescription(intent.icp_description);
+    // Persist ICP only when it actually changed (non-empty and different).
+    if (icpBrief && icpBrief !== currentIcp) {
+      const icp = await parseIcpDescription(icpBrief);
       await updateDirectorySettings(client, workspaceId, {
-        icp_description: intent.icp_description,
+        icp_description: icpBrief,
         icp_verticals: icp.icp_verticals,
         icp_keywords: icp.icp_keywords,
       });
@@ -190,7 +215,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // Only run discovery when an ICP actually exists (saved already, or set in
     // this same turn) — searching with an empty ICP returns noise. The regex
     // fallback catches close phrasings the classifier missed.
-    const hasIcpNow = Boolean(currentIcp || intent.icp_description);
+    const hasIcpNow = Boolean(currentIcp || icpBrief);
     const suggestRun = (intent.run_discovery || wantsDiscovery) && hasIcpNow;
 
     const settings = await getDirectorySettings(client, workspaceId);
@@ -201,16 +226,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // describe one first instead of a dead-end "Done."
     const assistantMessage = suggestRun
       ? 'On it — searching for matching leads now. This can take up to a minute.'
-      : intent.reply ||
-        (wantsDiscovery
-          ? 'Tell me who you sell to first, then I can search — e.g. "seed-stage fintech from YC".'
-          : 'Done.');
+      : applied
+        ? intent.reply || 'Got it — your ICP is set. Hit "Find leads now" to search.'
+        : intent.reply ||
+          (wantsDiscovery
+            ? 'Tell me who you sell to first, then I can search — e.g. "seed-stage fintech from YC".'
+            : 'Done.');
+
+    // icpUnderstood lets the client tell "we set up your ICP / one already exists"
+    // apart from "nothing was saved" (used by the local-only debug banner).
+    const icpUnderstood = applied || Boolean(currentIcp);
 
     return NextResponse.json({
       assistantMessage,
       settings,
       applied,
       suggestRun,
+      hasIcp: hasIcpNow,
+      icpUnderstood,
     });
   } catch (err) {
     // A quota/credit failure from the classify or ICP-parse LLM call is our
