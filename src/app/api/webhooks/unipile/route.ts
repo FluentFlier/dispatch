@@ -98,6 +98,53 @@ async function upsertSocialAccountFromUnipileAccount({
     fallbackAccount?.username ??
     null;
 
+  // Ownership guard — the shared Unipile subscription's webhooks carry accounts
+  // this user may not own, and periodic RECONNECTED events would otherwise
+  // re-bind a stranger every few minutes. Require positive proof before binding:
+  //   (a) the account isn't already owned by a different user (rotating id OR
+  //       stable public identifier), and
+  //   (b) it appeared AFTER this user's pre-connect snapshot — i.e. THIS user's
+  //       connect produced it. Snapshot absent → no proof of ownership → refuse.
+  const { data: others } = await client.database
+    .from('social_accounts')
+    .select('user_id, unipile_account_id, account_id')
+    .neq('user_id', userId);
+  const claimedByOther = (others ?? []).some(
+    (r: { unipile_account_id?: string | null; account_id?: string | null }) =>
+      r.unipile_account_id === unipileAccountId || (accountId != null && r.account_id === accountId),
+  );
+  if (claimedByOther) {
+    console.warn('[webhooks/unipile] refusing bind — account already owned by another user', {
+      userId,
+      unipileAccountId,
+      accountId,
+    });
+    return;
+  }
+
+  const { data: snap } = await client.database
+    .from('unipile_connect_snapshots')
+    .select('account_ids')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!snap) {
+    console.warn('[webhooks/unipile] refusing bind — no pending connect snapshot for user', {
+      userId,
+      unipileAccountId,
+    });
+    return;
+  }
+  const snapshotIds = new Set(
+    ((snap as { account_ids?: string[] }).account_ids ?? []).filter(Boolean),
+  );
+  if (snapshotIds.has(unipileAccountId)) {
+    console.warn('[webhooks/unipile] refusing bind — account pre-existed the user connect (not theirs)', {
+      userId,
+      unipileAccountId,
+    });
+    return;
+  }
+
   await client.database
     .from('social_accounts')
     .upsert(
@@ -114,6 +161,13 @@ async function upsertSocialAccountFromUnipileAccount({
       },
       { onConflict: 'user_id,platform' },
     );
+
+  // One connect → one bind. Clearing the snapshot means a later RECONNECTED /
+  // duplicate event for the same connect can't silently re-bind (no proof left).
+  await client.database
+    .from('unipile_connect_snapshots')
+    .delete()
+    .eq('user_id', userId);
 }
 
 /**
