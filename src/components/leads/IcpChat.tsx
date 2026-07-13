@@ -86,8 +86,8 @@ export function IcpChat({
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages, loading]);
 
-  const send = useCallback(async () => {
-    const trimmed = input.trim();
+  const send = useCallback(async (override?: string) => {
+    const trimmed = (override ?? input).trim();
     if (!trimmed || loading) return;
 
     const userMsg: IcpChatMessage = { id: newId(), role: 'user', content: trimmed };
@@ -263,7 +263,7 @@ export function IcpChat({
               key={hint}
               type="button"
               disabled={loading}
-              onClick={() => setInput(hint)}
+              onClick={() => (hint === 'Find leads now' ? void send(hint) : setInput(hint))}
               className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border border-border text-text-tertiary hover:text-text-primary hover:border-accent-primary/30 disabled:opacity-50"
             >
               {hint.includes('Find') && <Sparkles className="h-3 w-3" />}
