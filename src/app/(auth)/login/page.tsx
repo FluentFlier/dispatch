@@ -4,7 +4,11 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { getInsforgeClient } from "@/lib/insforge/client";
 import { getClientTokens } from "@/lib/auth-client";
-import { INSFORGE_PKCE_VERIFIER_KEY } from "@/lib/auth-constants";
+import {
+  CANONICAL_AUTH_ORIGIN,
+  INSFORGE_PKCE_VERIFIER_KEY,
+  isAuthCapableOrigin,
+} from "@/lib/auth-constants";
 
 /**
  * Sync access + refresh tokens into httpOnly cookies via /api/auth.
@@ -140,6 +144,15 @@ export default function LoginPage() {
     // in the constructor, so by the time getInsforgeClient() returns the param is gone.
     const params = new URLSearchParams(window.location.search);
     const hasOAuthCode = params.has("insforge_code");
+
+    // Preview/deploy origins can't be allow-listed (random hostnames) — bounce to
+    // the canonical login so OAuth + PKCE run on an allow-listed same-origin domain.
+    // Skip when returning with a code (the callback already landed on this origin).
+    if (!hasOAuthCode && !isAuthCapableOrigin(window.location.origin)) {
+      window.location.replace(`${CANONICAL_AUTH_ORIGIN}/login${window.location.search}`);
+      return;
+    }
+
     const wantsAccountPicker =
       params.get("switch") === "1" || params.get("choose_account") === "1";
 
