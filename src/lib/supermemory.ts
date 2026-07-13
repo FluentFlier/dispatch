@@ -1,5 +1,12 @@
 const BASE_URL = 'https://api.supermemory.ai/v3';
 
+// Hard timeout on every Supermemory call. These run inline on user-facing routes
+// (publish/import/edit/event/story writes, and retrieval on /api/generate). Without
+// a bound, a slow or hung Supermemory would stall the request — and imports issue
+// one write per post, so 25 hung writes would freeze the whole import. On timeout
+// the fetch rejects and the caller's try/catch degrades gracefully.
+const SM_TIMEOUT_MS = Number(process.env.SUPERMEMORY_TIMEOUT_MS ?? 8000);
+
 function getApiKey(): string {
   const key = process.env.SUPERMEMORY_API_KEY;
   if (!key) throw new Error('Missing SUPERMEMORY_API_KEY env var');
@@ -9,6 +16,7 @@ function getApiKey(): string {
 async function smFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   const res = await fetch(`${BASE_URL}${path}`, {
     ...options,
+    signal: options.signal ?? AbortSignal.timeout(SM_TIMEOUT_MS),
     headers: {
       'Content-Type': 'application/json',
       Authorization: `Bearer ${getApiKey()}`,

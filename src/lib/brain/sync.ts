@@ -1,7 +1,6 @@
 import type { createClient } from '@insforge/sdk';
 import { BRAIN_SLUG, type BrainProvisionResult } from './types';
 import { getBrainPage, listBrainPages, putBrainPage } from './pages';
-import { isEnabled } from '@/lib/feature-flags';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -220,39 +219,39 @@ export async function syncBrainPublishedPost(
   // was previously called inside this per-post function, causing N top-5 queries
   // when publishing N posts. Call it once at the end of syncCreatorBrainFull().
 
-  // L3: non-blocking Supermemory write — publish must succeed even if Supermemory is down.
-  // Flag check happens after putBrainPage (publish already complete above) so skipping
-  // memory writes never impacts publish latency or success.
-  if (!(await isEnabled(client, 'layer3_memory_writes'))) return;
-  try {
-    const { addMemory } = await import('@/lib/supermemory');
-    await addMemory({
-      content: [
-        `Published ${post.platform} post (${post.pillar}):`,
-        content,
-        post.views ? `Performance: ${post.views} views, ${post.likes ?? 0} likes` : '',
-      ]
-        .filter(Boolean)
-        .join('\n\n'),
-      containerTags: [
-        workspaceId ? `workspace_${workspaceId}` : `user_${userId}`,
-        'published_post',
-        post.platform,
-        post.pillar,
-      ],
-      // customId is idempotent — re-running sync for the same post is safe.
-      customId: `post_${postId}`,
-      metadata: {
-        type: 'published_post',
-        platform: post.platform,
-        pillar: post.pillar,
-        views: post.views ?? 0,
-        posted_date: post.posted_date ?? '',
-      },
-    });
-  } catch (err) {
-    console.error('[brain/sync] addMemory failed (non-blocking):', err);
-  }
+  // L3: non-blocking memory write via the shared helper. Publish must succeed
+  // even if memory is down (writeToMemory swallows its own errors and honors the
+  // layer3_memory_writes flag). Keyed on the platform URN so this publish path
+  // and the import path collapse to ONE document per real post — the dated header
+  // gives generation the temporal context that stops "I just got back from…" on
+  // a "remember that event" prompt.
+  const { data: jobRow } = await client.database
+    .from('publish_jobs')
+    .select('provider_post_id')
+    .eq('post_id', postId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  const providerPostId = (jobRow as { provider_post_id: string | null } | null)?.provider_post_id ?? null;
+
+  const { writeToMemory, buildPostMemoryCustomId } = await import('@/lib/memory/write');
+  await writeToMemory(client, {
+    userId,
+    workspaceId: workspaceId ?? null,
+    kind: 'published_post',
+    content: `[Your ${post.platform} post from ${post.posted_date ?? 'unknown date'}] — this ALREADY happened; reference as past.\n\n${[
+      content,
+      post.views ? `Performance: ${post.views} views, ${post.likes ?? 0} likes` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n')}`,
+    customId: buildPostMemoryCustomId(post.platform, providerPostId, post.id),
+    metadata: {
+      platform: post.platform,
+      pillar: post.pillar,
+      views: post.views ?? 0,
+      posted_date: post.posted_date ?? '',
+    },
+  });
 }
 
 async function syncBrainWins(

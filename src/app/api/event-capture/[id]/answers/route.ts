@@ -111,6 +111,35 @@ export async function POST(
     );
   }
 
+  // L3: write the answered event into memory (synthesized Q&A, not raw JSON) so
+  // future generation can reflect on it as a past event. Awaited before the 202
+  // — cheap next to the /process call, which stays fire-and-forget below.
+  try {
+    const { data: full } = await client.database
+      .from('event_captures')
+      .select('title, start_time, questions')
+      .eq('id', params.id)
+      .eq('workspace_id', workspaceId)
+      .maybeSingle();
+    const cap = full as { title: string; start_time: string | null; questions: string[] | null } | null;
+    const { buildQuestionsAndAnswers } = await import('@/lib/event-capture/draft-context');
+    const qa = buildQuestionsAndAnswers(cap?.questions, sanitizedAnswers);
+    if (qa) {
+      const { writeToMemory } = await import('@/lib/memory/write');
+      const eventDate = cap?.start_time?.split('T')[0] ?? '';
+      await writeToMemory(client, {
+        userId: user.id,
+        workspaceId,
+        kind: 'event_answer',
+        content: `[From ${cap?.title ?? 'an event'} on ${eventDate || 'unknown date'}] — this ALREADY happened; reference as past.\n\n${qa}`,
+        customId: `event_${params.id}`,
+        metadata: { event_title: cap?.title ?? '', posted_date: eventDate },
+      });
+    }
+  } catch (err) {
+    console.error('[event-capture/answers] memory write failed (non-blocking):', err);
+  }
+
   // Fire-and-forget to /process — user's 202 has already been set up.
   // The internal route is protected by x-internal-secret = CRON_SECRET.
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';

@@ -53,6 +53,14 @@ function makeClient(options: {
             maybeSingle: vi.fn().mockResolvedValue({ data: postRow, error: null }),
           };
         }
+        if (table === 'publish_jobs') {
+          // URN lookup for the memory customId; null keeps the fallback id.
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn().mockResolvedValue({ data: { provider_post_id: null }, error: null }),
+          };
+        }
         // creator_brain_pages
         return { select: vi.fn().mockReturnThis(), eq: vi.fn().mockReturnThis(), upsert: upsertFn };
       }),
@@ -252,7 +260,7 @@ describe('Layer 3: Memory Write Path', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       await expect(syncBrainPublishedPost(client as any, 'user-3', 'post-3')).resolves.toBeUndefined();
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        expect.stringContaining('[brain/sync] addMemory failed'),
+        expect.stringContaining('[memory] write failed'),
         expect.any(Error),
       );
 

@@ -27,8 +27,10 @@ node_modules/
 .windsurf
 .cursor/
 .aider/
-memory/
-.memory/
+# Anchored to repo root so agent memory artifacts are ignored without swallowing
+# source dirs like src/lib/memory/.
+/memory/
+/.memory/
 
 # graphify / code-graph / analysis agent artifacts
 graphify-out/

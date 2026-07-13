@@ -6,6 +6,7 @@ import {
   extractUnipilePostMetrics,
   extractUnipilePublishedAt,
 } from '@/lib/platforms/linkedin-metrics';
+import { writeToMemory, buildPostMemoryCustomId } from '@/lib/memory/write';
 
 /** Platforms whose Unipile post payloads carry engagement counters we can read. */
 function unipileMetricsSupported(platform: string): boolean {
@@ -90,6 +91,13 @@ export async function persistImportedPosts({
   items: UnipileItem[];
 }): Promise<PersistImportedPostsResult> {
   const result: PersistImportedPostsResult = { created: 0, repaired: 0, skipped: 0, failed: 0 };
+
+  // Memory writes are collected and run concurrently after the loop, not awaited
+  // per-post. A bulk import can carry ~25 posts; serial awaits would sum their
+  // latency (and if the memory store hung, 25x the timeout could blow the import
+  // function's budget). Concurrent + awaited-at-end bounds total added time to ~one
+  // write. writeToMemory never rejects, so allSettled always resolves.
+  const memoryWrites: Promise<boolean>[] = [];
 
   for (const item of items) {
     if (!item.id) continue;
@@ -202,7 +210,31 @@ export async function persistImportedPosts({
 
     if (existingJob) result.repaired++;
     else result.created++;
+
+    // L3: write imported history into memory so generation can reference posts
+    // the user published on LinkedIn/X before they ever used the app. The dated
+    // header is what lets a "remember the Forbes event" prompt know the event is
+    // in the past instead of echoing the original present-tense post. Awaited so
+    // the write is not dropped when this cron/route lambda freezes.
+    const postedDate = importedPublishedAt?.split('T')[0] ?? '';
+    memoryWrites.push(
+      writeToMemory(client, {
+        userId,
+        workspaceId,
+        kind: 'imported_post',
+        content: `[Your ${platform} post from ${postedDate || 'unknown date'}] — this ALREADY happened; reference as past.\n\n${content}`,
+        // item.id is the platform URN — same key the publish path uses so a
+        // natively-published post and its later re-import never double-write.
+        customId: buildPostMemoryCustomId(platform, item.id, postId),
+        metadata: { platform, posted_date: postedDate },
+      }),
+    );
   }
+
+  // Await all memory writes concurrently before returning so nothing is dropped
+  // when the serverless function freezes, while keeping total added latency ~= one
+  // write rather than the sum.
+  await Promise.allSettled(memoryWrites);
 
   return result;
 }
