@@ -68,31 +68,68 @@ describe('Phase: web discovery', () => {
       expect(isSerperWebDiscoveryConfigured()).toBe(false);
     });
 
-    it('discoverWebLeads uses TinyFish fallback when Serper absent', async () => {
+    const ctx = {
+      icpDescription: 'B2B dental SaaS',
+      icpVerticals: [],
+      icpKeywords: [],
+      icpQuery: 'B2B dental SaaS',
+      maxLeads: 10,
+    };
+    const tinyfishLead = {
+      source: 'web_discovery' as const,
+      externalId: 'web-acme-dental',
+      companyName: 'Acme Dental',
+      website: 'https://acmedental.com',
+      tags: [],
+      founders: [],
+    };
+    const serperDeps = {
+      search: async () => [{ title: 'Bolt', link: 'https://bolt.com', snippet: 'dental SaaS' }],
+      read: async () => 'Bolt is a dental SaaS company.',
+      complete: async () =>
+        JSON.stringify({ companies: [{ company_name: 'Bolt', website: 'https://bolt.com', tags: [] }] }),
+    };
+
+    it('uses TinyFish as the primary scraper', async () => {
       process.env.TINYFISH_API_KEY = 'tf-test';
-      const leads = await discoverWebLeads(
-        {
-          icpDescription: 'B2B dental SaaS',
-          icpVerticals: [],
-          icpKeywords: [],
-          icpQuery: 'B2B dental SaaS',
-          maxLeads: 10,
-        },
-        {
-          tinyfishDiscover: async () => [
-            {
-              source: 'web_discovery',
-              externalId: 'web-acme-dental',
-              companyName: 'Acme Dental',
-              website: 'https://acmedental.com',
-              tags: [],
-              founders: [],
-            },
-          ],
-        },
-      );
+      const leads = await discoverWebLeads(ctx, { tinyfishDiscover: async () => [tinyfishLead] });
       expect(leads).toHaveLength(1);
       expect(leads[0].companyName).toBe('Acme Dental');
+    });
+
+    it('prefers TinyFish over Serper even when BOTH are configured', async () => {
+      process.env.TINYFISH_API_KEY = 'tf-test';
+      process.env.SERPER_API_KEY = 'serper-test';
+      let serperCalled = false;
+      const leads = await discoverWebLeads(ctx, {
+        tinyfishDiscover: async () => [tinyfishLead],
+        search: async () => {
+          serperCalled = true;
+          return [];
+        },
+      });
+      expect(leads[0].companyName).toBe('Acme Dental');
+      expect(serperCalled).toBe(false); // Serper never touched when TinyFish delivers
+    });
+
+    it('falls back to Serper when TinyFish returns zero leads', async () => {
+      process.env.TINYFISH_API_KEY = 'tf-test';
+      process.env.SERPER_API_KEY = 'serper-test';
+      const leads = await discoverWebLeads(ctx, { tinyfishDiscover: async () => [], ...serperDeps });
+      expect(leads).toHaveLength(1);
+      expect(leads[0].companyName).toBe('Bolt'); // came from the Serper fallback
+    });
+
+    it('falls back to Serper when TinyFish throws', async () => {
+      process.env.TINYFISH_API_KEY = 'tf-test';
+      process.env.SERPER_API_KEY = 'serper-test';
+      const leads = await discoverWebLeads(ctx, {
+        tinyfishDiscover: async () => {
+          throw new Error('tinyfish 500');
+        },
+        ...serperDeps,
+      });
+      expect(leads[0].companyName).toBe('Bolt');
     });
   });
 });
