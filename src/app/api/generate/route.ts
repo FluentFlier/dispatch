@@ -54,8 +54,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   // Classify the prompt to steer memory retrieval: entity-rich query + how hard
   // to search. Runs on the cheap `fast` tier and never throws (degrades to the
-  // naive whole-prompt query), so it can't block generation.
-  const memoryPlan = await classifyPromptForMemory(parsed.data.prompt);
+  // naive whole-prompt query). Only when useVoice — with voice off there is no
+  // memory retrieval, so classifying would be a wasted LLM call.
+  const memoryPlan = useVoice
+    ? await classifyPromptForMemory(parsed.data.prompt)
+    : { topics: [] as string[], time_scope: 'any' as const, search_query: '' };
   const memoryLimit = memoryPlan.time_scope === 'specific' ? 10 : 3;
 
   const { profile, contextAdditions, completeness, vocabulary, structural } = useVoice

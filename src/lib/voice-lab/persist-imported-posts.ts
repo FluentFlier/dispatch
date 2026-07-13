@@ -92,6 +92,13 @@ export async function persistImportedPosts({
 }): Promise<PersistImportedPostsResult> {
   const result: PersistImportedPostsResult = { created: 0, repaired: 0, skipped: 0, failed: 0 };
 
+  // Memory writes are collected and run concurrently after the loop, not awaited
+  // per-post. A bulk import can carry ~25 posts; serial awaits would sum their
+  // latency (and if the memory store hung, 25x the timeout could blow the import
+  // function's budget). Concurrent + awaited-at-end bounds total added time to ~one
+  // write. writeToMemory never rejects, so allSettled always resolves.
+  const memoryWrites: Promise<boolean>[] = [];
+
   for (const item of items) {
     if (!item.id) continue;
     const content = importedPostText(item);
@@ -210,17 +217,24 @@ export async function persistImportedPosts({
     // in the past instead of echoing the original present-tense post. Awaited so
     // the write is not dropped when this cron/route lambda freezes.
     const postedDate = importedPublishedAt?.split('T')[0] ?? '';
-    await writeToMemory(client, {
-      userId,
-      workspaceId,
-      kind: 'imported_post',
-      content: `[Your ${platform} post from ${postedDate || 'unknown date'}] — this ALREADY happened; reference as past.\n\n${content}`,
-      // item.id is the platform URN — same key the publish path uses so a
-      // natively-published post and its later re-import never double-write.
-      customId: buildPostMemoryCustomId(platform, item.id, postId),
-      metadata: { platform, posted_date: postedDate },
-    });
+    memoryWrites.push(
+      writeToMemory(client, {
+        userId,
+        workspaceId,
+        kind: 'imported_post',
+        content: `[Your ${platform} post from ${postedDate || 'unknown date'}] — this ALREADY happened; reference as past.\n\n${content}`,
+        // item.id is the platform URN — same key the publish path uses so a
+        // natively-published post and its later re-import never double-write.
+        customId: buildPostMemoryCustomId(platform, item.id, postId),
+        metadata: { platform, posted_date: postedDate },
+      }),
+    );
   }
+
+  // Await all memory writes concurrently before returning so nothing is dropped
+  // when the serverless function freezes, while keeping total added latency ~= one
+  // write rather than the sum.
+  await Promise.allSettled(memoryWrites);
 
   return result;
 }

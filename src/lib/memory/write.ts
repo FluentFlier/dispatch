@@ -1,5 +1,6 @@
 import type { getServerClient } from '@/lib/insforge/server';
 import { isEnabled } from '@/lib/feature-flags';
+import { addMemory, listMemories, deleteMemory } from '@/lib/supermemory';
 
 type Client = ReturnType<typeof getServerClient>;
 
@@ -41,8 +42,13 @@ export function buildPostMemoryCustomId(
   providerPostId: string | null | undefined,
   internalPostId: string,
 ): string {
-  if (providerPostId && platform) return `post_${platform}_${providerPostId}`;
-  return `post_${internalPostId}`;
+  // Sanitize to a conservative charset. Platform URNs contain ':' (e.g.
+  // urn:li:activity:123) which the memory store may reject, silently dropping the
+  // write. Both the write and the delete path go through this fn, so they stay
+  // consistent regardless of sanitization.
+  const safe = (s: string): string => s.replace(/[^A-Za-z0-9_-]/g, '_');
+  if (providerPostId && platform) return `post_${safe(platform)}_${safe(providerPostId)}`;
+  return `post_${safe(internalPostId)}`;
 }
 
 /**
@@ -63,7 +69,6 @@ export async function writeToMemory(client: Client, args: WriteToMemoryArgs): Pr
   try {
     if (!args.content.trim()) return false;
     if (!(await isEnabled(client, 'layer3_memory_writes'))) return false;
-    const { addMemory } = await import('@/lib/supermemory');
     await addMemory({
       content: args.content,
       containerTags: [memoryScopeTag(args.userId, args.workspaceId), args.kind],
@@ -86,8 +91,10 @@ export async function writeToMemory(client: Client, args: WriteToMemoryArgs): Pr
  * the user deleted. Best-effort and non-blocking.
  *
  * ponytail: Supermemory's helper has no get-by-customId, so we page the scoped
- * document list and match. Bounded to the first 500 docs (5 pages) — fine for v1
- * per-user volumes; swap in a direct customId lookup if archives grow past that.
+ * document list and match. Bounded to the first 300 docs (3 pages) so a post
+ * delete can't fan out into many round-trips — fine for v1 per-user volumes; swap
+ * in a direct customId lookup if archives grow past that. Best-effort: a miss just
+ * leaves a stale doc, and the deleted post is never regenerated from it anyway.
  */
 export async function deleteFromMemory(
   userId: string,
@@ -95,9 +102,8 @@ export async function deleteFromMemory(
   customId: string,
 ): Promise<void> {
   try {
-    const { listMemories, deleteMemory } = await import('@/lib/supermemory');
     const scopeTag = memoryScopeTag(userId, workspaceId);
-    for (let page = 1; page <= 5; page++) {
+    for (let page = 1; page <= 3; page++) {
       const { memories } = await listMemories([scopeTag], 100, page);
       if (!memories.length) break;
       const hit = memories.find((m) => m.customId === customId);
