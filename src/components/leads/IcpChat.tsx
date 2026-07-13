@@ -64,6 +64,7 @@ export function IcpChat({
   const [loading, setLoading] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const didMountRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -74,7 +75,15 @@ export function IcpChat({
   }, [messages]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Skip the mount run: the dashboard embeds this chat below the fold, and a
+    // scrollIntoView for the initial greeting yanked the whole page down to the
+    // outreach section on every load/logo-click. Only scroll once the user is
+    // actually chatting.
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages, loading]);
 
   const send = useCallback(async () => {
