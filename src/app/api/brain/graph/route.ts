@@ -32,7 +32,7 @@ export async function GET(): Promise<NextResponse> {
     let postsQuery = client.database
       .from('posts')
       .select(
-        'id, pillar, platform, views, likes, comments, shares, saves, follows_gained, voice_match_score, posted_date',
+        'id, pillar, platform, hook, views, likes, comments, shares, saves, follows_gained, voice_match_score, posted_date',
       )
       .eq('user_id', user.id)
       .eq('status', 'posted')
