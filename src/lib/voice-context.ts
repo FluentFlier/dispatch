@@ -1,7 +1,7 @@
 ﻿import type { createClient } from '@insforge/sdk';
 import type { CreatorProfileForPrompt } from '@/lib/ai';
 import { retrieveBrainContext } from '@/lib/brain/retrieve';
-import { searchUserContext } from '@/lib/supermemory';
+import { searchUserContext, bestChunkContent } from '@/lib/supermemory';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -190,10 +190,13 @@ export function buildVoiceContextAdditions({
     sections.push(
       'PAST CONTENT YOU HAVE ALREADY PUBLISHED (each shown with its date):\n' +
         `${memorySnippets.join('\n---\n')}\n\n` +
-        'These are things you posted in the past. Do NOT reproduce them or reuse ' +
-        'their tense. If the user asks to reflect on, remember, or revisit one of ' +
-        'these, write in the present looking back on a past event — never as if it ' +
-        'is happening now.',
+        'These are things you posted in the past. Do NOT copy their exact wording or ' +
+        'reuse their tense verbatim. If the user asks to reflect on, remember, or ' +
+        'revisit one of these, write in the present looking back on a past event — ' +
+        'never as if it is happening now. When a snippet names specific real people, ' +
+        'companies, or details, carry ALL of them forward into the new post exactly as ' +
+        'named (never drop any, never invent a substitute) — the date shown tells you ' +
+        'how long ago it was, so frame the timing accurately.',
     );
   }
 
@@ -383,7 +386,7 @@ export async function loadCreatorVoiceContext(
       // again as semantic memory would double-inject the same story.
       const snippets = results
         .filter((r) => r.metadata?.type !== 'story_bank')
-        .map((r) => r.content)
+        .map((r) => bestChunkContent(r))
         .filter((c): c is string => Boolean(c));
       if (snippets.length > 0) {
         memorySnippets = snippets;

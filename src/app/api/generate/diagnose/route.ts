@@ -38,7 +38,7 @@ export async function GET(): Promise<NextResponse> {
   let memory: Record<string, unknown> = { supermemoryConfigured };
   if (supermemoryConfigured) {
     try {
-      const { listMemories, searchUserContext } = await import('@/lib/supermemory');
+      const { listMemories, searchUserContext, bestChunkContent } = await import('@/lib/supermemory');
       const scopeTag = memoryScopeTag(user.id, workspaceId ?? null);
       const { memories } = await listMemories([scopeTag], 100, 1);
       const forbes = await searchUserContext(user.id, 'Forbes 30 Under 30 event', 5, workspaceId ?? undefined);
@@ -48,7 +48,7 @@ export async function GET(): Promise<NextResponse> {
         totalMemoriesFirstPage: memories.length,
         sampleCustomIds: memories.slice(0, 5).map((m) => m.customId ?? '(none)'),
         forbesQueryHits: forbes.length,
-        forbesTopSnippet: forbes[0]?.content?.slice(0, 160) ?? null,
+        forbesTopSnippet: bestChunkContent(forbes[0] ?? { documentId: '', score: 0 })?.slice(0, 160) ?? null,
       };
     } catch (err) {
       memory = { supermemoryConfigured, error: err instanceof Error ? err.message : String(err) };
@@ -92,7 +92,7 @@ function buildVerdict(
   if (!memory.supermemoryConfigured) {
     out.push('SUPERMEMORY_API_KEY is NOT set: memory retrieval is fully off, so past posts can never inform generation (the tense fix has nothing to act on).');
   } else if ((memory.forbesQueryHits as number | undefined) === 0) {
-    out.push('Supermemory is on but the Forbes post is NOT in memory (0 hits): run the backfill (scripts/backfill-memory.ts) or the post was never imported.');
+    out.push('Supermemory is on but the Forbes post is NOT in memory (0 hits): run the backfill (scripts/backfill-memory.mts) or the post was never imported.');
   }
   if (!memoryInPrompt) {
     out.push('The dated memory block did NOT reach the prompt for a Forbes query — either no memory retrieved or the query missed.');

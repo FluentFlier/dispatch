@@ -52,12 +52,27 @@ export interface MemoryDocument {
   updatedAt?: string;
 }
 
-export interface SearchResult {
-  id: string;
+export interface SearchResultChunk {
+  content: string;
+  position?: number;
+  isRelevant?: boolean;
   score: number;
-  content?: string;
+}
+
+export interface SearchResult {
+  documentId: string;
+  score: number;
   metadata?: Record<string, string | number | boolean>;
-  documentId?: string;
+  /** The actual matched text lives here, NOT on a top-level `.content` field
+   * (the v3 /search response has no such field - reading result.content was
+   * always undefined, silently dropping every real hit). */
+  chunks?: SearchResultChunk[];
+}
+
+/** The best-matching chunk's text for a search result, or undefined if none. */
+export function bestChunkContent(result: SearchResult): string | undefined {
+  if (!result.chunks?.length) return undefined;
+  return [...result.chunks].sort((a, b) => b.score - a.score)[0]?.content;
 }
 
 export async function addMemory(params: AddMemoryParams): Promise<MemoryDocument> {
