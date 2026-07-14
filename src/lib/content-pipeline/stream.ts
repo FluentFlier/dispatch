@@ -122,7 +122,8 @@ export async function streamCreatorDraft(
   const raw = await chatCompletionStream(
     system,
     input.userPrompt,
-    { temperature: 0.72, maxTokens: 1200 },
+    // Draft on the main generation model (LLM_GENERATE_*, e.g. GPT-5.5) when set.
+    { temperature: 0.72, maxTokens: 1200, role: 'generate' },
     onToken,
   );
 

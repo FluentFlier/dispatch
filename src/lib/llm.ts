@@ -73,12 +73,30 @@ export function backoffMs(attempt: number, retryAfterHeader: string | null, body
   return Math.min(Math.max(1000 * 2 ** attempt, MIN_BACKOFF_MS) + jitter(), MAX_BACKOFF_MS);
 }
 
+/**
+ * Semantic provider role. Prod runs three SEPARATE endpoints (OpenAI for
+ * generation, Cerebras for judging/small tasks, Groq as fallback) that cannot
+ * be consolidated behind one base URL, so a role selects its own
+ * {baseUrl, apiKey, model} triplet from env. Unset role env → falls back to the
+ * global LLM_* primary, so local/CI (one provider) needs zero role config.
+ *   generate → LLM_GENERATE_*  (main quality model, e.g. GPT-5.5)
+ *   judge    → LLM_JUDGE_*     (scoring/evaluation, e.g. Cerebras)
+ *   small    → LLM_SMALL_*     (humanize, targeted revise, edit passes)
+ */
+export type ProviderRole = 'generate' | 'judge' | 'small';
+
 /** Options for a single chat completion. All optional. */
 export interface ChatCompletionOptions {
   maxTokens?: number;
   temperature?: number;
   /** Override the env model for this call (rarely needed). */
   model?: string;
+  /**
+   * Route this call to a specific provider endpoint by role. When the role's
+   * LLM_<ROLE>_* env triplet is set it owns baseUrl+key+model (options.model is
+   * ignored). When unset, resolution falls through to the global LLM_* primary.
+   */
+  role?: ProviderRole;
   /**
    * Ask the provider for a guaranteed-JSON response (response_format
    * json_object). Providers that reject the param 400 - the call is retried
@@ -178,6 +196,43 @@ function getFallbackProvider(primary: Provider | null): Provider | null {
     };
   }
   return null;
+}
+
+/**
+ * Per-role env triplets. A role selects its own endpoint so generate/judge/small
+ * can point at three separate providers (OpenAI/Cerebras/Groq) that cannot share
+ * one base URL.
+ */
+const ROLE_ENV: Record<ProviderRole, { url: string; key: string; model: string }> = {
+  generate: { url: 'LLM_GENERATE_BASE_URL', key: 'LLM_GENERATE_API_KEY', model: 'LLM_GENERATE_MODEL' },
+  judge: { url: 'LLM_JUDGE_BASE_URL', key: 'LLM_JUDGE_API_KEY', model: 'LLM_JUDGE_MODEL' },
+  small: { url: 'LLM_SMALL_BASE_URL', key: 'LLM_SMALL_API_KEY', model: 'LLM_SMALL_MODEL' },
+};
+
+/**
+ * Resolves a role to its dedicated provider, or null when the role's env triplet
+ * is not fully set (so the caller falls back to the global LLM_* primary). All
+ * three vars (url+key+model) must be present; a partial triplet is treated as
+ * unconfigured rather than a half-built provider.
+ */
+function resolveRoleProvider(role: ProviderRole): Provider | null {
+  const env = ROLE_ENV[role];
+  const url = process.env[env.url]?.trim();
+  const key = process.env[env.key]?.trim();
+  const model = process.env[env.model]?.trim();
+  if (url && key && model) {
+    return { baseUrl: url.replace(/\/+$/, ''), apiKey: key, model, label: `role:${role}` };
+  }
+  return null;
+}
+
+/**
+ * Selects the primary provider for a call: an explicit role endpoint when
+ * configured, else the global LLM_* primary (which honors options.model). Shared
+ * by chatCompletion and chatCompletionStream so both route roles identically.
+ */
+function resolvePrimary(options: ChatCompletionOptions): Provider | null {
+  return (options.role ? resolveRoleProvider(options.role) : null) ?? getPrimaryProvider(options.model);
 }
 
 /**
@@ -325,7 +380,7 @@ export async function chatCompletion(
     throw new LlmError('Global daily AI budget reached. Generation paused to protect credits.', 429);
   }
 
-  const primary = getPrimaryProvider(options.model);
+  const primary = resolvePrimary(options);
   if (!primary) {
     // No provider configured -> legacy HuggingFace SDK path (last resort).
     return generateContentHF(systemPrompt, userPrompt);
@@ -538,7 +593,7 @@ export async function chatCompletionStream(
     throw new LlmError('Global daily AI budget reached. Generation paused to protect credits.', 429);
   }
 
-  const primary = getPrimaryProvider(options.model);
+  const primary = resolvePrimary(options);
   if (!primary) {
     const text = await generateContentHF(systemPrompt, userPrompt);
     if (text) onToken(text);

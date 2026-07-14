@@ -1,6 +1,21 @@
 import { z } from 'zod';
-import { chatCompletion, type ChatCompletionOptions } from '@/lib/llm';
+import { chatCompletion, type ChatCompletionOptions, type ProviderRole } from '@/lib/llm';
 import { emitPipelineEvent } from './events';
+
+/**
+ * Maps each generation stage to its provider role so prod can route the heavy
+ * drafting stages to the main model (LLM_GENERATE_*, e.g. GPT-5.5) and the cheap
+ * edit pass to the small model (LLM_SMALL_*). Unmapped stages inherit the global
+ * primary. A caller-supplied options.role always wins over this default.
+ */
+const STAGE_ROLE: Record<string, ProviderRole> = {
+  base: 'generate',
+  hooks: 'generate',
+  voice: 'generate',
+  revise: 'generate',
+  'compact-draft': 'generate',
+  'compact-edit': 'small',
+};
 
 /**
  * Per-stage contract (spec 3.4): text is non-empty, <= 6000 chars, and is not
@@ -71,6 +86,7 @@ export async function callStageChecked(
   const cappedOptions: ChatCompletionOptions = {
     ...options,
     maxTokens: Math.min(options.maxTokens ?? STAGE_TOKEN_CEILING, STAGE_TOKEN_CEILING),
+    role: options.role ?? STAGE_ROLE[stage],
   };
 
   let raw: string;
