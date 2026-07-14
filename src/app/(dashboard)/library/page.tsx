@@ -193,9 +193,10 @@ export default function LibraryPage() {
     fetchData();
   };
 
-  // New post
+  // New post. Server authenticates from the httpOnly cookie - do NOT gate on the
+  // browser SDK's userId (it lags the cookie right after onboarding, which left
+  // this button silently doing nothing), and use fetchWithAuth so a 401 refreshes.
   const handleNewPost = async () => {
-    if (!userId) return;
     const res = await fetchWithAuth('/api/posts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -211,6 +212,9 @@ export default function LibraryPage() {
       await fetchData();
       setEditorPost(data.post as Post);
       setEditorOpen(true);
+    } else {
+      console.error('New post failed', res.status);
+      setImportError('Could not create a new post. Refresh and try again.');
     }
   };
 

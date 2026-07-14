@@ -574,6 +574,49 @@ export function useLeadsController() {
     }
   };
 
+  // Draft a voice-matched reply to a prospect's inbound LinkedIn message. Mirrors
+  // handleDraft but hits the reply route so the draft is grounded in the thread.
+  const handleDraftReply = async (id: string) => {
+    setBusy({ id, action: 'reply' });
+    try {
+      const res = await fetch(`/api/leads/${id}/draft-reply`, { method: 'POST', headers: jsonHeaders, body: '{}' });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      mergeLead(data.lead);
+      setDrafts((d) => ({ ...d, [id]: data.draftText }));
+      toast('Reply drafted — review and send.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not draft reply.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  // Send the (edited) reply in the active LinkedIn thread. A 429 is a rate-limit
+  // block (surface the retry hint); a 422 means "draft first" - both are expected,
+  // not crashes. Uses the 'approve' busy action so the Send reply button spins.
+  const handleSendReply = async (id: string) => {
+    setBusy({ id, action: 'approve' });
+    try {
+      const res = await fetch(`/api/leads/${id}/reply`, {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ messageText: drafts[id] }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const wait = data.retryAfterSeconds ? ` Try again in ${Math.ceil(data.retryAfterSeconds / 60)} min.` : '';
+        throw new Error((data.error ?? 'Could not send reply.') + wait);
+      }
+      if (data.lead) mergeLead(data.lead);
+      toast('Reply sent.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not send reply.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
   // Cold email is a one-time opt-in; confirm through a styled modal (not a native
   // window.confirm) before the irreversible send.
   const handleEmail = (id: string) => setEmailConfirmId(id);
@@ -1056,7 +1099,8 @@ export function useLeadsController() {
     feedQuery, indexLeads, loadBootstrap, refetchList, mergeLead, mergeSignalStatus,
     retryCompany, refreshEngager, isFollowed, sortedCards, visibleCards,
     handleDraftAll, handleScrape, handleDraft, handleEditPlan, handleApprove,
-    handleCheckConnection, handleMarkStage, handleDraftFollowup, handleEmail, confirmEmailSend,
+    handleCheckConnection, handleMarkStage, handleDraftFollowup, handleDraftReply, handleSendReply,
+    handleEmail, confirmEmailSend,
     handleDismiss, handleExport, handleTogglePlaybookStep, handleSnooze, handleResolve,
     handlePlanNurture, handleFollowLead, handleSignalDraft, handleSignalSend,
     handleEngagerPlan, handleEngagerSend, handleEngagerDismiss,
