@@ -23,7 +23,7 @@ function getPillarColor(pillar: string): string {
 import { formatDateShort, formatRelative } from '@/lib/utils';
 import NeedsAttention, { type AttentionItem } from '@/components/dashboard/NeedsAttention';
 import { QuickActions } from '@/components/dashboard/QuickActions';
-import { MorningBriefCard } from '@/components/dashboard/MorningBriefCard';
+import { MorningBriefStrip } from '@/components/dashboard/MorningBriefCard';
 import { GtmCommandCenter } from '@/components/dashboard/GtmCommandCenter';
 import { DashboardWelcomeBanner } from '@/components/dashboard/DashboardWelcomeBanner';
 import { getUserEntitlements } from '@/lib/entitlements';
@@ -291,12 +291,13 @@ export default async function DashboardPage() {
 
       <GtmCommandCenter />
 
-      <MorningBriefCard brief={morningBrief} />
-
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-6">
-          <NeedsAttention items={attentionItems} />
-          <section className="card-surface p-5">
+      {/* Unified daily card: morning-brief signals + Coming up + Ideas (merged from 3 stacked cards) */}
+      <section className="card-surface overflow-hidden">
+        <div className="p-5 md:p-6 border-b border-hair">
+          <MorningBriefStrip brief={morningBrief} />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-hair">
+          <div className="p-5 md:p-6">
             <SectionHeader
               tag="Publishing pipeline"
               title="Coming up"
@@ -347,9 +348,9 @@ export default async function DashboardPage() {
                 ))}
               </ul>
             )}
-          </section>
+          </div>
 
-          <section className="card-surface p-5">
+          <div className="p-5 md:p-6">
             <SectionHeader
               tag="Backlog"
               title="Ideas to turn into posts"
@@ -396,7 +397,13 @@ export default async function DashboardPage() {
                 ))}
               </ul>
             )}
-          </section>
+          </div>
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
+        <div className="space-y-6">
+          <NeedsAttention items={attentionItems} />
         </div>
 
         <aside className="space-y-6">
