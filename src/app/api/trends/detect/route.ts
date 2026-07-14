@@ -59,7 +59,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       for (const k of n.seed_keywords ?? []) if (k?.trim()) keywords.add(k.trim());
     }
   }
-  const searchTerms = [...keywords].slice(0, 12);
+  const searchTerms = Array.from(keywords).slice(0, 12);
 
   // Live trends require the scraper. "Disable and say so" rather than fabricate.
   if (!process.env.APIFY_TOKEN) {
