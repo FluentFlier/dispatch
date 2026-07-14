@@ -134,8 +134,8 @@ export default async function DashboardLayout({
       {sessionKeepAlive}
       <DashboardShell>
         <Sidebar />
-        <main className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-6 pb-24 md:ml-[264px] md:px-8 md:pb-8">
-          <div className="mx-auto w-full max-w-[1100px]">
+        <main className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-6 pb-24 transition-[margin-left] duration-300 md:ml-[var(--sidebar-w,264px)] md:px-8 md:pb-8">
+          <div className="mx-auto w-full max-w-[1560px]">
           {impersonation ? (
             <ImpersonationBanner
               targetDisplayName={impersonation.targetDisplayName}

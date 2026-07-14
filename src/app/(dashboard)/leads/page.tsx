@@ -701,11 +701,11 @@ export default function LeadsPage() {
   // act on the selected ids that resolve to a directory lead and drop them from
   // the list. Runs in parallel; a partial failure still clears what succeeded.
   const bulkLeadAction = async (action: 'dismiss' | 'snooze') => {
-    const ids = Array.from(selectedIds).filter((id) => leadsById[id]);
-    if (ids.length === 0) {
-      toast('Select directory leads to ' + action + '.', 'error');
-      return;
-    }
+    // Feed cards and the directory-lead index (leadsById) come from separate
+    // endpoints, so a selected card often has no leadsById entry — act on every
+    // selected id and let the PATCH decide, instead of silently dropping them.
+    const ids = Array.from(selectedIds);
+    if (ids.length === 0) return;
     setBulkBusy(true);
     try {
       const results = await Promise.allSettled(
@@ -732,9 +732,12 @@ export default function LeadsPage() {
       clearSelection();
       const failed = ids.length - done.length;
       toast(
-        `${done.length} ${action === 'dismiss' ? 'dismissed' : 'snoozed'}${failed ? `, ${failed} failed` : ''}.`,
+        `${done.length} ${action === 'dismiss' ? 'deleted' : 'snoozed'}${failed ? `, ${failed} failed` : ''}.`,
         failed ? 'error' : 'success',
       );
+      // Re-sync with the server so anything that failed to delete reappears and
+      // successful deletes stay gone after a refresh.
+      void loadBootstrap();
     } finally {
       setBulkBusy(false);
     }
@@ -1064,7 +1067,7 @@ export default function LeadsPage() {
     filters.search.trim() !== '';
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6">
+    <div className="page-shell-wide">
       <PageHeader
         eyebrow="TODAY"
         title="Leads"
@@ -1241,14 +1244,15 @@ export default function LeadsPage() {
                     onClick={() => bulkLeadAction('dismiss')}
                     className="text-xs px-2 py-1 rounded-md border border-border bg-bg-secondary hover:bg-bg-primary text-text-secondary disabled:opacity-50"
                   >
-                    Dismiss
+                    Delete
                   </button>
                   <button
                     type="button"
                     onClick={clearSelection}
-                    className="text-xs px-2 py-1 rounded-md text-text-tertiary hover:text-text-primary"
+                    aria-label="Cancel selection"
+                    className="flex h-6 w-6 items-center justify-center rounded-md text-sm text-text-tertiary hover:bg-bg-primary hover:text-text-primary"
                   >
-                    Clear
+                    ✕
                   </button>
                 </div>
               </div>

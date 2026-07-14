@@ -25,6 +25,7 @@ export interface TrendRow {
 
 /** A posted row from `posts` with its manual/real metrics. */
 export interface BriefPostRow {
+  id?: string;
   title: string;
   posted_date: string | null;
   views: number | null;
@@ -59,13 +60,26 @@ export interface MorningBriefIdea {
   pillar: string | null;
 }
 
+/** The single most recent published post + its metrics, for the brief's snapshot. */
+export interface MorningBriefRecentPost {
+  id: string | null;
+  title: string;
+  postedDate: string | null;
+  views: number;
+  saves: number;
+  /** True when this post went out yesterday (vs an older most-recent fallback). */
+  isYesterday: boolean;
+}
+
 export interface MorningBrief {
   /** Human date label for the brief, e.g. "Tuesday, June 30". */
   dateLabel: string;
   topTrend: MorningBriefTrend | null;
   yesterday: MorningBriefYesterday | null;
+  /** Most recent published post + metrics — shown even when nothing went out yesterday. */
+  latestPost: MorningBriefRecentPost | null;
   ideas: MorningBriefIdea[];
-  /** True when the brief has at least one of: trend, yesterday activity, idea. */
+  /** True when the brief has at least one of: trend, recent post, idea. */
   hasContent: boolean;
 }
 
@@ -122,6 +136,24 @@ function summarizeYesterday(posts: BriefPostRow[], now: Date): MorningBriefYeste
   return { postCount: ypts.length, views, saves, topPost };
 }
 
+/** Most recent published post (any date), with its metrics, or null if none. */
+function pickLatestPost(posts: BriefPostRow[], now: Date): MorningBriefRecentPost | null {
+  const dated = posts.filter((p) => p.posted_date);
+  const pool = dated.length > 0 ? dated : posts;
+  if (pool.length === 0) return null;
+  const latest = [...pool].sort((a, b) =>
+    (b.posted_date ?? '').localeCompare(a.posted_date ?? ''),
+  )[0];
+  return {
+    id: latest.id ?? null,
+    title: latest.title,
+    postedDate: latest.posted_date,
+    views: latest.views ?? 0,
+    saves: latest.saves ?? 0,
+    isYesterday: (latest.posted_date ?? '').slice(0, 10) === yesterdayKey(now),
+  };
+}
+
 /**
  * Compose a morning brief from already-fetched rows. Pure: no network, no
  * clock access - the caller supplies `now`.
@@ -138,6 +170,7 @@ export function composeMorningBrief(input: {
     : null;
 
   const yesterday = summarizeYesterday(input.recentPosts, input.now);
+  const latestPost = pickLatestPost(input.recentPosts, input.now);
 
   const ideas: MorningBriefIdea[] = input.ideas
     .slice(0, MAX_IDEAS)
@@ -147,7 +180,8 @@ export function composeMorningBrief(input: {
     dateLabel: formatDateLabel(input.now),
     topTrend,
     yesterday,
+    latestPost,
     ideas,
-    hasContent: Boolean(topTrend) || Boolean(yesterday) || ideas.length > 0,
+    hasContent: Boolean(topTrend) || Boolean(latestPost) || ideas.length > 0,
   };
 }

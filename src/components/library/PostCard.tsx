@@ -2,7 +2,6 @@
 
 import Image from 'next/image';
 import type { Post } from '@/lib/types';
-import { usePillars } from '@/hooks/usePillars';
 import StatusBadge from '@/components/ui/StatusBadge';
 import PillarBadge from '@/components/ui/PillarBadge';
 import { postPillars } from '@/lib/pillars';
@@ -17,20 +16,18 @@ interface PostCardProps {
 }
 
 export default function PostCard({ post, selected, onSelect, onClick }: PostCardProps) {
-  const { getColor } = usePillars();
-  const borderColor = getColor(post.pillar);
+  const platformLabel = post.platform
+    ? PLATFORM_LABELS[post.platform as keyof typeof PLATFORM_LABELS] ?? post.platform
+    : '';
+  // The 'general' fallback pillar isn't a real pillar — never show it as a tag.
+  const realPillars = postPillars(post).filter((p) => p !== 'general');
+  const dateStr = post.scheduled_date ?? post.posted_date ?? null;
 
   return (
     <div
       className="bg-bg-secondary border border-border rounded-lg cursor-pointer hover:border-border-hover transition-colors relative overflow-hidden"
       onClick={() => onClick(post)}
     >
-      {/* Pillar left accent - 3px bar */}
-      <div
-        className="absolute left-0 top-0 bottom-0 w-[3px] rounded-r-[2px]"
-        style={{ backgroundColor: borderColor }}
-      />
-
       {/* Checkbox */}
       <input
         type="checkbox"
@@ -53,27 +50,37 @@ export default function PostCard({ post, selected, onSelect, onClick }: PostCard
             className="object-cover"
             unoptimized
           />
+          {/* Airbnb-style platform badge overlaid on the media */}
+          {post.platform && (
+            <span className="absolute left-2.5 top-2.5 z-10 inline-flex items-center rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-ink shadow-sm">
+              {platformLabel}
+            </span>
+          )}
         </div>
       )}
 
       <div className="p-[13px_14px] pl-[18px]">
+
+        {/* Platform badge for text-only posts (no media to overlay) */}
+        {!post.image_url && post.platform && (
+          <span className="mb-2 inline-flex items-center rounded-full border border-hair bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
+            {platformLabel}
+          </span>
+        )}
 
         {/* Title */}
         <h3 className="font-body font-[500] text-text-primary text-[13px] truncate pr-6 mb-2 leading-[1.3]">
           {post.title}
         </h3>
 
-        {/* Badges */}
-        <div className="flex items-center flex-wrap gap-[6px] mb-3">
-          {/* Source platform chip - tells the user where the post came from */}
-          <span className="inline-flex items-center rounded-[4px] border border-border bg-bg-tertiary px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-text-secondary">
-            {PLATFORM_LABELS[post.platform] ?? post.platform}
-          </span>
-          {postPillars(post).map((p) => (
-            <PillarBadge key={p} pillar={p} />
-          ))}
-          <StatusBadge status={post.status} />
-        </div>
+        {/* Real pillars only - the 'general' fallback is hidden */}
+        {realPillars.length > 0 && (
+          <div className="flex items-center flex-wrap gap-[6px] mb-3">
+            {realPillars.map((p) => (
+              <PillarBadge key={p} pillar={p} />
+            ))}
+          </div>
+        )}
 
         {/* Script preview */}
         {post.script && (
@@ -82,9 +89,12 @@ export default function PostCard({ post, selected, onSelect, onClick }: PostCard
           </p>
         )}
 
-        {/* Footer */}
+        {/* Footer: status bottom-left, metrics right */}
         <div className="flex items-center justify-between text-[11px] text-ink3">
-          <span>{formatDateShort(post.scheduled_date)}</span>
+          <div className="flex items-center gap-2">
+            <StatusBadge status={post.status} />
+            {dateStr && <span>{formatDateShort(dateStr)}</span>}
+          </div>
           {post.status === 'posted' && (post.views !== null || post.saves !== null) && (
             <span className="flex gap-2">
               {post.views !== null && <span>{post.views} views</span>}

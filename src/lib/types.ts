@@ -32,6 +32,7 @@ export interface Post {
   series_position: number | null;
   variant_group_id: string | null;
   source_platform: string | null;
+  is_imported?: boolean;
   scheduled_publish_at: string | null;
   image_url: string | null;
   created_at: string;

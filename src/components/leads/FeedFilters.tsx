@@ -17,13 +17,13 @@ export interface FeedFilterState {
 }
 
 const STATUS_OPTIONS: Array<{ key: LeadStatus | 'needs_reply' | 'all'; label: string }> = [
+  { key: 'all', label: 'All statuses' },
   { key: 'needs_reply', label: 'Needs reply' },
   { key: 'new', label: 'New' },
   { key: 'drafted', label: 'Drafted' },
   { key: 'approved', label: 'Approved' },
   { key: 'sent', label: 'Sent' },
   { key: 'dismissed', label: 'Dismissed' },
-  { key: 'all', label: 'All' },
 ];
 
 const SOURCE_OPTIONS: Array<{ key: string; label: string }> = [
@@ -69,27 +69,20 @@ export function FeedFilters({ state, onChange, verticals }: FeedFiltersProps) {
 
   return (
     <div className="space-y-3">
-      {/* Status segmented row */}
-      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
-        {STATUS_OPTIONS.map((s) => (
-          <button
-            key={s.key}
-            type="button"
-            aria-pressed={state.status === s.key}
-            onClick={() => set({ status: s.key })}
-            className={`px-3 py-1.5 rounded-md text-sm font-medium cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary ${
-              state.status === s.key
-                ? 'bg-accent-primary text-text-inverse'
-                : 'bg-bg-secondary text-text-secondary hover:text-text-primary'
-            }`}
-          >
-            {s.label}
-          </button>
-        ))}
-      </div>
-
       {/* Selects + search + sort */}
       <div className="flex flex-wrap items-center gap-2">
+        <label className="sr-only" htmlFor="feed-status">Status</label>
+        <select
+          id="feed-status"
+          value={state.status}
+          onChange={(e) => set({ status: e.target.value as FeedFilterState['status'] })}
+          className={selectCls}
+        >
+          {STATUS_OPTIONS.map((o) => (
+            <option key={o.key} value={o.key}>{o.label}</option>
+          ))}
+        </select>
+
         <label className="sr-only" htmlFor="feed-source">Source</label>
         <select
           id="feed-source"

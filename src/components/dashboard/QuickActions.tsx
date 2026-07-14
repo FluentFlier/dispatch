@@ -25,21 +25,22 @@ const actions = [
   },
   {
     title: 'Leads',
-    description: 'GTM feed - signals, directory leads, and outreach.',
+    description: 'GTM feed: signals, directory leads, and outreach.',
     href: '/leads',
     icon: Sparkles,
     accent: 'bg-flame/10 text-flame',
   },
 ];
 
-export function QuickActions() {
+export function QuickActions({ variant = 'row' }: { variant?: 'row' | 'rail' }) {
+  const isRail = variant === 'rail';
   return (
-    <section className="grid grid-cols-1 gap-3 lg:grid-cols-4">
+    <section className={isRail ? 'grid grid-cols-2 gap-3' : 'grid grid-cols-1 gap-3 lg:grid-cols-4'}>
       {actions.map((action) => (
         <Link
           key={action.href}
           href={action.href}
-          className="group flex min-h-[116px] flex-col justify-between card-surface p-4 hover:-translate-y-0.5 hover:border-blue/20 transition-all"
+          className={`group flex flex-col justify-between card-surface p-4 hover:-translate-y-0.5 hover:border-blue/20 transition-all ${isRail ? 'aspect-square' : 'min-h-[116px]'}`}
         >
           <div className="flex items-start justify-between gap-3">
             <div

@@ -11,7 +11,6 @@ import { postPillars } from '@/lib/pillars';
 import PostGrid from '@/components/library/PostGrid';
 import PostTable from '@/components/library/PostTable';
 import PostEditorDrawer from '@/components/library/PostEditorDrawer';
-import PublishTimeline from '@/components/library/PublishTimeline';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
@@ -392,31 +391,45 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {/* Platform tabs - All / LinkedIn / X */}
-      <PlatformTabs value={platformFilter} onChange={setPlatformFilter} counts={platformCounts} />
-
-      {/* Filters row */}
-      <div className="flex flex-wrap gap-2">
-        <FilterDropdown
-          label="Pillar"
-          value={pillarFilter}
-          onChange={(v) => setPillarFilter(v)}
-          options={[{ value: 'all', label: 'All' }, ...pillarList.map((p) => ({ value: p.value, label: p.label }))]}
-        />
-        <FilterDropdown
-          label="Status"
-          value={statusFilter}
-          onChange={(v) => setStatusFilter(v as Status | 'all')}
-          options={[{ value: 'all', label: 'All' }, ...STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))]}
-        />
-        {series.length > 0 && (
+      {/* Tabs + filters on one line: All/LinkedIn/X left, select-all + filters right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PlatformTabs value={platformFilter} onChange={setPlatformFilter} counts={platformCounts} />
+        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+          {view === 'card' && selected.size > 0 && (
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 rounded-md border border-border bg-bg-secondary px-3 py-2 min-h-[44px] text-[13px] font-medium text-text-primary hover:border-border-hover transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={selected.size === filtered.length && filtered.length > 0}
+                ref={(el) => {
+                  if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length;
+                }}
+                readOnly
+                className="w-4 h-4 accent-accent-primary pointer-events-none"
+              />
+              {selected.size === filtered.length && filtered.length > 0
+                ? 'Deselect all'
+                : `Select all (${filtered.length})`}
+            </button>
+          )}
           <FilterDropdown
-            label="Series"
-            value={seriesFilter}
-            onChange={(v) => setSeriesFilter(v)}
-            options={[{ value: 'all', label: 'All' }, ...series.map((s) => ({ value: s.id, label: s.name }))]}
+            label="Status"
+            value={statusFilter}
+            onChange={(v) => setStatusFilter(v as Status | 'all')}
+            options={[{ value: 'all', label: 'All' }, ...STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))]}
           />
-        )}
+          {series.length > 0 && (
+            <FilterDropdown
+              label="Series"
+              value={seriesFilter}
+              onChange={(v) => setSeriesFilter(v)}
+              options={[{ value: 'all', label: 'All' }, ...series.map((s) => ({ value: s.id, label: s.name }))]}
+            />
+          )}
+        </div>
       </div>
 
       {/* Bulk actions */}
@@ -500,37 +513,12 @@ export default function LibraryPage() {
           )}
         </div>
       ) : view === 'card' ? (
-        <div className="space-y-3">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={toggleSelectAll}
-              className="flex items-center gap-2 rounded-md border border-border bg-bg-secondary px-3 py-2 min-h-[44px] text-[13px] font-medium text-text-primary hover:border-border-hover transition-colors"
-            >
-              <input
-                type="checkbox"
-                checked={selected.size === filtered.length && filtered.length > 0}
-                ref={(el) => {
-                  if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length;
-                }}
-                readOnly
-                className="w-4 h-4 accent-accent-primary pointer-events-none"
-              />
-              {selected.size === filtered.length && filtered.length > 0
-                ? 'Deselect all'
-                : `Select all (${filtered.length})`}
-            </button>
-            {selected.size > 0 && (
-              <span className="font-mono text-[12px] text-text-secondary">{selected.size} selected</span>
-            )}
-          </div>
-          <PostGrid
-            posts={filtered}
-            selected={selected}
-            onSelect={toggleSelect}
-            onClickPost={openEditor}
-          />
-        </div>
+        <PostGrid
+          posts={filtered}
+          selected={selected}
+          onSelect={toggleSelect}
+          onClickPost={openEditor}
+        />
       ) : (
         <PostTable
           posts={filtered}
@@ -552,14 +540,6 @@ export default function LibraryPage() {
           </button>
         </div>
       )}
-
-      {/* Publish timeline */}
-      <section className="bg-bg-secondary border border-hair rounded-lg p-4 mt-6 shadow-card">
-        <h2 className="section-label mb-3">
-          Publish activity
-        </h2>
-        <PublishTimeline limit={10} />
-      </section>
 
       {/* Post Editor Drawer */}
       {editorOpen && editorPost && (

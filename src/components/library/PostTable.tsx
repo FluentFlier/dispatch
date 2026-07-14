@@ -5,12 +5,10 @@ import type { Post } from '@/lib/types';
 import type { Status, Platform } from '@/lib/constants';
 import { STATUSES, PLATFORM_LABELS } from '@/lib/constants';
 import StatusBadge from '@/components/ui/StatusBadge';
-import PillarBadge from '@/components/ui/PillarBadge';
-import { postPillars } from '@/lib/pillars';
 import { formatDateShort } from '@/lib/utils';
 import { useMemo, useState } from 'react';
 
-type SortKey = 'title' | 'pillar' | 'platform' | 'status' | 'scheduled_date' | 'views';
+type SortKey = 'title' | 'platform' | 'status' | 'scheduled_date' | 'views';
 type SortDir = 'asc' | 'desc';
 
 interface PostTableProps {
@@ -23,10 +21,9 @@ interface PostTableProps {
 
 const COLUMNS: [SortKey, string][] = [
   ['title', 'Title'],
-  ['pillar', 'Pillar'],
   ['platform', 'Platform'],
   ['status', 'Status'],
-  ['scheduled_date', 'Scheduled'],
+  ['scheduled_date', 'Date'],
   ['views', 'Performance'],
 ];
 
@@ -51,10 +48,18 @@ export default function PostTable({ posts, selected, onSelect, onSelectAll, onCl
 
       switch (sortKey) {
         case 'title': av = a.title.toLowerCase(); bv = b.title.toLowerCase(); break;
-        case 'pillar': av = a.pillar; bv = b.pillar; break;
         case 'platform': av = a.platform; bv = b.platform; break;
         case 'status': av = STATUSES.indexOf(a.status); bv = STATUSES.indexOf(b.status); break;
-        case 'scheduled_date': av = a.scheduled_date ?? ''; bv = b.scheduled_date ?? ''; break;
+        case 'scheduled_date': {
+          // posted_date is a full ISO timestamp, scheduled_date a plain DATE — a
+          // string compare of the two mixed formats scrambles order, so compare by
+          // numeric time. Posted date wins (the "when did this go live" date).
+          const ad = a.posted_date ?? a.scheduled_date;
+          const bd = b.posted_date ?? b.scheduled_date;
+          av = ad ? new Date(ad).getTime() : 0;
+          bv = bd ? new Date(bd).getTime() : 0;
+          break;
+        }
         case 'views': av = a.views ?? 0; bv = b.views ?? 0; break;
       }
 
@@ -114,18 +119,11 @@ export default function PostTable({ posts, selected, onSelect, onSelectAll, onCl
               <td className="py-2.5 px-2 text-ink font-medium max-w-[200px] truncate">
                 {post.title}
               </td>
-              <td className="py-2.5 px-2">
-                <div className="flex flex-wrap items-center gap-1">
-                  {postPillars(post).map((p) => (
-                    <PillarBadge key={p} pillar={p} />
-                  ))}
-                </div>
-              </td>
               <td className="py-2.5 px-2 font-mono text-[12px] text-ink2">{PLATFORM_LABELS[post.platform as Platform] ?? post.platform}</td>
               <td className="py-2.5 px-2">
                 <StatusBadge status={post.status} />
               </td>
-              <td className="py-2.5 px-2 text-[12px] text-ink3 tabular-nums">{formatDateShort(post.scheduled_date)}</td>
+              <td className="py-2.5 px-2 text-[12px] text-ink3 tabular-nums">{formatDateShort(post.posted_date ?? post.scheduled_date)}</td>
               <td className="py-2.5 px-2 text-[12px] text-ink3 tabular-nums">
                 {post.views !== null ? `${post.views} views` : '--'}
               </td>

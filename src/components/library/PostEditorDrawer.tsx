@@ -338,14 +338,17 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="block sm:col-span-3">
-                  <span className={labelClass}>Pillars (pick one or more)</span>
-                  <PillarMultiSelect
-                    pillars={form.pillars}
-                    weights={form.pillar_weights}
-                    onChange={handlePillarsChange}
-                  />
-                </div>
+                {/* Imported (historical) posts aren't authored against a pillar — hide the picker. */}
+                {!post.is_imported && (
+                  <div className="block sm:col-span-3">
+                    <span className={labelClass}>Pillars (pick one or more)</span>
+                    <PillarMultiSelect
+                      pillars={form.pillars}
+                      weights={form.pillar_weights}
+                      onChange={handlePillarsChange}
+                    />
+                  </div>
+                )}
                 <label className="block">
                   <span className={labelClass}>Platform</span>
                   <select

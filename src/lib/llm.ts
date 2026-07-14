@@ -26,6 +26,11 @@ export const HF_ROUTER_BASE_URL = 'https://router.huggingface.co/v1';
 export const HF_DEFAULT_CHAT_MODEL = 'meta-llama/Llama-3.1-8B-Instruct';
 
 const DEFAULT_MAX_TOKENS = 1024;
+// Reasoning models (gpt-oss, o-series, gpt-5) spend hundreds of tokens on hidden
+// reasoning BEFORE emitting content, so the normal 1024 cap truncates real output
+// mid-JSON. Give them headroom by default. This is a ceiling, not spend — billing
+// counts only tokens actually generated, and LLM_DAILY_HARD_CAP still guards total.
+const REASONING_DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0.7;
 
 /** How many times to retry a 429 (rate limit) before giving up. */
@@ -46,7 +51,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * router, Groq) keep the old `max_tokens` + `temperature` shape.
  */
 function isReasoningModel(model: string): boolean {
-  return /(^|\/)o\d/i.test(model) || /gpt-5/i.test(model);
+  return /(^|\/)o\d/i.test(model) || /gpt-5/i.test(model) || /gpt-oss/i.test(model);
 }
 
 /**
@@ -248,7 +253,9 @@ async function callProvider(
   options: ChatCompletionOptions,
   retryRateLimit = true,
 ): Promise<string> {
-  const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
+  const maxTokens =
+    options.maxTokens ??
+    (isReasoningModel(provider.model) ? REASONING_DEFAULT_MAX_TOKENS : DEFAULT_MAX_TOKENS);
   const body: Record<string, unknown> = {
     model: provider.model,
     messages: [
@@ -489,7 +496,9 @@ async function callProviderStream(
   options: ChatCompletionOptions,
   onToken: StreamTokenHandler,
 ): Promise<string> {
-  const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
+  const maxTokens =
+    options.maxTokens ??
+    (isReasoningModel(provider.model) ? REASONING_DEFAULT_MAX_TOKENS : DEFAULT_MAX_TOKENS);
   const body: Record<string, unknown> = {
     model: provider.model,
     stream: true,

@@ -285,6 +285,9 @@ export async function persistImportedPosts({
       // views filter on pillars[], so an empty array makes imported posts invisible.
       pillar: 'general',
       pillars: ['general'],
+      // Historical posts pulled from a connected account, not authored in-app.
+      // The editor hides the pillar picker for these.
+      is_imported: true,
       // Carry the first image so the reconstructed post shows media, not just text.
       image_url: firstImageUrl(item),
       // Every image (image_url only ever kept the first), each with a cached

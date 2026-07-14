@@ -17,6 +17,10 @@ interface ResyncResponse {
 interface CalendarConnectionCardProps {
   /** Bump to reload connection status after OAuth redirect. */
   refreshKey?: number;
+  /** Render a small status pill (label + connect/disconnect) instead of the full
+   *  reimport card. Used in the Settings integrations list where the window/reload
+   *  controls don't belong. */
+  compact?: boolean;
 }
 
 /**
@@ -25,7 +29,7 @@ interface CalendarConnectionCardProps {
  * → connect button; connected → window picker + reload with explicit result/errors
  * surfaced so the user can self-diagnose configuration problems.
  */
-export default function CalendarConnectionCard({ refreshKey = 0 }: CalendarConnectionCardProps) {
+export default function CalendarConnectionCard({ refreshKey = 0, compact = false }: CalendarConnectionCardProps) {
   const {
     loading,
     connected,
@@ -95,6 +99,42 @@ export default function CalendarConnectionCard({ refreshKey = 0 }: CalendarConne
     }
   }
 
+  const showConfigWarning = !composioConfigured || !toolkitReady;
+
+  // Compact pill for the Settings integrations list: status + connect/disconnect,
+  // no window/reload controls (those live on the full card in the calendar view).
+  if (compact) {
+    return (
+      <div className="flex items-center justify-between rounded-md border border-border bg-bg-primary px-3 py-2 text-xs">
+        <span className="font-medium text-text-primary">Google Calendar</span>
+        {loading ? (
+          <Loader2 size={14} className="animate-spin text-text-secondary" />
+        ) : connected ? (
+          <button
+            type="button"
+            disabled={disconnecting}
+            onClick={handleDisconnect}
+            className="text-text-tertiary hover:underline disabled:opacity-60"
+          >
+            {disconnecting ? 'Disconnecting…' : 'Disconnect'}
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={connecting || showConfigWarning}
+            onClick={() => {
+              setError(null);
+              void connect('settings');
+            }}
+            className="font-medium text-accent-primary hover:underline disabled:opacity-60"
+          >
+            {connecting ? 'Connecting…' : 'Connect'}
+          </button>
+        )}
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex items-center gap-2 text-[12px] text-text-secondary">
@@ -102,8 +142,6 @@ export default function CalendarConnectionCard({ refreshKey = 0 }: CalendarConne
       </div>
     );
   }
-
-  const showConfigWarning = !composioConfigured || !toolkitReady;
 
   return (
     <div className="rounded-lg border border-border p-4">

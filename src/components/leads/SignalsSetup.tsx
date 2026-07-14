@@ -543,40 +543,6 @@ export function SignalsSetup() {
         </div>
       </section>
 
-      {/* --- Integrations --- */}
-      <section className="rounded-lg border border-border bg-bg-secondary p-5 space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold text-text-primary">Integrations</h2>
-          <p className="mt-1 text-xs text-text-secondary">
-            Connect the channels used to notify you and to send outreach.
-          </p>
-        </div>
-        <CalendarConnectionCard />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          <IntegrationPill label="LinkedIn" connected={Boolean(linkedIn?.connected)} />
-          <IntegrationPill
-            label="Slack"
-            connected={Boolean(slackIntegration?.connected)}
-            onConnect={slackIntegration?.connected ? undefined : () => connectComposio('slack')}
-            connecting={connectingToolkit === 'slack'}
-          />
-          <IntegrationPill
-            label="Gmail"
-            connected={Boolean(gmailIntegration?.connected)}
-            onConnect={gmailIntegration?.connected ? undefined : () => connectComposio('gmail')}
-            connecting={connectingToolkit === 'gmail'}
-          />
-        </div>
-        {slackIntegration?.connected && (
-          <p className="text-xs text-text-secondary">
-            New-signal Slack alerts: {slackIntegration.config.notify_on_new_signal ? 'on' : 'off'}
-            {slackIntegration.config.slack_channel_name
-              ? ` (#${slackIntegration.config.slack_channel_name})`
-              : ''}
-            .
-          </p>
-        )}
-      </section>
     </div>
   );
 }

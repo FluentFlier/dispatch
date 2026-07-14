@@ -23,7 +23,7 @@ function getApiKey(): string {
 }
 
 async function unipoleFetch(path: string, options: RequestInit = {}): Promise<Response> {
-  // For multipart (FormData) bodies we must NOT set Content-Type ourselves -
+  // For multipart (FormData) bodies we must NOT set Content-Type ourselves —
   // fetch has to set `multipart/form-data; boundary=...`. Forcing
   // application/json here is exactly what made POST /posts fail with a schema
   // "invalid_parameters" 400. JSON callers are unaffected.
@@ -167,7 +167,7 @@ export interface UnipileFullAccount {
       publicIdentifier?: string;
       /** LinkedIn numeric member ID (used in /users/{id}/posts path) */
       memberId?: string;
-      /** LinkedIn internal ID - may be numeric or ACo... encoded */
+      /** LinkedIn internal ID — may be numeric or ACo... encoded */
       id?: string;
       objectUrn?: string;
       entityUrn?: string;
@@ -179,7 +179,7 @@ export interface UnipileFullAccount {
  * Fetches full account details from Unipile including connection_params.
  * Webhook payloads only carry a bare account object (no connection_params),
  * so account_id stored there is just `username`. Calling this after webhook
- * upsert gives us publicIdentifier - the LinkedIn provider user ID required
+ * upsert gives us publicIdentifier — the LinkedIn provider user ID required
  * for GET /users/{id}/posts.
  */
 export async function fetchUnipileAccountDetails(unipileAccountId: string): Promise<UnipileFullAccount | null> {

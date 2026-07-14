@@ -8,7 +8,6 @@ import {
   PenLine,
   Radio,
   Settings2,
-  Sparkles,
 } from 'lucide-react';
 import { getServerClient, getAuthenticatedUser } from '@/lib/insforge/server';
 import type { Post, ContentIdea } from '@/lib/types';
@@ -92,10 +91,6 @@ export default async function DashboardPage() {
     // No server-side auth -- show welcome state
     return (
       <div className="max-w-lg mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-        <span className="inline-flex items-center gap-2 rounded-badge border border-hair bg-white/80 px-3 py-1.5 text-[11.5px] font-semibold tracking-[0.01em] text-ink2 backdrop-blur-sm mb-4">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue" aria-hidden />
-          Content OS
-        </span>
         <h2 className="text-[clamp(28px,3.5vw,36px)] font-semibold tracking-[-0.03em] leading-tight text-ink mb-2">Welcome to Content OS</h2>
         <p className="text-[15px] text-ink2 mb-6 leading-relaxed">
           Write in your voice, schedule posts, and reply to comments, all in one place.
@@ -143,12 +138,12 @@ export default async function DashboardPage() {
         .eq('user_id', uid)
         .order('detected_at', { ascending: false })
         .limit(8),
-      // Morning brief: posted content from the last two days for the "yesterday" summary
+      // Morning brief: most recent published posts (any date) — the composer
+      // derives both the "yesterday" summary and the latest-post snapshot from these.
       scoped(client.database.from('posts')
-        .select('title, posted_date, views, saves')
+        .select('id, title, posted_date, views, saves')
         .eq('user_id', uid)
         .eq('status', 'posted')
-        .gte('posted_date', twoDaysAgo)
         .order('posted_date', { ascending: false })
         .limit(20)),
     ]);
@@ -227,71 +222,71 @@ export default async function DashboardPage() {
         <DashboardWelcomeBanner />
       </Suspense>
 
-      <section className="card-surface lift-soft overflow-hidden">
-        <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.65fr]">
-          <div className="p-6 md:p-8">
-            <span className="inline-flex items-center gap-2 rounded-badge border border-hair bg-white/80 px-3 py-1.5 text-[11.5px] font-semibold tracking-[0.01em] text-ink2 backdrop-blur-sm">
-              <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue" aria-hidden />
-              Dashboard
-            </span>
-            <div className="mt-4 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-lime/25 bg-lime/15 px-3 py-1 text-xs font-medium text-ink">
-                <Radio className="h-3.5 w-3.5" />
-                Workspace live
-              </span>
-              {!hasConnections && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-flame/20 bg-flame/10 px-3 py-1 text-xs font-medium text-flame">
-                  <Circle className="h-2 w-2 fill-current" />
-                  Publishing not connected
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="card-surface lift-soft overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.65fr]">
+            <div className="p-6 md:p-8">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-lime/25 bg-lime/15 px-3 py-1 text-xs font-medium text-ink">
+                  <Radio className="h-3.5 w-3.5" />
+                  Workspace live
                 </span>
-              )}
-            </div>
-            <h1 className="mt-5 max-w-2xl text-[clamp(32px,4vw,44px)] font-semibold leading-[1.05] tracking-[-0.04em] text-ink">
-              {creatorProfile?.display_name
-                ? `${creatorProfile.display_name.split(' ')[0]}, your content system is ready for the next move.`
-                : 'Your content system is ready for the next move.'}
-            </h1>
-            <p className="mt-3 max-w-xl text-[15px] leading-6 text-ink2">
-              Draft the next post, schedule the week, or turn replies into leads. Content OS should feel like a command center, not a folder of half-finished tools.
-            </p>
-            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-              <Link href="/generate" className="btn-primary">
-                <PenLine className="h-4 w-4" />
-                Write next post
-              </Link>
-              <Link href="/settings?tab=connections" className="btn-secondary">
-                <Settings2 className="h-4 w-4" />
-                Connect channels
-              </Link>
-            </div>
-          </div>
-
-          <div className="border-t border-hair bg-paper2/50 p-6 lg:border-l lg:border-t-0">
-            <p className="section-label">This week</p>
-            <div className="mt-4 grid grid-cols-2 gap-3">
-              <MetricTile value={postsThisWeek} label="Published" />
-              <MetricTile value={inPipeline} label="In progress" />
-              <MetricTile value={totalPosted} label="All time" />
-              <MetricTile value={streak} label="Day streak" accent />
-            </div>
-            <div className="mt-5 rounded-2xl border border-hair bg-white/80 p-4 backdrop-blur-sm">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-ink">Creator Brain</p>
-                  <p className="mt-1 text-xs leading-5 text-ink2">Memory, voice, and shipped posts powering your drafts.</p>
-                </div>
-                <Sparkles className="h-5 w-5 text-blue" />
+                {!hasConnections && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-flame/20 bg-flame/10 px-3 py-1 text-xs font-medium text-flame">
+                    <Circle className="h-2 w-2 fill-current" />
+                    Publishing not connected
+                  </span>
+                )}
+              </div>
+              <h1 className="mt-5 max-w-2xl text-[clamp(32px,4vw,44px)] font-semibold leading-[1.05] tracking-[-0.04em] text-ink">
+                {creatorProfile?.display_name
+                  ? `${creatorProfile.display_name.split(' ')[0]}, your content system is ready for the next move.`
+                  : 'Your content system is ready for the next move.'}
+              </h1>
+              <p className="mt-3 max-w-xl text-[15px] leading-6 text-ink2">
+                Draft the next post, schedule the week, or turn replies into leads. Content OS should feel like a command center, not a folder of half-finished tools.
+              </p>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+                <Link href="/generate" className="btn-primary">
+                  <PenLine className="h-4 w-4" />
+                  Write next post
+                </Link>
+                <Link href="/settings?tab=connections" className="btn-secondary">
+                  <Settings2 className="h-4 w-4" />
+                  Connect channels
+                </Link>
               </div>
             </div>
+
+            <div className="border-t border-hair bg-paper2/50 p-6 lg:border-l lg:border-t-0">
+              <p className="section-label">This week</p>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <MetricTile value={postsThisWeek} label="Published" />
+                <MetricTile value={inPipeline} label="In progress" />
+                <MetricTile value={totalPosted} label="All time" />
+                <MetricTile value={streak} label="Day streak" accent />
+              </div>
+              {!setupComplete && (
+                <div className="mt-5 rounded-2xl border border-hair bg-white/80 p-4 backdrop-blur-sm">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle size={16} className="text-blue shrink-0" />
+                    <h2 className="text-sm font-semibold text-ink">Finish setup</h2>
+                  </div>
+                  <div className="mt-3 space-y-1.5">
+                    <SetupStep done={hasProfile} label="Profile" href="/settings" />
+                    <SetupStep done={hasVoice} label="Voice" href="/voice-lab" />
+                    <SetupStep done={hasConnections} label="Channels" href="/settings?tab=connections" />
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <QuickActions />
+        <QuickActions variant="rail" />
+      </div>
 
-      <GtmCommandCenter />
-
-      {/* Unified daily card: morning-brief signals + Coming up + Ideas (merged from 3 stacked cards) */}
+      {/* Unified daily card: morning-brief signals + Coming up + Ideas (one card) */}
       <section className="card-surface overflow-hidden">
         <div className="p-5 md:p-6 border-b border-hair">
           <MorningBriefStrip brief={morningBrief} />
@@ -299,7 +294,6 @@ export default async function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-hair">
           <div className="p-5 md:p-6">
             <SectionHeader
-              tag="Publishing pipeline"
               title="Coming up"
               accent="#2563EB"
               action={
@@ -352,7 +346,6 @@ export default async function DashboardPage() {
 
           <div className="p-5 md:p-6">
             <SectionHeader
-              tag="Backlog"
               title="Ideas to turn into posts"
               accent="#0D9488"
               action={
@@ -401,26 +394,13 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
-        <div className="space-y-6">
-          <NeedsAttention items={attentionItems} />
-        </div>
+      <NeedsAttention items={attentionItems} />
+
+      {/* GTM pipeline (narrower) with Recent activity as a right rail */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <GtmCommandCenter />
 
         <aside className="space-y-6">
-          {!setupComplete && (
-            <section className="card-surface p-5">
-              <div className="flex items-center gap-2">
-                <AlertCircle size={16} className="text-blue shrink-0" />
-                <h2 className="text-sm font-semibold text-ink">Finish setup</h2>
-              </div>
-              <div className="mt-3 space-y-1.5">
-                <SetupStep done={hasProfile} label="Profile" href="/settings" />
-                <SetupStep done={hasVoice} label="Voice" href="/voice-lab" />
-                <SetupStep done={hasConnections} label="Channels" href="/settings?tab=connections" />
-              </div>
-            </section>
-          )}
-
           <section className="card-surface p-5">
             <p className="section-label">Recent activity</p>
             {recentActivity.length === 0 ? (

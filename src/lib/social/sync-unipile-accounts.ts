@@ -49,7 +49,7 @@ function mapUnipilePlatform(account: UnipileAccount) {
  * user, and is the ONLY new account of its platform. Two concurrent connects
  * produce >1 new account of a platform → ambiguous → bound to nobody here
  * (the state-bound webhook resolves those). This is the guard against the old
- * "grab the first id Unipile returns" cross-wiring bug - keep it pure + tested.
+ * "grab the first id Unipile returns" cross-wiring bug — keep it pure + tested.
  */
 export function pickAccountsToBind(
   accounts: UnipileAccount[],
@@ -161,7 +161,7 @@ export async function syncUnipileAccountsForUser(
   }
 
   // Pre-connect snapshot written by /connect/unipile. Its absence means this
-  // call is NOT a fresh connect (e.g. a settings-page load) - bind nothing, so
+  // call is NOT a fresh connect (e.g. a settings-page load) — bind nothing, so
   // we never re-derive identity from the shared list (the old cross-wiring bug).
   const { data: snapRow } = await serviceClient.database
     .from('unipile_connect_snapshots')
@@ -170,7 +170,7 @@ export async function syncUnipileAccountsForUser(
     .maybeSingle();
 
   if (!snapRow) {
-    return { synced: 0, workspaceId, message: 'No pending connect - nothing to bind' };
+    return { synced: 0, workspaceId, message: 'No pending connect — nothing to bind' };
   }
   const snapshotIds = new Set(
     ((snapRow as { account_ids?: string[] }).account_ids ?? []).filter(Boolean),

@@ -110,6 +110,25 @@ export function nearDupIndex(vec: number[], existing: number[][], threshold = NE
   return -1;
 }
 
+/**
+ * Reusable: pull recent real posts for arbitrary keywords via the same Apify
+ * post-search actor the hook miner uses. Grounds features that need live signal
+ * (e.g. trend detection) in actual recent posts instead of an LLM's imagination.
+ * Throws when APIFY_TOKEN is unset so callers can surface "not configured" rather
+ * than silently fabricating.
+ */
+export async function fetchRecentPostsByKeywords(
+  keywords: string[],
+  maxResults = 40,
+): Promise<RawPost[]> {
+  const token = process.env.APIFY_TOKEN;
+  if (!token) throw new Error('APIFY_TOKEN not configured');
+  const seeds = keywords.map((k) => k.trim()).filter(Boolean);
+  if (seeds.length === 0) return [];
+  const apify = new ApifyClient({ token });
+  return fetchRawPosts(apify, seeds, maxResults);
+}
+
 /** Pulls posts for a niche's seed keywords from the Apify no-cookie actor. */
 async function fetchRawPosts(apify: ApifyClient, seedKeywords: string[], maxResults: number): Promise<RawPost[]> {
   const run = await apify.actor(APIFY_ACTOR).call({
