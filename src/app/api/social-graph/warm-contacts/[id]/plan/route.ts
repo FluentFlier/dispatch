@@ -4,7 +4,7 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
 import { planEngagerNurture } from '@/lib/social-graph/engager-nurture';
 
 /**
- * POST /api/social-graph/warm-contacts/[id]/plan — start the full nurture
+ * POST /api/social-graph/warm-contacts/[id]/plan - start the full nurture
  * sequence for an engager: build a research dossier, then either queue a
  * value-add comment on a recent post (comment-first warmup) or draft a connect
  * note directly when no recent post is found. Human stays in the loop: this only

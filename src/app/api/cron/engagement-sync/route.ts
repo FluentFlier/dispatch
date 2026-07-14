@@ -138,7 +138,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
         // === CLOSED LOOP: rebuild the audience/lead snapshot from synced
         // comments + reactions. Gated by feature flag; failures here must not
-        // fail the sync — categorization is derived data. RL hook scoring is
+        // fail the sync - categorization is derived data. RL hook scoring is
         // handled separately by the nightly intelligence-sync cron.
         await usage.track(userId, 'analytics', { source: 'cron-engagement-sync' });
 

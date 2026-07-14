@@ -63,7 +63,7 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL;
 END $$;
 
--- Feature flags (idempotent seeds — safe to re-run).
+-- Feature flags (idempotent seeds - safe to re-run).
 CREATE TABLE IF NOT EXISTS feature_flags (
   name text PRIMARY KEY,
   enabled boolean NOT NULL DEFAULT true,

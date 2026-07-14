@@ -50,7 +50,7 @@ export function CreateTrialCodeForm() {
       router.refresh();
     } catch {
       setIsError(true);
-      setMessage('Network error — try again.');
+      setMessage('Network error - try again.');
     } finally {
       setLoading(false);
     }

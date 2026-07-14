@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SignalLeadWithContacts, LeadPlaybook } from '@/lib/signals/types';
 
 /**
- * WS1.2 — Regenerate / rewrite-with-instruction / edit for draft and plan.
+ * WS1.2 - Regenerate / rewrite-with-instruction / edit for draft and plan.
  *
  * - Rewrite instruction must reach the LLM prompt (draftOutreachForLead).
  * - Plan edit (why / angle / step labels) must merge and persist; step status

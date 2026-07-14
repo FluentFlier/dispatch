@@ -95,7 +95,7 @@ describe('sendWarmContactConnect', () => {
           user_id: 'u1',
           platform: 'linkedin',
           status: 'drafted',
-          outreach_draft: 'Hey — loved your reaction on my post.',
+          outreach_draft: 'Hey - loved your reaction on my post.',
           provider_profile_id: 'prov-1',
           public_identifier: null,
         },

@@ -34,7 +34,7 @@ export default function AccessCodeForm() {
       // Full navigation so the server re-evaluates access and routes to onboarding.
       window.location.assign('/auth/continue');
     } catch {
-      setError('Network error — try again.');
+      setError('Network error - try again.');
     } finally {
       setLoading(false);
     }

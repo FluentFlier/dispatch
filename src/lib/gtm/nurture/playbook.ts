@@ -11,7 +11,7 @@ function intentSummary(flags: SignalLeadWithContacts['intent_flags']): string | 
 }
 
 /**
- * Builds a structured nurture playbook from lead + ICP context (no LLM — fast, testable).
+ * Builds a structured nurture playbook from lead + ICP context (no LLM - fast, testable).
  */
 export function buildLeadPlaybook(lead: SignalLeadWithContacts): LeadPlaybook {
   const contact = lead.primary_contact ?? lead.contacts?.[0] ?? null;
@@ -23,7 +23,7 @@ export function buildLeadPlaybook(lead: SignalLeadWithContacts): LeadPlaybook {
   const whyParts = [
     `${lead.company_name} fits your ICP`,
     lead.batch ? `(${lead.batch})` : null,
-    intent ? `— ${intent}` : null,
+    intent ? `- ${intent}` : null,
     space ? `in ${space}` : null,
   ].filter(Boolean);
 
@@ -59,8 +59,8 @@ export function buildLeadPlaybook(lead: SignalLeadWithContacts): LeadPlaybook {
       {
         type: 'connect',
         label: firstName
-          ? `Connect with ${firstName} — note references what you saw`
-          : `Connect — note references their work at ${lead.company_name}`,
+          ? `Connect with ${firstName} - note references what you saw`
+          : `Connect - note references their work at ${lead.company_name}`,
         dueInDays: 2,
         status: 'pending',
       },

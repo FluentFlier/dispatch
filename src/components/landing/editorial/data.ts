@@ -29,7 +29,7 @@ export const LOOP_STEPS: LoopStep[] = [
     mark: 'GENERATE',
     lede: 'Native posts in your voice. Scored before you see them.',
     exLabel: 'DRAFTED',
-    ex: '“Raised our seed — here’s what we’d do differently.”',
+    ex: '“Raised our seed - here’s what we’d do differently.”',
   },
   {
     num: '03',

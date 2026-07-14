@@ -1,6 +1,6 @@
 #!/usr/bin/env npx tsx
 /**
- * Intelligence health + run tool — voice, hooks, social listening in one command.
+ * Intelligence health + run tool - voice, hooks, social listening in one command.
  *
  * Usage:
  *   set -a && source .env.local && set +a && npm run intelligence:health
@@ -29,7 +29,7 @@ async function fetchHealth(url: string): Promise<unknown> {
 async function runIntelligence(url: string): Promise<unknown> {
   const cron = process.env.CRON_SECRET?.trim();
   if (!cron) {
-    throw new Error('CRON_SECRET missing — add to .env.local');
+    throw new Error('CRON_SECRET missing - add to .env.local');
   }
   const res = await fetch(`${url.replace(/\/$/, '')}/api/intelligence/run`, {
     method: 'POST',
@@ -68,10 +68,10 @@ async function main(): Promise<number> {
   } else {
     console.log('\n=== Content OS Intelligence Health ===\n');
     console.log(`Overall: ${report.status.toUpperCase()}`);
-    console.log(`Voice:           ${report.voice.status} — ${report.voice.message}`);
-    console.log(`Hooks:           ${report.hooks.status} — ${report.hooks.message}`);
-    console.log(`Social listening: ${report.socialListening.status} — ${report.socialListening.message}`);
-    console.log(`Database:        ${report.database.status} — ${report.database.message}`);
+    console.log(`Voice:           ${report.voice.status} - ${report.voice.message}`);
+    console.log(`Hooks:           ${report.hooks.status} - ${report.hooks.message}`);
+    console.log(`Social listening: ${report.socialListening.status} - ${report.socialListening.message}`);
+    console.log(`Database:        ${report.database.status} - ${report.database.message}`);
     if (report.actions.length > 0) {
       console.log('\nRecommended actions:');
       for (const a of report.actions) console.log(`  • ${a}`);

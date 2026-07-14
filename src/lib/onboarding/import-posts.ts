@@ -58,7 +58,7 @@ function postText(item: UnipilePostItem): string {
 
 /**
  * Resolves the provider user ID Unipile expects for /users/{id}/posts.
- * LinkedIn vanity slugs in our DB are not always valid here — enrichment from
+ * LinkedIn vanity slugs in our DB are not always valid here - enrichment from
  * connection_params.im is required for reliable imports.
  */
 export async function resolveProviderUserId(
@@ -83,7 +83,7 @@ type UnipileIm = NonNullable<NonNullable<UnipileFullAccount['connection_params']
 /**
  * Extract every candidate provider user id from an account's connection_params.im.
  *
- * Prefer LinkedIn member ids (ACo…/ADo…) over vanity publicIdentifiers — Unipile's
+ * Prefer LinkedIn member ids (ACo…/ADo…) over vanity publicIdentifiers - Unipile's
  * GET /users/{id}/posts often 422s ("invalid_recipient") on vanity slugs even when
  * the profile is valid, which previously made analytics list-backfill return empty.
  */
@@ -117,7 +117,7 @@ export interface ResolvedUnipileTarget {
   unipileAccountId: string;
   /** Ordered candidate provider user ids for GET /users/{id}/posts. */
   providerUserIds: string[];
-  /** True when the stored id was stale and we recovered a new one — caller should persist. */
+  /** True when the stored id was stale and we recovered a new one - caller should persist. */
   refreshed: boolean;
 }
 
@@ -132,7 +132,7 @@ function accountMatchesPlatform(account: UnipileFullAccount, platform: Onboardin
  * Resolves the account to import from, self-healing a rotated unipile_account_id.
  *
  * Unipile re-issues `account.id` whenever a LinkedIn credential session re-auths,
- * so the id cached in social_accounts goes stale and GET /accounts/{id} 404s —
+ * so the id cached in social_accounts goes stale and GET /accounts/{id} 404s -
  * which previously surfaced to users as a spurious "disconnect and reconnect".
  * Instead we re-list accounts and match on the STABLE identity (publicIdentifier /
  * member id / username, captured in storedAccountId) to recover the live id.
@@ -142,7 +142,7 @@ export async function resolveUnipileTarget(
   storedAccountId: string | null,
   platform: OnboardingPlatform,
 ): Promise<ResolvedUnipileTarget | null> {
-  // 1. Stored id still valid — the common, fast path.
+  // 1. Stored id still valid - the common, fast path.
   const full = await fetchUnipileAccountDetails(unipileAccountId);
   if (full) {
     return {
@@ -152,7 +152,7 @@ export async function resolveUnipileTarget(
     };
   }
 
-  // 2. Stale id — re-resolve by stable identity against the live account list.
+  // 2. Stale id - re-resolve by stable identity against the live account list.
   if (!storedAccountId) return null;
   const accounts = await listUnipileAccounts();
   const match = accounts.find((account) => {

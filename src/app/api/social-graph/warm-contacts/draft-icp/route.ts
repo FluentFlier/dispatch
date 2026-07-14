@@ -5,7 +5,7 @@ import { bulkDraftIcpWarmContacts } from '@/lib/social-graph/warm-contacts';
 import { guardAiRequest } from '@/lib/ai-guard';
 
 /**
- * POST /api/social-graph/warm-contacts/draft-icp — batch draft top new ICP contacts.
+ * POST /api/social-graph/warm-contacts/draft-icp - batch draft top new ICP contacts.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();

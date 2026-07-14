@@ -58,7 +58,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       }
     } finally {
       // Restore the active profile's ICP so settings reflect it again, whatever
-      // the last profile discovered against was (best-effort — never throws).
+      // the last profile discovered against was (best-effort - never throws).
       if (active) {
         await updateDirectorySettings(client, workspaceId, mirror(active)).catch(() => {});
       }

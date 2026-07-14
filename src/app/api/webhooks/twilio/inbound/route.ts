@@ -24,7 +24,7 @@ function twiml(body: string): NextResponse {
  * "reply with a picture, the post auto-updates" experience.
  *
  * Applying the reply text as a full content rewrite is intentionally left as a
- * follow-up — we append it to the draft notes (non-destructive) so nothing the
+ * follow-up - we append it to the draft notes (non-destructive) so nothing the
  * user typed is lost.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     logError('[twilio/inbound] phone lookup failed (table missing?)', undefined, e);
   }
   if (!userId) {
-    // Unknown sender — acknowledge without leaking whether the number is known.
+    // Unknown sender - acknowledge without leaking whether the number is known.
     return twiml(buildTwimlReply('We could not match this number to an account.'));
   }
 
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const patch: Record<string, string> = {};
 
   // Attach the first image, if any: download from Twilio (Basic Auth) and
-  // re-upload to our own storage — Twilio media URLs must not be persisted.
+  // re-upload to our own storage - Twilio media URLs must not be persisted.
   const image = msg.media.find((m) => m.contentType.startsWith('image/'));
   if (image) {
     try {

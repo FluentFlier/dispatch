@@ -12,7 +12,7 @@ export async function GET(): Promise<NextResponse> {
 
   const client = getServerClient();
   // Ensure a workspace exists (first-login race), then repair any null-workspace
-  // rows onto it BEFORE filtering — otherwise accounts connected during the race
+  // rows onto it BEFORE filtering - otherwise accounts connected during the race
   // stay hidden behind the workspace-scoped filter.
   const workspaceId = await ensureActiveWorkspaceId(user.id);
   await backfillNullWorkspaceSocialAccounts(user.id, workspaceId);

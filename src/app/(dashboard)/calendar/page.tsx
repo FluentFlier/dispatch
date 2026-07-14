@@ -91,7 +91,7 @@ export default function CalendarPage() {
   const [searchActive, setSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Content filters (platform + published) — replaces the old pillar filter.
+  // Content filters (platform + published) - replaces the old pillar filter.
   const [platformFilter, setPlatformFilter] = useState<Set<string>>(new Set());
   const [publishedOnly, setPublishedOnly] = useState(false);
 
@@ -160,7 +160,7 @@ export default function CalendarPage() {
     return s;
   }, [posts]);
 
-  // Search results — filter all posts (including backlog) by query
+  // Search results - filter all posts (including backlog) by query
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase();
@@ -538,7 +538,7 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                 ))}
               </div>
 
-              {/* Hamburger — opens the mini-calendar + filters panel on the right */}
+              {/* Hamburger - opens the mini-calendar + filters panel on the right */}
               <button
                 onClick={() => setSidebarOpen((o) => !o)}
                 className="hidden lg:flex p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"

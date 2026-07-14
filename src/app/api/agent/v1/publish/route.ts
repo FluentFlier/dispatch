@@ -24,7 +24,7 @@ const PublishSchema = z.object({
 });
 
 /**
- * POST /api/agent/v1/publish — publish or schedule a post (requires publish scope).
+ * POST /api/agent/v1/publish - publish or schedule a post (requires publish scope).
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const auth = await resolveAgentAuth(request);

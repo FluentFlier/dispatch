@@ -5,7 +5,7 @@ import { buildIntelligenceHealthReport } from '@/lib/intelligence/health';
 /**
  * GET /api/intelligence/health
  * Unified probe for voice + hooks + social listening stack.
- * Requires auth — previously public and leaked env/config posture.
+ * Requires auth - previously public and leaked env/config posture.
  */
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();

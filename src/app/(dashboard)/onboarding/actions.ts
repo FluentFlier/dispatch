@@ -21,7 +21,7 @@ export async function completeOnboardingFromBaseline(baseline: CreatorBaseline) 
     .eq('user_id', user.id);
 
   const workspaceId = workspaces?.[0]?.workspace_id;
-  if (!workspaceId) throw new Error('No workspace found — please sign out and sign back in.');
+  if (!workspaceId) throw new Error('No workspace found - please sign out and sign back in.');
 
   const pillars = baseline.pillars as ContentPillarConfig[];
 
@@ -78,7 +78,7 @@ export async function completeOnboardingFromStoredBaseline() {
 }
 
 /**
- * Minimal onboarding completion when Unipile is not ready yet — unblocks launch
+ * Minimal onboarding completion when Unipile is not ready yet - unblocks launch
  * so users can write while social keys are being configured.
  */
 export async function completeOnboardingMinimal(displayName: string) {
@@ -98,7 +98,7 @@ export async function completeOnboardingMinimal(displayName: string) {
     .eq('user_id', user.id);
 
   const workspaceId = workspaces?.[0]?.workspace_id;
-  if (!workspaceId) throw new Error('No workspace found — please sign out and sign back in.');
+  if (!workspaceId) throw new Error('No workspace found - please sign out and sign back in.');
 
   const { error: profileError } = await client.database
     .from('creator_profile')

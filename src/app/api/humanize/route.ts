@@ -22,7 +22,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const parsed = HumanizeSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
 
-  // scoreOnly uses HF classifier (free, no quota) — skip guard entirely
+  // scoreOnly uses HF classifier (free, no quota) - skip guard entirely
   if (parsed.data.scoreOnly) {
     try {
       const result = await aiScore(parsed.data.text);

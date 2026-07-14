@@ -6,7 +6,7 @@ import { getEngagementInbox, type InboxFilter } from '@/lib/engagement/inbox';
 const FILTERS: InboxFilter[] = ['all', 'needs_reply', 'drafted', 'sent'];
 
 /**
- * GET /api/agent/v1/engagement/inbox — comment inbox for the creator.
+ * GET /api/agent/v1/engagement/inbox - comment inbox for the creator.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const auth = await resolveAgentAuth(request);

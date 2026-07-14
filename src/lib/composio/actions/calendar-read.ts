@@ -67,7 +67,7 @@ function extractEventItems(data: unknown): GoogleCalendarItem[] {
  * Fetches timed calendar events for a Composio-connected user within a window
  * using the GOOGLECALENDAR_EVENTS_LIST tool, then normalizes them. Never throws,
  * but no longer silently masks failures: a provider error returns { ok: false }
- * so the caller MUST check `ok` before running any destructive deletion pass — an
+ * so the caller MUST check `ok` before running any destructive deletion pass - an
  * empty result from a failed fetch would otherwise soft-cancel the whole window.
  */
 export async function findCalendarEvents(

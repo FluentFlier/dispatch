@@ -44,7 +44,7 @@ export function Flat() {
             Draft caption
           </div>
           <div style={{ fontSize: 13, lineHeight: 1.5, opacity: 0.75 }}>
-            No shadow — flat card used inside nested panels.
+            No shadow - flat card used inside nested panels.
           </div>
         </div>
       </Card>

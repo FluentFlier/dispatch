@@ -182,7 +182,7 @@ export function buildVoiceContextAdditions({
       .map((s, i) => `Email ${i + 1}:\n${s.content.trim()}`)
       .join('\n\n');
     sections.push(
-      `EMAIL VOICE (how they write 1:1 — match warmth, explanation style, sign-offs):\n${examples}`,
+      `EMAIL VOICE (how they write 1:1 - match warmth, explanation style, sign-offs):\n${examples}`,
     );
   }
 
@@ -195,17 +195,17 @@ export function buildVoiceContextAdditions({
   if (memorySnippets?.length) {
     // Frame retrieved memory as PAST content, not a style template. Each snippet
     // carries its own date (written into the content at memory-write time). Without
-    // this instruction the model copies an old present-tense post verbatim — e.g.
+    // this instruction the model copies an old present-tense post verbatim - e.g.
     // re-emitting "I just got back from…" on a "remember that event" prompt.
     sections.push(
       'PAST CONTENT YOU HAVE ALREADY PUBLISHED (each shown with its date):\n' +
         `${memorySnippets.join('\n---\n')}\n\n` +
         'These are things you posted in the past. Do NOT copy their exact wording or ' +
         'reuse their tense verbatim. If the user asks to reflect on, remember, or ' +
-        'revisit one of these, write in the present looking back on a past event — ' +
+        'revisit one of these, write in the present looking back on a past event - ' +
         'never as if it is happening now. When a snippet names specific real people, ' +
         'companies, or details, carry ALL of them forward into the new post exactly as ' +
-        'named (never drop any, never invent a substitute) — the date shown tells you ' +
+        'named (never drop any, never invent a substitute) - the date shown tells you ' +
         'how long ago it was, so frame the timing accurately.',
     );
   }
@@ -218,7 +218,7 @@ export function buildVoiceContextAdditions({
  * when there is no baseline yet (< 3 scored posts). Exported so generation paths
  * that draft per-platform (event capture loops over connected platforms) can
  * inject the platform-correct baseline without a full second context load.
- * Single source of truth for the "PERFORMANCE BASELINE:" block — the stable prefix
+ * Single source of truth for the "PERFORMANCE BASELINE:" block - the stable prefix
  * lets the substance allow-list pass it to the Base/Hook stage (break 24).
  */
 export async function fetchL4BaselineBlock(
@@ -243,7 +243,7 @@ export async function fetchL4BaselineBlock(
       );
     }
   } catch (err) {
-    // Metrics optional — log so a persistent read failure is visible.
+    // Metrics optional - log so a persistent read failure is visible.
     console.warn('[voice-context] L4 metrics load failed', { workspaceId, platform, err });
   }
   return '';
@@ -338,7 +338,7 @@ export async function loadCreatorVoiceContext(
     }
   } catch (err) {
     // Profile and settings optional, but a THROW here (vs. an empty result) is a
-    // real failure worth surfacing — it starves every downstream stage.
+    // real failure worth surfacing - it starves every downstream stage.
     console.warn('[voice-context] profile/settings load failed', {
       userId,
       workspaceId: options.workspaceId,
@@ -387,7 +387,7 @@ export async function loadCreatorVoiceContext(
         brainSnippets = brain;
       }
     } catch (err) {
-      // Brain table may not exist until migration applied — log so a persistent
+      // Brain table may not exist until migration applied - log so a persistent
       // failure is visible instead of silently thinning the prompt.
       console.warn('[voice-context] brain retrieval failed', { userId, err });
     }
@@ -420,7 +420,7 @@ export async function loadCreatorVoiceContext(
         memorySnippets = snippets;
       }
     } catch (err) {
-      // Supermemory optional enhancement — log so an auth/quota failure is visible.
+      // Supermemory optional enhancement - log so an auth/quota failure is visible.
       console.warn('[voice-context] supermemory search failed', { userId, err });
     }
   }
@@ -457,7 +457,7 @@ export async function loadCreatorVoiceContext(
           storyRows.map((s, i) => `${i + 1}. ${s.mined_angle}`).join('\n');
       }
     } catch (err) {
-      // Story bank optional — log the failure rather than dropping the angles silently.
+      // Story bank optional - log the failure rather than dropping the angles silently.
       console.warn('[voice-context] story bank load failed', {
         workspaceId: options.workspaceId,
         err,

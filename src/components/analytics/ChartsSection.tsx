@@ -63,7 +63,7 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
     comments: p.comments ?? 0,
   }));
 
-  // LinkedIn often hides impressions — only chart views when we actually have them.
+  // LinkedIn often hides impressions - only chart views when we actually have them.
   const viewsData = sorted
     .filter((p) => (p.views ?? 0) > 0)
     .map((p) => ({

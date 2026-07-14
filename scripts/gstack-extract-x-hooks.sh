@@ -26,7 +26,7 @@ for handle in "$@"; do
         index: i,
         text: el.innerText.trim().replace(/\n+/g, " | ")
       }))
-  ' 2>/dev/null || echo "  (no extractable posts this run — try again or use snapshot -i)"
+  ' 2>/dev/null || echo "  (no extractable posts this run - try again or use snapshot -i)"
 done
 
 echo ""

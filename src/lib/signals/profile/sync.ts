@@ -21,7 +21,7 @@ type InsforgeClient = ReturnType<typeof createClient>;
  *
  * Only meaningful for LinkedIn person_profile sources, and only when a Unipile
  * account is connected (profile lookup goes through Unipile). First sight of a
- * profile records a baseline snapshot with no signal — a change can only be
+ * profile records a baseline snapshot with no signal - a change can only be
  * detected against a prior. Every failure is logged and swallowed.
  */
 export async function checkProfileChange(
@@ -64,7 +64,7 @@ export async function checkProfileChange(
   const classified = detectRoleChange(previous, current);
 
   if (!classified) {
-    // No change (or first-sight baseline) — record the current state and stop.
+    // No change (or first-sight baseline) - record the current state and stop.
     await putProfileSnapshot(client, workspaceId, 'linkedin', current);
     return { signalCreated: false };
   }

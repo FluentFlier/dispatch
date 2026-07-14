@@ -1,7 +1,7 @@
 import type { LeadDiscoveryAdapter } from '@/lib/signals/ingest/lead-sources/types';
 
 /**
- * LinkedIn company/people discovery adapter — stub for a dedicated implementation.
+ * LinkedIn company/people discovery adapter - stub for a dedicated implementation.
  * Wire Unipile search, Sales Nav export, or Apify here; the registry already routes
  * enabled `linkedin` sources through this adapter.
  */
@@ -14,7 +14,7 @@ export const linkedinDiscoveryAdapter: LeadDiscoveryAdapter = {
 };
 
 /**
- * X / Twitter lead discovery — stub for teammate's implementation.
+ * X / Twitter lead discovery - stub for teammate's implementation.
  * Signal posts (live X mentions) already flow through the Signals engine; this
  * adapter is for proactive company/prospect discovery from X.
  */

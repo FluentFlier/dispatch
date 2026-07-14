@@ -110,7 +110,7 @@ export async function syncWorkspaceSignals(
 
   if (mode === 'webhook') {
     result.errors.push(
-      'SIGNALS_INGEST_MODE=webhook — polling disabled. Use POST /api/signals/ingest (Clay/Zapier) or manual seed.',
+      'SIGNALS_INGEST_MODE=webhook - polling disabled. Use POST /api/signals/ingest (Clay/Zapier) or manual seed.',
     );
     return result;
   }

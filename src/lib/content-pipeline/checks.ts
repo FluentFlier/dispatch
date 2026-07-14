@@ -250,14 +250,14 @@ const SENTENCE_STARTER_WHITELIST = new Set([
   'their', 'one', 'another', 'the',
 ]);
 
-// Common interior-caps tokens that are NOT invented names — exempt them from the
+// Common interior-caps tokens that are NOT invented names - exempt them from the
 // single-word coinage scan so real words like "PhD" don't read as fabrications.
 const CAMEL_WHITELIST = new Set([
   'phd', 'iphone', 'ipad', 'macos', 'ios', 'ipados', 'youtube', 'linkedin',
 ]);
 
 // Real domains a model legitimately references (platform names, not invented
-// links) — exempt from the invented-URL scan so they don't read as fabrications.
+// links) - exempt from the invented-URL scan so they don't read as fabrications.
 const DOMAIN_WHITELIST = new Set([
   'linkedin.com', 'twitter.com', 'x.com', 'github.com', 'youtube.com',
   'google.com', 'gmail.com', 'medium.com', 'substack.com',
@@ -502,7 +502,7 @@ const FIXED_STYLE_LINES = {
 /**
  * Retrospective cues in the user's own request. When present, the post is about
  * a PAST event (reflecting / remembering), so it must be written looking back in
- * past tense — never "I just got back from" present-tense immediacy. Deterministic
+ * past tense - never "I just got back from" present-tense immediacy. Deterministic
  * and model-agnostic: fires off the request wording, so it works even when the
  * model would otherwise ignore the cue or when memory retrieval is empty.
  */
@@ -512,7 +512,7 @@ const RETROSPECTIVE_RE =
 function temporalFramingRule(userPrompt: string): string | undefined {
   if (!RETROSPECTIVE_RE.test(userPrompt)) return undefined;
   return (
-    'TEMPORAL FRAMING (the request is about a PAST event — reflecting or remembering, ' +
+    'TEMPORAL FRAMING (the request is about a PAST event - reflecting or remembering, ' +
     'not breaking news): write in past tense as a reflection looking back. Do NOT open ' +
     'with present-tense immediacy such as "I just got back from", "I am at", or "I just ' +
     'left". Frame it as remembering something that already happened.'

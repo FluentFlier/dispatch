@@ -12,9 +12,9 @@ import { engagementRateOf, getTrailingMedianEngagement, updateArmsForHooks } fro
  *
  * Closes the RL loop: reads posts with real engagement data and updates
  * hook_performance scores via EMA. Posts are marked rl_processed_at so each
- * post is scored exactly once — future runs only touch genuinely new posts.
+ * post is scored exactly once - future runs only touch genuinely new posts.
  *
- * No AI calls in L2 — pure EMA math on existing DB data.
+ * No AI calls in L2 - pure EMA math on existing DB data.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   // --- Auth ---
@@ -37,7 +37,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     //   - used_hook_ids is populated (hooks were injected during generation)
     //   - views >= 100 (below this is noise, not signal)
     //   - status = 'posted' (only published posts have real engagement)
-    //   - rl_processed_at IS NULL (process once semantics — never re-score)
+    //   - rl_processed_at IS NULL (process once semantics - never re-score)
     const { data: posts, error: fetchError } = await client.database
       .from('posts')
       .select('id, user_id, pillar, saves, views, likes, comments, used_hook_ids')
@@ -110,7 +110,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         hooksUpdated++;
       }
 
-      // Mark post as processed — prevents re-scan on future cron runs
+      // Mark post as processed - prevents re-scan on future cron runs
       await client.database
         .from('posts')
         .update({ rl_processed_at: new Date().toISOString() })

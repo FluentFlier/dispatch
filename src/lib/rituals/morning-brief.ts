@@ -4,7 +4,7 @@
  * WHY: Stanley's "drafts while you sleep / wake up to clarity" ritual. We
  * assemble a daily brief from data we ALREADY persist (detected trends,
  * yesterday's post metrics, the idea bank) so it costs zero AI calls and no
- * new tables — the brief is computed on demand when the creator opens the app
+ * new tables - the brief is computed on demand when the creator opens the app
  * each morning.
  *
  * This module is intentionally pure (no I/O, no Date.now) so the selection and
@@ -69,7 +69,7 @@ export interface MorningBrief {
   hasContent: boolean;
 }
 
-/** Max idea seeds surfaced in a single brief — keeps it skimmable. */
+/** Max idea seeds surfaced in a single brief - keeps it skimmable. */
 const MAX_IDEAS = 3;
 
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -124,7 +124,7 @@ function summarizeYesterday(posts: BriefPostRow[], now: Date): MorningBriefYeste
 
 /**
  * Compose a morning brief from already-fetched rows. Pure: no network, no
- * clock access — the caller supplies `now`.
+ * clock access - the caller supplies `now`.
  */
 export function composeMorningBrief(input: {
   now: Date;

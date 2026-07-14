@@ -4,7 +4,7 @@
  *
  * Uses lease-based locking so overlapping cron runs never double-post,
  * bounded attempts, per-account daily caps, and human-mimicking delays
- * between actions — LinkedIn restricts accounts whose activity looks robotic.
+ * between actions - LinkedIn restricts accounts whose activity looks robotic.
  */
 import type { createClient } from '@insforge/sdk';
 import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
@@ -199,7 +199,7 @@ const ACTIONS_PER_TASK = 1;
  * write a fresh lease_id via a conditional update keyed on status='approved',
  * then re-read and verify OUR lease_id won. Two overlapping workers can both
  * try; only one's uuid survives the write, the other sees a foreign lease and
- * moves on — the DB is the arbiter, not process memory.
+ * moves on - the DB is the arbiter, not process memory.
  */
 export async function runEngagementTaskQueue(
   client: InsforgeClient,
@@ -259,7 +259,7 @@ export async function runEngagementTaskQueue(
 
       const usageCheck = checkDailyUsage(accountId, ACTIONS_PER_TASK);
       if (!usageCheck.allowed) {
-        // Out of budget today — release the task untouched for tomorrow.
+        // Out of budget today - release the task untouched for tomorrow.
         await client.database
           .from('engagement_tasks')
           .update({
@@ -267,7 +267,7 @@ export async function runEngagementTaskQueue(
             lease_id: null,
             lease_expires_at: null,
             attempts: task.attempts, // budget skip is not a failed attempt
-            last_error: 'Daily engagement budget reached — deferred',
+            last_error: 'Daily engagement budget reached - deferred',
           })
           .eq('id', task.id);
         result.skipped++;
@@ -317,7 +317,7 @@ export async function runEngagementTaskQueue(
       logError('[engagement-tasks] task failed', { taskId: task.id, exhausted, message });
     }
 
-    // Human-mimicking gap between outbound actions — Unipile recommends ≥120s
+    // Human-mimicking gap between outbound actions - Unipile recommends ≥120s
     // between consecutive LinkedIn writes, not the old 1–3s burst pacing.
     if (task.workspace_id) {
       const settings = await getSafetySettings(client, task.workspace_id);

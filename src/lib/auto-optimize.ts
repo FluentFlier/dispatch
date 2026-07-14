@@ -12,7 +12,7 @@ import {
  * Checks if auto-optimize is enabled for a user, and if so, generates
  * platform variants in-process and inserts them as linked posts.
  *
- * Runs fire-and-forget from POST/PATCH /api/posts — no HTTP round-trip,
+ * Runs fire-and-forget from POST/PATCH /api/posts - no HTTP round-trip,
  * so it does not depend on session cookies surviving after the response.
  * Pass workspaceId from the request handler (do not resolve via cookies here).
  */
@@ -28,9 +28,9 @@ export async function triggerAutoOptimize({
   content: string;
   sourcePlatform: string;
   workspaceId?: string | null;
-  /** @deprecated unused — kept for call-site compatibility during rollout */
+  /** @deprecated unused - kept for call-site compatibility during rollout */
   requestCookies?: string;
-  /** @deprecated unused — kept for call-site compatibility during rollout */
+  /** @deprecated unused - kept for call-site compatibility during rollout */
   origin?: string;
 }): Promise<void> {
   // Service client: background work must not depend on request cookies / RLS session.

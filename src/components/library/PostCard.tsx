@@ -65,7 +65,7 @@ export default function PostCard({ post, selected, onSelect, onClick }: PostCard
 
         {/* Badges */}
         <div className="flex items-center flex-wrap gap-[6px] mb-3">
-          {/* Source platform chip — tells the user where the post came from */}
+          {/* Source platform chip - tells the user where the post came from */}
           <span className="inline-flex items-center rounded-[4px] border border-border bg-bg-tertiary px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-text-secondary">
             {PLATFORM_LABELS[post.platform] ?? post.platform}
           </span>

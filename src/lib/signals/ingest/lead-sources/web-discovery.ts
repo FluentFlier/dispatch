@@ -116,7 +116,7 @@ export interface WebDiscoveryDeps {
   search?: typeof serperSearch;
   read?: typeof jinaRead;
   complete?: typeof chatCompletion;
-  /** Inject for tests — when set, skips live TinyFish agent calls. */
+  /** Inject for tests - when set, skips live TinyFish agent calls. */
   tinyfishDiscover?: (ctx: DiscoveryContext) => Promise<IngestedLead[]>;
 }
 

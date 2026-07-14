@@ -4,7 +4,7 @@ interface SectionHeaderProps {
   tag: string;
   title: string;
   subtitle?: string;
-  /** Accent dot color — matches landing section themes (blue, teal, flame). */
+  /** Accent dot color - matches landing section themes (blue, teal, flame). */
   accent?: string;
   action?: ReactNode;
   className?: string;

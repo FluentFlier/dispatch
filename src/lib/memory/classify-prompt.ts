@@ -4,7 +4,7 @@ import { resolveModel } from '@/lib/ai-tiers';
 export interface PromptMemoryPlan {
   topics: string[];
   time_scope: 'recent' | 'specific' | 'any';
-  /** Entity-rich query for semantic memory search — includes proper nouns
+  /** Entity-rich query for semantic memory search - includes proper nouns
    *  verbatim so a specific past post ranks above generic history. */
   search_query: string;
 }
@@ -49,7 +49,7 @@ function mergeQueries(a: string, b: string): string {
   return Array.from(new Set(`${a} ${b}`.split(/\s+/).filter(Boolean))).slice(0, 20).join(' ');
 }
 
-/** Pure, no-LLM plan from surface signals — the deterministic floor. */
+/** Pure, no-LLM plan from surface signals - the deterministic floor. */
 function heuristicPlan(prompt: string): PromptMemoryPlan {
   const entities = extractEntities(prompt);
   return {
@@ -86,7 +86,7 @@ function parsePlan(raw: string, prompt: string): PromptMemoryPlan {
 /**
  * Classifies a generation prompt to steer memory retrieval. Runs on the cheap
  * `fast` model tier (same class as Event Capture's question generation), a single
- * short call. NEVER throws — any failure degrades to the naive whole-prompt query
+ * short call. NEVER throws - any failure degrades to the naive whole-prompt query
  * so a classifier hiccup can't block generation.
  */
 export async function classifyPromptForMemory(prompt: string): Promise<PromptMemoryPlan> {
@@ -95,7 +95,7 @@ export async function classifyPromptForMemory(prompt: string): Promise<PromptMem
     const raw = await generateContent(prompt, undefined, SYSTEM, null, resolveModel('fast'));
     const plan = parsePlan(raw, prompt);
     // Deterministic floor: only when surface signals say SPECIFIC but the model
-    // did NOT — upgrade scope and enrich the query with the proper nouns it
+    // did NOT - upgrade scope and enrich the query with the proper nouns it
     // dropped. When the model already returned specific, trust its query as-is
     // (merging would dedupe/mangle a good query like "Forbes 30 Under 30").
     // Only upgrades retrieval; never downgrades.

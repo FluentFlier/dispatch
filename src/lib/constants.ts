@@ -58,7 +58,7 @@ export const STATUS_BADGE: Record<Status, string> = {
 export const ALL_PLATFORMS = ['instagram', 'linkedin', 'twitter', 'threads'] as const;
 export type Platform = typeof ALL_PLATFORMS[number];
 
-/** Platforms shown in dashboard UI — X and LinkedIn only. */
+/** Platforms shown in dashboard UI - X and LinkedIn only. */
 export const DASHBOARD_PLATFORMS = ['twitter', 'linkedin'] as const;
 export type DashboardPlatform = typeof DASHBOARD_PLATFORMS[number];
 

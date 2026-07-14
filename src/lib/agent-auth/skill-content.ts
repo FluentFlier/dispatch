@@ -6,7 +6,7 @@ export function buildAgentSkillMarkdown(appUrl: string): string {
   const base = appUrl.replace(/\/$/, '');
   return `# Content OS Agent
 
-Connect your AI agent to Content OS — generate posts in your voice, manage the library, publish, reply to comments, and triage Signals.
+Connect your AI agent to Content OS - generate posts in your voice, manage the library, publish, reply to comments, and triage Signals.
 
 ## Setup
 
@@ -120,7 +120,7 @@ curl -s "$CONTENT_OS_URL/api/agent/v1/signals?status=pending&limit=20" \\
 
 ### 7. Warm contacts (UseSocial-style social graph)
 
-People who reacted to **your** posts — triage ICPs, draft connection notes.
+People who reacted to **your** posts - triage ICPs, draft connection notes.
 
 \`\`\`bash
 # Sync reactions from recent published posts (cached reads, 15m TTL)
@@ -144,13 +144,13 @@ curl -s -X POST "$CONTENT_OS_URL/api/agent/v1/warm-contacts/<contact-id>/send" \
 
 ## Safety defaults
 
-- New keys default to **read + write** only — not publish or outreach.
+- New keys default to **read + write** only - not publish or outreach.
 - Human review in the Content OS UI is still recommended before sending outreach.
 - Revoke keys anytime in Settings → Tools → Agent access.
 
 ## Discovery
 
-\`GET /api/agent/v1\` — machine-readable capability list.
-\`GET /api/agent/v1/skill\` — this document.
+\`GET /api/agent/v1\` - machine-readable capability list.
+\`GET /api/agent/v1/skill\` - this document.
 `;
 }

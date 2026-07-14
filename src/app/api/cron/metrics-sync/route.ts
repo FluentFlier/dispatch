@@ -55,7 +55,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   for (const userId of userIds) {
     try {
       // Pull any newly-published LinkedIn + X posts first so their metrics are
-      // included in the same run (idempotent — only new posts are added).
+      // included in the same run (idempotent - only new posts are added).
       imported += await reimportRecentPostsAllPlatforms(admin, userId);
       const result = await syncUserPostMetrics(admin, userId);
       updated += result.updated;

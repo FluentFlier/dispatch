@@ -10,7 +10,7 @@ import { listEvents } from '@/lib/signals/store';
 import { errorResponse } from '@/lib/api-errors';
 
 /**
- * GET /api/agent/v1/signals — list GTM signal events for outreach triage.
+ * GET /api/agent/v1/signals - list GTM signal events for outreach triage.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const auth = await resolveAgentAuth(request);

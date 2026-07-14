@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SignalLeadWithContacts, LeadCompanyDetail } from '@/lib/signals/types';
 
 /**
- * WS1.4 — Feed scraped company context to the model.
+ * WS1.4 - Feed scraped company context to the model.
  *
  * - The Algolia hit's long_description + industries are kept at ingest (mapHit).
  * - The draft prompt provably contains company description + headcount + industry.

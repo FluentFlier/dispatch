@@ -42,7 +42,7 @@ export async function assertAdmin(): Promise<{ id: string; email: string }> {
     throw new AdminError('Unauthenticated', 401);
   }
   if (!isAdminEmail(user.email)) {
-    throw new AdminError('Forbidden — not an admin', 403);
+    throw new AdminError('Forbidden - not an admin', 403);
   }
   return user;
 }

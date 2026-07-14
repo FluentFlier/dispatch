@@ -11,7 +11,7 @@
 --   * Only touches rows where workspace_id IS NULL (never overwrites a value).
 --   * Only assigns when the owner belongs to EXACTLY ONE workspace, so the
 --     target is unambiguous. Users with 0 workspaces (e.g. the synthetic
---     00000000-... test row) or >1 workspace are intentionally skipped — there
+--     00000000-... test row) or >1 workspace are intentionally skipped - there
 --     is no single correct answer for them.
 --   * Idempotent: re-running changes nothing once NULLs are filled (0 rows match).
 --

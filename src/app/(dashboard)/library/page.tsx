@@ -62,7 +62,7 @@ export default function LibraryPage() {
       }
 
       // Best-effort: user id + series are browser-RLS scoped. If the browser
-      // session isn't ready yet, skip them — posts above already rendered.
+      // session isn't ready yet, skip them - posts above already rendered.
       const client = getInsforgeClient();
       const { data: userData } = await client.auth.getCurrentUser();
       const uid = userData?.user?.id;
@@ -116,7 +116,7 @@ export default function LibraryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
-  // Posts after every filter EXCEPT platform — the tab bar counts + filters
+  // Posts after every filter EXCEPT platform - the tab bar counts + filters
   // operate on this so each tab shows how many posts it holds.
   const nonPlatformFiltered = useMemo(() => {
     let result = posts;
@@ -165,7 +165,7 @@ export default function LibraryPage() {
 
   // Bulk actions
   const handleBulkDelete = async () => {
-    // Server authenticates from the httpOnly cookie — don't gate on the browser
+    // Server authenticates from the httpOnly cookie - don't gate on the browser
     // SDK's userId (it can lag), and use fetchWithAuth so a 401 refreshes+retries
     // instead of silently failing (the old plain fetch() left delete broken).
     if (selected.size === 0) return;
@@ -216,7 +216,7 @@ export default function LibraryPage() {
   };
 
   // Import a platform's posts from the connected Unipile account. Works for both
-  // LinkedIn and X — the route already accepts either platform.
+  // LinkedIn and X - the route already accepts either platform.
   const handleReimport = async (platform: Platform) => {
     const label = PLATFORM_LABELS[platform];
     setImporting(platform);
@@ -392,7 +392,7 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {/* Platform tabs — All / LinkedIn / X */}
+      {/* Platform tabs - All / LinkedIn / X */}
       <PlatformTabs value={platformFilter} onChange={setPlatformFilter} counts={platformCounts} />
 
       {/* Filters row */}

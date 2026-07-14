@@ -17,7 +17,7 @@ const TITLE_SYSTEM =
  * so raw truncation (`body.slice(0,80)`) reads as a broken sentence. Summarize the
  * body with the small chat model (HF fallback, LLM_DAILY_HARD_CAP-aware). Falls
  * back to the 80-char slice whenever the model is unconfigured, over budget, or
- * returns junk — an import must NEVER fail because a title could not be generated.
+ * returns junk - an import must NEVER fail because a title could not be generated.
  */
 export async function generatePostTitle(body: string): Promise<string> {
   const fallback = body.slice(0, 80);
@@ -158,7 +158,7 @@ function pushImageMemoryWrites(
         workspaceId: ctx.workspaceId,
         kind: 'post_image',
         content:
-          `[Photo from your ${ctx.platform} post on ${ctx.postedDate || 'unknown date'}] — this ALREADY happened; reference as past.\n\n${img.description}`,
+          `[Photo from your ${ctx.platform} post on ${ctx.postedDate || 'unknown date'}] - this ALREADY happened; reference as past.\n\n${img.description}`,
         customId: buildImageMemoryCustomId(ctx.postId, i),
         metadata: { platform: ctx.platform, posted_date: ctx.postedDate },
       }),
@@ -256,7 +256,7 @@ export async function persistImportedPosts({
       }
     }
 
-    // Unipile list payloads often include impression/reaction counters — seed
+    // Unipile list payloads often include impression/reaction counters - seed
     // analytics immediately instead of waiting for a later metrics sync.
     const importedMetrics = unipileMetricsSupported(platform)
       ? metricsPatchFromNormalized(extractUnipilePostMetrics(item))
@@ -265,7 +265,7 @@ export async function persistImportedPosts({
       ? extractUnipilePublishedAt(item)
       : undefined;
     const images = await describeImages(allImageUrls(item));
-    // LinkedIn/X posts carry no native title — summarize the body instead of
+    // LinkedIn/X posts carry no native title - summarize the body instead of
     // showing a truncated first sentence in the Library.
     const title = await generatePostTitle(content);
 
@@ -346,8 +346,8 @@ export async function persistImportedPosts({
         userId,
         workspaceId,
         kind: 'imported_post',
-        content: `[Your ${platform} post from ${postedDate || 'unknown date'}] — this ALREADY happened; reference as past.\n\n${content}`,
-        // item.id is the platform URN — same key the publish path uses so a
+        content: `[Your ${platform} post from ${postedDate || 'unknown date'}] - this ALREADY happened; reference as past.\n\n${content}`,
+        // item.id is the platform URN - same key the publish path uses so a
         // natively-published post and its later re-import never double-write.
         customId: buildPostMemoryCustomId(platform, item.id, postId),
         metadata: { platform, posted_date: postedDate },

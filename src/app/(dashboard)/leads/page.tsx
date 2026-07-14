@@ -65,7 +65,7 @@ const INITIAL_FILTERS: FeedFilterState = {
  * Signal types that can only ever come from the live Signal engine (X/LinkedIn
  * post detection), never from a directory scrape. When one of these is selected
  * and the feed is empty, the filtered-empty state explains that gap instead of
- * misleadingly offering "Scrape now". 'launch' is intentionally excluded — it
+ * misleadingly offering "Scrape now". 'launch' is intentionally excluded - it
  * now maps to Product Hunt / YC-launch directory leads too.
  */
 const SIGNAL_ENGINE_ONLY_TYPES = new Set<string>([
@@ -181,7 +181,7 @@ export default function LeadsPage() {
         setSetupMessage(
           (boot.error as string | undefined) ||
             (feed.error as string | undefined) ||
-            'Leads engine not provisioned — contact support',
+            'Leads engine not provisioned - contact support',
         );
         setCards([]);
         return;
@@ -460,7 +460,7 @@ export default function LeadsPage() {
       setScrapeProgress({ pct: 100, label: 'Done' });
       const warnings: string[] = result.warnings ?? [];
       if (result.inserted === 0 && warnings.length > 0) {
-        toast(`0 new leads — ${warnings[0]}`, 'error');
+        toast(`0 new leads - ${warnings[0]}`, 'error');
       } else if (warnings.length > 0) {
         toast(`${result.inserted} new, but ${warnings.length} source(s) failed: ${warnings[0]}`, 'error');
       } else {
@@ -552,9 +552,9 @@ export default function LeadsPage() {
       if (!res.ok) throw new Error(data.error);
       if (data.connected) {
         setAcceptedIds((prev) => new Set(prev).add(id));
-        toast('Connection accepted — draft the follow-up DM.', 'success');
+        toast('Connection accepted - draft the follow-up DM.', 'success');
       } else {
-        toast('Not accepted yet — check back later.');
+        toast('Not accepted yet - check back later.');
       }
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not check connection.', 'error');
@@ -576,7 +576,7 @@ export default function LeadsPage() {
       if (!res.ok) throw new Error(data.error);
       mergeLead(data.lead);
       setDrafts((d) => ({ ...d, [id]: data.draftText }));
-      toast('Follow-up DM drafted — review and approve.');
+      toast('Follow-up DM drafted - review and approve.');
     } catch {
       toast('Could not draft follow-up.', 'error');
     } finally {
@@ -598,7 +598,7 @@ export default function LeadsPage() {
       if (!res.ok) throw new Error(data.error);
       mergeLead(data.lead);
       setDrafts((d) => ({ ...d, [id]: data.draftText }));
-      toast('Reply drafted — review and send.');
+      toast('Reply drafted - review and send.');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not draft reply.', 'error');
     } finally {
@@ -811,7 +811,7 @@ export default function LeadsPage() {
         toast('Contact found.', 'success');
         return;
       }
-      toast('Contact found — drafting…', 'success');
+      toast('Contact found - drafting…', 'success');
       const dres = await fetch(`/api/leads/${id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
       const ddata = await dres.json();
       if (dres.ok) {
@@ -836,7 +836,7 @@ export default function LeadsPage() {
       if (data.lead?.outreach?.draft_text) {
         setDrafts((d) => ({ ...d, [id]: data.lead.outreach.draft_text }));
       }
-      toast('Nurture plan ready — connect queued.');
+      toast('Nurture plan ready - connect queued.');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not plan nurture.', 'error');
     } finally {
@@ -892,7 +892,7 @@ export default function LeadsPage() {
   };
 
   // Approve + send a signal draft. An HTTP 422 is the safety guard blocking the
-  // send (dry-run / cap / working hours) — expected, not a crash — so its reason
+  // send (dry-run / cap / working hours) - expected, not a crash - so its reason
   // is surfaced as an inline notice rather than an error toast.
   const handleSignalSend = async (card: UnifiedLeadCard) => {
     const id = card.id;
@@ -976,8 +976,8 @@ export default function LeadsPage() {
       await refreshEngager(id);
       toast(
         data.path === 'comment'
-          ? 'Sequence started — value-add comment queued.'
-          : 'Sequence started — connect note drafted.',
+          ? 'Sequence started - value-add comment queued.'
+          : 'Sequence started - connect note drafted.',
       );
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not start sequence.', 'error');
@@ -1174,7 +1174,7 @@ export default function LeadsPage() {
       ) : feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'setup' ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-bg-secondary py-16 text-center px-6">
           <p className="text-sm text-text-primary font-medium">
-            {setupMessage ?? 'Leads engine not provisioned — contact support'}
+            {setupMessage ?? 'Leads engine not provisioned - contact support'}
           </p>
           <p className="text-xs text-text-tertiary max-w-md">
             This workspace cannot load leads until the signals schema is applied. If you are an operator, apply{' '}
@@ -1214,7 +1214,7 @@ export default function LeadsPage() {
         )
       ) : visibleCards.length === 0 ? (
         // Server returned leads, but a client-side filter (search / vertical)
-        // hides them all — explain + offer clear instead of a blank list.
+        // hides them all - explain + offer clear instead of a blank list.
         <LeadsFilteredEmptyState
           onClear={() => setFilters(INITIAL_FILTERS)}
           signalHint={SIGNAL_ENGINE_ONLY_TYPES.has(filters.signalType)}

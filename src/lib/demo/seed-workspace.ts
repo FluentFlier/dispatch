@@ -83,7 +83,7 @@ async function hasRealProfile(client: InsforgeClient, userId: string): Promise<b
  * Idempotent demo seed for a workspace (profile, sources, sample signals).
  *
  * NON-DESTRUCTIVE: if the user already has a real profile, the profile, context,
- * and GTM-brain writes are SKIPPED — only sample signals/sources are added. This
+ * and GTM-brain writes are SKIPPED - only sample signals/sources are added. This
  * prevents "Load demo data" from clobbering a trained voice (the previous behavior,
  * caused by upserting creator_profile on the same user_id conflict key onboarding uses).
  */

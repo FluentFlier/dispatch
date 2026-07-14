@@ -131,9 +131,9 @@ async function main() {
 
     if (match) {
       if (match.url === job.url) {
-        console.log(`  SKIP   ${job.title} (jobId: ${match.jobId}) — URL already correct`);
+        console.log(`  SKIP   ${job.title} (jobId: ${match.jobId}) - URL already correct`);
       } else {
-        console.log(`  UPDATE ${job.title} (jobId: ${match.jobId}) — fixing URL: ${match.url} → ${job.url}`);
+        console.log(`  UPDATE ${job.title} (jobId: ${match.jobId}) - fixing URL: ${match.url} → ${job.url}`);
         await updateJob(match.jobId, job);
         console.log(`         done`);
       }

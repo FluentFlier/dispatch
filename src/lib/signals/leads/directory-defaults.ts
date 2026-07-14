@@ -5,7 +5,7 @@ import {
   isSerperWebDiscoveryConfigured,
 } from '@/lib/signals/ingest/lead-sources/web-discovery-config';
 
-/** ICP-driven open-web discovery — primary source for any vertical. */
+/** ICP-driven open-web discovery - primary source for any vertical. */
 export const PRIMARY_DISCOVERY_SOURCES: LeadSource[] = ['web_discovery'];
 
 /** Optional fixed startup directories (YC, Product Hunt). */
@@ -15,7 +15,7 @@ export const OPTIONAL_DIRECTORY_SOURCES: LeadSource[] = [
   'product_hunt',
 ];
 
-/** Social platform adapters (LinkedIn, X) — register in lead-sources/social-stubs. */
+/** Social platform adapters (LinkedIn, X) - register in lead-sources/social-stubs. */
 export const SOCIAL_DISCOVERY_SOURCES: LeadSource[] = ['linkedin', 'x'];
 
 export const ALL_CONFIGURABLE_SOURCES: LeadSource[] = [
@@ -59,8 +59,8 @@ export const LEAD_SOURCE_UI: Array<{
     label: 'Web discovery (ICP search)',
     // TinyFish is the primary scraper (Google); Serper is the fallback.
     hint: isSerperWebDiscoveryConfigured()
-      ? 'TinyFish + Serper fallback + your ICP — any vertical'
-      : 'TinyFish + your ICP — any vertical',
+      ? 'TinyFish + Serper fallback + your ICP - any vertical'
+      : 'TinyFish + your ICP - any vertical',
     disabled: () => !isWebDiscoveryConfigured(),
   },
   { key: 'yc_directory', label: 'YC directory' },

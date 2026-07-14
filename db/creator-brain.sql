@@ -1,4 +1,4 @@
--- Creator Brain — per-user memory pages (GBrain-style, InsForge-native)
+-- Creator Brain - per-user memory pages (GBrain-style, InsForge-native)
 -- Apply: npx @insforge/cli db query "$(cat db/creator-brain.sql)"
 
 create table if not exists creator_brain_pages (

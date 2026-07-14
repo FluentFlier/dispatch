@@ -21,7 +21,7 @@ const AnswersSchema = z.object({
  * - At least 1 answer required (not all 5, not 0).
  * - Each answer sanitized: trim, strip control chars, max 500 chars.
  * - Validates capture belongs to the active workspace before touching anything.
- * - Returns 202 immediately — does not wait for generation (fire-and-forget to /process).
+ * - Returns 202 immediately - does not wait for generation (fire-and-forget to /process).
  * - Returns 409 if capture is already drafting or drafted (idempotency guard).
  */
 export async function POST(
@@ -63,7 +63,7 @@ export async function POST(
 
   const client = getServerClient();
 
-  // Validate workspace ownership — prevents cross-workspace data access.
+  // Validate workspace ownership - prevents cross-workspace data access.
   const { data: capture, error: fetchError } = await client.database
     .from('event_captures')
     .select('id, workspace_id')
@@ -113,7 +113,7 @@ export async function POST(
 
   // L3: write the answered event into memory (synthesized Q&A, not raw JSON) so
   // future generation can reflect on it as a past event. Awaited before the 202
-  // — cheap next to the /process call, which stays fire-and-forget below.
+  // - cheap next to the /process call, which stays fire-and-forget below.
   try {
     const { data: full } = await client.database
       .from('event_captures')
@@ -131,7 +131,7 @@ export async function POST(
         userId: user.id,
         workspaceId,
         kind: 'event_answer',
-        content: `[From ${cap?.title ?? 'an event'} on ${eventDate || 'unknown date'}] — this ALREADY happened; reference as past.\n\n${qa}`,
+        content: `[From ${cap?.title ?? 'an event'} on ${eventDate || 'unknown date'}] - this ALREADY happened; reference as past.\n\n${qa}`,
         customId: `event_${params.id}`,
         metadata: { event_title: cap?.title ?? '', posted_date: eventDate },
       });
@@ -140,7 +140,7 @@ export async function POST(
     console.error('[event-capture/answers] memory write failed (non-blocking):', err);
   }
 
-  // Fire-and-forget to /process — user's 202 has already been set up.
+  // Fire-and-forget to /process - user's 202 has already been set up.
   // The internal route is protected by x-internal-secret = CRON_SECRET.
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
   const cronSecret = process.env.CRON_SECRET ?? '';

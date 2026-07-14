@@ -6,7 +6,7 @@ function metricsSyncClient() {
   return process.env.INSFORGE_SERVICE_ROLE_KEY?.trim() ? getServiceClient() : getServerClient();
 }
 
-/** POST /api/analytics/sync — refresh post metrics from connected platforms. */
+/** POST /api/analytics/sync - refresh post metrics from connected platforms. */
 export async function POST(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

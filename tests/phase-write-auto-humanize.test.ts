@@ -141,7 +141,7 @@ describe('Phase: Write auto-humanize', () => {
     expect(done?.used_hook_ids).toEqual(['h1']);
 
     expect(humanizePipeline).toHaveBeenCalledTimes(1);
-    // Voice already applied in the streamed system prompt — polish is skipVoice.
+    // Voice already applied in the streamed system prompt - polish is skipVoice.
     expect(humanizePipeline).toHaveBeenCalledWith(
       "In today's world, we delve into synergy.",
       expect.objectContaining({ skipVoice: true, skipAudit: false }),
@@ -173,7 +173,7 @@ describe('Phase: Write auto-humanize', () => {
     expect(done).toBeDefined();
     expect(done?.text).toBe("In today's world, we delve into synergy.");
     expect(done?.humanized).toBe(false);
-    // No error event — generation still succeeds.
+    // No error event - generation still succeeds.
     expect(events.find((e) => e.type === 'error')).toBeUndefined();
   });
 });

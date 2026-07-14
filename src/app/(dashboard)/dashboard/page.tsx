@@ -166,7 +166,7 @@ export default async function DashboardPage() {
   const recentActivity = (recentRes.data as Post[]) ?? [];
   const backlog = (ideasRes.data as ContentIdea[]) ?? [];
 
-  // Compose the morning brief from already-fetched rows — zero extra AI/DB cost.
+  // Compose the morning brief from already-fetched rows - zero extra AI/DB cost.
   const morningBrief = composeMorningBrief({
     now: new Date(),
     trends: (trendsRes.data as TrendRow[]) ?? [],

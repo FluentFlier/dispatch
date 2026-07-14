@@ -1,7 +1,7 @@
 -- Add company_detail jsonb to signal_leads (idempotent)
 --
 -- WHY: the richest company context (long description, team size, industries,
--- location, stage) was fetched live per card view and then discarded — never
+-- location, stage) was fetched live per card view and then discarded - never
 -- persisted, never fed to the outreach draft model. Persisting it once lets the
 -- draft prompt reference real substance (description + headcount + industry)
 -- without a re-scrape on every draft.

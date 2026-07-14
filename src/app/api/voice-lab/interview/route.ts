@@ -16,7 +16,7 @@ const InterviewSchema = z.object({
 
 const SYNTHESIZE_PROMPT = `You are a voice synthesis expert. Given a voice analysis and interview answers, produce the final persona profile.
 
-Return ONLY valid JSON. Critical: all string values must be single-line — use \\n for line breaks, never actual newlines inside string values.
+Return ONLY valid JSON. Critical: all string values must be single-line - use \\n for line breaks, never actual newlines inside string values.
 
 Return JSON:
 {

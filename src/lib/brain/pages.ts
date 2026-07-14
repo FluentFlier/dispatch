@@ -36,7 +36,7 @@ export async function listBrainPages(
 
 /**
  * Fetches a single brain page by slug for a user, optionally scoped to a workspace.
- * workspaceId is optional for backwards compatibility — existing callers without it
+ * workspaceId is optional for backwards compatibility - existing callers without it
  * continue to work, but new callers should always pass it to enforce isolation.
  */
 export async function getBrainPage(
@@ -84,7 +84,7 @@ export async function putBrainPage(
 ): Promise<BrainPageRecord> {
   const now = new Date().toISOString();
 
-  // Build upsert payload — include workspace_id only when the caller provides
+  // Build upsert payload - include workspace_id only when the caller provides
   // it so that personal/legacy rows (no workspaceId) are not accidentally
   // assigned a null workspace_id that would break existing RLS policies.
   const upsertPayload: Record<string, unknown> = {

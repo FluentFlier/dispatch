@@ -32,7 +32,7 @@ describe('Phase: Content pipeline + humanizer', () => {
       expect(substance).toContain('BACKGROUND FACTS');
       expect(substance).toContain('VOCABULARY FINGERPRINT');
       expect(substance).toContain('VOICE EXAMPLES');
-      // Email voice stays out — it is a 1:1 register, not for public posts.
+      // Email voice stays out - it is a 1:1 register, not for public posts.
       expect(substance).not.toContain('EMAIL VOICE');
     });
 
@@ -56,7 +56,7 @@ describe('Phase: Content pipeline + humanizer', () => {
       expect(substance).toContain('Honestly it was messy.');
       expect(substance).toContain('Example 2 (linkedin)');
       expect(substance).toContain('They never feel ready.');
-      // Withheld sections are still fully excluded — no leakage of their body.
+      // Withheld sections are still fully excluded - no leakage of their body.
       expect(substance).not.toContain('EMAIL VOICE');
       expect(substance).not.toContain('quick update');
     });

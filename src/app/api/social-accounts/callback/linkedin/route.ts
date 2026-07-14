@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSocialProviderMode } from '@/lib/env';
 
-// GET: Legacy LinkedIn OAuth callback — social connect is Unipile-only now.
+// GET: Legacy LinkedIn OAuth callback - social connect is Unipile-only now.
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000').replace(/\/$/, '');
 

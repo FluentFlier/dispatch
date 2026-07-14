@@ -181,7 +181,7 @@ function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
           <p className="text-[10px] tracking-wide text-ink3">Hooks used (learned)</p>
           {hook_explanations.slice(0, 3).map((h) => (
             <p key={h.id} className="font-body text-[11px] text-ink2 leading-snug">
-              &ldquo;{h.text}&hellip;&rdquo; — {h.reason}
+              &ldquo;{h.text}&hellip;&rdquo; - {h.reason}
             </p>
           ))}
         </div>

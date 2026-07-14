@@ -127,7 +127,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         try {
           controller.enqueue(encoder.encode(sse(payload)));
         } catch {
-          // Client disconnected — nothing to flush to.
+          // Client disconnected - nothing to flush to.
         }
       };
 
@@ -227,7 +227,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
         // Auto-humanize: the streamed draft is one fast LLM pass, so it still
         // carries AI tells. Run the anti-slop pipeline (clean + audit) as a
-        // "polishing" stage — voice is already applied in the streamed system
+        // "polishing" stage - voice is already applied in the streamed system
         // prompt, so skipVoice avoids a redundant rewrite. This is what makes
         // the default Write flow ship human-sounding drafts without a manual
         // Polish tap.
@@ -245,7 +245,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             finalText = polished.text;
             humanized = true;
           } catch (humanizeErr) {
-            // Never fail the whole generation on a polish hiccup — keep the draft.
+            // Never fail the whole generation on a polish hiccup - keep the draft.
             console.error('[generate/stream] auto-humanize failed (non-fatal):', humanizeErr);
           }
         }

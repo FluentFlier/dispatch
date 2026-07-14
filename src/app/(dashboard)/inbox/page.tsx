@@ -16,11 +16,11 @@ const TAB_COPY: Record<InboxTab, { title: string; subtitle: string }> = {
   },
   warm: {
     title: 'Warm contacts',
-    subtitle: 'People engaging your posts — triage ICPs and draft connection notes.',
+    subtitle: 'People engaging your posts - triage ICPs and draft connection notes.',
   },
   outbound: {
     title: 'Outbound',
-    subtitle: 'Comment on others’ posts at human pace — draft, approve, cron sends.',
+    subtitle: 'Comment on others’ posts at human pace - draft, approve, cron sends.',
   },
 };
 

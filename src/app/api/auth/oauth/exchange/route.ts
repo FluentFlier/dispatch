@@ -12,7 +12,7 @@ const OAuthExchangeSchema = z.object({
 /**
  * Server-side OAuth code exchange (client_type=server/mobile).
  * Returns refreshToken in the response body so we can store it in content-os-refresh.
- * Web-browser SDK exchange only sets InsForge cross-origin cookies — unusable for SSR.
+ * Web-browser SDK exchange only sets InsForge cross-origin cookies - unusable for SSR.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   let body: unknown;

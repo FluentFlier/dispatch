@@ -62,7 +62,7 @@ function fallbackDossier(input: DossierInput, agenda: Agenda): EngagerDossier {
   return {
     summary: clamp(`${who}${role} ${engaged}.`),
     whyMatters: clamp(
-      `${who} is a warm contact for the "${agenda.name}" agenda — they already know your work, so a follow-up is welcome rather than cold.`,
+      `${who} is a warm contact for the "${agenda.name}" agenda - they already know your work, so a follow-up is welcome rather than cold.`,
     ),
     angle: clamp(agenda.pitchAngle),
     generatedAt: new Date().toISOString(),

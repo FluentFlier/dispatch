@@ -40,7 +40,7 @@ export function CopyButton({ text, className = '' }: CopyButtonProps) {
       await navigator.clipboard.writeText(text);
     } catch {
       if (!legacyCopy(text)) {
-        toast('Copy failed — select and copy the text manually.', 'error');
+        toast('Copy failed - select and copy the text manually.', 'error');
         return;
       }
     }

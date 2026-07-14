@@ -9,7 +9,7 @@ const BodySchema = z.object({
 });
 
 /**
- * PATCH /api/admin/flags/[name] — toggle a feature flag.
+ * PATCH /api/admin/flags/[name] - toggle a feature flag.
  */
 export async function PATCH(
   request: NextRequest,

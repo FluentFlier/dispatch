@@ -71,7 +71,7 @@ function importExternalId(companyName: string, linkedin?: string, email?: string
     if (slug) return `import-li-${slug}`;
   }
   // Use the full email (local part + domain) so distinct contacts that share a
-  // local part — alex@acme.com vs alex@other.com — don't collide into one lead.
+  // local part - alex@acme.com vs alex@other.com - don't collide into one lead.
   if (email) return `import-${slugify(email)}`;
   return `import-${slugify(companyName)}`;
 }

@@ -3,7 +3,7 @@
  *
  * Drives the real persistImportedPosts through the real writeToMemory helper with
  * a mocked Supermemory + feature flag, asserting the dated header, sanitized URN
- * customId, and scope tag — and that a failed (empty-content) item writes nothing.
+ * customId, and scope tag - and that a failed (empty-content) item writes nothing.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 

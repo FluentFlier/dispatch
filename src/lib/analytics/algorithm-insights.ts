@@ -3,8 +3,8 @@
  *
  * WHY: "best time to post" and content guidance should not depend only on a
  * single creator's handful of posts. They should encode what we know about how
- * each platform's ranking system behaves across millions of posts — the
- * industry benchmark / "algorithm prior" — and then let each creator's own
+ * each platform's ranking system behaves across millions of posts - the
+ * industry benchmark / "algorithm prior" - and then let each creator's own
  * results refine it over time.
  *
  * This module is the single source of truth for that knowledge so every part of
@@ -89,7 +89,7 @@ const CONSUMER_HOUR_RAW = [
 const LINKEDIN_INSIGHTS: AlgorithmInsights = {
   platform: 'linkedin',
   model:
-    'LinkedIn ranks with 360Brew (a large language model) after LiNR retrieval. It reads the meaning of your post, your profile "topic DNA", and each reader\'s context, then decides distribution from early-engagement quality — not raw like counts.',
+    'LinkedIn ranks with 360Brew (a large language model) after LiNR retrieval. It reads the meaning of your post, your profile "topic DNA", and each reader\'s context, then decides distribution from early-engagement quality - not raw like counts.',
   signals: [
     { signal: 'Dwell time (31-60s read)', weight: 'critical', action: 'Open with a strong first line; short paragraphs, specific data, and a document/carousel to hold attention.' },
     { signal: 'Saves', weight: '~5x a like', action: 'Give lasting reference value: frameworks, checklists, templates, numbered playbooks.' },
@@ -134,7 +134,7 @@ const TWITTER_INSIGHTS: AlgorithmInsights = {
     'Strong, opinionated first lines.',
   ],
   penalties: [
-    'Outbound links in the first post (reach penalty — put them in a reply).',
+    'Outbound links in the first post (reach penalty - put them in a reply).',
     'Hashtag spam.',
     'Low early engagement rate (kills further distribution).',
   ],

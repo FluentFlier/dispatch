@@ -9,8 +9,8 @@ const CreateSchema = z.object({
 });
 
 /**
- * GET /api/agent/keys — list active agent API keys (session auth only).
- * POST /api/agent/keys — create a new key; raw secret returned once.
+ * GET /api/agent/keys - list active agent API keys (session auth only).
+ * POST /api/agent/keys - create a new key; raw secret returned once.
  */
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           created_at: created.created_at,
         },
         api_key: created.api_key,
-        message: 'Copy the api_key now — it will not be shown again.',
+        message: 'Copy the api_key now - it will not be shown again.',
       },
       { status: 201 },
     );

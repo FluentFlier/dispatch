@@ -157,7 +157,7 @@ export function buildCheckContext(
 }
 
 /**
- * Stage 1 — Base draft: substance + platform format, minimal voice.
+ * Stage 1 - Base draft: substance + platform format, minimal voice.
  */
 async function runBaseStage(
   input: ContentPipelineInput,
@@ -192,7 +192,7 @@ async function runBaseStage(
 }
 
 /**
- * Stage 2 — Hook layer: apply high-converting openers to the base draft.
+ * Stage 2 - Hook layer: apply high-converting openers to the base draft.
  */
 async function runHookStage(
   baseText: string,
@@ -358,7 +358,7 @@ async function runContentPipelineInner(
     stagesCompleted.push('hooks');
   }
 
-  // --- Stage 3: Humanize (always for creator prose — quality bar) ---
+  // --- Stage 3: Humanize (always for creator prose - quality bar) ---
   let humanizePasses: string[] | undefined;
   const shouldHumanize = input.humanizeAlways || isProse;
 
@@ -433,7 +433,7 @@ Return ONLY the final post.`;
       if (evaluation.parse_error) {
         await emitPipelineEvent({ requestId, event: 'judge_parse_error', detail: { stage: 'voice-evaluate' } });
       }
-      // Parse glitch (not a real quality failure) — keep the draft, stop revising.
+      // Parse glitch (not a real quality failure) - keep the draft, stop revising.
       if (evaluation.parse_error) break;
       if (evaluationPasses(evaluation)) break;
 
@@ -475,7 +475,7 @@ Return ONLY the revised post.`;
     }
 
     // If the loop exited right after a revise (max iterations reached), the last
-    // rewrite was never scored — the reported score would reflect the PREVIOUS
+    // rewrite was never scored - the reported score would reflect the PREVIOUS
     // draft, not the text we return. Re-evaluate the final draft so score matches
     // output. A parse glitch on this final pass keeps the prior evaluation.
     if (lastActionWasRevise) {

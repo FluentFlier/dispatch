@@ -1,13 +1,13 @@
 /**
- * Phase 0 — Security + Billing regression tests.
+ * Phase 0 - Security + Billing regression tests.
  * Each describe block maps to one item in the Bug Fix Implementation Plan.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// P0-1: CSRF logout fix — middleware no longer clears token on ?expired=1
+// P0-1: CSRF logout fix - middleware no longer clears token on ?expired=1
 // ---------------------------------------------------------------------------
-describe('P0-1: middleware — no CSRF logout via ?expired=1', () => {
+describe('P0-1: middleware - no CSRF logout via ?expired=1', () => {
   it('renders login on /login?expired=1 WITHOUT force-clearing the cookie (anti-CSRF)', async () => {
     const { middleware } = await import('@/middleware');
     const { NextRequest } = await import('next/server');
@@ -42,9 +42,9 @@ describe('P0-1: middleware — no CSRF logout via ?expired=1', () => {
 });
 
 // ---------------------------------------------------------------------------
-// P0-2: ai-guard — quota tracking errors are logged, not silently swallowed
+// P0-2: ai-guard - quota tracking errors are logged, not silently swallowed
 // ---------------------------------------------------------------------------
-describe('P0-2: ai-guard — usage increment errors are logged', () => {
+describe('P0-2: ai-guard - usage increment errors are logged', () => {
   beforeEach(() => {
     vi.resetModules();
   });
@@ -72,9 +72,9 @@ describe('P0-2: ai-guard — usage increment errors are logged', () => {
 });
 
 // ---------------------------------------------------------------------------
-// P0-3: auto-generate cron — per-user quota enforced
+// P0-3: auto-generate cron - per-user quota enforced
 // ---------------------------------------------------------------------------
-describe('P0-3: auto-generate cron — quota checked per user', () => {
+describe('P0-3: auto-generate cron - quota checked per user', () => {
   it('skips generation and pushes quota_exceeded when assertCanGenerate returns not ok', async () => {
     vi.resetModules();
     vi.doMock('@/lib/entitlements', () => ({
@@ -106,9 +106,9 @@ describe('P0-3: auto-generate cron — quota checked per user', () => {
 });
 
 // ---------------------------------------------------------------------------
-// P0-5: usage — source no longer uses SELECT-then-UPDATE race pattern
+// P0-5: usage - source no longer uses SELECT-then-UPDATE race pattern
 // ---------------------------------------------------------------------------
-describe('P0-5: usage — incrementUsage no longer uses SELECT-then-UPDATE', () => {
+describe('P0-5: usage - incrementUsage no longer uses SELECT-then-UPDATE', () => {
   it('source code does not contain the old read-modify-write SELECT pattern', async () => {
     const fs = await import('fs');
     const path = await import('path');
@@ -142,12 +142,12 @@ describe('P0-5: usage — incrementUsage no longer uses SELECT-then-UPDATE', () 
 });
 
 // ---------------------------------------------------------------------------
-// P0-6: stripe-webhook — plan fallback is 'free', not 'starter'
+// P0-6: stripe-webhook - plan fallback is 'free', not 'starter'
 // ---------------------------------------------------------------------------
-describe('P0-6: stripe-webhook — planFromMetadata defaults to free', () => {
+describe('P0-6: stripe-webhook - planFromMetadata defaults to free', () => {
   it('returns free when metadata.plan is missing', async () => {
     // Test via handleStripeWebhook with a checkout.session.completed event
-    // that has no plan in metadata — expect the subscription to be set to free.
+    // that has no plan in metadata - expect the subscription to be set to free.
     vi.resetModules();
 
     const mockUpsert = vi.fn().mockResolvedValue({ error: null });
@@ -202,9 +202,9 @@ describe('P0-6: stripe-webhook — planFromMetadata defaults to free', () => {
 });
 
 // ---------------------------------------------------------------------------
-// P0-6: stripe-webhook — replayed webhooks rejected (>5 min old)
+// P0-6: stripe-webhook - replayed webhooks rejected (>5 min old)
 // ---------------------------------------------------------------------------
-describe('P0-6: stripe-webhook — replay attack protection', () => {
+describe('P0-6: stripe-webhook - replay attack protection', () => {
   it('rejects a webhook with a timestamp older than 5 minutes', async () => {
     vi.resetModules();
     process.env.STRIPE_WEBHOOK_SECRET = 'test-secret';
@@ -225,9 +225,9 @@ describe('P0-6: stripe-webhook — replay attack protection', () => {
 });
 
 // ---------------------------------------------------------------------------
-// P0-7: crypto — decryptToken throws on malformed format when key is set
+// P0-7: crypto - decryptToken throws on malformed format when key is set
 // ---------------------------------------------------------------------------
-describe('P0-7: crypto — decryptToken throws on malformed format', () => {
+describe('P0-7: crypto - decryptToken throws on malformed format', () => {
   beforeEach(() => {
     vi.stubEnv('TOKEN_ENCRYPTION_KEY', 'a'.repeat(64));
     vi.stubEnv('NODE_ENV', 'production');
@@ -252,9 +252,9 @@ describe('P0-7: crypto — decryptToken throws on malformed format', () => {
 });
 
 // ---------------------------------------------------------------------------
-// P0-8: generate route — no double usage charge
+// P0-8: generate route - no double usage charge
 // ---------------------------------------------------------------------------
-describe('P0-8: generate route — single usage charge per generation', () => {
+describe('P0-8: generate route - single usage charge per generation', () => {
   it('calls incrementUsage exactly once per generation (via guardAiRequest only)', async () => {
     vi.resetModules();
 

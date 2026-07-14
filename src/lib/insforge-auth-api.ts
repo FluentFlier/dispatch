@@ -130,7 +130,7 @@ async function postInsforgeAuth(
   return { ok: true, payload: parsed };
 }
 
-/** OAuth code exchange — server/mobile flow returns refreshToken in body. */
+/** OAuth code exchange - server/mobile flow returns refreshToken in body. */
 export async function exchangeOAuthCodeViaApi(
   code: string,
   codeVerifier: string,
@@ -156,7 +156,7 @@ export async function exchangeOAuthCodeViaApi(
   return null;
 }
 
-/** Refresh tokens — tries server then mobile; sends both body key styles. */
+/** Refresh tokens - tries server then mobile; sends both body key styles. */
 export type RefreshTokensResult =
   | { ok: true; payload: InsforgeTokenPayload }
   | { ok: false; unauthorized: boolean };

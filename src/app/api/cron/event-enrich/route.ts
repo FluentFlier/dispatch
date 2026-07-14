@@ -120,7 +120,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
       results.push({ jobId: job.id, status: outcome });
     } catch (err) {
-      // Increment attempts — fail permanently at max_attempts to stop silent loops.
+      // Increment attempts - fail permanently at max_attempts to stop silent loops.
       const newAttempts = job.attempts + 1;
       const newStatus = newAttempts >= job.max_attempts ? 'failed' : 'pending';
 

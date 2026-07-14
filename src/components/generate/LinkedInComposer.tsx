@@ -27,7 +27,7 @@ const PLATFORM_LABELS: Record<string, string> = {
 /**
  * LinkedIn-style compose + live preview step. Mirrors LinkedIn's posting UI
  * layout and functionality (editor on top, live feed-style preview below) so the
- * user sees exactly how their post will look before publishing — plus image,
+ * user sees exactly how their post will look before publishing - plus image,
  * link, and mention controls. Uses app theme colors, not LinkedIn's palette.
  */
 export function LinkedInComposer({ open, onClose, initialText, platform, onPublished }: LinkedInComposerProps) {

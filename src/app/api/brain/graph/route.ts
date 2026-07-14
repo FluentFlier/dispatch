@@ -42,7 +42,7 @@ export async function GET(): Promise<NextResponse> {
     const { data: postRows } = await postsQuery;
     const learnings = deriveContentLearnings((postRows ?? []) as LearningPost[], graph);
 
-    // Content ↔ pipeline fit — leads are strictly workspace-scoped.
+    // Content ↔ pipeline fit - leads are strictly workspace-scoped.
     let pipelineLearnings: ReturnType<typeof deriveLeadFitLearnings> = [];
     if (workspaceId) {
       const { data: leadRows } = await client.database

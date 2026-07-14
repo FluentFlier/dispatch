@@ -146,7 +146,7 @@ export default function TermsPage(): JSX.Element {
                 platform. We make no representation or warranty that your use of the Service will keep your social
                 accounts in good standing. Account restrictions, suspensions, shadowbans, rate limits, content
                 removals, loss of reach, loss of followers, or permanent bans may occur for reasons entirely outside
-                our control — including platform policy changes, automated enforcement, user reports, or activity
+                our control - including platform policy changes, automated enforcement, user reports, or activity
                 that predates your use of {PRODUCT_NAME}.
               </P>
             </Subsection>
@@ -202,7 +202,7 @@ export default function TermsPage(): JSX.Element {
             <Subsection title="6.3 Published Content">
               <P>
                 Once you publish or schedule content through the Service, you are fully responsible for that content
-                and its consequences on connected platforms — including moderation actions, takedowns, account
+                and its consequences on connected platforms - including moderation actions, takedowns, account
                 penalties, and any claims from third parties.
               </P>
             </Subsection>
@@ -314,7 +314,7 @@ export default function TermsPage(): JSX.Element {
             <P>
               Without limiting the foregoing, we are not liable for any account suspension, ban, content removal, API
               restriction, or other enforcement action taken by a third-party platform in connection with your use of
-              the Service — whether or not such action was triggered by content published, scheduled, or automated
+              the Service - whether or not such action was triggered by content published, scheduled, or automated
               through {PRODUCT_NAME}.
             </P>
             <P>
@@ -405,12 +405,12 @@ export default function TermsPage(): JSX.Element {
           <Section id="general" title="19. General Provisions">
             <Ul
               items={[
-                'Entire Agreement — These Terms, together with the Privacy Policy, constitute the entire agreement between you and ' +
+                'Entire Agreement - These Terms, together with the Privacy Policy, constitute the entire agreement between you and ' +
                   PRODUCT_NAME +
                   ' regarding the Service.',
-                'Severability — If any provision is found unenforceable, the remaining provisions remain in full force.',
-                'Waiver — Our failure to enforce any provision does not constitute a waiver of that provision.',
-                'Assignment — You may not assign your rights under these Terms without our prior written consent. We may assign our rights without restriction.',
+                'Severability - If any provision is found unenforceable, the remaining provisions remain in full force.',
+                'Waiver - Our failure to enforce any provision does not constitute a waiver of that provision.',
+                'Assignment - You may not assign your rights under these Terms without our prior written consent. We may assign our rights without restriction.',
               ]}
             />
           </Section>

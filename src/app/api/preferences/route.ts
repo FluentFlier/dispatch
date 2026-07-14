@@ -31,13 +31,13 @@ export async function GET(): Promise<NextResponse> {
 
   return NextResponse.json({
     preferred_post_length: (prefs['preferred_post_length'] ?? 'standard') as 'short' | 'standard' | 'long',
-    // Default ON — voice is the core value; only disabled when explicitly set to 'false'.
+    // Default ON - voice is the core value; only disabled when explicitly set to 'false'.
     voice_enabled: prefs['voice_enabled'] !== 'false',
   });
 }
 
 /**
- * PUT: Saves user content preferences (partial update — only provided keys change).
+ * PUT: Saves user content preferences (partial update - only provided keys change).
  */
 export async function PUT(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();

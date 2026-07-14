@@ -12,7 +12,7 @@ const EntrySchema = z.object({
 });
 
 /**
- * GET /api/hooks/watchlist — workspace hook-mining watchlist (Pro feature surface).
+ * GET /api/hooks/watchlist - workspace hook-mining watchlist (Pro feature surface).
  */
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -33,7 +33,7 @@ export async function GET(): Promise<NextResponse> {
 }
 
 /**
- * POST /api/hooks/watchlist — add or upsert a creator handle to mine for hooks.
+ * POST /api/hooks/watchlist - add or upsert a creator handle to mine for hooks.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -75,7 +75,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 }
 
 /**
- * DELETE /api/hooks/watchlist?id= — remove a watchlist row.
+ * DELETE /api/hooks/watchlist?id= - remove a watchlist row.
  */
 export async function DELETE(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();

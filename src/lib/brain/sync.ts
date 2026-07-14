@@ -120,7 +120,7 @@ export async function syncBrainFromProfile(
 
   const profile = profileRow as ProfileRow;
 
-  // Guard against malformed JSON in content_pillars — a parse error here would
+  // Guard against malformed JSON in content_pillars - a parse error here would
   // crash the entire brain sync silently, leaving voice context stale with no
   // indication of why it stopped updating.
   let pillars: unknown = profile.content_pillars;
@@ -128,7 +128,7 @@ export async function syncBrainFromProfile(
     try {
       pillars = JSON.parse(profile.content_pillars);
     } catch {
-      console.warn('[brain/sync] content_pillars JSON parse failed for user', userId, '— using empty array');
+      console.warn('[brain/sync] content_pillars JSON parse failed for user', userId, '- using empty array');
       pillars = [];
     }
   }
@@ -169,7 +169,7 @@ export async function syncBrainFromProfile(
 }
 
 /**
- * Syncs a single published post into the brain and — when the feature flag is on —
+ * Syncs a single published post into the brain and - when the feature flag is on -
  * writes it to Supermemory so future generation can reference "you wrote about this".
  * The Supermemory write is intentionally non-blocking: a Supermemory outage must
  * never fail the publish operation. workspaceId scopes both the brain page and the
@@ -215,14 +215,14 @@ export async function syncBrainPublishedPost(
     workspaceId,
   });
 
-  // syncBrainWins is intentionally NOT called here — it runs a top-5 query and
+  // syncBrainWins is intentionally NOT called here - it runs a top-5 query and
   // was previously called inside this per-post function, causing N top-5 queries
   // when publishing N posts. Call it once at the end of syncCreatorBrainFull().
 
   // L3: non-blocking memory write via the shared helper. Publish must succeed
   // even if memory is down (writeToMemory swallows its own errors and honors the
   // layer3_memory_writes flag). Keyed on the platform URN so this publish path
-  // and the import path collapse to ONE document per real post — the dated header
+  // and the import path collapse to ONE document per real post - the dated header
   // gives generation the temporal context that stops "I just got back from…" on
   // a "remember that event" prompt.
   const { data: jobRow } = await client.database
@@ -238,7 +238,7 @@ export async function syncBrainPublishedPost(
     userId,
     workspaceId: workspaceId ?? null,
     kind: 'published_post',
-    content: `[Your ${post.platform} post from ${post.posted_date ?? 'unknown date'}] — this ALREADY happened; reference as past.\n\n${[
+    content: `[Your ${post.platform} post from ${post.posted_date ?? 'unknown date'}] - this ALREADY happened; reference as past.\n\n${[
       content,
       post.views ? `Performance: ${post.views} views, ${post.likes ?? 0} likes` : '',
     ]

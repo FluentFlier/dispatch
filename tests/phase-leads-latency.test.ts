@@ -3,7 +3,7 @@ import type { SignalLeadWithContacts } from '@/lib/signals/types';
 import { withTimeout } from '@/lib/util/timeout';
 
 /**
- * WS1.3 — Latency budget for plan + draft.
+ * WS1.3 - Latency budget for plan + draft.
  *
  * We cannot measure a live model (cost rule), so we assert the levers that cut
  * wall-clock:

@@ -13,7 +13,7 @@ const TAG_LENGTH = 16;
  */
 /**
  * Returns true for any deployed environment, not just NODE_ENV=production.
- * Previously only checked Vercel-specific vars — Railway, Render, Fly.io, and
+ * Previously only checked Vercel-specific vars - Railway, Render, Fly.io, and
  * any host with TOKEN_ENCRYPTION_KEY set would silently store plaintext tokens.
  */
 function isDeployedEnv(): boolean {
@@ -25,7 +25,7 @@ function isDeployedEnv(): boolean {
   if (process.env.RAILWAY_ENVIRONMENT) return true;
   if (process.env.FLY_APP_NAME) return true;
   if (process.env.RENDER) return true;
-  // If the key is explicitly set, the operator intends encryption — require it.
+  // If the key is explicitly set, the operator intends encryption - require it.
   if (process.env.TOKEN_ENCRYPTION_KEY) return true;
   return false;
 }
@@ -97,7 +97,7 @@ export function decryptToken(encrypted: string): string {
   // platform API and produce a confusing downstream error. Throw explicitly so
   // callers know the credential is unusable.
   if (parts.length !== 3) {
-    throw new Error('[crypto] Malformed encrypted token — expected iv:ciphertext:tag format');
+    throw new Error('[crypto] Malformed encrypted token - expected iv:ciphertext:tag format');
   }
 
   const [ivB64, ciphertextB64, tagB64] = parts;

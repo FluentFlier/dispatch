@@ -1,5 +1,5 @@
 /**
- * ICP setup reaches the DB — not just the UI.
+ * ICP setup reaches the DB - not just the UI.
  *
  * These drive the real POST /api/leads/icp/chat handler and assert it calls
  * updateDirectorySettings with the parsed ICP. They verify the whole path
@@ -65,7 +65,7 @@ beforeEach(() => {
   h.currentIcp = '';
 });
 
-describe('POST /api/leads/icp/chat — ICP actually persists', () => {
+describe('POST /api/leads/icp/chat - ICP actually persists', () => {
   it('persists icp_description + derived verticals/keywords when the model returns a brief', async () => {
     chatMock.mockResolvedValue(
       '{"reply":"Set.","icp_description":"Seed fintech founders from YC","run_discovery":false}',

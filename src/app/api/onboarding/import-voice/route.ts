@@ -28,7 +28,7 @@ Return ONLY a JSON object (no prose, no code fences):
 
 Rules:
 - display_name: first name or brand name if clearly stated.
-- bio_facts: 2-4 sentences — role, audience, what they create content about.
+- bio_facts: 2-4 sentences - role, audience, what they create content about.
 - voice_description: 2-4 sentences on tone and style for social posts.
 - voice_rules: line-separated DO/NEVER rules from their writing instructions; empty string if none.
 - Do not invent. Omit with null if the export does not support a field.`;

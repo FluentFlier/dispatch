@@ -13,7 +13,7 @@ export class UsageTracker {
   /**
    * Logs an intelligence/monetized action and increments the usage counter.
    *
-   * NOTE: This is a logging-only tracker — it does NOT enforce plan limits and
+   * NOTE: This is a logging-only tracker - it does NOT enforce plan limits and
    * always returns `{allowed: true}`. Plan limit enforcement is handled by
    * `guardAiRequest()` in src/lib/ai-guard.ts, which calls `assertCanGenerate()`.
    * Do not rely on the return value of this method for access control.

@@ -99,12 +99,12 @@ async function upsertSocialAccountFromUnipileAccount({
     fallbackAccount?.username ??
     null;
 
-  // Ownership guard — the shared Unipile subscription's webhooks carry accounts
+  // Ownership guard - the shared Unipile subscription's webhooks carry accounts
   // this user may not own, and periodic RECONNECTED events would otherwise
   // re-bind a stranger every few minutes. Require positive proof before binding:
   //   (a) the account isn't already owned by a different user (rotating id OR
   //       stable public identifier), and
-  //   (b) it appeared AFTER this user's pre-connect snapshot — i.e. THIS user's
+  //   (b) it appeared AFTER this user's pre-connect snapshot - i.e. THIS user's
   //       connect produced it. Snapshot absent → no proof of ownership → refuse.
   const { data: others } = await client.database
     .from('social_accounts')
@@ -115,7 +115,7 @@ async function upsertSocialAccountFromUnipileAccount({
       r.unipile_account_id === unipileAccountId || (accountId != null && r.account_id === accountId),
   );
   if (claimedByOther) {
-    console.warn('[webhooks/unipile] refusing bind — account already owned by another user', {
+    console.warn('[webhooks/unipile] refusing bind - account already owned by another user', {
       userId,
       unipileAccountId,
       accountId,
@@ -129,7 +129,7 @@ async function upsertSocialAccountFromUnipileAccount({
     .eq('user_id', userId)
     .maybeSingle();
   if (!snap) {
-    console.warn('[webhooks/unipile] refusing bind — no pending connect snapshot for user', {
+    console.warn('[webhooks/unipile] refusing bind - no pending connect snapshot for user', {
       userId,
       unipileAccountId,
     });
@@ -139,7 +139,7 @@ async function upsertSocialAccountFromUnipileAccount({
     ((snap as { account_ids?: string[] }).account_ids ?? []).filter(Boolean),
   );
   if (snapshotIds.has(unipileAccountId)) {
-    console.warn('[webhooks/unipile] refusing bind — account pre-existed the user connect (not theirs)', {
+    console.warn('[webhooks/unipile] refusing bind - account pre-existed the user connect (not theirs)', {
       userId,
       unipileAccountId,
     });

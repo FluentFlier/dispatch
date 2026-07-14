@@ -84,7 +84,7 @@ export async function buildLoopHealthMetrics(
     recommendations.push('Generate content via /generate to capture used_hook_ids');
   }
   if (editFeedbackRows === 0) {
-    recommendations.push('Edit AI drafts — feedback trains hook scores via /api/hooks/feedback');
+    recommendations.push('Edit AI drafts - feedback trains hook scores via /api/hooks/feedback');
   }
 
   let flywheelStatus: LoopHealthMetrics['flywheelStatus'] = 'open';

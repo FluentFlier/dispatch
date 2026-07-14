@@ -2,7 +2,7 @@
 /**
  * Directory-scrape debug runner.
  *
- * Exercises the live TinyFish directory-scrape path in isolation — no UI, no DB,
+ * Exercises the live TinyFish directory-scrape path in isolation - no UI, no DB,
  * no Next.js. Prints the raw run outcome and the normalized IngestedLead rows so
  * a scrape failure is visible and reproducible from the terminal.
  *
@@ -32,7 +32,7 @@ function loadEnvLocal(): void {
       if (!(key in process.env)) process.env[key] = val;
     }
   } catch {
-    console.warn('[debug] no .env.local found — running with process env only');
+    console.warn('[debug] no .env.local found - running with process env only');
   }
 }
 

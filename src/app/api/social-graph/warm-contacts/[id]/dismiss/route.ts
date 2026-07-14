@@ -3,7 +3,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { dismissWarmContact } from '@/lib/social-graph/warm-contacts';
 
 /**
- * POST /api/social-graph/warm-contacts/[id]/dismiss — remove from triage queue.
+ * POST /api/social-graph/warm-contacts/[id]/dismiss - remove from triage queue.
  */
 export async function POST(
   _request: NextRequest,

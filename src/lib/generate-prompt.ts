@@ -3,7 +3,7 @@
  * user's optional topic, braindump "thoughts", and a length hint.
  *
  * WHY a dedicated helper: the braindump box MUST reach the LLM every time, and
- * the /api/generate schema caps `prompt` at 10000 chars — so assembly + a safe
+ * the /api/generate schema caps `prompt` at 10000 chars - so assembly + a safe
  * length cap live in one tested place instead of being inlined and drifting.
  */
 
@@ -45,7 +45,7 @@ export function assembleGeneratePrompt(parts: PromptParts): string {
   const thoughtsHeader = '\n\nDETAILS AND THOUGHTS FROM THE CREATOR (you MUST incorporate these specifics into the post):\n';
   const room = MAX_PROMPT_LEN - (fixed.length + thoughtsHeader.length);
   if (room <= 0) {
-    // No space for the braindump — keep the essential prompt.
+    // No space for the braindump - keep the essential prompt.
     return fixed.slice(0, MAX_PROMPT_LEN);
   }
   const clippedThoughts = thoughts.length > room ? thoughts.slice(0, room) : thoughts;

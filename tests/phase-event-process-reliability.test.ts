@@ -1,7 +1,7 @@
 /**
  * Audit break 29: /api/event-capture/[id]/process must not strand a capture at
  * 'drafting'. This route is fire-and-forget, so a 500/502 never reaches the
- * caller's .catch — the status itself must revert or the 3s detail poll spins
+ * caller's .catch - the status itself must revert or the 3s detail poll spins
  * forever. Covers the two exits the original break-19 fix missed:
  *   - the posts insert fails   -> revert to questions_ready (500)
  *   - every generation fails   -> revert to questions_ready, not 'drafted' (502)

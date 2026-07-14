@@ -133,7 +133,7 @@ interface FillWeekModalProps {
 }
 
 /**
- * AI Fill This Week modal — shows suggestions before applying.
+ * AI Fill This Week modal - shows suggestions before applying.
  */
 export function FillWeekModal({
   loading,

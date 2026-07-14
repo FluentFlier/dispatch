@@ -65,7 +65,7 @@ export default async function AdminTrialCodesPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-ink3 text-xs max-w-[200px] truncate" title={c.note ?? ''}>
-                    {c.note ?? '—'}
+                    {c.note ?? '-'}
                   </td>
                   <td className="px-4 py-3">
                     <TrialCodeRowActions code={c.code} active={c.active} />

@@ -1,4 +1,4 @@
--- Content OS Signals — Directory Lead Engine (Phase 0 foundations)
+-- Content OS Signals - Directory Lead Engine (Phase 0 foundations)
 -- Company-centric "Lead" flow layered onto the post-centric Signal flow.
 -- Apply after signals.sql + signals-composio.sql + signals-rls.sql, then apply signals-leads-rls.sql.
 --   npx @insforge/cli db query "$(sed '/^--/d' db/signals-leads.sql | tr '\n' ' ')"
@@ -91,7 +91,7 @@ create table if not exists signal_directory_settings (
   updated_at timestamptz default now()
 );
 
--- --- Lead lifecycle audit (scrape/score/rename/reactivation) — NOT the outreach audit ---
+-- --- Lead lifecycle audit (scrape/score/rename/reactivation) - NOT the outreach audit ---
 create table if not exists signal_lead_events (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null,
@@ -117,7 +117,7 @@ create table if not exists signal_followed_companies (
   created_at timestamptz default now()
 );
 
--- Identity anchored on domain (or name when no domain) — can't follow the same company twice.
+-- Identity anchored on domain (or name when no domain) - can't follow the same company twice.
 create unique index if not exists signal_followed_companies_unique
   on signal_followed_companies (workspace_id, lower(coalesce(domain, company_name)));
 

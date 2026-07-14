@@ -4,9 +4,9 @@
  * Regression tests for the bug where LinkedIn posts imported via the Voice Lab
  * "import from account" flow were persisted to the `posts` table but stayed
  * invisible in the Library/Calendar. Two causes, both covered here:
- *  1. Empty `pillars` array — the Calendar filters posts by pillar, so an empty
+ *  1. Empty `pillars` array - the Calendar filters posts by pillar, so an empty
  *     array made imported posts vanish. The writer must set `pillars: ['general']`.
- *  2. Null `workspace_id` — every posts read is workspace-scoped, so a null
+ *  2. Null `workspace_id` - every posts read is workspace-scoped, so a null
  *     workspace made rows unreadable. The writer must persist a concrete workspace.
  */
 import { describe, it, expect } from 'vitest';

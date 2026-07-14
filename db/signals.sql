@@ -1,4 +1,4 @@
--- Content OS Signals (GTM module) — workspace-scoped signal engine
+-- Content OS Signals (GTM module) - workspace-scoped signal engine
 -- Apply in order:
 --   npx @insforge/cli db query "$(sed '/^--/d' db/signals.sql | tr '\n' ' ')"
 --   npx @insforge/cli db query "$(sed '/^--/d' db/signals-composio.sql | tr '\n' ' ')"
@@ -116,7 +116,7 @@ insert into feature_flags (name, enabled, description)
 values ('signals_engine', true, 'Content OS Signals GTM module')
 on conflict (name) do nothing;
 
--- Per-workspace safety settings (conservative defaults — Unipile provider limits)
+-- Per-workspace safety settings (conservative defaults - Unipile provider limits)
 create table if not exists signal_safety_settings (
   workspace_id uuid primary key,
   outreach_enabled boolean not null default false,

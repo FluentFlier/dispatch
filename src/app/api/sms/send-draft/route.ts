@@ -10,7 +10,7 @@ const BodySchema = z.object({ postId: z.string().uuid() });
 
 /**
  * Text the authenticated user a magic link to review/edit one of their drafts.
- * WHY: mirrors Stanley's "draft to your phone" capture — the user gets an SMS,
+ * WHY: mirrors Stanley's "draft to your phone" capture - the user gets an SMS,
  * can reply with edits + a photo (handled by the inbound webhook), then open
  * the link to post. The link carries a signed, self-expiring token so no login
  * is needed on the phone.

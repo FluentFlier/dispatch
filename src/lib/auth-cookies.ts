@@ -4,7 +4,7 @@ export const AUTH_COOKIE = {
   refresh: 'content-os-refresh',
 } as const;
 
-/** 30 days — longer than typical JWT exp so refresh can run before cookie disappears. */
+/** 30 days - longer than typical JWT exp so refresh can run before cookie disappears. */
 export const AUTH_COOKIE_MAX_AGE_SEC = 60 * 60 * 24 * 30;
 
 export const AUTH_COOKIE_OPTS = {

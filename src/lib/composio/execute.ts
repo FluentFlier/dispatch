@@ -18,7 +18,7 @@ export async function executeComposioTool<T = unknown>(
 
   try {
     // Composio SDK v0.13+ requires an explicit toolkit version for manual tool
-    // execution; passing 'latest' is NOT accepted — it must be an exact pinned
+    // execution; passing 'latest' is NOT accepted - it must be an exact pinned
     // version string (e.g. '20250909_00') or the skip flag.
     // dangerouslySkipVersionCheck lets the backend resolve the active version,
     // equivalent to the old 'latest' behaviour.

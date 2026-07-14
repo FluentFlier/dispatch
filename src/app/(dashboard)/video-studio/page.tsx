@@ -136,7 +136,7 @@ export default function VideoStudioPage() {
         setAutoEditResult(`Generated ${data.captions.length} caption cues`);
       } else {
         setAutoEditResult(
-          data.message || 'Caption generation is not available yet — pipeline not built.',
+          data.message || 'Caption generation is not available yet - pipeline not built.',
         );
       }
     } catch {

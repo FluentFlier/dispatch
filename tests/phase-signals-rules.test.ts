@@ -52,7 +52,7 @@ describe('Phase: Signals trigger-rule resolution', () => {
     });
     const res = resolveRuleAction([r], CTX, signal({ signalType: 'accelerator_join' }));
     expect(res.actionMode).toBe('auto_send');
-    // 'dashboard' is filtered out — only real outreach channels survive.
+    // 'dashboard' is filtered out - only real outreach channels survive.
     expect(res.channels).toEqual(['linkedin_connect']);
     expect(res.matchedRuleName).toBe('Rule');
   });

@@ -13,7 +13,7 @@ end;
 $$ language plpgsql;
 
 -- ============================================================
--- WORKSPACES (multi-tenancy — solo creators + agency clients)
+-- WORKSPACES (multi-tenancy - solo creators + agency clients)
 -- Each user gets one solo workspace automatically on signup.
 -- Agency plan users can create additional client workspaces.
 -- workspace_id added as nullable to all content tables first;
@@ -343,7 +343,7 @@ create index if not exists publish_jobs_user_status
 
 -- ============================================================
 -- WORKSPACE MIGRATION: additive workspace_id columns
--- Safe to run on a live DB — all columns are nullable.
+-- Safe to run on a live DB - all columns are nullable.
 -- After running, execute scripts/migrate-workspaces.ts to backfill.
 -- Once backfilled, tighten RLS policies to membership-based.
 -- ============================================================
@@ -374,7 +374,7 @@ create index if not exists publish_jobs_workspace on publish_jobs (workspace_id,
 create index if not exists creator_profile_workspace on creator_profile (workspace_id);
 
 -- ============================================================
--- ATOMIC USAGE INCREMENT (Phase 0 — race condition fix)
+-- ATOMIC USAGE INCREMENT (Phase 0 - race condition fix)
 -- Replaces the SELECT-then-UPDATE pattern in src/lib/usage.ts.
 -- Called via client.database.rpc('increment_usage_counter', {...}).
 -- ============================================================

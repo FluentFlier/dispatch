@@ -94,7 +94,7 @@ const config: Config = {
       borderRadius: {
         // Content OS radius ladder (DESIGN.md §5): chip 8 · control 10 ·
         // compact-card 14 · surface 18 · poster 22. Controls are squared with
-        // gentle corners — never default pills.
+        // gentle corners - never default pills.
         md: '6px',
         lg: '8px',
         badge: '8px',

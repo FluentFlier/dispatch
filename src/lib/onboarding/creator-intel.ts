@@ -267,7 +267,7 @@ async function extractCreatorWebFacts(
 ): Promise<Omit<CreatorWebIntel, 'queries' | 'sources'>> {
   const prompt = `Profile context:\n${profileContext}\n\nWeb + profile text:\n${combinedText.slice(0, MAX_WEB_CHARS)}`;
   const result = await generateContent(prompt, undefined, WEB_FACTS_PROMPT);
-  // Standardized on the shared parseLlmJson (break 23) — was a byte-identical
+  // Standardized on the shared parseLlmJson (break 23) - was a byte-identical
   // private extractor + JSON.parse. Returns null on no-JSON or parse failure.
   const parsed = parseLlmJson<Record<string, unknown>>(result);
   if (!parsed) {
@@ -398,7 +398,7 @@ function formatBioFacts(bundle: CreatorIntelBundle): string {
           .join('; ')}`,
       li.education.length > 0 &&
         `Education: ${li.education
-          .map((edu) => [edu.degree, edu.school].filter(Boolean).join(' — '))
+          .map((edu) => [edu.degree, edu.school].filter(Boolean).join(' - '))
           .join('; ')}`,
       li.skills.length > 0 && `Skills: ${li.skills.join(', ')}`,
     ].filter(Boolean);
