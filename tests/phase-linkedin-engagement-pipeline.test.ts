@@ -15,6 +15,7 @@ import {
   buildPostIdCandidates,
   extractReactions,
 } from '@/lib/engagement/unipile-reactions';
+import { extractComments } from '@/lib/engagement/unipile-comments';
 import { buildReactionAuthorKey } from '@/lib/engagement/sync';
 import { collectEngagers } from '@/lib/engagement/categorize-engagers';
 import { extractLinkedInMetrics } from '@/lib/platforms/linkedin-metrics';
@@ -195,6 +196,50 @@ describe('Phase: LinkedIn Engagement Pipeline', () => {
       expect(extractReactions(null)).toEqual([]);
       expect(extractReactions('nope')).toEqual([]);
       expect(extractReactions({})).toEqual([]);
+    });
+  });
+
+  describe('extractComments', () => {
+    it('should read the real Comment shape: string author + author_details + date', () => {
+      // Mirrors the live Unipile payload: `author` is the display-name STRING and
+      // the rich fields live under `author_details` (no public_identifier - the
+      // handle is derived from the /in/<slug> of profile_url).
+      const parsed = extractComments(
+        {
+          items: [
+            {
+              id: '7425291448230551552',
+              text: 'Congratulations Rudheer!',
+              date: '2026-02-05T21:37:16.503Z',
+              author: 'Dhanush Koyi',
+              author_details: {
+                id: 'ACoAAEJYGAQB1RQ8mWbhOBcG4JZKZV_dd5pOF7A',
+                headline: 'CS @ ASU',
+                profile_url: 'https://www.linkedin.com/in/dhanush-koyi',
+              },
+            },
+          ],
+        },
+        'linkedin',
+      );
+      expect(parsed).toEqual([
+        {
+          provider_comment_id: '7425291448230551552',
+          comment_text: 'Congratulations Rudheer!',
+          platform: 'linkedin',
+          author_name: 'Dhanush Koyi',
+          author_handle: 'dhanush-koyi',
+          author_headline: 'CS @ ASU',
+          commented_at: '2026-02-05T21:37:16.503Z',
+        },
+      ]);
+    });
+
+    it('should skip rows missing id or text and tolerate malformed input', () => {
+      expect(extractComments(null, 'linkedin')).toEqual([]);
+      expect(
+        extractComments({ items: [{ id: '1' }, { text: 'no id' }] }, 'linkedin'),
+      ).toEqual([]);
     });
   });
 

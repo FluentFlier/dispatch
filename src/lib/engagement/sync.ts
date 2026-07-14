@@ -55,23 +55,39 @@ async function upsertComment(
 ): Promise<'inserted' | 'updated' | 'skipped'> {
   const { data: existing } = await client.database
     .from('post_comments')
-    .select('id, comment_text, synced_at')
+    .select('id, comment_text, author_name, author_handle, author_headline, commented_at')
     .eq('user_id', userId)
     .eq('provider_comment_id', row.provider_comment_id)
     .limit(1);
 
-  const hit = existing?.[0] as { id: string; comment_text: string } | undefined;
+  const hit = existing?.[0] as
+    | {
+        id: string;
+        comment_text: string;
+        author_name: string | null;
+        author_handle: string | null;
+        author_headline: string | null;
+        commented_at: string | null;
+      }
+    | undefined;
 
   if (hit) {
-    if (hit.comment_text === row.comment_text) return 'skipped';
+    // Backfill: rows synced before the parser learned to read the nested author
+    // object have NULL author/timestamp. Re-sync now carries that data, so don't
+    // skip a row just because its text is unchanged - update it if we can fill a gap.
+    const textSame = hit.comment_text === row.comment_text;
+    const fillsAuthor =
+      !hit.author_name && !hit.author_handle && Boolean(row.author_name || row.author_handle);
+    const fillsTime = !hit.commented_at && Boolean(row.commented_at);
+    if (textSame && !fillsAuthor && !fillsTime) return 'skipped';
     const { error } = await client.database
       .from('post_comments')
       .update({
         comment_text: row.comment_text,
-        author_name: row.author_name ?? null,
-        author_handle: row.author_handle ?? null,
-        author_headline: row.author_headline ?? null,
-        commented_at: row.commented_at ?? null,
+        author_name: row.author_name ?? hit.author_name ?? null,
+        author_handle: row.author_handle ?? hit.author_handle ?? null,
+        author_headline: row.author_headline ?? hit.author_headline ?? null,
+        commented_at: row.commented_at ?? hit.commented_at ?? null,
         synced_at: new Date().toISOString(),
       })
       .eq('id', hit.id)
@@ -173,6 +189,7 @@ async function ingestProviderComments(
         comment_text: c.comment_text,
         author_name: c.author_name,
         author_handle: c.author_handle,
+        author_headline: c.author_headline,
         commented_at: c.commented_at,
       });
       if (result === 'inserted') inserted++;
