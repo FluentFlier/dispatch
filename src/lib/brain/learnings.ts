@@ -6,6 +6,7 @@ export type LearningKind =
   | 'platform'
   | 'voice'
   | 'engagement'
+  | 'hook'
   | 'gap'
   | 'alignment'
   | 'intent';
@@ -35,6 +36,7 @@ export interface LearningPost {
   id: string;
   pillar: string | null;
   platform: string | null;
+  hook: string | null;
   views: number | null;
   likes: number | null;
   comments: number | null;
@@ -53,6 +55,14 @@ const LIFT = 1.3; // ratio vs median that counts as "outperforming"
 const DRAG = 0.6; // ratio vs median that counts as "underperforming"
 
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const QUESTION_WORDS = new Set(['how', 'why', 'what', 'when', 'who', 'which', 'where', 'can', 'should', 'do', 'does', 'is', 'are', 'will', 'would']);
+
+function isQuestionHook(hook: string): boolean {
+  const t = hook.trim().toLowerCase();
+  if (t.endsWith('?')) return true;
+  const first = (t.split(/\s+/)[0] ?? '').replace(/[^a-z]/g, '');
+  return QUESTION_WORDS.has(first);
+}
 
 function median(values: number[]): number {
   if (values.length === 0) return 0;
@@ -238,6 +248,49 @@ export function deriveContentLearnings(posts: LearningPost[], graph: BrainGraph)
         nodeIds: postNodeIds(graph, best.ps),
       });
     }
+  }
+
+  // --- Hook style (needs hook text) ---
+  const withHook = withViews.filter((p) => p.hook?.trim());
+  if (withHook.length >= MIN_POSTS) {
+    const compareGroups = (
+      id: string,
+      winners: LearningPost[],
+      losers: LearningPost[],
+      headline: string,
+      versus: string,
+    ) => {
+      if (winners.length < MIN_GROUP || losers.length < MIN_GROUP) return;
+      const wMed = median(winners.map((p) => p.views ?? 0));
+      const lMed = median(losers.map((p) => p.views ?? 0));
+      const ratio = wMed / (lMed || 1);
+      if (ratio < LIFT) return;
+      learnings.push({
+        id,
+        kind: 'hook',
+        headline,
+        detail: `${ratioLabel(ratio)} the median views of ${versus} across ${winners.length} posts.`,
+        metric: ratioLabel(ratio),
+        sentiment: 'positive',
+        confidence: winners.length >= 5 ? 'high' : 'low',
+        sampleSize: winners.length,
+        nodeIds: postNodeIds(graph, winners),
+      });
+    };
+
+    const questions = withHook.filter((p) => isQuestionHook(p.hook!));
+    const statements = withHook.filter((p) => !isQuestionHook(p.hook!));
+    const qMed = median(questions.map((p) => p.views ?? 0));
+    const sMed = median(statements.map((p) => p.views ?? 0));
+    if (qMed >= sMed) {
+      compareGroups('hook-question', questions, statements, 'Question hooks pull more views', 'statement hooks');
+    } else {
+      compareGroups('hook-statement', statements, questions, 'Statement hooks pull more views', 'question hooks');
+    }
+
+    const numbered = withHook.filter((p) => /\d/.test(p.hook!));
+    const plain = withHook.filter((p) => !/\d/.test(p.hook!));
+    compareGroups('hook-number', numbered, plain, 'Hooks with a number outperform', 'hooks without one');
   }
 
   // Positive wins first, then things to watch; strongest signal within each.

@@ -11,6 +11,7 @@ function post(over: Partial<LearningPost> & { id: string }): LearningPost {
   return {
     pillar: null,
     platform: null,
+    hook: null,
     views: null,
     likes: null,
     comments: null,
@@ -104,6 +105,37 @@ describe('deriveContentLearnings', () => {
     const strong = learnings.find((l) => l.id === 'pillar-strong');
     expect(strong?.confidence).toBe('high');
     expect(strong?.sampleSize).toBe(5);
+  });
+
+  it('learns which hook style wins (question vs statement)', () => {
+    const posts = [
+      post({ id: 'q1', hook: 'How do founders actually hire?', views: 1000 }),
+      post({ id: 'q2', hook: 'Why is fundraising so hard?', views: 1100 }),
+      post({ id: 'q3', hook: 'What makes a great pitch?', views: 1050 }),
+      post({ id: 's1', hook: 'Fundraising is brutal.', views: 100 }),
+      post({ id: 's2', hook: 'Hiring takes forever.', views: 110 }),
+      post({ id: 's3', hook: 'Pitches need a story.', views: 120 }),
+    ];
+    const learnings = deriveContentLearnings(posts, graphWith([]));
+    const hook = learnings.find((l) => l.id === 'hook-question');
+    expect(hook).toBeDefined();
+    expect(hook!.sentiment).toBe('positive');
+    expect(hook!.nodeIds.length).toBe(0); // posts not in the (empty) graph
+  });
+
+  it('learns when numbered hooks outperform', () => {
+    const posts = [
+      post({ id: 'n1', hook: '5 growth tips', views: 1000 }),
+      post({ id: 'n2', hook: '3 hiring mistakes', views: 1100 }),
+      post({ id: 'n3', hook: '7 pitch rules', views: 1050 }),
+      post({ id: 'p1', hook: 'Growth tips today', views: 100 }),
+      post({ id: 'p2', hook: 'Hiring mistakes to avoid', views: 110 }),
+      post({ id: 'p3', hook: 'Pitch rules that matter', views: 120 }),
+    ];
+    const learnings = deriveContentLearnings(posts, graphWith([]));
+    expect(learnings.find((l) => l.id === 'hook-number')).toBeDefined();
+    // No question hooks present, so the question/statement learning does not fire.
+    expect(learnings.find((l) => l.kind === 'hook' && l.id !== 'hook-number')).toBeUndefined();
   });
 });
 
