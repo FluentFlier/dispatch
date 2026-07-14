@@ -32,7 +32,12 @@ function makeClient(results: Record<string, { data?: unknown; error?: unknown }>
   return { database: { from } } as unknown as ReturnType<typeof getServiceClient>;
 }
 
-const NEW_USER_SUB = { plan: 'free', status: 'inactive', trial_ends_at: null, stripe_subscription_id: null };
+const NEW_USER_SUB = {
+  plan: 'free' as const,
+  status: 'inactive',
+  trial_ends_at: null,
+  stripe_subscription_id: null,
+};
 const LINKEDIN_ROW = {
   code: 'LINKEDIN',
   plan: 'starter',
@@ -104,7 +109,7 @@ describe('redeemTrialCode', () => {
 
   it('short-circuits a user already on an active trial', async () => {
     vi.mocked(getOrCreateSubscription).mockResolvedValue({
-      plan: 'starter',
+      plan: 'starter' as const,
       status: 'trialing',
       trial_ends_at: new Date(Date.now() + 86_400_000).toISOString(),
       stripe_subscription_id: null,
@@ -116,7 +121,7 @@ describe('redeemTrialCode', () => {
 
   it('blocks a user whose trial was already used', async () => {
     vi.mocked(getOrCreateSubscription).mockResolvedValue({
-      plan: 'free',
+      plan: 'free' as const,
       status: 'inactive',
       trial_ends_at: new Date(Date.now() - 86_400_000).toISOString(),
       stripe_subscription_id: null,
