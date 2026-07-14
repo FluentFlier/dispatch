@@ -34,15 +34,13 @@ export interface NavItem {
 
 /**
  * Where the app lands a fully-onboarded user (open-app CTA, post-auth, logo click).
- * UI experiment (Jul 2026): Write is the home surface; the dashboard is hidden from
- * chrome but still reachable at /dashboard. Set back to '/dashboard' to restore.
+ * Dashboard is the home surface.
  */
-export const APP_HOME_PATH = '/generate';
+export const APP_HOME_PATH = '/dashboard';
 
 export const navItems: NavItem[] = [
   // --- Primary: daily loop ---
-  // Home/dashboard hidden while experimenting with a Write-first IA (still reachable by URL).
-  { name: 'Home', href: '/dashboard', short: 'Home', section: 'primary', hidden: true },
+  { name: 'Home', href: '/dashboard', short: 'Home', section: 'primary' },
   { name: 'Write', href: '/generate', short: 'Write', section: 'primary' },
   { name: 'Posts', href: '/library', short: 'Posts', section: 'primary' },
   { name: 'Schedule', href: '/calendar', short: 'Plan', section: 'primary' },
@@ -72,8 +70,16 @@ export const navItems: NavItem[] = [
 /** Visible primary nav entries (sidebar + mobile bottom bar). */
 export const primaryNav = navItems.filter((item) => item.section === 'primary' && !item.hidden);
 
-/** Visible secondary nav entries (sidebar "More" + mobile sheet). */
-export const moreNav = navItems.filter((item) => item.section === 'more' && !item.hidden);
+/**
+ * Visible secondary nav entries (sidebar "Advanced" dropdown + mobile sheet).
+ * Settings is pulled out so it can live as a standalone row, always visible.
+ */
+export const moreNav = navItems.filter(
+  (item) => item.section === 'more' && !item.hidden && item.href !== '/settings',
+);
+
+/** Settings — rendered on its own outside the Advanced dropdown. */
+export const settingsNav = navItems.find((item) => item.href === '/settings')!;
 
 /**
  * Single source of truth for nav icons, shared by the desktop `Sidebar` and the

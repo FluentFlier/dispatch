@@ -16,6 +16,13 @@ import { normalizeName } from '@/lib/signals/leads/identity';
  */
 
 const YC_COMPANIES_URL = 'https://www.ycombinator.com/companies';
+// YC Launches is a separate Algolia-backed SPA. Its page carries its OWN
+// AlgoliaOpts (a key scoped to the Launches indices - the companies key is
+// restricted to YCCompany_* and cannot query these), so launches are read exactly
+// like companies: keyless from our side, one HTTP call, deterministic.
+const YC_LAUNCHES_URL = 'https://www.ycombinator.com/launches';
+const YC_LAUNCHES_INDEX = 'Launches_by_date_production'; // recency-sorted
+const YC_LAUNCHES_INDEX_RELEVANCE = 'Launches_production'; // vote/relevance-ranked (text queries)
 // Recency-sorted index → freshest batches first (what GTM outreach wants).
 const YC_ALGOLIA_INDEX = 'YCCompany_By_Launch_Date_production';
 // Relevance-ranked index - REQUIRED for any text/ICP query. The recency index
@@ -39,6 +46,10 @@ interface YcHit {
   one_liner?: string;
   long_description?: string;
   website?: string;
+  // Algolia index field is `batch` (e.g. "Summer 2026"); the detail-page field is
+  // `batch_name`. The index NEVER returns `batch_name`, so reading only that left
+  // every ingested lead with a null batch (looked undated / "demo"). Read both.
+  batch?: string;
   batch_name?: string;
   industries?: string[];
   tags?: string[];
@@ -238,9 +249,9 @@ export async function fetchYcCompanyDetail(slug: string): Promise<YcCompanyDetai
   };
 }
 
-/** Reads the live app id + secured search key YC injects into its page. */
-async function readAlgoliaOpts(): Promise<AlgoliaOpts> {
-  const res = await fetch(YC_COMPANIES_URL, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+/** Reads the live app id + secured search key YC injects into a page (companies or launches). */
+async function readAlgoliaOpts(pageUrl: string = YC_COMPANIES_URL): Promise<AlgoliaOpts> {
+  const res = await fetch(pageUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
   if (!res.ok) throw new Error(`YC page returned ${res.status}`);
   const html = await res.text();
   const match = html.match(ALGOLIA_OPTS_RE);
@@ -280,7 +291,7 @@ export function mapHit(hit: YcHit): IngestedLead | null {
     // substance without a re-scrape (previously both were discarded here).
     longDescription: hit.long_description || undefined,
     website: hit.website || undefined,
-    batch: hit.batch_name || undefined,
+    batch: hit.batch || hit.batch_name || undefined,
     tags: hit.industries ?? hit.tags ?? [],
     founders: [],
   };
@@ -340,6 +351,92 @@ export async function fetchYcCompaniesViaAlgolia(limit: number, query = ''): Pro
   return leads;
 }
 
+/** One hit from the Launches Algolia index (the launch post + its company). */
+interface YcLaunchHit {
+  slug?: string;
+  title?: string;
+  tagline?: string;
+  company?: {
+    name?: string;
+    slug?: string;
+    url?: string;
+    tags?: string[];
+    batch?: string;
+    industry?: string;
+  };
+}
+
+/** Maps a launch hit to a lead keyed on the COMPANY slug (so a launch dedupes with
+ *  the same company's directory listing). Returns null when the company is unusable. */
+function mapLaunchHit(hit: YcLaunchHit): IngestedLead | null {
+  const c = hit.company ?? {};
+  const companyName = String(c.name ?? '').trim();
+  const externalId = String(c.slug ?? hit.slug ?? '').trim();
+  if (!companyName || !externalId) return null;
+  if (companyName.length < 2 || !/[a-z0-9]/i.test(companyName)) return null;
+  if (MEGACORP_SLUGS.has(externalId.toLowerCase())) return null;
+  return {
+    source: 'yc_launches',
+    externalId,
+    companyName,
+    tagline: decodeText(hit.tagline) || decodeText(hit.title) || undefined,
+    website: c.url || undefined,
+    batch: c.batch || undefined,
+    tags: Array.isArray(c.tags) ? c.tags.map(String) : c.industry ? [c.industry] : [],
+    founders: [],
+  };
+}
+
+/**
+ * Fetches recent YC Launches via YC's own Launches Algolia index (keyless from our
+ * side, ~300ms, deterministic). Empty query → recency index (freshest launches);
+ * text/ICP query → relevance index (the recency index collapses text queries).
+ * Throws a plain Error on any failure so the caller wraps it per-source.
+ */
+export async function fetchYcLaunchesViaAlgolia(limit: number, query = ''): Promise<IngestedLead[]> {
+  const startedAt = Date.now();
+  const { app, key } = await readAlgoliaOpts(YC_LAUNCHES_URL);
+  const trimmed = query.trim();
+  const words = trimmed.split(/\s+/).filter(Boolean);
+  const optionalWords = words.length > 1 ? `&optionalWords=${encodeURIComponent(JSON.stringify(words))}` : '';
+  const indexName = trimmed ? YC_LAUNCHES_INDEX_RELEVANCE : YC_LAUNCHES_INDEX;
+
+  const res = await fetch(`https://${app.toLowerCase()}-dsn.algolia.net/1/indexes/*/queries`, {
+    method: 'POST',
+    headers: {
+      'X-Algolia-Application-Id': app,
+      'X-Algolia-API-Key': key,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      requests: [
+        {
+          indexName,
+          params: `query=${encodeURIComponent(trimmed)}${optionalWords}&hitsPerPage=${Math.min(Math.max(limit, 1), MAX_HITS)}&page=0`,
+        },
+      ],
+    }),
+  });
+  if (!res.ok) throw new Error(`Algolia ${res.status}: ${await res.text()}`);
+
+  const json = (await res.json()) as { results?: Array<{ hits?: YcLaunchHit[] }> };
+  const hits = json.results?.[0]?.hits ?? [];
+  // Dedupe by company slug (a company can have multiple launch posts).
+  const byCompany = new Map<string, IngestedLead>();
+  for (const h of hits) {
+    const lead = mapLaunchHit(h);
+    if (lead) byCompany.set(lead.externalId, lead);
+  }
+  const leads = Array.from(byCompany.values());
+
+  if (signalsDebugEnabled()) {
+    console.log(
+      `[yc-launches] query="${query || '*'}" ${hits.length} hits -> ${leads.length} leads in ${Date.now() - startedAt}ms`,
+    );
+  }
+  return leads;
+}
+
 /** A company's real YC identity resolved from its display name. */
 export interface YcNameMatch {
   slug: string;
@@ -388,6 +485,6 @@ export async function findYcCompanyByName(name: string): Promise<YcNameMatch | n
     slug: String(hit.slug),
     name: String(hit.name),
     website: hit.website || undefined,
-    batch: hit.batch_name || undefined,
+    batch: hit.batch || hit.batch_name || undefined,
   };
 }

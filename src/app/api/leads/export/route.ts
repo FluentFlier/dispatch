@@ -30,6 +30,35 @@ const COLUMNS: string[] = [
   'first_seen_at', 'last_seen_at',
 ];
 
+type LeadRow = Awaited<ReturnType<typeof listLeads>>[number];
+
+/** Serialize leads to a downloadable CSV attachment response. */
+function csvResponse(leads: LeadRow[]): NextResponse {
+  const rows = leads.map((lead) => {
+    const intent = (lead.intent_flags ?? {}) as Record<string, boolean>;
+    const c = lead.primary_contact;
+    return [
+      lead.company_name, lead.domain, lead.website, lead.batch, lead.source, lead.tags,
+      intent.hiring, intent.raised, intent.seeking_investors, intent.seeking_tools,
+      lead.fit_score, lead.rank_score, lead.contact_status, lead.lead_status,
+      c?.name, c?.role, c?.linkedin_url, c?.email, c?.resolution_source,
+      lead.first_seen_at, lead.last_seen_at,
+    ].map(cell).join(',');
+  });
+
+  const csv = [COLUMNS.join(','), ...rows].join('\r\n');
+  const stamp = new Date().toISOString().slice(0, 10);
+
+  return new NextResponse(csv, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/csv; charset=utf-8',
+      'Content-Disposition': `attachment; filename="leads-${stamp}.csv"`,
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 /**
  * GET /api/leads/export?status=
  * Streams the workspace's leads as CSV so they can be pulled into a CRM or
@@ -49,30 +78,37 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const client = getServerClient();
     const leads = await listLeads(client, workspaceId, { ...listFilter, limit: 200 });
+    return csvResponse(leads);
+  } catch (err) {
+    return errorResponse('Could not export leads.', 500, err);
+  }
+}
 
-    const rows = leads.map((lead) => {
-      const intent = (lead.intent_flags ?? {}) as Record<string, boolean>;
-      const c = lead.primary_contact;
-      return [
-        lead.company_name, lead.domain, lead.website, lead.batch, lead.source, lead.tags,
-        intent.hiring, intent.raised, intent.seeking_investors, intent.seeking_tools,
-        lead.fit_score, lead.rank_score, lead.contact_status, lead.lead_status,
-        c?.name, c?.role, c?.linkedin_url, c?.email, c?.resolution_source,
-        lead.first_seen_at, lead.last_seen_at,
-      ].map(cell).join(',');
-    });
+/**
+ * POST /api/leads/export  { ids: string[], status?: string }
+ * Exports only the selected lead ids (a GET query can't carry a large id set).
+ * Empty/absent ids falls back to the full status-filtered export, matching the
+ * feed rule: a partial selection exports just those; select-all/none exports all.
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const user = await getAuthenticatedUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const csv = [COLUMNS.join(','), ...rows].join('\r\n');
-    const stamp = new Date().toISOString().slice(0, 10);
+  const workspaceId = await getActiveWorkspaceId(user.id);
+  if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
 
-    return new NextResponse(csv, {
-      status: 200,
-      headers: {
-        'Content-Type': 'text/csv; charset=utf-8',
-        'Content-Disposition': `attachment; filename="leads-${stamp}.csv"`,
-        'Cache-Control': 'no-store',
-      },
-    });
+  const body = (await request.json().catch(() => ({}))) as { ids?: unknown; status?: unknown };
+  const ids = Array.isArray(body.ids) ? body.ids.filter((v): v is string => typeof v === 'string') : [];
+  const statusParam = typeof body.status === 'string' ? body.status : null;
+  const listFilter = parseLeadListStatusParam(statusParam);
+
+  try {
+    const client = getServerClient();
+    // Pull the full page (feed cap), then narrow to the selected ids. Selected ids
+    // may sit below the default 200 window, so widen to the feed max first.
+    const leads = await listLeads(client, workspaceId, { ...listFilter, limit: 300 });
+    const filtered = ids.length ? leads.filter((l) => ids.includes(l.id)) : leads;
+    return csvResponse(filtered);
   } catch (err) {
     return errorResponse('Could not export leads.', 500, err);
   }

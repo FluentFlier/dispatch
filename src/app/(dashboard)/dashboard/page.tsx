@@ -6,7 +6,6 @@ import {
   AlertCircle,
   Circle,
   PenLine,
-  Radio,
   Settings2,
 } from 'lucide-react';
 import { getServerClient, getAuthenticatedUser } from '@/lib/insforge/server';
@@ -123,7 +122,7 @@ export default async function DashboardPage() {
       scoped(client.database.from('posts').select('*').eq('user_id', uid).order('updated_at', { ascending: false }).limit(5)),
       scoped(client.database.from('content_ideas').select('*').eq('user_id', uid).eq('converted', false).order('priority', { ascending: true }).limit(3)),
       client.database.from('creator_profile').select('display_name, content_pillars, voice_description, onboarding_complete').eq('user_id', uid).maybeSingle(),
-      scoped(client.database.from('social_accounts').select('platform, connection_method, health_status').eq('user_id', uid)),
+      scoped(client.database.from('social_accounts').select('platform, connection_method, connected_at').eq('user_id', uid)),
       scoped(client.database
         .from('publish_jobs')
         .select('id, platform, last_error, status')
@@ -176,6 +175,13 @@ export default async function DashboardPage() {
   const hasVoice = Boolean(creatorProfile?.voice_description);
   const hasConnections = connectedPlatforms.length > 0;
   const setupComplete = hasProfile && hasVoice && hasConnections;
+  // An existing account row with connected_at nulled = credentials genuinely
+  // lost (webhook only nulls it on 'credentials'/'deleted'), so reconnect is real.
+  const needsReconnect = (socialRes.data ?? []).some(
+    (a: { connected_at?: string | null }) => a.connected_at == null,
+  );
+  // Top strip is silent unless something is genuinely urgent.
+  const showUrgentFlags = !hasConnections || needsReconnect;
 
   const attentionItems: AttentionItem[] = [];
 
@@ -226,19 +232,29 @@ export default async function DashboardPage() {
         <section className="card-surface lift-soft overflow-hidden">
           <div className="grid grid-cols-1 lg:grid-cols-[1.35fr_0.65fr]">
             <div className="p-6 md:p-8">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-lime/25 bg-lime/15 px-3 py-1 text-xs font-medium text-ink">
-                  <Radio className="h-3.5 w-3.5" />
-                  Workspace live
-                </span>
-                {!hasConnections && (
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-flame/20 bg-flame/10 px-3 py-1 text-xs font-medium text-flame">
-                    <Circle className="h-2 w-2 fill-current" />
-                    Publishing not connected
-                  </span>
-                )}
-              </div>
-              <h1 className="mt-5 max-w-2xl text-[clamp(32px,4vw,44px)] font-semibold leading-[1.05] tracking-[-0.04em] text-ink">
+              {showUrgentFlags && (
+                <div className="flex flex-wrap items-center gap-2">
+                  {!hasConnections && (
+                    <Link
+                      href="/settings?tab=connections"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-flame/20 bg-flame/10 px-3 py-1 text-xs font-medium text-flame transition-colors hover:bg-flame/15"
+                    >
+                      <Circle className="h-2 w-2 fill-current" />
+                      Publishing not connected
+                    </Link>
+                  )}
+                  {needsReconnect && (
+                    <Link
+                      href="/settings?tab=connections"
+                      className="inline-flex items-center gap-1.5 rounded-full border border-flame/20 bg-flame/10 px-3 py-1 text-xs font-medium text-flame transition-colors hover:bg-flame/15"
+                    >
+                      <Circle className="h-2 w-2 fill-current" />
+                      A channel needs reconnecting
+                    </Link>
+                  )}
+                </div>
+              )}
+              <h1 className={`${showUrgentFlags ? 'mt-5 ' : ''}max-w-2xl text-[clamp(32px,4vw,44px)] font-semibold leading-[1.05] tracking-[-0.04em] text-ink`}>
                 {creatorProfile?.display_name
                   ? `${creatorProfile.display_name.split(' ')[0]}, your content system is ready for the next move.`
                   : 'Your content system is ready for the next move.'}
@@ -286,13 +302,14 @@ export default async function DashboardPage() {
         <QuickActions variant="rail" />
       </div>
 
-      {/* Unified daily card: morning-brief signals + Coming up + Ideas (one card) */}
-      <section className="card-surface overflow-hidden">
-        <div className="p-5 md:p-6 border-b border-hair">
-          <MorningBriefStrip brief={morningBrief} />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 divide-y lg:divide-y-0 lg:divide-x divide-hair">
-          <div className="p-5 md:p-6">
+      {/* Morning brief — its own card */}
+      <section className="card-surface p-5 md:p-6">
+        <MorningBriefStrip brief={morningBrief} />
+      </section>
+
+      {/* Coming up + Ideas — separate cards */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <section className="card-surface p-5 md:p-6">
             <SectionHeader
               title="Coming up"
               accent="#2563EB"
@@ -342,9 +359,9 @@ export default async function DashboardPage() {
                 ))}
               </ul>
             )}
-          </div>
+        </section>
 
-          <div className="p-5 md:p-6">
+        <section className="card-surface p-5 md:p-6">
             <SectionHeader
               title="Ideas to turn into posts"
               accent="#0D9488"
@@ -390,9 +407,8 @@ export default async function DashboardPage() {
                 ))}
               </ul>
             )}
-          </div>
-        </div>
-      </section>
+        </section>
+      </div>
 
       <NeedsAttention items={attentionItems} />
 

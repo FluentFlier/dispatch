@@ -629,6 +629,13 @@ export function useLeadsController() {
     });
   };
   const clearSelection = () => setSelectedIds(new Set());
+  // Select-all grabs every currently-visible card; re-clicking clears it.
+  const allVisibleSelected =
+    visibleCards.length > 0 && visibleCards.every((c) => selectedIds.has(c.id));
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) clearSelection();
+    else setSelectedIds(new Set(visibleCards.map((c) => c.id)));
+  };
 
   // Bulk dismiss/snooze: only directory leads carry a PATCHable lead row, so we
   // act on the selected ids that resolve to a directory lead and drop them from
@@ -673,17 +680,52 @@ export function useLeadsController() {
     }
   };
 
-  const handleExport = () => {
-    // Attachment Content-Disposition downloads without navigating away. Carry the
-    // active status filter so the export matches what the user is looking at.
-    const qs = filters.status !== 'all' ? `?status=${encodeURIComponent(filters.status)}` : '';
+  // Download an href as a file without navigating away.
+  const triggerDownload = (href: string, download?: string) => {
     const a = document.createElement('a');
-    a.href = `/api/leads/export${qs}`;
+    a.href = href;
+    if (download) a.download = download;
     a.rel = 'noopener';
     document.body.appendChild(a);
     a.click();
     a.remove();
+  };
+
+  // Export the whole (status-filtered) workspace via the GET attachment route.
+  const exportAll = () => {
+    const qs = filters.status !== 'all' ? `?status=${encodeURIComponent(filters.status)}` : '';
+    triggerDownload(`/api/leads/export${qs}`);
     toast('Exporting leads to CSV…');
+  };
+
+  // Export a specific id subset (POST, since a GET can't carry many UUIDs).
+  const exportSelectedIds = async (ids: string[]) => {
+    try {
+      const res = await fetch('/api/leads/export', {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ ids, status: filters.status }),
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      triggerDownload(url, `leads-${new Date().toISOString().slice(0, 10)}.csv`);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast('Could not export.', 'error');
+    }
+  };
+
+  // Selection-aware export: a partial selection exports just those leads; select
+  // all (or nothing selected) exports every lead. Matches the requested rule.
+  const handleExport = () => {
+    const ids = Array.from(selectedIds);
+    const partial = ids.length > 0 && !visibleCards.every((c) => selectedIds.has(c.id));
+    if (partial) {
+      void exportSelectedIds(ids);
+      return;
+    }
+    exportAll();
   };
 
   const handleTogglePlaybookStep = async (
@@ -1018,7 +1060,8 @@ export function useLeadsController() {
     handleDismiss, handleExport, handleTogglePlaybookStep, handleSnooze, handleResolve,
     handlePlanNurture, handleFollowLead, handleSignalDraft, handleSignalSend,
     handleEngagerPlan, handleEngagerSend, handleEngagerDismiss,
-    clearSelection, toggleSelect, bulkLeadAction, selectedCard, selectedLead,
+    clearSelection, toggleSelect, toggleSelectAll, allVisibleSelected, bulkLeadAction,
+    selectedCard, selectedLead,
     icpConfigured, verticals, filtersActive,
   };
 }

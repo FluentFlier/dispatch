@@ -38,6 +38,8 @@ export interface UnifiedLeadCard {
   score: number;
   status: string;
   detectedAt: string;
+  /** When this lead was first pulled into the workspace (import date shown on the card). */
+  firstSeenAt?: string | null;
   /** Nurture sequence stage for engager cards; absent for signal/directory cards. */
   nurtureStage?: NurtureStage | null;
   /** True when the prospect replied and is waiting on you. */
@@ -132,6 +134,7 @@ export function normalizeEvent(e: SignalEventWithPost): UnifiedLeadCard {
     score: e.confidence ?? 0,
     status: SIGNAL_STATUS_TO_LEAD_STATUS[e.status],
     detectedAt: e.created_at,
+    firstSeenAt: e.created_at,
   };
 }
 
@@ -180,6 +183,7 @@ export function normalizeLead(l: SignalLeadWithContacts): UnifiedLeadCard {
     score: (l.rank_score ?? l.fit_score ?? 0) + warmFeedBoost(l),
     status: l.needs_reply ? 'needs_reply' : l.lead_status,
     detectedAt: l.last_inbound_at ?? l.last_seen_at ?? l.first_seen_at,
+    firstSeenAt: l.first_seen_at ?? null,
     nurtureStage: (l.nurture_stage as NurtureStage | null | undefined) ?? null,
     needsReply: l.needs_reply ?? false,
   };

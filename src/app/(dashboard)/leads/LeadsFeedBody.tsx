@@ -73,7 +73,8 @@ export function LeadsFeedBody(props: LeadsController) {
     handleDismiss, handleExport, handleTogglePlaybookStep, handleSnooze, handleResolve,
     handlePlanNurture, handleFollowLead, handleSignalDraft, handleSignalSend,
     handleEngagerPlan, handleEngagerSend, handleEngagerDismiss,
-    clearSelection, toggleSelect, bulkLeadAction, selectedCard, selectedLead,
+    clearSelection, toggleSelect, toggleSelectAll, allVisibleSelected, bulkLeadAction,
+    selectedCard, selectedLead,
     icpConfigured, verticals, filtersActive,
   } = props;
 
@@ -253,8 +254,26 @@ export function LeadsFeedBody(props: LeadsController) {
           <div className="lg:col-span-2 space-y-2">
             {selectedIds.size > 0 && (
               <div className="flex items-center justify-between gap-2 rounded-lg border border-accent-primary/30 bg-accent-primary/5 px-3 py-2">
-                <span className="text-xs font-medium text-text-primary">{selectedIds.size} selected</span>
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-text-primary">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = !allVisibleSelected;
+                    }}
+                    onChange={toggleSelectAll}
+                    className="h-3.5 w-3.5 cursor-pointer accent-accent-primary"
+                  />
+                  {allVisibleSelected ? `All ${visibleCards.length} selected` : `${selectedIds.size} selected`}
+                </label>
                 <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleExport}
+                    className="text-xs px-2 py-1 rounded-md border border-border bg-bg-secondary hover:bg-bg-primary text-text-secondary"
+                  >
+                    Export
+                  </button>
                   <button
                     type="button"
                     disabled={bulkBusy}

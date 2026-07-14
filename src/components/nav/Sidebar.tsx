@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
-import { motion } from 'motion/react';
+import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, SlidersHorizontal } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { getInsforgeClient } from '@/lib/insforge/client';
 import { PRODUCT_NAME } from '@/lib/brand';
-import { primaryNav, moreNav, navIcons, APP_HOME_PATH } from '@/lib/nav-config';
+import { primaryNav, moreNav, settingsNav, navIcons, APP_HOME_PATH } from '@/lib/nav-config';
 import WorkspaceSwitcher from '@/components/nav/WorkspaceSwitcher';
 
 const FOCUS =
@@ -25,6 +26,14 @@ const label = {
 export default function Sidebar() {
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(true);
+  // Advanced menu: click-to-pin OR hover-to-peek. Stays open while you're on one
+  // of its pages; a hover that selects nothing collapses back on mouse-leave.
+  const [advPinned, setAdvPinned] = useState(false);
+  const [advHovered, setAdvHovered] = useState(false);
+  const activeInMore = moreNav.some(
+    (i) => pathname === i.href || pathname.startsWith(`${i.href}/`),
+  );
+  const advOpen = advPinned || advHovered || activeInMore;
 
   // Push the page content instead of overlaying it: the main region reads
   // --sidebar-w (see the dashboard layout) so its left margin tracks the rail.
@@ -57,8 +66,8 @@ export default function Sidebar() {
               ? 'bg-white/80 font-medium text-ink'
               : 'border border-hair2 bg-white text-ink shadow-sm'
             : small
-              ? 'text-ink3 hover:bg-white/50 hover:text-ink2'
-              : 'text-ink2 hover:bg-white/60 hover:text-ink'
+              ? 'text-ink hover:bg-white/60'
+              : 'text-ink hover:bg-white/60'
         }`}
       >
         {Icon && <Icon className="h-4 w-4 shrink-0" />}
@@ -81,29 +90,38 @@ export default function Sidebar() {
       {/* Top: logo + minimize/expand toggle */}
       <div
         className={`flex px-3 pt-4 ${
-          expanded ? 'items-start justify-between' : 'flex-col items-center gap-2'
+          expanded ? 'items-center justify-between' : 'flex-col items-center gap-2'
         }`}
       >
         <Link
           href={APP_HOME_PATH}
           title={PRODUCT_NAME}
-          className={`flex flex-col rounded-xl px-2 py-1.5 transition-colors hover:bg-white/70 ${FOCUS} ${
-            expanded ? '' : 'items-center'
+          className={`flex items-center gap-2 rounded-xl px-2 py-1.5 transition-colors hover:bg-white/70 ${FOCUS} ${
+            expanded ? '' : 'justify-center'
           }`}
         >
-          <span className="whitespace-nowrap text-[20px] font-bold leading-none tracking-[-0.045em] text-ink">
-            {expanded ? PRODUCT_NAME.toLowerCase() : PRODUCT_NAME.charAt(0).toLowerCase()}
-            <span className="text-ink">.</span>
-          </span>
+          <Image
+            src="/logo-paper-rocket-bw-transparent.svg"
+            alt={PRODUCT_NAME}
+            width={26}
+            height={26}
+            className="h-[26px] w-[26px] shrink-0"
+            priority
+          />
           {expanded && (
-            <motion.span
-              variants={label}
-              initial="collapsed"
-              animate="open"
-              className="mt-1.5 block whitespace-nowrap text-[11px] leading-tight text-ink3"
-            >
-              Creator operating system
-            </motion.span>
+            <span className="flex flex-col">
+              <span className="whitespace-nowrap text-[20px] font-bold leading-none tracking-[-0.045em] text-ink">
+                {PRODUCT_NAME.toLowerCase()}
+              </span>
+              <motion.span
+                variants={label}
+                initial="collapsed"
+                animate="open"
+                className="mt-1.5 block whitespace-nowrap text-[11px] leading-tight text-ink3"
+              >
+                Creator operating system
+              </motion.span>
+            </span>
           )}
         </Link>
         <button
@@ -111,9 +129,9 @@ export default function Sidebar() {
           onClick={() => setExpanded((v) => !v)}
           title={expanded ? 'Minimize menu' : 'Expand menu'}
           aria-label={expanded ? 'Minimize menu' : 'Expand menu'}
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ink3 transition-colors hover:bg-white/70 hover:text-ink ${FOCUS}`}
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink transition-colors hover:bg-white/70 ${FOCUS}`}
         >
-          {expanded ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+          {expanded ? <PanelLeftClose className="h-5 w-5" strokeWidth={2.5} /> : <PanelLeftOpen className="h-5 w-5" strokeWidth={2.5} />}
         </button>
       </div>
 
@@ -126,27 +144,57 @@ export default function Sidebar() {
         {primaryNav.map((item) => renderItem(item, false))}
       </nav>
 
-      <div className={`mt-4 border-t border-hair pb-4 pt-4 ${expanded ? 'mx-3 px-3' : 'mx-2 px-1'}`}>
-        {expanded && (
-          <motion.p
-            variants={label}
-            initial="collapsed"
-            animate="open"
-            className="mb-2 whitespace-nowrap px-3 font-mono text-[10px] uppercase tracking-[0.12em] text-ink3"
+      <div className={`mt-4 border-t border-hair pb-4 pt-4 ${expanded ? 'px-3' : 'mx-2 px-1'}`}>
+        {expanded ? (
+          <div
+            onMouseEnter={() => setAdvHovered(true)}
+            onMouseLeave={() => setAdvHovered(false)}
           >
-            More
-          </motion.p>
+            <button
+              type="button"
+              onClick={() => setAdvPinned((v) => !v)}
+              aria-expanded={advOpen}
+              title="Advanced"
+              className={`flex min-h-[38px] w-full items-center gap-3 overflow-hidden rounded-lg px-3 text-sm text-ink transition-colors hover:bg-white/60 ${FOCUS}`}
+            >
+              <SlidersHorizontal className="h-4 w-4 shrink-0" />
+              <motion.span variants={label} initial="collapsed" animate="open" className="whitespace-nowrap font-medium">
+                Advanced
+              </motion.span>
+              <ChevronDown
+                className={`ml-auto h-4 w-4 shrink-0 text-ink3 transition-transform ${advOpen ? 'rotate-180' : ''}`}
+              />
+            </button>
+            <AnimatePresence initial={false}>
+              {advOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.18 }}
+                  className="overflow-hidden"
+                >
+                  <div className="mt-1 space-y-0.5 pl-2">
+                    {moreNav.map((item) => renderItem(item, true))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+        ) : (
+          <div className="space-y-0.5">{moreNav.map((item) => renderItem(item, true))}</div>
         )}
-        <div className="space-y-0.5">{moreNav.map((item) => renderItem(item, true))}</div>
+        {/* Settings — standalone, always visible (not inside Advanced). */}
+        <div className="mt-3">{renderItem(settingsNav, true)}</div>
         <button
           type="button"
           onClick={handleSignOut}
           title="Sign out"
-          className={`mt-3 flex min-h-[38px] w-full items-center overflow-hidden rounded-lg text-sm text-ink3 transition-colors hover:bg-white/50 hover:text-ink2 ${FOCUS} ${
+          className={`mt-0.5 flex min-h-[38px] w-full items-center overflow-hidden rounded-lg text-sm font-semibold text-ink transition-colors hover:bg-white/60 ${FOCUS} ${
             expanded ? 'gap-3 px-3 py-2' : 'justify-center px-2 py-2'
           }`}
         >
-          <LogOut className="h-4 w-4 shrink-0" />
+          <LogOut className="h-4 w-4 shrink-0" strokeWidth={2.5} />
           {expanded && (
             <motion.span variants={label} initial="collapsed" animate="open" className="whitespace-nowrap">
               Sign out

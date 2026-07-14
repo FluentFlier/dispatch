@@ -2,7 +2,7 @@ import type { IngestedLead, LeadSource } from '@/lib/signals/types';
 import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
 import { webDiscoveryAdapter } from '@/lib/signals/ingest/lead-sources/web-discovery';
 import { directoryAdapters, DirectoryScrapeError } from '@/lib/signals/ingest/lead-sources/directories';
-import { socialAdapters } from '@/lib/signals/ingest/lead-sources/social-stubs';
+import { socialAdapters } from '@/lib/signals/ingest/lead-sources/social-discovery';
 import type {
   LeadDiscoveryAdapter,
   RunLeadDiscoveryInput,
@@ -33,55 +33,70 @@ export function getDiscoveryAdapter(source: LeadSource): LeadDiscoveryAdapter | 
 export async function runLeadDiscovery(input: RunLeadDiscoveryInput): Promise<RunLeadDiscoveryResult> {
   const debug = signalsDebugEnabled();
   const enabled = new Set(input.enabledSources);
-  const toRun = ALL_DISCOVERY_ADAPTERS.filter((a) => enabled.has(a.source));
-  const collected = new Map<string, IngestedLead>();
 
-  const perSource: RunLeadDiscoveryResult['perSource'] = [];
-  const warnings: string[] = [];
-
-  for (let i = 0; i < toRun.length; i += 1) {
-    const adapter = toRun[i];
-    input.onAdapterStart?.(adapter.source, i, toRun.length);
-
+  // Filter to the adapters that will actually run (enabled + configured + ICP
+  // present for web_discovery) BEFORE spawning, so progress indices are stable.
+  const toRun = ALL_DISCOVERY_ADAPTERS.filter((adapter) => {
+    if (!enabled.has(adapter.source)) return false;
     if (!adapter.isAvailable()) {
       if (debug) console.log(`[lead-discovery] ${adapter.source} skipped - not configured`);
-      continue;
+      return false;
     }
-
-    // Web discovery requires ICP context.
     if (
       adapter.source === 'web_discovery' &&
       !input.icpDescription?.trim() &&
       !input.icpQuery.trim()
     ) {
       if (debug) console.log('[lead-discovery] web_discovery skipped - no ICP');
+      return false;
+    }
+    return true;
+  });
+
+  // Run every source CONCURRENTLY. They are independent, and with the Search/Fetch
+  // paths each returns in ~1-2s - so a slow source no longer serializes behind the
+  // others or starves the function budget. Failures are isolated per-source: a
+  // rejected adapter becomes an error entry, never taking down the run.
+  const settled = await Promise.all(
+    toRun.map(async (adapter, i) => {
+      input.onAdapterStart?.(adapter.source, i, toRun.length);
+      try {
+        const leads = await adapter.discover({
+          icpDescription: input.icpDescription,
+          icpVerticals: input.icpVerticals,
+          icpKeywords: input.icpKeywords,
+          icpQuery: input.icpQuery,
+          maxLeads: input.maxLeads,
+        });
+        return { adapter, leads };
+      } catch (err) {
+        const msg =
+          err instanceof DirectoryScrapeError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : String(err);
+        return { adapter, error: msg };
+      }
+    }),
+  );
+
+  // Merge in stable adapter order so cross-source dedupe (by externalId) is
+  // deterministic regardless of which source's request finished first.
+  const collected = new Map<string, IngestedLead>();
+  const perSource: RunLeadDiscoveryResult['perSource'] = [];
+  const warnings: string[] = [];
+
+  for (const r of settled) {
+    if ('error' in r) {
+      perSource.push({ source: r.adapter.source, count: 0, error: r.error });
+      warnings.push(`${r.adapter.source} failed: ${r.error}`);
+      console.error(`[lead-discovery] ${r.adapter.source} failed:`, r.error);
       continue;
     }
-
-    try {
-      const leads = await adapter.discover({
-        icpDescription: input.icpDescription,
-        icpVerticals: input.icpVerticals,
-        icpKeywords: input.icpKeywords,
-        icpQuery: input.icpQuery,
-        maxLeads: input.maxLeads,
-      });
-      for (const lead of leads) {
-        collected.set(lead.externalId, lead);
-      }
-      perSource.push({ source: adapter.source, count: leads.length });
-      if (debug) console.log(`[lead-discovery] ${adapter.source} → ${leads.length}`);
-    } catch (err) {
-      const msg =
-        err instanceof DirectoryScrapeError
-          ? err.message
-          : err instanceof Error
-            ? err.message
-            : String(err);
-      perSource.push({ source: adapter.source, count: 0, error: msg });
-      warnings.push(`${adapter.source} failed: ${msg}`);
-      console.error(`[lead-discovery] ${adapter.source} failed:`, msg);
-    }
+    for (const lead of r.leads) collected.set(lead.externalId, lead);
+    perSource.push({ source: r.adapter.source, count: r.leads.length });
+    if (debug) console.log(`[lead-discovery] ${r.adapter.source} → ${r.leads.length}`);
   }
 
   return {

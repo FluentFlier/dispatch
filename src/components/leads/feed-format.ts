@@ -86,6 +86,22 @@ export function contactPillLabel(card: UnifiedLeadCard): 'Contact ready' | 'No c
 }
 
 /**
+ * "Imported <Mon D> · <relative>" for the card footer, so freshness is visible at
+ * a glance (the batch shows company recency; this shows when WE pulled the lead).
+ * Returns null for a missing/invalid date so the card omits the line rather than
+ * rendering "Imported Invalid Date". `now` is injectable for deterministic tests.
+ */
+export function importedLabel(iso: string | null | undefined, now: number = Date.now()): string | null {
+  if (!iso) return null;
+  const t = Date.parse(iso);
+  if (Number.isNaN(t)) return null;
+  const date = new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  const days = Math.floor((now - t) / 86_400_000);
+  const rel = days <= 0 ? 'today' : days === 1 ? '1d ago' : `${days}d ago`;
+  return `Imported ${date} · ${rel}`;
+}
+
+/**
  * Human-readable label for an engager's nurture stage, used on the engager
  * detail chip. Returns `null` for `discovered`/absent stages (the sequence
  * hasn't meaningfully started, so no chip is shown) rather than a bare

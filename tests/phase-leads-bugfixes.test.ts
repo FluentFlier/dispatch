@@ -9,7 +9,7 @@ import { classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import { normalizeEvent } from '@/lib/signals/feed/normalize';
 import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
 import { DEFAULT_SAFETY_SETTINGS } from '@/lib/signals/safety/limits';
-import { scoreChip } from '@/components/leads/feed-format';
+import { scoreChip, importedLabel } from '@/components/leads/feed-format';
 import type { IngestedPost, SignalEventWithPost } from '@/lib/signals/types';
 
 const post = (content: string): IngestedPost => ({
@@ -207,6 +207,30 @@ describe('Phase: Leads bugfixes', () => {
 
     it('shows the chip for a high score (0.99)', () => {
       expect(scoreChip(0.99)).toBe('0.99');
+    });
+  });
+
+  describe('Task 7: card shows import date + freshness', () => {
+    // Assert the relative suffix (tz-independent: it is a UTC-ms diff); the exact
+    // "Mon D" label depends on the runner's timezone so we only check the prefix.
+    const now = Date.parse('2026-07-14T12:00:00Z');
+
+    it('labels a same-day import as today', () => {
+      const label = importedLabel('2026-07-14T09:00:00Z', now);
+      expect(label).toMatch(/^Imported .+ · today$/);
+    });
+
+    it('labels a one-day-old import as 1d ago', () => {
+      expect(importedLabel('2026-07-13T09:00:00Z', now)).toMatch(/ · 1d ago$/);
+    });
+
+    it('labels an older import with the day count', () => {
+      expect(importedLabel('2026-07-02T12:00:00Z', now)).toMatch(/ · 12d ago$/);
+    });
+
+    it('returns null for a missing or invalid date (card omits the line)', () => {
+      expect(importedLabel(null, now)).toBeNull();
+      expect(importedLabel('not-a-date', now)).toBeNull();
     });
   });
 });

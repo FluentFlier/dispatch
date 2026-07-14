@@ -1,4 +1,7 @@
-import { isTinyFishConfigured } from '@/lib/signals/ingest/tinyfish-fetch';
+// Env-only check from the client-safe module: this file is imported (via
+// directory-defaults) by client UI, and tinyfish-fetch pulls in @/lib/llm →
+// next/headers, which webpack must not bundle client-side.
+import { isTinyfishConfigured as isTinyFishConfigured } from '@/lib/signals/ingest/tinyfish-web';
 
 /** Env-only LLM check - safe for client bundles (no @/lib/llm import). */
 export function isLlmConfiguredForDiscovery(): boolean {

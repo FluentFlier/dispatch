@@ -1,21 +1,21 @@
 import type { LeadSource } from '@/lib/signals/types';
-import { isTinyFishConfigured } from '@/lib/signals/ingest/tinyfish-fetch';
+// Env-only checks from the client-safe module (tinyfish-fetch pulls in @/lib/llm →
+// next/headers, which must never enter a client bundle - this file is imported by
+// the leads source-toggle UI).
+import { isTinyfishConfigured as isTinyFishConfigured } from '@/lib/signals/ingest/tinyfish-web';
 import {
   isWebDiscoveryConfigured,
   isSerperWebDiscoveryConfigured,
+  isLlmConfiguredForDiscovery,
 } from '@/lib/signals/ingest/lead-sources/web-discovery-config';
 
 /** ICP-driven open-web discovery - primary source for any vertical. */
 export const PRIMARY_DISCOVERY_SOURCES: LeadSource[] = ['web_discovery'];
 
-/** Optional fixed startup directories (YC, Product Hunt). */
-export const OPTIONAL_DIRECTORY_SOURCES: LeadSource[] = [
-  'yc_directory',
-  'yc_launches',
-  'product_hunt',
-];
+/** Fixed startup directories (YC Algolia + YC Launches / Product Hunt via TinyFish). */
+export const OPTIONAL_DIRECTORY_SOURCES: LeadSource[] = ['yc_directory', 'yc_launches', 'product_hunt'];
 
-/** Social platform adapters (LinkedIn, X) - register in lead-sources/social-stubs. */
+/** Social platform adapters (LinkedIn via Apify, X via TinyFish) - see lead-sources/social-discovery. */
 export const SOCIAL_DISCOVERY_SOURCES: LeadSource[] = ['linkedin', 'x'];
 
 export const ALL_CONFIGURABLE_SOURCES: LeadSource[] = [
@@ -24,9 +24,18 @@ export const ALL_CONFIGURABLE_SOURCES: LeadSource[] = [
   ...SOCIAL_DISCOVERY_SOURCES,
 ];
 
+// Availability MUST mirror each adapter's own isAvailable() (social-discovery.ts):
+// X = TinyFish Search + LLM; LinkedIn = Apify token. Env-only so this stays
+// client-safe. (Non-NEXT_PUBLIC vars read undefined in the browser bundle, so the
+// UI toggle may show these disabled; the server-side default/merge below is what
+// actually enables them for a scrape.)
+const isXDiscoveryAvailable = (): boolean => isTinyFishConfigured() && isLlmConfiguredForDiscovery();
+const isLinkedinDiscoveryAvailable = (): boolean => Boolean(process.env.APIFY_TOKEN?.trim());
+
 /**
- * Default enabled_sources for a new workspace.
- * Web discovery when LLM + (Serper or TinyFish); YC Algolia always on.
+ * Default enabled_sources for a new workspace. YC Algolia always on; the rest are
+ * added only when their scraper is configured, so a workspace never enables a
+ * source with no scraper behind it.
  */
 export function defaultEnabledSources(): LeadSource[] {
   const sources: LeadSource[] = ['yc_directory'];
@@ -36,14 +45,22 @@ export function defaultEnabledSources(): LeadSource[] {
       if (s !== 'yc_directory' && !sources.includes(s)) sources.push(s);
     }
   }
+  if (isLinkedinDiscoveryAvailable()) sources.push('linkedin');
+  if (isXDiscoveryAvailable()) sources.push('x');
   return sources;
 }
 
-/** Ensures configured discovery sources are enabled for the workspace. */
+/** Ensures every configured discovery source is enabled for the workspace. */
 export function mergeEnabledSources(current: LeadSource[]): LeadSource[] {
   const merged = new Set<LeadSource>(current.length > 0 ? current : defaultEnabledSources());
   if (isWebDiscoveryConfigured()) merged.add('web_discovery');
-  if (!merged.has('yc_directory')) merged.add('yc_directory');
+  if (isTinyFishConfigured()) {
+    merged.add('yc_launches');
+    merged.add('product_hunt');
+  }
+  if (isLinkedinDiscoveryAvailable()) merged.add('linkedin');
+  if (isXDiscoveryAvailable()) merged.add('x');
+  merged.add('yc_directory');
   return Array.from(merged);
 }
 
@@ -57,7 +74,7 @@ export const LEAD_SOURCE_UI: Array<{
   {
     key: 'web_discovery',
     label: 'Web discovery (ICP search)',
-    // TinyFish is the primary scraper (Google); Serper is the fallback.
+    // TinyFish Search+Fetch is the primary scraper; Serper is the fallback.
     hint: isSerperWebDiscoveryConfigured()
       ? 'TinyFish + Serper fallback + your ICP - any vertical'
       : 'TinyFish + your ICP - any vertical',
@@ -69,13 +86,13 @@ export const LEAD_SOURCE_UI: Array<{
   {
     key: 'linkedin',
     label: 'LinkedIn discovery',
-    hint: 'Coming soon',
-    disabled: () => true,
+    hint: 'Apify LinkedIn company search + your ICP',
+    disabled: () => !isLinkedinDiscoveryAvailable(),
   },
   {
     key: 'x',
     label: 'X discovery',
-    hint: 'In progress',
-    disabled: () => true,
+    hint: 'TinyFish X search + your ICP',
+    disabled: () => !isXDiscoveryAvailable(),
   },
 ];
