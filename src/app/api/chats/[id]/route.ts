@@ -13,7 +13,7 @@ const UpdateChatSchema = z
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'Nothing to update' });
 
-/** GET /api/chats/[id] — full conversation (messages included) for resume. */
+/** GET /api/chats/[id] - full conversation (messages included) for resume. */
 export async function GET(
   _request: NextRequest,
   { params }: { params: { id: string } },
@@ -37,7 +37,7 @@ export async function GET(
   }
 }
 
-/** PATCH /api/chats/[id] — append/replace messages or rename. */
+/** PATCH /api/chats/[id] - append/replace messages or rename. */
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } },

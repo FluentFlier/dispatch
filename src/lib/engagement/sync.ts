@@ -337,7 +337,7 @@ export async function syncEngagementComments(
         }
 
         // Reactions: the other half of engagement. A reaction failure never
-        // blocks comment sync — the two halves are independent.
+        // blocks comment sync - the two halves are independent.
         if (input.includeReactions !== false) {
           try {
             const reactions = await fetchUnipilePostReactions(
@@ -371,7 +371,7 @@ export async function syncEngagementComments(
 
   const synced = inserted + updated;
 
-  // RL training removed from sync — Layer 2 intelligence-sync handles it with real signals.
+  // RL training removed from sync - Layer 2 intelligence-sync handles it with real signals.
   // Proxy signals (synced_count / 200) would double-count once L2 nightly cron runs.
   // Lead categorization via bucketEngagers still runs during draftEngagementReplies where
   // it has access to the full comment context. Sync stays fast and single-purpose.

@@ -123,7 +123,7 @@ describe('LLM provider abstraction', () => {
       expect(caught).toBeInstanceOf(LlmError);
       expect(caught.status).toBe(402);
       expect(caught.isQuota).toBe(true);
-      // 402 must NOT be retried — exactly one call.
+      // 402 must NOT be retried - exactly one call.
       expect((fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
     });
 

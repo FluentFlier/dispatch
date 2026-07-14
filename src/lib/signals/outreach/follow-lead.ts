@@ -39,7 +39,7 @@ export interface FollowLeadResult {
  * Follows a directory lead's primary contact on LinkedIn. Uses the shared safety
  * guard (dry-run, working hours, cooldown, daily cap), per-account daily budget,
  * profile-lookup cap, and a random pause between profile resolve and follow so
- * the two Unipile calls are not chained instantly — per Unipile humanization guidance.
+ * the two Unipile calls are not chained instantly - per Unipile humanization guidance.
  */
 export async function followLeadOnLinkedIn(
   client: InsforgeClient,
@@ -113,7 +113,7 @@ export async function followLeadOnLinkedIn(
     return { success: false, error: msg };
   }
 
-  // Random gap between lookup and follow — Unipile: do not chain calls instantly.
+  // Random gap between lookup and follow - Unipile: do not chain calls instantly.
   await awaitInterCallDelay();
 
   const result = await followLinkedInProfile(accountId, profile.providerId);

@@ -65,7 +65,7 @@ function LimitBar({
 }
 
 /**
- * GTM command center — ICP pipeline, LinkedIn limits, and today's outreach queue.
+ * GTM command center - ICP pipeline, LinkedIn limits, and today's outreach queue.
  */
 export function GtmCommandCenter() {
   const { toast } = useToast();
@@ -134,7 +134,7 @@ export function GtmCommandCenter() {
             <p className="mt-1 text-sm text-ink2 max-w-xl">
               {icpConfigured
                 ? 'ICP leads surface daily. Plan nurture → comment → connect on autopilot or approve each step.'
-                : 'Use the ICP assistant below to describe who you sell to — then ask it to find leads.'}
+                : 'Use the ICP assistant below to describe who you sell to - then ask it to find leads.'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">

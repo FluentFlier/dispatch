@@ -41,7 +41,7 @@ interface AdminShellProps {
   adminEmail: string;
 }
 
-/** Admin layout — same silk + paper chrome as the creator dashboard. */
+/** Admin layout - same silk + paper chrome as the creator dashboard. */
 export function AdminShell({ children, adminEmail }: AdminShellProps) {
   const pathname = usePathname();
 

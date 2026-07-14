@@ -5,7 +5,7 @@ import { searchHooksTool } from '@/lib/hooks-intelligence';
 import type { HookVertical } from '@/lib/hooks-intelligence/types';
 
 /**
- * Hook Intelligence API — DB-learned scores + mined hooks + static fallback.
+ * Hook Intelligence API - DB-learned scores + mined hooks + static fallback.
  *
  * GET /api/hooks/intelligence?vertical=indie_maker&limit=8
  * GET /api/hooks/intelligence?action=search&q=how I made

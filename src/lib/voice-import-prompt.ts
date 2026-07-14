@@ -1,15 +1,15 @@
 /** Prompt users paste into ChatGPT, Claude, Gemini, etc. to export writing voice + context. */
-export const CHATGPT_VOICE_EXPORT_PROMPT = `Export all stored memories and context you've learned about me — especially how I write, my tone, my work, and any rules I've given you for content.
+export const CHATGPT_VOICE_EXPORT_PROMPT = `Export all stored memories and context you've learned about me - especially how I write, my tone, my work, and any rules I've given you for content.
 
 ## Categories (output in this order):
 
-1. **Writing instructions**: Rules I've explicitly asked you to follow — tone, format, style, "always do X", "never do Y", and corrections to your behavior. Only from stored memories, not one-off chats.
+1. **Writing instructions**: Rules I've explicitly asked you to follow - tone, format, style, "always do X", "never do Y", and corrections to your behavior. Only from stored memories, not one-off chats.
 
 2. **Who I am**: Name, role, what I do, who my audience is, background facts.
 
 3. **Topics I write about**: Themes, niches, content pillars, projects I talk about publicly.
 
-4. **Voice & style**: How I sound — sentence length, humor, perspective, signature phrases, words I avoid.
+4. **Voice & style**: How I sound - sentence length, humor, perspective, signature phrases, words I avoid.
 
 ## Format:
 

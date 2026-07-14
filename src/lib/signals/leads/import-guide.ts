@@ -18,7 +18,7 @@ export const LEAD_IMPORT_EXPORT_GUIDES: LeadImportExportGuide[] = [
       'Open a list or search in Apollo and select the contacts you want.',
       'Click Export → CSV.',
       'Include Company, Name (or First/Last), Title, Email, and Person LinkedIn URL.',
-      'Upload the CSV here — Apollo column names are mapped automatically.',
+      'Upload the CSV here - Apollo column names are mapped automatically.',
     ],
   },
   {
@@ -28,7 +28,7 @@ export const LEAD_IMPORT_EXPORT_GUIDES: LeadImportExportGuide[] = [
       'Open your Clay table with enriched contacts.',
       'Export as CSV or Excel (.xlsx).',
       'Include company, contact name, LinkedIn profile URL, and email when available.',
-      'Upload here — LinkedIn URLs are used first for outreach resolution.',
+      'Upload here - LinkedIn URLs are used first for outreach resolution.',
     ],
   },
   {
@@ -37,7 +37,7 @@ export const LEAD_IMPORT_EXPORT_GUIDES: LeadImportExportGuide[] = [
     steps: [
       'Go to Contacts or Companies → select records → Export.',
       'Choose CSV and include company name, contact name, email, and LinkedIn URL (if enriched).',
-      'Upload the export — missing LinkedIn can still be resolved from name + company.',
+      'Upload the export - missing LinkedIn can still be resolved from name + company.',
     ],
   },
   {

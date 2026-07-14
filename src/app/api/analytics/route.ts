@@ -166,7 +166,7 @@ export async function GET(): Promise<NextResponse> {
 
   // Best-time recommendation. Prefer the real publish timestamp; fall back to
   // the date-only posted_date. Engagement = views (our primary reach metric).
-  // jobs errors are non-fatal here — timing simply falls back to posted_date.
+  // jobs errors are non-fatal here - timing simply falls back to posted_date.
   const jobTimeById = new Map<string, string>();
   for (const j of (jobsRes.data ?? []) as { post_id: string; updated_at: string; created_at?: string }[]) {
     jobTimeById.set(j.post_id, j.updated_at || j.created_at || '');
@@ -177,7 +177,7 @@ export async function GET(): Promise<NextResponse> {
   }));
 
   // Blend the platform algorithm benchmark (how millions of posts perform) with
-  // this creator's own results, so best-times reflect the algorithm — not just
+  // this creator's own results, so best-times reflect the algorithm - not just
   // our handful of posts. Prior is chosen from the creator's dominant platform.
   const dominantPlatform = pickDominantPlatform(posts);
   const insights = getAlgorithmInsights(dominantPlatform);

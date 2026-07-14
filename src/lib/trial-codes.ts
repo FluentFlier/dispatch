@@ -4,7 +4,7 @@ import { computeTrialEndDate, isAppTrialActive } from '@/lib/trial';
 import { trackEvent } from '@/lib/analytics';
 import type { PlanId } from '@/lib/entitlements';
 
-/** Plans a trial code may grant (excludes 'free' — a code always unlocks access). */
+/** Plans a trial code may grant (excludes 'free' - a code always unlocks access). */
 export const TRIAL_CODE_PLANS: Exclude<PlanId, 'free'>[] = ['starter', 'growth', 'pro', 'unlimited'];
 
 export interface TrialCode {

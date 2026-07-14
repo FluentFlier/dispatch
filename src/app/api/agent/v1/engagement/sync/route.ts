@@ -4,7 +4,7 @@ import { assertAgentScope, resolveAgentAuth } from '@/lib/agent-auth/context';
 import { syncEngagementComments } from '@/lib/engagement/sync';
 
 /**
- * POST /api/agent/v1/engagement/sync — pull latest comments from connected accounts.
+ * POST /api/agent/v1/engagement/sync - pull latest comments from connected accounts.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const auth = await resolveAgentAuth(request);

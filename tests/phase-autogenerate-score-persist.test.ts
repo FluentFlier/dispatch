@@ -1,7 +1,7 @@
 /**
  * Audit break 28: /api/auto-generate must persist a genuine 0 voice/ai score as 0,
  * not null. ai_score = ai_slop * 10, and ai_slop 0 (fully human, the BEST score) is
- * falsy — `|| null` dropped it from the flywheel. This pins the `?? null` fix.
+ * falsy - `|| null` dropped it from the flywheel. This pins the `?? null` fix.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 

@@ -10,13 +10,13 @@ import { memoryScopeTag } from '@/lib/memory/write';
  *
  * Ground-truth diagnostic for "why is the post generic / present-tense". Reports,
  * for the authed user, WHICH path generation actually takes and WHETHER the
- * context that should shape a post is really reaching it — so we stop guessing:
+ * context that should shape a post is really reaching it - so we stop guessing:
  *   - model + whether the full pipeline runs or the compact (small-model) reroute
  *   - whether Supermemory is configured and how many of THIS user's memories exist
  *   - whether a "Forbes"-style query actually retrieves anything
  *   - which voice/memory sources landed (context_completeness)
  *
- * Returns no secrets — only presence booleans and the (non-secret) model id.
+ * Returns no secrets - only presence booleans and the (non-secret) model id.
  */
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -30,7 +30,7 @@ export async function GET(): Promise<NextResponse> {
     pipelineModeEnv: process.env.LLM_PIPELINE_MODE ?? '(unset → auto-detect by model size)',
     isCompactMode: isCompactMode(),
     note: isCompactMode()
-      ? 'COMPACT: 2-call small-model path. Skips the hook stage and the voice/evaluate/escalate loop — hooks stay weak. Set LLM_MODEL to a capable model or LLM_PIPELINE_MODE=full for the full pipeline.'
+      ? 'COMPACT: 2-call small-model path. Skips the hook stage and the voice/evaluate/escalate loop - hooks stay weak. Set LLM_MODEL to a capable model or LLM_PIPELINE_MODE=full for the full pipeline.'
       : 'FULL: base → hooks → humanize → voice → evaluate → escalate.',
   };
 
@@ -95,7 +95,7 @@ function buildVerdict(
     out.push('Supermemory is on but the Forbes post is NOT in memory (0 hits): run the backfill (scripts/backfill-memory.mts) or the post was never imported.');
   }
   if (!memoryInPrompt) {
-    out.push('The dated memory block did NOT reach the prompt for a Forbes query — either no memory retrieved or the query missed.');
+    out.push('The dated memory block did NOT reach the prompt for a Forbes query - either no memory retrieved or the query missed.');
   }
   if (out.length === 0) out.push('Full pipeline + memory both look wired and populated. If quality is still low, it is a model-capability or prompt issue, not a wiring gap.');
   return out;

@@ -11,7 +11,7 @@ export default function BrainPage() {
       <PageHeader
         eyebrow="Creator Brain"
         title="Your brain, visualized"
-        subtitle="How your voice, content pillars, and top-performing posts connect — the long-term memory behind every AI draft."
+        subtitle="How your voice, content pillars, and top-performing posts connect - the long-term memory behind every AI draft."
       />
       <BrainGraphView />
     </div>

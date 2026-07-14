@@ -11,7 +11,7 @@ export default async function AuthContinuePage() {
   const user = await getAuthenticatedUser();
   if (!user) {
     // Reached here only because a content-os-token cookie exists (middleware sent
-    // us). No valid user means it's expired/invalid — route to the ?expired=1
+    // us). No valid user means it's expired/invalid - route to the ?expired=1
     // escape hatch so middleware lets /login render instead of bouncing us back
     // to /auth/continue in an infinite loop.
     redirect('/login?expired=1');

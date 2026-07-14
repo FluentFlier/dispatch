@@ -11,7 +11,7 @@
  * Usage:
  *   npx tsx scripts/migrate-workspaces.ts
  *
- * Safe to run multiple times — uses upsert + IF NOT EXISTS guards.
+ * Safe to run multiple times - uses upsert + IF NOT EXISTS guards.
  */
 
 import { createClient } from '@insforge/sdk';

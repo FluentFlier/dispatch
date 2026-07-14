@@ -112,13 +112,13 @@ export async function resolveUnipileSyncTarget(
   }
 }
 
-/** Back-compat wrapper — LinkedIn is the default target. */
+/** Back-compat wrapper - LinkedIn is the default target. */
 export function resolveLinkedInSyncTarget(client: InsforgeClient, userId: string) {
   return resolveUnipileSyncTarget(client, userId, 'linkedin');
 }
 
 /**
- * Bulk backfill from GET /users/{id}/posts — the same endpoint import uses.
+ * Bulk backfill from GET /users/{id}/posts - the same endpoint import uses.
  * List payloads include impression/reaction counters even when per-post GET is empty.
  */
 export async function backfillLinkedInMetricsFromPostList(
@@ -157,7 +157,7 @@ export async function backfillLinkedInMetricsFromPostList(
     if (!patch || Object.keys(patch).length === 0) continue;
 
     // Always overwrite with the freshest list counts. The list only returns
-    // recent posts, so this refreshes engagement as it grows — the old
+    // recent posts, so this refreshes engagement as it grows - the old
     // hasPostMetrics skip froze imported posts at their import-time snapshot.
     const listItem = listResult.rawItems.find((item) => {
       if (item.id && providerPostIdsMatch(item.id, job.provider_post_id)) return true;

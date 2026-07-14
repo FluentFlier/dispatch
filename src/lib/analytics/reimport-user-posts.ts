@@ -7,7 +7,7 @@ import { logError, logInfo } from '@/lib/logger';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
-/** Keep the per-run fetch small — new posts are few and the cron runs every 6h. */
+/** Keep the per-run fetch small - new posts are few and the cron runs every 6h. */
 const MAX_REIMPORT = 25;
 
 /** Platforms whose posts we pull from Unipile on the metrics cron. */
@@ -16,7 +16,7 @@ const REIMPORT_PLATFORMS: OnboardingPlatform[] = ['linkedin', 'twitter'];
 /**
  * Pulls the user's latest posts for one platform and persists any not already
  * tracked. persistImportedPosts is idempotent by idempotency_key, so this only
- * ever adds genuinely new posts — this is what makes newly-published posts show
+ * ever adds genuinely new posts - this is what makes newly-published posts show
  * up without the user re-running onboarding.
  */
 export async function reimportRecentPosts(
@@ -33,7 +33,7 @@ export async function reimportRecentPosts(
   try {
     workspaceId = await ensureActiveWorkspaceId(userId);
   } catch {
-    // Fall through with null — persistImportedPosts tolerates a null workspace.
+    // Fall through with null - persistImportedPosts tolerates a null workspace.
   }
 
   try {

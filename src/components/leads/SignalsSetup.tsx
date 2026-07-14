@@ -37,7 +37,7 @@ interface SafetyStatus {
 
 /**
  * A used/cap meter with a fill bar that greens under 70%, ambers 70-90%, and
- * reds at/over the cap — so the workspace can see ban-risk headroom at a glance.
+ * reds at/over the cap - so the workspace can see ban-risk headroom at a glance.
  */
 function UsageMeter({ label, used, cap }: { label: string; used: number; cap: number }) {
   const pct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
@@ -440,7 +440,7 @@ export function SignalsSetup() {
         <div className="flex flex-wrap gap-2">
           <input
             type="text"
-            placeholder={'keyword or #hashtag — e.g. "building in public"'}
+            placeholder={'keyword or #hashtag - e.g. "building in public"'}
             value={newKeyword}
             onChange={(e) => setNewKeyword(e.target.value)}
             onKeyDown={(e) => {

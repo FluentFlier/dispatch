@@ -13,7 +13,7 @@ export interface EmailVoiceSample {
 
 /**
  * Imports sent-email voice samples when Gmail is connected via Composio.
- * Email voice captures how someone writes 1:1 — often richer than public posts.
+ * Email voice captures how someone writes 1:1 - often richer than public posts.
  */
 export async function importVoiceSamplesFromEmail(
   client: InsforgeClient,

@@ -49,7 +49,7 @@ function countSavedReferences(body: string): number {
   if (!body.trim()) return 0;
   const parsed = safeParse(body);
   if (parsed && Array.isArray(parsed.entries)) return parsed.entries.length;
-  // Plain-text accumulated hooks — count non-empty paragraphs.
+  // Plain-text accumulated hooks - count non-empty paragraphs.
   return body.split(/\n{2,}/).filter((block) => block.trim().length > 20).length;
 }
 
@@ -191,7 +191,7 @@ export function deriveBrainInsights(
       id: 'no-posts',
       priority: 'high',
       title: 'Publish posts to build memory',
-      detail: 'Published posts become graph nodes sized by performance — the brain learns what resonates.',
+      detail: 'Published posts become graph nodes sized by performance - the brain learns what resonates.',
       action: { label: 'Go to library', href: '/library' },
     });
   } else if (posts.length < 5) {
@@ -209,7 +209,7 @@ export function deriveBrainInsights(
       id: 'empty-pillar',
       priority: 'medium',
       title: `Create content for "${weakestPillar.label}"`,
-      detail: 'This pillar has no published posts yet — a gap in your content mix.',
+      detail: 'This pillar has no published posts yet - a gap in your content mix.',
       action: { label: 'Generate a post', href: '/generate' },
       nodeId: pillars.find((p) => p.label === weakestPillar!.label)?.id,
     });
@@ -275,7 +275,7 @@ export function deriveBrainInsights(
       id: 'study-winner',
       priority: 'low',
       title: 'Study your top performer',
-      detail: `"${bestPost.label}" drove ${bestPost.views.toLocaleString()} views — analyze what made it work.`,
+      detail: `"${bestPost.label}" drove ${bestPost.views.toLocaleString()} views - analyze what made it work.`,
       action: { label: 'View in analytics', href: '/analytics' },
       nodeId: bestNode?.id,
     });

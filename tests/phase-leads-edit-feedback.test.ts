@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SignalLeadWithContacts } from '@/lib/signals/types';
 
 /**
- * WS1.5 — Edit-feedback loop.
+ * WS1.5 - Edit-feedback loop.
  *
  * - recordOutreachEdit stores the model -> user-edited pair only on a real change.
  * - loadEditStyleGuidance returns compact Before -> After few-shot lines.

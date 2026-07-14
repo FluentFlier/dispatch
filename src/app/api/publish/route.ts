@@ -467,7 +467,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const workspaceId = await getActiveWorkspaceId(user.id);
 
     // L3: sync published post to Creator Brain + Supermemory (non-blocking)
-    // workspaceId param available after L3 branch merged — function accepts it as optional 4th arg
+    // workspaceId param available after L3 branch merged - function accepts it as optional 4th arg
     try {
       const { syncBrainPublishedPost } = await import('@/lib/brain/sync');
       await (syncBrainPublishedPost as (c: typeof client, u: string, p: string, w?: string) => Promise<void>)(

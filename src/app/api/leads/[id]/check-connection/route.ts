@@ -11,7 +11,7 @@ import { errorResponse } from '@/lib/api-errors';
  * Reply/response tracking for the LinkedIn outreach path: checks whether the
  * prospect has accepted the connection request (1st-degree now). For LinkedIn,
  * the accept is the key response signal and the gate for the follow-up DM step.
- * Reuses the verified isLinkedInFirstDegree primitive — no new Unipile surface.
+ * Reuses the verified isLinkedInFirstDegree primitive - no new Unipile surface.
  */
 export async function POST(
   _request: NextRequest,

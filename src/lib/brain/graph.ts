@@ -19,7 +19,7 @@ export interface BrainGraphNode {
   slug?: string;
   detail?: string;
   meta?: Record<string, string | number>;
-  /** Normalized performance weight in [0, 1] — drives node size for posts/pillars. */
+  /** Normalized performance weight in [0, 1] - drives node size for posts/pillars. */
   weight?: number;
   /** Top performer from the wins page. */
   highlight?: boolean;
@@ -122,7 +122,7 @@ function matchStoryToPillar(
 function describeCorePage(page: BrainPageRecord): string | undefined {
   const parsed = safeParse(page.body);
   if (parsed) {
-    if (parsed.status === 'pending') return 'Not populated yet — sync or complete onboarding.';
+    if (parsed.status === 'pending') return 'Not populated yet - sync or complete onboarding.';
     if (typeof parsed.voice_description === 'string' && parsed.voice_description) {
       return truncate(parsed.voice_description);
     }

@@ -117,7 +117,7 @@ export async function fetchPostReactions(
     }
   }
 
-  // Every candidate 404'd — the post has no indexable reactions (or was
+  // Every candidate 404'd - the post has no indexable reactions (or was
   // deleted). Cache the empty result so we don't retry the dead post each pass.
   if (lastError instanceof HttpStatusError && (lastError.status === 404 || lastError.status === 422)) {
     await setCachedRead(cacheKey, []);

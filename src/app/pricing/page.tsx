@@ -94,7 +94,7 @@ export default function PricingPage() {
 
         {checkoutCanceled && (
           <p className="text-center text-[14px] text-text-secondary mb-6 px-4 py-3 rounded-lg bg-bg-secondary border border-border">
-            Checkout canceled — pick a plan when you&apos;re ready.
+            Checkout canceled - pick a plan when you&apos;re ready.
           </p>
         )}
 

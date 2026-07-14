@@ -58,7 +58,7 @@ export default function SeriesPostList({
               className="flex items-center justify-between px-3 py-2.5 rounded-md border border-dashed border-border"
             >
               <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink3">
-                Part {position} — Not started
+                Part {position} - Not started
               </span>
               <button
                 onClick={() => onAddPart(position)}

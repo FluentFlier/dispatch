@@ -70,7 +70,7 @@ export function buildImageMemoryCustomId(internalPostId: string, index: number):
  *
  * IMPORTANT for callers in serverless routes/crons: `await` this before the
  * handler returns. "Non-blocking" means it swallows its own errors, NOT that you
- * may fire-and-forget it in a request that is about to end — an un-awaited write
+ * may fire-and-forget it in a request that is about to end - an un-awaited write
  * is dropped when the lambda freezes.
  *
  * Returns true only when a document was actually written (false on flag-off,
@@ -104,7 +104,7 @@ export async function writeToMemory(client: Client, args: WriteToMemoryArgs): Pr
  *
  * ponytail: Supermemory's helper has no get-by-customId, so we page the scoped
  * document list and match. Bounded to the first 300 docs (3 pages) so a post
- * delete can't fan out into many round-trips — fine for v1 per-user volumes; swap
+ * delete can't fan out into many round-trips - fine for v1 per-user volumes; swap
  * in a direct customId lookup if archives grow past that. Best-effort: a miss just
  * leaves a stale doc, and the deleted post is never regenerated from it anyway.
  */

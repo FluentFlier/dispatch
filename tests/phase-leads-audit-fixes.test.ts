@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { feedViewState, draftAllOutcome } from '@/lib/leads/feed-view';
 
 /**
- * WS3 — Audit fixes.
+ * WS3 - Audit fixes.
  * 3.1 A failed bootstrap fetch shows an error+retry, NOT the empty state.
  * 3.3 Draft-all reports failures instead of hiding them.
  * 3.5 The orphaned GET /api/signals/bootstrap route is removed.

@@ -15,7 +15,7 @@ const DraftSchema = z
   .strict();
 
 /**
- * POST /api/agent/v1/engagement/draft-replies — AI draft comment replies in creator voice.
+ * POST /api/agent/v1/engagement/draft-replies - AI draft comment replies in creator voice.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const auth = await resolveAgentAuth(request);

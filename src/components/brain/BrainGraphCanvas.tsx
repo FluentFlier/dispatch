@@ -23,7 +23,7 @@ interface BrainGraphCanvasProps {
   onSelect: (node: BrainGraphNode | null) => void;
   /** Externally highlight a node (e.g. from a decision card). */
   focusId?: string | null;
-  /** Highlight a set of nodes (e.g. from a learning) — dims everything else. */
+  /** Highlight a set of nodes (e.g. from a learning) - dims everything else. */
   highlightIds?: string[];
 }
 
@@ -66,7 +66,7 @@ function nodeRadius(node: BrainGraphNode): number {
 type SimNode = SimulationNodeDatum & BrainGraphNode;
 type SimLink = SimulationLinkDatum<SimNode> & { kind: BrainGraph['edges'][number]['kind'] };
 
-/** Ideal edge length (px) — pillars hug their posts/stories, core spreads out. */
+/** Ideal edge length (px) - pillars hug their posts/stories, core spreads out. */
 function linkDistance(link: SimLink): number {
   const a = link.source as SimNode;
   const b = link.target as SimNode;
@@ -236,7 +236,7 @@ export function BrainGraphCanvas({ graph, selectedId, onSelect, focusId, highlig
           </filter>
         </defs>
 
-        {/* Background hit target — click empty space to deselect. */}
+        {/* Background hit target - click empty space to deselect. */}
         <rect
           x={0}
           y={0}

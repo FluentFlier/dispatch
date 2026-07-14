@@ -9,7 +9,7 @@ import type {
   RunLeadDiscoveryResult,
 } from '@/lib/signals/ingest/lead-sources/types';
 
-/** All registered adapters keyed by source. `manual` is watchlist-only — no adapter. */
+/** All registered adapters keyed by source. `manual` is watchlist-only - no adapter. */
 export const LEAD_DISCOVERY_ADAPTERS: Partial<Record<LeadSource, LeadDiscoveryAdapter>> =
   Object.fromEntries(
     [webDiscoveryAdapter, ...directoryAdapters, ...socialAdapters].map((a) => [a.source, a]),
@@ -44,7 +44,7 @@ export async function runLeadDiscovery(input: RunLeadDiscoveryInput): Promise<Ru
     input.onAdapterStart?.(adapter.source, i, toRun.length);
 
     if (!adapter.isAvailable()) {
-      if (debug) console.log(`[lead-discovery] ${adapter.source} skipped — not configured`);
+      if (debug) console.log(`[lead-discovery] ${adapter.source} skipped - not configured`);
       continue;
     }
 
@@ -54,7 +54,7 @@ export async function runLeadDiscovery(input: RunLeadDiscoveryInput): Promise<Ru
       !input.icpDescription?.trim() &&
       !input.icpQuery.trim()
     ) {
-      if (debug) console.log('[lead-discovery] web_discovery skipped — no ICP');
+      if (debug) console.log('[lead-discovery] web_discovery skipped - no ICP');
       continue;
     }
 

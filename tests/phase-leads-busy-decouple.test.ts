@@ -8,7 +8,7 @@ import {
 } from '@/lib/leads/busy';
 
 /**
- * WS1.1 — Decouple the Plan-outreach and Draft-message buttons.
+ * WS1.1 - Decouple the Plan-outreach and Draft-message buttons.
  *
  * Root cause of the shipped bug: a single `busyId` was passed as one `busy`
  * prop and bound to `loading=` on every button, so clicking Plan outreach

@@ -19,7 +19,7 @@ const ENDPOINTS = [
 ] as const;
 
 /**
- * GET /api/agent/v1 — capability discovery for agents.
+ * GET /api/agent/v1 - capability discovery for agents.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const auth = await resolveAgentAuth(request);

@@ -75,7 +75,7 @@ select:focus {
     @apply max-w-[1100px] mx-auto space-y-6 pt-1 pb-8;
   }
 
-  /* Editorial page title — Hanken semibold (DESIGN.md title ramp). */
+  /* Editorial page title - Hanken semibold (DESIGN.md title ramp). */
   .page-title {
     @apply text-[clamp(28px,3.5vw,36px)] font-semibold leading-[1.05] tracking-[-0.03em] text-ink;
   }
@@ -84,7 +84,7 @@ select:focus {
     @apply mt-2 max-w-2xl text-[15px] leading-relaxed text-ink2;
   }
 
-  /* Semantic type ramp (DESIGN.md §3) — prefer these over arbitrary text-[Npx]. */
+  /* Semantic type ramp (DESIGN.md §3) - prefer these over arbitrary text-[Npx]. */
   .text-title {
     @apply text-[1.25rem] font-bold leading-[1.15] tracking-[-0.02em] text-ink;
   }
@@ -95,7 +95,7 @@ select:focus {
     @apply text-[0.75rem] font-semibold leading-[1.2] tracking-[0.02em] text-ink3;
   }
 
-  /* Eyebrow above a page/section title — sentence case, one voice (Hanken),
+  /* Eyebrow above a page/section title - sentence case, one voice (Hanken),
      no mono, no all-caps (DESIGN.md §3). */
   .page-eyebrow {
     @apply text-[12px] font-semibold tracking-[0.01em] text-ink3;
@@ -113,7 +113,7 @@ select:focus {
     @apply rounded-surface border border-hair bg-white/90 p-4 backdrop-blur-sm;
   }
 
-  /* Command-center lift — the single soft shadow, for the dominant card only. */
+  /* Command-center lift - the single soft shadow, for the dominant card only. */
   .lift-soft {
     box-shadow:
       0 24px 60px -34px rgba(24, 22, 20, 0.3),
@@ -156,7 +156,7 @@ select:focus {
     box-shadow: none;
   }
 
-  /* Legacy base fill — warm translucent inset so the silk still reads through
+  /* Legacy base fill - warm translucent inset so the silk still reads through
      panels, inputs, and chat bubbles instead of an opaque paper block.
      Written as raw CSS (not @apply) so opacity modifiers resolve on the
      custom oklch palette. Values mirror tailwind.config.ts exactly. */
@@ -246,7 +246,7 @@ select:focus {
     @apply inline-flex items-center px-3 py-1.5 rounded-badge text-xs font-medium min-h-[32px];
   }
 
-  /* Compact system label — sentence case, semibold, one voice (DESIGN.md §3). */
+  /* Compact system label - sentence case, semibold, one voice (DESIGN.md §3). */
   .section-label {
     @apply text-[12px] font-semibold tracking-[0.01em] text-ink3;
   }

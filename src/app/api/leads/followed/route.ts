@@ -4,7 +4,7 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
 import { addFollowedCompany, listFollowedCompanies } from '@/lib/signals/leads/store';
 import { errorResponse } from '@/lib/api-errors';
 
-/** GET /api/leads/followed — the workspace watchlist. */
+/** GET /api/leads/followed - the workspace watchlist. */
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -20,7 +20,7 @@ export async function GET(): Promise<NextResponse> {
   }
 }
 
-/** POST /api/leads/followed — follow a company (idempotent on domain/name). */
+/** POST /api/leads/followed - follow a company (idempotent on domain/name). */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

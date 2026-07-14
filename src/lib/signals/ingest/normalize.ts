@@ -77,7 +77,7 @@ export function filterPostsSinceCursor(
 
   const idx = capped.findIndex((p) => p.externalPostId === lastSeenId);
   if (idx <= 0) {
-    // idx === 0: nothing new; idx === -1: cursor missing — take conservative slice
+    // idx === 0: nothing new; idx === -1: cursor missing - take conservative slice
     return idx === 0 ? [] : capped.slice(0, Math.min(3, maxItems));
   }
   return capped.slice(0, idx);
@@ -96,7 +96,7 @@ const SEARCH_CURSOR_OVERLAP_MS = 10 * 60 * 1000;
  * run-to-run and the anchor post can drop out of the window entirely, so the
  * `last_seen_post_id` anchoring of `filterPostsSinceCursor` misbehaves here.
  * Instead: keep posts newer than the last-seen timestamp (minus an overlap
- * window), newest first, capped. Posts without a timestamp are kept —
+ * window), newest first, capped. Posts without a timestamp are kept -
  * downstream DB dedupe drops re-ingests.
  */
 export function filterSearchPostsSinceCursor(

@@ -49,7 +49,7 @@ export function goalLabel(goal: AgendaGoalType): string {
 
 /**
  * The default outreach angle for a goal when the user hasn't written their own.
- * Deliberately peer-to-peer and low-pressure — the nurture drafters turn this
+ * Deliberately peer-to-peer and low-pressure - the nurture drafters turn this
  * into voice-matched copy, so it must never read like a sales pitch.
  */
 export function defaultPitchAngle(goal: AgendaGoalType): string {

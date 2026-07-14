@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /**
- * WS4 gate — POST /api/leads/[id]/draft request contract.
+ * WS4 gate - POST /api/leads/[id]/draft request contract.
  *
  * Exercises the HTTP boundary end to end with a stubbed model: auth + workspace
  * + lead lookup are mocked, and draftOutreachForLead is stubbed (NO live LLM),

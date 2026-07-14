@@ -14,7 +14,7 @@ const BodySchema = z.object({
 });
 
 /**
- * POST /api/admin/trial-codes — create a reusable trial access code.
+ * POST /api/admin/trial-codes - create a reusable trial access code.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {

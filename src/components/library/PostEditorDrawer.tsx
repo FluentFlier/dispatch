@@ -216,7 +216,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
   const handleDelete = async () => {
     // Deletes ONLY the tool's post row (InsForge). Does NOT touch the live
-    // LinkedIn/X post — the DELETE route makes no provider call.
+    // LinkedIn/X post - the DELETE route makes no provider call.
     if (!confirm('Remove this post from the tool? (Your live LinkedIn/X post is not affected.)')) return;
     setDeleting(true);
     try {

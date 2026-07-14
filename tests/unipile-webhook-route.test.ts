@@ -80,7 +80,7 @@ describe('POST /api/webhooks/unipile', () => {
     vi.clearAllMocks();
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('CRON_SECRET', 'callback-secret');
-    // Default: fresh connect — snapshot present, account is new, unclaimed.
+    // Default: fresh connect - snapshot present, account is new, unclaimed.
     otherOwners = [];
     pendingSnapshot = { account_ids: [] };
   });

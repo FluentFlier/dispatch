@@ -14,7 +14,7 @@ import {
  * Phase 1: pillar weighting + slug normalization foundation.
  * Covers the helper layer every downstream surface (UI, analytics, AI) relies on.
  */
-describe('Phase: Pillar Weights — helpers', () => {
+describe('Phase: Pillar Weights - helpers', () => {
   describe('normalizePillarSlug', () => {
     it('canonicalizes underscore and whitespace variants to one slug', () => {
       expect(normalizePillarSlug('hot_take')).toBe('hot-take');
@@ -96,7 +96,7 @@ describe('Phase: Pillar Weights — helpers', () => {
       expect(out.pillar_weights).toEqual({ founder: DEFAULT_PILLAR_WEIGHT });
     });
 
-    it('never returns empty — falls back to general', () => {
+    it('never returns empty - falls back to general', () => {
       const out = normalizePillars({ pillar: null, pillars: [] });
       expect(out.pillar).toBe('general');
       expect(out.pillars).toEqual(['general']);

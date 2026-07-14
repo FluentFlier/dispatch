@@ -3,7 +3,7 @@ import { voiceEvidenceOnly, stripSections, VOICE_EVIDENCE_HEADERS } from '@/lib/
 
 /**
  * Default template used to seed new creator profiles during onboarding.
- * Never rendered directly in AI calls — use buildSystemPrompt() instead.
+ * Never rendered directly in AI calls - use buildSystemPrompt() instead.
  */
 export const DEFAULT_SYSTEM_PROMPT_TEMPLATE = `You are a content strategist. You help creators write authentic, specific content for their social media. Follow the creator's voice and context provided below. Never use em dashes. If no creator context is provided, write direct, honest, punchy content.
 
@@ -113,11 +113,11 @@ export function buildSystemPrompt(
       // FACTS the model may use, not a style template. Earlier wording ("do not
       // introduce companies/products/claims not in this creator's PROFILE") told
       // the model to suppress real people/companies that live in retrieved past
-      // posts — that is how a name the user asked to credit (e.g. the person who
+      // posts - that is how a name the user asked to credit (e.g. the person who
       // got them into an event) got dropped. Permit reuse of what is HERE; still
       // forbid inventing beyond it and hijacking the topic toward the creator.
       parts.push(
-        `\nADDITIONAL CONTEXT (real facts you may draw on — VOICE EVIDENCE above governs STYLE, this governs FACTS): use the actual people, names, companies, and events below when the request calls for them (e.g. crediting who you met or who made something happen). Do NOT invent anything that is not present here or in the request, and do not redirect the post toward the creator's own background unless the request is about it:\n${reference}`,
+        `\nADDITIONAL CONTEXT (real facts you may draw on - VOICE EVIDENCE above governs STYLE, this governs FACTS): use the actual people, names, companies, and events below when the request calls for them (e.g. crediting who you met or who made something happen). Do NOT invent anything that is not present here or in the request, and do not redirect the post toward the creator's own background unless the request is about it:\n${reference}`,
       );
     }
   }
@@ -159,8 +159,8 @@ export async function generateContent(
 
 /**
  * Compact, appendable creator-reference block for use alongside a systemOverride.
- * Unlike buildSystemPrompt it carries NO post-writing preamble/rules — just the
- * identity + voice facts — so it personalizes an override (question generation,
+ * Unlike buildSystemPrompt it carries NO post-writing preamble/rules - just the
+ * identity + voice facts - so it personalizes an override (question generation,
  * etc.) without redirecting it to "write a post". Returns '' when there is nothing
  * to add.
  */

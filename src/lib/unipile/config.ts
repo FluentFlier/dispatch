@@ -25,7 +25,7 @@ export function isUnipileConfigured(): boolean {
 }
 
 /**
- * Lightweight live probe — validates API key against Unipile /accounts.
+ * Lightweight live probe - validates API key against Unipile /accounts.
  */
 export async function pingUnipileApi(): Promise<'ok' | 'error' | 'skipped'> {
   const apiBase = getUnipileApiBase();

@@ -4,7 +4,7 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
 import { syncWarmContacts } from '@/lib/social-graph/warm-contacts';
 
 /**
- * POST /api/social-graph/sync — pull post reactions into warm_contacts (UseSocial-style).
+ * POST /api/social-graph/sync - pull post reactions into warm_contacts (UseSocial-style).
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();

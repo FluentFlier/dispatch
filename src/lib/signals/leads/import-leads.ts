@@ -59,7 +59,7 @@ export async function importLeadsFromFile(
     const extracted = await extractLeadsFromText(parsed.rawText);
     leads = extracted;
     if (extracted.length === 0 && parsed.kind === 'pdf') {
-      result.warnings.push('Could not extract leads from PDF — try CSV or XLSX, or ensure LLM is configured.');
+      result.warnings.push('Could not extract leads from PDF - try CSV or XLSX, or ensure LLM is configured.');
     }
   }
 

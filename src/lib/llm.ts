@@ -21,7 +21,7 @@ import { checkGlobalLlmBudget } from '@/lib/llm-budget';
  * HF remains an automatic failover when configured.
  */
 
-/** Hugging Face OpenAI-compatible router — default experimentation provider. */
+/** Hugging Face OpenAI-compatible router - default experimentation provider. */
 export const HF_ROUTER_BASE_URL = 'https://router.huggingface.co/v1';
 export const HF_DEFAULT_CHAT_MODEL = 'meta-llama/Llama-3.1-8B-Instruct';
 
@@ -185,7 +185,7 @@ function getFallbackProvider(primary: Provider | null): Provider | null {
       label: 'fallback',
     };
   }
-  // HF is already primary — don't use it as its own fallback.
+  // HF is already primary - don't use it as its own fallback.
   if (primary?.label === 'huggingface') return null;
   if (process.env.HUGGINGFACE_API_KEY) {
     return {
@@ -237,7 +237,7 @@ function resolvePrimary(options: ChatCompletionOptions): Provider | null {
 
 /**
  * Run one chat completion against a specific provider. `retryRateLimit` controls
- * whether a 429 is retried in place with backoff — we disable it when a fallback
+ * whether a 429 is retried in place with backoff - we disable it when a fallback
  * provider exists so we fail over immediately instead of waiting out a (possibly
  * multi-minute) daily-limit backoff on the primary.
  */
@@ -354,7 +354,7 @@ async function callProviderWithJsonFallback(
 /**
  * Live auth/connectivity probe for the configured LLM provider. Runs one tiny
  * chat completion so a health check can distinguish "key present" from "key
- * actually works" — presence checks stay green even when the key is empty/wrong,
+ * actually works" - presence checks stay green even when the key is empty/wrong,
  * which is exactly how a prod 401 stayed invisible. Returns 'skipped' when no
  * provider is configured, 'ok' on a valid completion, 'error' on any failure.
  */
@@ -373,7 +373,7 @@ export async function chatCompletion(
   userPrompt: string,
   options: ChatCompletionOptions = {},
 ): Promise<string> {
-  // Global spend backstop — runs before ANY provider (primary or HF fallback),
+  // Global spend backstop - runs before ANY provider (primary or HF fallback),
   // so every text-gen path in the app (generate, signals, leads, crons) is
   // bounded by one deployment-wide daily cap. Inert unless LLM_DAILY_HARD_CAP set.
   if ((await checkGlobalLlmBudget()) === 'blocked') {
@@ -388,7 +388,7 @@ export async function chatCompletion(
 
   const fallback = getFallbackProvider(primary);
   try {
-    // If a fallback exists, don't waste time retrying a rate-limited primary —
+    // If a fallback exists, don't waste time retrying a rate-limited primary -
     // fail fast and switch. Without a fallback, keep the in-place retry loop.
     return await callProviderWithJsonFallback(primary, systemPrompt, userPrompt, options, !fallback);
   } catch (err) {
@@ -559,7 +559,7 @@ async function callProviderStream(
           onToken(delta);
         }
       } catch {
-        // Ignore malformed/partial JSON — the next chunk completes it.
+        // Ignore malformed/partial JSON - the next chunk completes it.
       }
     }
   };
@@ -580,7 +580,7 @@ async function callProviderStream(
  * delta and resolves with the full text. Degrades gracefully: on quota it fails
  * over to the fallback provider, and if streaming is unavailable (no provider or
  * a non-quota transport error before any token) it falls back to a single
- * non-streamed completion and emits the whole result at once — so callers always
+ * non-streamed completion and emits the whole result at once - so callers always
  * get text and never have to special-case provider capabilities.
  */
 export async function chatCompletionStream(
@@ -610,7 +610,7 @@ export async function chatCompletionStream(
   try {
     return await callProviderStream(primary, systemPrompt, userPrompt, options, counted);
   } catch (err) {
-    // Only recover if nothing has streamed yet — otherwise we'd duplicate output.
+    // Only recover if nothing has streamed yet - otherwise we'd duplicate output.
     if (emitted === 0) {
       if (err instanceof LlmError && err.isQuota && fallback) {
         return callProviderStream(fallback, systemPrompt, userPrompt, { ...options, model: undefined }, counted);

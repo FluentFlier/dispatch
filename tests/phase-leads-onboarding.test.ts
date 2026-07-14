@@ -11,7 +11,7 @@ import {
 import { isLeadsDemoMode } from '@/lib/signals/ingest/config';
 
 /**
- * WS2 — First-run posture: no design-partner (Rho) alpha data leaks into a
+ * WS2 - First-run posture: no design-partner (Rho) alpha data leaks into a
  * generic workspace, and demo data is detectable so the UI can badge it.
  */
 

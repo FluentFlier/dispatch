@@ -9,7 +9,7 @@ import {
 import { sendWarmContactConnect } from '@/lib/social-graph/outreach';
 
 /**
- * POST /api/agent/v1/warm-contacts/[id]/send — send LinkedIn connect (outreach scope).
+ * POST /api/agent/v1/warm-contacts/[id]/send - send LinkedIn connect (outreach scope).
  */
 export async function POST(
   request: NextRequest,

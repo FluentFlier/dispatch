@@ -36,7 +36,7 @@ export default function EventCapturePage() {
       {setup.setupRequired && (
         <div className="rounded-lg border border-border bg-bg-secondary px-4 py-3 text-sm">
           <p className="text-text-primary font-medium">
-            {setup.message ?? 'Event capture is not ready yet — contact support'}
+            {setup.message ?? 'Event capture is not ready yet - contact support'}
           </p>
           <p className="mt-1 text-xs text-text-tertiary">
             {setup.missing.includes('event_captures')

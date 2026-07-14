@@ -36,7 +36,7 @@ interface PlatformMetrics {
  * workspace, keyed by platform. Used by the Voice Lab UI panel and generation
  * context injection (Layer 4).
  *
- * Returns an empty `{ platforms: {} }` object when no data exists yet —
+ * Returns an empty `{ platforms: {} }` object when no data exists yet -
  * never returns 404 so the UI can render a "no data yet" state without error
  * handling.
  *
@@ -51,7 +51,7 @@ export async function GET(): Promise<NextResponse> {
   const client = getServerClient();
   const workspaceId = await getActiveWorkspaceId(user.id);
 
-  // No workspace yet — nothing to show, return empty safely
+  // No workspace yet - nothing to show, return empty safely
   if (!workspaceId) {
     return NextResponse.json({ platforms: {} });
   }

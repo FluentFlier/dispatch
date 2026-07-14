@@ -5,7 +5,7 @@ import { TrendDetectAction } from '@/components/dashboard/TrendDetectAction';
 
 /**
  * Top "signals" strip of the unified dashboard card: today's top trend +
- * yesterday's numbers. Presentational only — composed server-side, no client
+ * yesterday's numbers. Presentational only - composed server-side, no client
  * fetch or AI cost. The old "Ready to draft" column was dropped: it showed the
  * same ideas as the card's Backlog lane, so it lived on there instead. Renders
  * with no card wrapper so it can nest inside the merged dashboard card.

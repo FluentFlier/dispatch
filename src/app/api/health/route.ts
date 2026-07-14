@@ -10,7 +10,7 @@ export const dynamic = 'force-dynamic';
 
 /**
  * Non-secret summary of the resolved LLM provider config. Lets an operator verify
- * per-environment routing (local Groq/HF vs prod OpenAI) without exposing keys —
+ * per-environment routing (local Groq/HF vs prod OpenAI) without exposing keys -
  * only the provider HOST, model ids, and boolean key-presence are returned.
  */
 function llmConfigSummary() {
@@ -22,7 +22,7 @@ function llmConfigSummary() {
     providerHost = 'router.huggingface.co (auto)';
   }
   return {
-    provider_host: providerHost, // e.g. api.openai.com | api.groq.com — not secret
+    provider_host: providerHost, // e.g. api.openai.com | api.groq.com - not secret
     model: process.env.LLM_MODEL?.trim() || null,
     model_fast: process.env.LLM_MODEL_FAST?.trim() || null,
     model_smart: process.env.LLM_MODEL_SMART?.trim() || null,
@@ -55,7 +55,7 @@ function observabilityConfigSummary() {
 /**
  * GET /api/health: deployment + dependency probe for beta monitoring.
  *
- * Pass ?probe=llm to run a LIVE LLM completion (costs 1 tiny call) — presence
+ * Pass ?probe=llm to run a LIVE LLM completion (costs 1 tiny call) - presence
  * checks alone can't catch an empty/wrong key returning 401, so this is opt-in.
  * The `llm` object always reports the resolved provider host + models (no secrets).
  * Checks report readiness (ok/missing/degraded) without leaking secret values.
@@ -92,7 +92,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       socialMode === 'unipile'
         ? process.env.UNIPILE_WEBHOOK_SECRET?.trim()
           ? 'ok'
-          : 'degraded' // optional — Unipile does not enforce webhook signing
+          : 'degraded' // optional - Unipile does not enforce webhook signing
         : 'ok',
     stripe: process.env.STRIPE_SECRET_KEY ? 'ok' : 'degraded',
     composio: composioHealth.status === 'ok' ? 'ok' : composioHealth.status,

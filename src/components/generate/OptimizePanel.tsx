@@ -64,7 +64,7 @@ export function OptimizePanel({ content, sourcePlatform = 'linkedin' }: Optimize
     fetchAccounts();
   }, [fetchAccounts]);
 
-  // Repurpose targets are OTHER platforms only — never the source. Re-optimizing
+  // Repurpose targets are OTHER platforms only - never the source. Re-optimizing
   // the same platform is what the main generator already does, so offering it
   // here produced a confusing second "same platform" draft.
   const otherConnected = accounts
@@ -198,7 +198,7 @@ export function OptimizePanel({ content, sourcePlatform = 'linkedin' }: Optimize
         </p>
       </div>
 
-      {/* Repurpose buttons — other platforms only */}
+      {/* Repurpose buttons - other platforms only */}
       <div className="flex flex-wrap gap-2">
         <Button
           variant="primary"

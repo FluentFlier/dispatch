@@ -13,7 +13,7 @@ interface RouteParams {
  * stuck state where a capture is 'drafted' but has zero posts (an earlier
  * generation failed, e.g. the pillar NOT-NULL bug, or /auto-draft was used with
  * no answers at all) and the /answers idempotency guard blocks re-submission.
- * Accepts an optional `answers` body — the zero-post detail view lets the user
+ * Accepts an optional `answers` body - the zero-post detail view lets the user
  * answer questions right there, since it has no other route back into the
  * Q&A flow once a capture has left 'questions_ready'. Provided answers are
  * merged over whatever is already stored. Clears any prior posts for this
@@ -33,7 +33,7 @@ export async function POST(
   try {
     body = await request.json();
   } catch {
-    // No body is fine — falls back to whatever answers are already stored.
+    // No body is fine - falls back to whatever answers are already stored.
   }
   const rawAnswers = body && typeof body === 'object' ? (body as { answers?: unknown }).answers : null;
   const bodyAnswers =

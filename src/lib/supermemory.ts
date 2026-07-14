@@ -2,7 +2,7 @@ const BASE_URL = 'https://api.supermemory.ai/v3';
 
 // Hard timeout on every Supermemory call. These run inline on user-facing routes
 // (publish/import/edit/event/story writes, and retrieval on /api/generate). Without
-// a bound, a slow or hung Supermemory would stall the request — and imports issue
+// a bound, a slow or hung Supermemory would stall the request - and imports issue
 // one write per post, so 25 hung writes would freeze the whole import. On timeout
 // the fetch rejects and the caller's try/catch degrades gracefully.
 const SM_TIMEOUT_MS = Number(process.env.SUPERMEMORY_TIMEOUT_MS ?? 8000);
@@ -149,7 +149,7 @@ export async function searchUserContext(
   limit = 5,
   workspaceId?: string,
 ): Promise<SearchResult[]> {
-  // Resolve the correct container tag — workspace-scoped for agency clients,
+  // Resolve the correct container tag - workspace-scoped for agency clients,
   // user-scoped for personal/legacy accounts.
   const scopeTag = workspaceId ? `workspace_${workspaceId}` : `user_${userId}`;
   const { results } = await searchMemories(query, [scopeTag], limit);

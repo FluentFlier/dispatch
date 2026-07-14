@@ -3,7 +3,7 @@ import { getAuthenticatedUser } from '@/lib/insforge/server';
 
 /**
  * Asserts the request is authenticated and returns the user.
- * Throws with a typed error if not — callers catch and return 401.
+ * Throws with a typed error if not - callers catch and return 401.
  * Use this at the top of any API route that reads or writes user data
  * BEFORE constructing any DB client, to prevent unauthenticated DB access.
  */
@@ -42,7 +42,7 @@ function decodeJwtPayload(token: string): {
 /**
  * Validate an InsForge access token before persisting it in an httpOnly cookie.
  *
- * Decodes the JWT locally first — avoids hitting InsForge's /api/auth/sessions/current,
+ * Decodes the JWT locally first - avoids hitting InsForge's /api/auth/sessions/current,
  * which uses server-side session state that can be invalidated independently of the
  * JWT's exp claim (causing AUTH_UNAUTHORIZED on technically-valid tokens). Signature
  * was verified by InsForge when the token was issued; here we only need sub + exp.
@@ -56,7 +56,7 @@ export async function validateAccessToken(
     return { valid: false, error: 'Invalid token' };
   }
 
-  // Fast path: JWT decode — no InsForge API call needed.
+  // Fast path: JWT decode - no InsForge API call needed.
   const claims = decodeJwtPayload(token);
   if (claims?.sub) {
     const nowSec = Math.floor(Date.now() / 1000);
@@ -70,7 +70,7 @@ export async function validateAccessToken(
     };
   }
 
-  // Slow path: opaque token — validate via InsForge API.
+  // Slow path: opaque token - validate via InsForge API.
   const url = process.env.NEXT_PUBLIC_INSFORGE_URL;
   const anonKey = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY;
   if (!url || !anonKey) {

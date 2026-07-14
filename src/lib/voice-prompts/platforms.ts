@@ -15,7 +15,7 @@ export const PLATFORM_PLAYBOOKS: Record<VoicePlatform, string> = {
   linkedin: `LINKEDIN
 - Strong first line before "see more" fold; no "I'm excited to announce".
 - Full post length: 200 to 400 words minimum. Not a script outline. Developed paragraphs with context, story, stakes, and takeaway.
-- Paragraphs are 2 to 4 sentences of connected prose, double line break between them for white space. The ONLY one-sentence paragraphs allowed are the opening hook line and the closing CTA question — every other paragraph must merge its sentences into one flowing block, not one sentence per line.
+- Paragraphs are 2 to 4 sentences of connected prose, double line break between them for white space. The ONLY one-sentence paragraphs allowed are the opening hook line and the closing CTA question - every other paragraph must merge its sentences into one flowing block, not one sentence per line.
 - Professional but human: story beats credentials list.
 - Structure (write as connected prose, not labeled sections): hook line, setup (2-3 sentences in one paragraph), story or data (2-4 sentences in one paragraph), insight (2-3 sentences in one paragraph), CTA question.
 - Comments: add value, not "+1" energy; one clear takeaway.`,
@@ -40,7 +40,7 @@ export const CONTENT_TYPE_HINTS: Record<VoiceContentType, string> = {
   reply: 'Reply: respond to the specific point; no re-introduction of the creator.',
   comment: 'Comment: 1 to 3 sentences max; helpful or witty, never preachy.',
   hooks:
-    'LIST MODE (the brief asks for a list — this is allowed). Output ONLY a numbered list of distinct one-line hooks, exactly as many as the brief requests. Each hook is ONE short sentence on its own line, prefixed "1." through "N.". Do NOT write a paragraph or a full post; ignore full-post length rules. No intro, no explanation, no closing line.',
+    'LIST MODE (the brief asks for a list - this is allowed). Output ONLY a numbered list of distinct one-line hooks, exactly as many as the brief requests. Each hook is ONE short sentence on its own line, prefixed "1." through "N.". Do NOT write a paragraph or a full post; ignore full-post length rules. No intro, no explanation, no closing line.',
   caption:
     'CAPTION MODE. Output the caption first (tight, scannable), then a blank line, then ONE final line of space-separated hashtags. Always include the hashtag line. No section labels, no commentary.',
 };

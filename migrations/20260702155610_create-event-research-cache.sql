@@ -6,8 +6,8 @@
 -- This table caches research by a normalized event identity so a popular event is
 -- researched once and reused across all workspaces.
 --
--- Stores ONLY public research facts — never workspace_id, user_id, or any tenant
--- identifier — so it is safe to share cross-workspace. Written and read solely by
+-- Stores ONLY public research facts - never workspace_id, user_id, or any tenant
+-- identifier - so it is safe to share cross-workspace. Written and read solely by
 -- the service client in the enrich cron; users never touch it directly.
 
 CREATE TABLE IF NOT EXISTS event_research_cache (

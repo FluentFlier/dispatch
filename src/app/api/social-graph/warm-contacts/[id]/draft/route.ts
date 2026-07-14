@@ -5,7 +5,7 @@ import { draftWarmContactOutreach } from '@/lib/social-graph/warm-contacts';
 import { guardAiRequest } from '@/lib/ai-guard';
 
 /**
- * POST /api/social-graph/warm-contacts/[id]/draft — AI connection note in your voice.
+ * POST /api/social-graph/warm-contacts/[id]/draft - AI connection note in your voice.
  */
 export async function POST(
   _request: NextRequest,

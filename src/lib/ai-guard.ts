@@ -4,7 +4,7 @@ import { incrementUsage } from '@/lib/usage';
 /**
  * Abuse + cost protection for AI-invoking endpoints. Two layers:
  *  1. Per-instance in-memory burst limit (15 req/60s). IMPORTANT: this Map is
- *     reset on every cold start and is NOT shared across serverless instances —
+ *     reset on every cold start and is NOT shared across serverless instances -
  *     a user can bypass it by hitting different function instances or waiting for
  *     a new cold start. It blunts rapid hammering on a single instance only.
  *     Replace with Upstash Redis sliding window for true cross-instance enforcement.
@@ -56,17 +56,17 @@ export async function guardAiRequest(userId: string): Promise<AiGuardResult> {
     // per-account limit and burn provider credits without bound. Block until the
     // cap can be read again. The GLOBAL backstop (LLM_DAILY_HARD_CAP) is the other
     // safety net for paths that don't run through this guard.
-    console.error('[ai-guard] entitlement check failed — failing closed to protect credits:', err);
+    console.error('[ai-guard] entitlement check failed - failing closed to protect credits:', err);
     return { ok: false, status: 503, error: 'Usage check temporarily unavailable. Please try again shortly.' };
   }
 
   // Await the increment so failures are observable. We still return ok:true on
   // DB errors (fail-open policy) but we log the failure so ops can detect
-  // systematic issues — silently swallowing meant quotas never tracked under load.
+  // systematic issues - silently swallowing meant quotas never tracked under load.
   try {
     await incrementUsage(userId, 'ai_generate', 1);
   } catch (err) {
-    console.error('[ai-guard] Usage increment failed — quota not tracked:', err);
+    console.error('[ai-guard] Usage increment failed - quota not tracked:', err);
   }
   return { ok: true };
 }

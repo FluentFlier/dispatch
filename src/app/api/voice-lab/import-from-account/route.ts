@@ -93,7 +93,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   // Self-heals a rotated unipile_account_id (Unipile re-issues it on LinkedIn
-  // credential re-auth) by re-matching on the stable publicIdentifier — avoids
+  // credential re-auth) by re-matching on the stable publicIdentifier - avoids
   // spurious "reconnect" prompts on a still-valid connection.
   const target = await resolveUnipileTarget(
     account.unipile_account_id,

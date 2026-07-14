@@ -94,7 +94,7 @@ function extractComments(json: unknown, fallbackPlatform: string): UnipileFetche
  *
  * WHY: Unipile re-issues account.id on every LinkedIn re-auth, so the id cached in
  * social_accounts goes stale. Comments/reactions used to return the raw stored id
- * blindly — a dead account_id made every GET /posts/{id}/comments 404, so every
+ * blindly - a dead account_id made every GET /posts/{id}/comments 404, so every
  * imported post showed zero comments. Import/metrics/outreach already self-heal via
  * resolveUnipileTarget (matches on the stable identity in account_id); this brings
  * comments + reactions to parity. On Unipile being unreachable we fall back to the
@@ -135,7 +135,7 @@ export async function getUnipileAccountId(userId: string, platform: string): Pro
 /**
  * Fetches comments for a post via Unipile GET /posts/{social_id}/comments.
  * social_id is stored in publish_jobs.provider_post_id after a successful publish.
- * Tries the same URN/id candidates as reaction sync — numeric LinkedIn activity
+ * Tries the same URN/id candidates as reaction sync - numeric LinkedIn activity
  * ids only work when wrapped as urn:li:activity:… for many Unipile endpoints.
  */
 export async function fetchUnipilePostComments(

@@ -58,7 +58,7 @@ PLATFORM: ${platformConstraint}
 COMMENTS (reply to each, in order):
 ${commentLines.map((c, i) => `${i + 1}. ${c}`).join('\n')}
 
-Return ONLY a JSON array of strings — exactly one reply per comment, in the same order. Example: ["first reply", "second reply"]. No other text, no markdown.`;
+Return ONLY a JSON array of strings - exactly one reply per comment, in the same order. Example: ["first reply", "second reply"]. No other text, no markdown.`;
 
     try {
       // fast mode: skip the revise/humanize passes so the JSON array survives intact.

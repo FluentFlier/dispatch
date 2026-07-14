@@ -46,7 +46,7 @@ const DEFAULT_SETTINGS: Omit<DirectorySettingsRow, 'workspace_id' | 'created_at'
 /**
  * Loads directory settings for a workspace, creating the row with conservative
  * defaults on first access. Directory config is intentionally separate from
- * signal_safety_settings (different lifecycle) — see the plan §3.2.
+ * signal_safety_settings (different lifecycle) - see the plan §3.2.
  */
 export async function getDirectorySettings(
   client: InsforgeClient,
@@ -82,7 +82,7 @@ export async function updateDirectorySettings(
 
 /**
  * Ensures a workspace has all default directory sources enabled (e.g. Product Hunt
- * when TinyFish is configured). Idempotent — only writes when sources are missing.
+ * when TinyFish is configured). Idempotent - only writes when sources are missing.
  */
 export async function ensureDirectorySourcesEnabled(
   client: InsforgeClient,
@@ -184,7 +184,7 @@ export interface UpsertLeadsResult {
   inserted: number;
   updated: number;
   renamed: number;
-  /** Lead ids touched this upsert (inserted or updated) — used for batch resolve/score. */
+  /** Lead ids touched this upsert (inserted or updated) - used for batch resolve/score. */
   leadIds: string[];
 }
 
@@ -198,7 +198,7 @@ function dedupeLeadIds(ids: string[]): string[] {
  * (source + external_id). New anchors insert as `new` with today's digest_date.
  * A known anchor with a changed company_name is auto-reconciled (rename): the
  * name updates, the old name is appended to name_history, and a `renamed` event
- * is logged — so a follow/lead survives a rename without manual re-keying.
+ * is logged - so a follow/lead survives a rename without manual re-keying.
  */
 export async function upsertIngestedLeads(
   client: InsforgeClient,
@@ -210,7 +210,7 @@ export async function upsertIngestedLeads(
 
   // Explicit column list, NOT select('*'): on this backend, select('*') with
   // several .eq() filters + .limit(1) silently returns 0 rows (no error), which
-  // made this existence check miss every existing lead and re-insert it —
+  // made this existence check miss every existing lead and re-insert it -
   // crashing a re-scrape on the source+external_id unique constraint.
   const anchorCols = 'id, source, external_id, company_name, tagline, tags, domain, name_history';
 
@@ -291,7 +291,7 @@ export async function upsertIngestedLeads(
       continue;
     }
 
-    // Known anchor — classify the change (rename auto-reconciles, pivot re-scores).
+    // Known anchor - classify the change (rename auto-reconciles, pivot re-scores).
     const change = classifyLeadChange(existing, {
       companyName: lead.companyName,
       tags: lead.tags,
@@ -334,7 +334,7 @@ export async function upsertIngestedLeads(
  * folding into an existing YC lead) re-runs this for a lead that already carries
  * these founders; without a guard the same contacts piled up ~4x. We insert only
  * founders NOT already present, matched on linkedin_url or lower(name), and only
- * mark a primary when the lead has no contacts yet — a merge never demotes the
+ * mark a primary when the lead has no contacts yet - a merge never demotes the
  * existing primary.
  */
 export async function insertContactsForLead(

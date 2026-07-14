@@ -77,7 +77,7 @@ export default function CalendarDayView({
     return p.scheduled_date.slice(0, 10) === dayKey;
   });
 
-  // All-day posts (no scheduled_publish_at time component — only date)
+  // All-day posts (no scheduled_publish_at time component - only date)
   const allDayPosts = dayPosts.filter((p) => !p.scheduled_publish_at);
   const timedPosts = dayPosts.filter((p) => !!p.scheduled_publish_at);
 

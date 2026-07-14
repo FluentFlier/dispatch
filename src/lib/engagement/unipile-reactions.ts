@@ -113,7 +113,7 @@ export function extractReactions(json: unknown): UnipileFetchedReaction[] {
 /**
  * Fetches reactions for a published post via Unipile, trying each known
  * post-id format until one succeeds. 404 on every format means the post has
- * no indexable reactions (or was deleted) — treated as empty, not an error,
+ * no indexable reactions (or was deleted) - treated as empty, not an error,
  * so one dead post never aborts a sync batch.
  */
 export async function fetchUnipilePostReactions(

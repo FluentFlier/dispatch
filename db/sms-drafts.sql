@@ -2,7 +2,7 @@
 -- SMS DRAFT FLOW (Twilio)
 -- Apply on InsForge to enable texting drafts + inbound photo replies.
 -- Draft magic-link tokens are stateless (signed HMAC), so no token table is
--- needed — only a mapping from a verified phone number to a user.
+-- needed - only a mapping from a verified phone number to a user.
 -- ============================================================
 
 create table if not exists phone_numbers (

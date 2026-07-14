@@ -127,7 +127,7 @@ export function getBestHooksForContext(
 }
 
 /**
- * Social Listening entry point — see social-listening.ts (keeps prod-mining off index graph).
+ * Social Listening entry point - see social-listening.ts (keeps prod-mining off index graph).
  */
 export { runSocialListening } from './social-listening';
 

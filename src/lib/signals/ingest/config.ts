@@ -26,7 +26,7 @@ export function getIngestSecret(): string | undefined {
 }
 
 /**
- * True only when the feed is actually serving the built-in fictional seed set —
+ * True only when the feed is actually serving the built-in fictional seed set -
  * i.e. the explicit SIGNALS_DEMO_SEED flag is on AND no TinyFish key is present
  * (the only combination under which fetchDirectoryLeads returns fabricated
  * companies). Notably this is NOT merely "no TinyFish key": a keyless workspace

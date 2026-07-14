@@ -18,7 +18,7 @@ export function getSocialProviderMode(): 'unipile' | 'direct' {
   const mode = process.env.SOCIAL_PROVIDER_MODE?.toLowerCase();
   // When Unipile is fully configured it IS the provider. The hosted connect
   // route uses Unipile whenever the keys exist (it never reads this flag), so
-  // health/publish/UI must agree — otherwise the connect window opens Unipile
+  // health/publish/UI must agree - otherwise the connect window opens Unipile
   // but the settings UI offers a dead direct LinkedIn-OAuth path. A stale
   // SOCIAL_PROVIDER_MODE=direct must NOT win over a fully-configured Unipile.
   if (process.env.UNIPILE_API_KEY && process.env.UNIPILE_DSN) return 'unipile';

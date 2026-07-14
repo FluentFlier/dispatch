@@ -7,12 +7,12 @@ export function stripEmDashes(text: string): string {
 
 /**
  * Final formatting guard. The stage prompts all say "plain text, no markdown",
- * but LLMs still leak emphasis markers, headings, and code fences — which
+ * but LLMs still leak emphasis markers, headings, and code fences - which
  * LinkedIn and X render literally (**bold**, ## Heading), making a post look
  * broken. Strip the markdown syntax while keeping the words. Runs once at the
  * finalize choke point so every return path is clean. Conservative on purpose:
  * leaves single underscores (snake_case), list dashes, and normal punctuation
- * untouched — it only removes syntax that renders as noise on social.
+ * untouched - it only removes syntax that renders as noise on social.
  */
 export function stripMarkdownFormatting(text: string): string {
   return (
@@ -45,8 +45,8 @@ export function stripMarkdownFormatting(text: string): string {
  * exactly that), but no per-creator instruction should be able to degrade
  * every post on the platform into a wall of choppy micro-paragraphs. A
  * 2-sentences-per-paragraph draft still reads staccato even though no single
- * paragraph is "wrong" in isolation — the floor is 3, not 2, so it actually
- * reduces paragraph count. The opening hook and the closing line are exempt —
+ * paragraph is "wrong" in isolation - the floor is 3, not 2, so it actually
+ * reduces paragraph count. The opening hook and the closing line are exempt -
  * those are allowed to stand alone by design.
  */
 export function enforceParagraphFloor(text: string): string {
@@ -95,7 +95,7 @@ export function finalizeResult(
 
   // Single guarantee that no markdown/em-dash noise reaches the client, whatever
   // path produced this draft (fast, voice-off, hooks, revise loop). Paragraph
-  // floor only applies to prose (post/reply/comment) — hook lists and captions
+  // floor only applies to prose (post/reply/comment) - hook lists and captions
   // have their own intentional one-line-per-item format.
   let cleanText = stripMarkdownFormatting(stripEmDashes(text));
   if (enforceParagraphs) cleanText = enforceParagraphFloor(cleanText);

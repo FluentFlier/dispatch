@@ -66,13 +66,13 @@ export default async function AdminSubscriptionsPage() {
                   <SubscriptionEditor userId={s.userId} plan={s.plan} status={s.status} />
                 </td>
                 <td className="px-4 py-3 text-text-tertiary text-xs">
-                  {s.stripeCustomerId ? shortId(s.stripeCustomerId) : '—'}
+                  {s.stripeCustomerId ? shortId(s.stripeCustomerId) : '-'}
                 </td>
                 <td className="px-4 py-3 text-text-secondary text-xs whitespace-nowrap">
-                  {s.trialEndsAt ? new Date(s.trialEndsAt).toLocaleDateString() : '—'}
+                  {s.trialEndsAt ? new Date(s.trialEndsAt).toLocaleDateString() : '-'}
                 </td>
                 <td className="px-4 py-3 text-text-secondary text-xs whitespace-nowrap">
-                  {s.currentPeriodEnd ? new Date(s.currentPeriodEnd).toLocaleDateString() : '—'}
+                  {s.currentPeriodEnd ? new Date(s.currentPeriodEnd).toLocaleDateString() : '-'}
                 </td>
                 <td className="px-4 py-3 text-text-secondary text-xs whitespace-nowrap">
                   {new Date(s.updatedAt).toLocaleDateString()}

@@ -65,7 +65,7 @@ const SIGNAL_STATUS_TO_LEAD_STATUS: Record<SignalEventStatus, string> = {
 /**
  * Junk company-name guard. Detection can mis-extract a stopword or fragment as a
  * company (e.g. a tweet "…we joined YC W26" yielding "the"). Such a value is not
- * a real name — treat it as absent so the card falls through to person/author
+ * a real name - treat it as absent so the card falls through to person/author
  * instead of headlining garbage.
  */
 const NAME_STOPWORDS = new Set([
@@ -156,7 +156,7 @@ function warmFeedBoost(l: SignalLeadWithContacts): number {
 export function normalizeLead(l: SignalLeadWithContacts): UnifiedLeadCard {
   const pc = l.primary_contact ?? null;
   // A Product Hunt listing and a YC "launch" post ARE launch events, so they
-  // carry the 'launch' signal type — this lets the "Launched" feed filter match
+  // carry the 'launch' signal type - this lets the "Launched" feed filter match
   // scraped directory leads instead of returning nothing. Funding / role-change
   // / accelerator-join can't be inferred from a directory record, so those
   // signal types stay exclusive to the live Signal engine (normalizeEvent).

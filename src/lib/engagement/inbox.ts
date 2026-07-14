@@ -184,7 +184,7 @@ export async function getEngagementInbox(
 
   // Fixed operator precedence: the previous expression applied ?? 0 to the
   // entire localeCompare chain, which silently returned 0 when either synced_at
-  // was undefined — treating unequal items as equal and producing random sort order.
+  // was undefined - treating unequal items as equal and producing random sort order.
   const groups = Array.from(groupsMap.values()).sort((a, b) => {
     const bDate = b.comments[0]?.comment.synced_at ?? '';
     const aDate = a.comments[0]?.comment.synced_at ?? '';
@@ -207,7 +207,7 @@ export async function getEngagementInbox(
 /** Maximum Haiku signal-detection calls allowed per workspace per engagement-draft run.
  * Dual-cap pattern: this per-run cap prevents any single cron execution from burning the
  * full daily Haiku budget. The daily hard cap in ai-budget.ts is the absolute ceiling.
- * Both guards must be present — per-run for spike protection, per-day for total cost control.
+ * Both guards must be present - per-run for spike protection, per-day for total cost control.
  */
 const MAX_HAIKU_PER_RUN = 25;
 
@@ -262,7 +262,7 @@ export async function draftEngagementReplies(
 
   const { profile, contextAdditions } = await loadCreatorVoiceContext(client, userId);
 
-  // Resolve workspace once for the entire run — needed for signal detection budget checks
+  // Resolve workspace once for the entire run - needed for signal detection budget checks
   const workspaceId = await getActiveWorkspaceId(userId);
 
   const postIds = Array.from(new Set(commentRows.map((c) => c.post_id)));
@@ -280,7 +280,7 @@ export async function draftEngagementReplies(
   // Dual-cap pattern: this resets per engagement-draft invocation, not per day.
   let haikusUsed = 0;
 
-  // Check feature flag once per run — avoids N async flag reads inside the loop
+  // Check feature flag once per run - avoids N async flag reads inside the loop
   const signalsEnabled = workspaceId
     ? await isEnabled(client, 'layer5_engagement_signals')
     : false;
@@ -334,14 +334,14 @@ export async function draftEngagementReplies(
       });
 
       // --- L5: Comment Signal Detection (Step 2) ---
-      // Runs after the reply draft succeeds — never blocks or delays the reply path.
+      // Runs after the reply draft succeeds - never blocks or delays the reply path.
       // Dual-cap guard: feature flag + per-run Haiku cap. Daily hard cap enforced inside
       // checkAndIncrementUsage. Both caps must be satisfied before any LLM call fires.
       if (signalsEnabled && workspaceId && haikusUsed < MAX_HAIKU_PER_RUN) {
         const budget = await checkAndIncrementUsage(client, workspaceId, 'haiku');
 
         if (budget === 'blocked') {
-          // Mark processed even when budget is exhausted — prevents re-scan on next cron run
+          // Mark processed even when budget is exhausted - prevents re-scan on next cron run
           await client.database
             .from('post_comments')
             .update({ signal_processed_at: new Date().toISOString() })
@@ -378,7 +378,7 @@ export async function draftEngagementReplies(
                   source: 'from_comment',
                   source_comment_id: comment.id,
                   status: 'suggested',
-                  notes: `From reply to "${postTitle}" — @${comment.author_handle ?? 'unknown'}`,
+                  notes: `From reply to "${postTitle}" - @${comment.author_handle ?? 'unknown'}`,
                   converted: false,
                 });
               } else {
@@ -548,7 +548,7 @@ export async function sendEngagementReplies(
       wasStubbed = reply.stubbed;
 
       if (wasStubbed) {
-        // Provider returned a stub (e.g. missing account) — do not mark sent.
+        // Provider returned a stub (e.g. missing account) - do not mark sent.
         stubbed++;
         errors.push(
           `Queue ${row.id}: reply not sent (provider unavailable for ${comment.platform}). Connect the account in Settings.`,

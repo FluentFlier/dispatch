@@ -4,7 +4,7 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
 import { listFollowedCompanies, removeFollowedCompany } from '@/lib/signals/leads/store';
 import { errorResponse } from '@/lib/api-errors';
 
-/** DELETE /api/leads/followed/:id — unfollow a company. */
+/** DELETE /api/leads/followed/:id - unfollow a company. */
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: { id: string } },

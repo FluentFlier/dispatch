@@ -3,7 +3,7 @@
  *
  * These do NOT check "did I get an answer". They check that a real generation
  * threads the creator's persona, voice, AND retrieved memory THROUGH the LLM,
- * and that every pipeline stage actually ran — so a silent fallback (e.g. the
+ * and that every pipeline stage actually ran - so a silent fallback (e.g. the
  * compact 2-call reroute) can't hide behind a plausible-looking output.
  *
  * The LLM boundary (chatCompletion) is mocked so we can capture every system
@@ -73,7 +73,7 @@ const PROFILE = {
 };
 
 const DATED_MEMORY =
-  '[Your linkedin post from 2026-03-14] — this ALREADY happened; reference as past.\n\n' +
+  '[Your linkedin post from 2026-03-14] - this ALREADY happened; reference as past.\n\n' +
   'I just got back from the Forbes 30 Under 30 Summit and it was incredible.';
 
 const savedEnv = process.env.LLM_PIPELINE_MODE;
@@ -125,7 +125,7 @@ describe('full pipeline: persona + memory reach the LLM and every stage runs', (
 
     // 1. The creator's voice reached the model.
     expect(systems.some((s) => s.includes('punchy, concrete, no fluff'))).toBe(true);
-    // 2. The retrieved memory reached the model — with its date and tense guard,
+    // 2. The retrieved memory reached the model - with its date and tense guard,
     //    which is what stops "I just got back from" on a "remember" prompt.
     expect(systems.some((s) => s.includes('Forbes 30 Under 30'))).toBe(true);
     expect(systems.some((s) => s.includes('2026-03-14'))).toBe(true);
@@ -133,7 +133,7 @@ describe('full pipeline: persona + memory reach the LLM and every stage runs', (
     // 3. The judge actually evaluated the draft (prompt was analyzed for quality).
     expect(systems.some((s) => s.includes('You evaluate social content drafts'))).toBe(true);
 
-    // 4. Every stage of the full pipeline ran — not a silent shortcut.
+    // 4. Every stage of the full pipeline ran - not a silent shortcut.
     expect(result.stagesCompleted).toEqual(
       expect.arrayContaining(['base', 'hooks', 'humanize', 'voice', 'evaluate']),
     );

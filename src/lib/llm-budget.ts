@@ -5,16 +5,16 @@
  * scoped to a single tenant. None of them bound TOTAL provider spend, so N
  * mass-registered accounts each generating up to their own cap can still drain
  * the shared LLM credits. This is a single day-scoped counter across the entire
- * deployment — the last line of defence for the credit balance.
+ * deployment - the last line of defence for the credit balance.
  *
  * Opt-in: inert unless `LLM_DAILY_HARD_CAP` is set to a positive integer. When
- * set, the cap counts raw provider chat-completion calls (NOT user generations —
+ * set, the cap counts raw provider chat-completion calls (NOT user generations -
  * one generation runs several pipeline stages), because credits are consumed
  * per provider call.
  *
  * Fail-CLOSED: when the cap is configured but the counter cannot be read/written
  * (RPC missing, DB unreachable), generation is blocked. Being blind about spend
- * is exactly when to stop — the operator opted into protecting credits over
+ * is exactly when to stop - the operator opted into protecting credits over
  * availability by setting the env. Requires migration
  * db/migrations/llm-global-budget.sql.
  *
@@ -57,7 +57,7 @@ export async function checkGlobalLlmBudget(): Promise<GlobalBudgetStatus> {
         | { status: GlobalBudgetStatus; call_count: number }
         | undefined;
       if (row?.status === 'blocked') {
-        console.warn('[llm-budget] GLOBAL daily cap hit — generation paused', { cap, count: row.call_count });
+        console.warn('[llm-budget] GLOBAL daily cap hit - generation paused', { cap, count: row.call_count });
         return 'blocked';
       }
       if (row?.status === 'ok') return 'ok';
@@ -66,10 +66,10 @@ export async function checkGlobalLlmBudget(): Promise<GlobalBudgetStatus> {
     // RPC returned no usable row (missing function / migration not applied).
     // Fail closed: an operator who set the cap wants credits protected even when
     // the accounting layer is broken.
-    console.error('[llm-budget] global budget RPC unavailable — failing closed', { error });
+    console.error('[llm-budget] global budget RPC unavailable - failing closed', { error });
     return 'blocked';
   } catch (err) {
-    console.error('[llm-budget] global budget check threw — failing closed', err);
+    console.error('[llm-budget] global budget check threw - failing closed', err);
     return 'blocked';
   }
 }

@@ -25,7 +25,7 @@ const actions = [
   },
   {
     title: 'Leads',
-    description: 'GTM feed — signals, directory leads, and outreach.',
+    description: 'GTM feed - signals, directory leads, and outreach.',
     href: '/leads',
     icon: Sparkles,
     accent: 'bg-flame/10 text-flame',

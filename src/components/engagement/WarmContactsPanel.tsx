@@ -338,7 +338,7 @@ export default function WarmContactsPanel() {
           <h2 className="text-[22px] text-ink tracking-[-0.025em]">Warm contacts</h2>
           <p className="text-sm text-text-secondary mt-1 max-w-xl">
             People who reacted to your posts. Sync reactions, triage ICPs, draft and send connection
-            notes in your voice — with Signals safety caps.
+            notes in your voice - with Signals safety caps.
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -358,7 +358,7 @@ export default function WarmContactsPanel() {
           <Shield className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
           <p>
             Outreach is{' '}
-            {safety?.settings.dry_run ? 'in dry-run mode' : 'disabled'} — drafts work, but sends
+            {safety?.settings.dry_run ? 'in dry-run mode' : 'disabled'} - drafts work, but sends
             are blocked until you enable outreach in{' '}
             <Link href="/leads?view=setup" className="text-accent-primary hover:underline">
               Leads → Setup

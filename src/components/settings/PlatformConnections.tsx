@@ -31,7 +31,7 @@ interface PlatformConnectionsProps {
   connectError?: string | null;
 }
 
-// Brand marks rendered as letter tiles — white on the platform's brand color.
+// Brand marks rendered as letter tiles - white on the platform's brand color.
 const PLATFORM_META: Record<
   string,
   { label: string; color: string; icon: string }
@@ -89,7 +89,7 @@ export default function PlatformConnections({
 
   // Per-platform Unipile hosted connect. Full-page redirect to the hosted login;
   // on success Unipile returns to /settings?tab=connections&connected=true, on
-  // failure to ?error=unipile_failed — both land back on this connections page.
+  // failure to ?error=unipile_failed - both land back on this connections page.
   function connectPlatform(platform: string) {
     setConnectingPlatform(platform);
     window.location.href = `/api/social-accounts/connect/unipile?return=settings&provider=${platform}`;
@@ -200,7 +200,7 @@ export default function PlatformConnections({
 
   return (
     <>
-      {/* Inline failure — no fallback UI swap, no raw JSON page. */}
+      {/* Inline failure - no fallback UI swap, no raw JSON page. */}
       {connectError && (
         <div className="mb-4 flex items-start gap-2 rounded-lg border border-coral/30 bg-coral/5 p-3 text-[12px] text-coral">
           <AlertCircle size={14} className="mt-px shrink-0" />
@@ -280,7 +280,7 @@ export default function PlatformConnections({
                 )}
               </div>
 
-              {/* Manual API keys — backup path, toggled from the row. */}
+              {/* Manual API keys - backup path, toggled from the row. */}
               {showByok && (
                 <div className="px-4 pb-4">
                   <ByokSection

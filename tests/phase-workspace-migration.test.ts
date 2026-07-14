@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // ---------------------------------------------------------------------------
 // Schema: workspaces + workspace_members exist in schema.sql
 // ---------------------------------------------------------------------------
-describe('schema.sql — workspace tables present', () => {
+describe('schema.sql - workspace tables present', () => {
   it('contains CREATE TABLE workspaces', async () => {
     const fs = await import('fs');
     const path = await import('path');
@@ -33,9 +33,9 @@ describe('schema.sql — workspace tables present', () => {
 });
 
 // ---------------------------------------------------------------------------
-// workspace.ts — listWorkspaces filters at DB level
+// workspace.ts - listWorkspaces filters at DB level
 // ---------------------------------------------------------------------------
-describe('listWorkspaces — DB-level .in() filter', () => {
+describe('listWorkspaces - DB-level .in() filter', () => {
   beforeEach(() => vi.resetModules());
 
   it('uses .in() to scope workspace query', async () => {
@@ -60,7 +60,7 @@ describe('listWorkspaces — DB-level .in() filter', () => {
                 }),
               };
             }
-            // workspaces table — this is where .in() gets called
+            // workspaces table - this is where .in() gets called
             return {
               select: vi.fn().mockReturnThis(),
               in: inMock,
@@ -83,9 +83,9 @@ describe('listWorkspaces — DB-level .in() filter', () => {
 });
 
 // ---------------------------------------------------------------------------
-// workspace.ts — ensureSoloWorkspace creates workspace for new user
+// workspace.ts - ensureSoloWorkspace creates workspace for new user
 // ---------------------------------------------------------------------------
-describe('ensureSoloWorkspace — creates solo workspace on first call', () => {
+describe('ensureSoloWorkspace - creates solo workspace on first call', () => {
   beforeEach(() => vi.resetModules());
 
   it('inserts workspace + member rows when user has none', async () => {
@@ -151,9 +151,9 @@ describe('ensureSoloWorkspace — creates solo workspace on first call', () => {
 });
 
 // ---------------------------------------------------------------------------
-// voice-context.ts — workspaceId threads through profile query
+// voice-context.ts - workspaceId threads through profile query
 // ---------------------------------------------------------------------------
-describe('loadCreatorVoiceContext — workspace scoping', () => {
+describe('loadCreatorVoiceContext - workspace scoping', () => {
   beforeEach(() => vi.resetModules());
 
   it('calls .eq("workspace_id", ...) when workspaceId provided', async () => {
@@ -220,9 +220,9 @@ describe('loadCreatorVoiceContext — workspace scoping', () => {
 });
 
 // ---------------------------------------------------------------------------
-// migrate-workspaces.ts — backfill script exists and has correct structure
+// migrate-workspaces.ts - backfill script exists and has correct structure
 // ---------------------------------------------------------------------------
-describe('migrate-workspaces.ts — backfill script', () => {
+describe('migrate-workspaces.ts - backfill script', () => {
   it('script file exists in scripts/', async () => {
     const fs = await import('fs');
     const path = await import('path');
@@ -246,9 +246,9 @@ describe('migrate-workspaces.ts — backfill script', () => {
 });
 
 // ---------------------------------------------------------------------------
-// auth route — ensureSoloWorkspace called on login
+// auth route - ensureSoloWorkspace called on login
 // ---------------------------------------------------------------------------
-describe('auth route — workspace provisioned on login', () => {
+describe('auth route - workspace provisioned on login', () => {
   it('establishAuthenticatedSession calls ensureSoloWorkspace', async () => {
     const fs = await import('fs');
     const path = await import('path');

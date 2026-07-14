@@ -128,7 +128,7 @@ ${draft}
     matrix.pass = evaluationPasses(matrix, passThreshold);
     return matrix;
   } catch (err) {
-    // Transient LLM/network error — also skip revision rather than nuke the draft.
+    // Transient LLM/network error - also skip revision rather than nuke the draft.
     console.warn('[voice-evaluator] evaluation call failed, skipping revision', err);
     return skip;
   }

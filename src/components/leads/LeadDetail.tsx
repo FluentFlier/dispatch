@@ -180,7 +180,7 @@ export function LeadDetail({
       const data = await res.json();
       if (res.ok) setNotes(data.notes ?? []);
     } catch {
-      // Notes are optional — a missing table should not break the panel.
+      // Notes are optional - a missing table should not break the panel.
     } finally {
       setNotesLoading(false);
     }
@@ -198,7 +198,7 @@ export function LeadDetail({
       const data = await res.json();
       if (res.ok) setThreadMessages(data.messages ?? []);
     } catch {
-      // Thread is optional — missing table should not break the panel.
+      // Thread is optional - missing table should not break the panel.
     } finally {
       setThreadLoading(false);
     }
@@ -428,7 +428,7 @@ export function LeadDetail({
             <span className="text-xs text-text-secondary flex items-center gap-1.5">
               {accepted && <Check className="h-3.5 w-3.5 text-accent-secondary" />}
               {accepted
-                ? 'Connection accepted — send the follow-up DM.'
+                ? 'Connection accepted - send the follow-up DM.'
                 : 'Connect sent. Check if they have accepted.'}
             </span>
             {lead.outreach?.channel === 'linkedin_dm' && lead.outreach?.draft_text ? (
@@ -484,7 +484,7 @@ export function LeadDetail({
             </ul>
           ) : (
             <p className="text-xs text-text-tertiary">
-              Reply detected — draft a response below. Full thread syncs when Unipile webhooks are configured.
+              Reply detected - draft a response below. Full thread syncs when Unipile webhooks are configured.
             </p>
           )}
         </section>
@@ -519,7 +519,7 @@ export function LeadDetail({
           <MessageSquare className="h-3.5 w-3.5" /> Develop this lead
         </p>
         <p className="text-xs text-text-tertiary">
-          Log next steps — comment ideas, follow-up timing, objections heard.
+          Log next steps - comment ideas, follow-up timing, objections heard.
         </p>
         {notesLoading ? (
           <p className="text-xs text-text-tertiary">Loading notes…</p>

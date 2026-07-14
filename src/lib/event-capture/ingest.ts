@@ -84,7 +84,7 @@ async function enqueueEnrich(client: InsforgeClient, workspaceId: string, captur
  *
  * mode='incremental' (cron): insert new, update only genuinely-changed provider
  * fields, preserve user status/edits. mode='replace' (manual reload): overwrite
- * all provider fields, reset status to 'detected' — the user's deliberate fresh
+ * all provider fields, reset status to 'detected' - the user's deliberate fresh
  * start. Google events over an explicit reload window bypass the recency filter.
  * Returns counts of newly inserted and updated captures.
  */
@@ -185,7 +185,7 @@ export async function ingestEvents(
 
 /**
  * Soft-cancels google-source captures that fall inside a fully-fetched window but
- * were absent from the provider response — i.e. deleted in Google. Marks
+ * were absent from the provider response - i.e. deleted in Google. Marks
  * status='cancelled' instead of deleting so the row + id survive for any
  * downstream reference. Returns the number of rows cancelled.
  */

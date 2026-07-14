@@ -218,7 +218,7 @@ export function SignalDetail({
             onClick={onSend}
             loading={sendBusy}
             disabled={!plan.sendable || overLimit || anyBusy}
-            title={plan.sendable ? undefined : 'No messaging channel on this signal — copy the draft to send by hand.'}
+            title={plan.sendable ? undefined : 'No messaging channel on this signal - copy the draft to send by hand.'}
           >
             {plan.channel === 'gmail' ? <Mail className="h-4 w-4" /> : <Send className="h-4 w-4" />}{' '}
             {channelActionLabel(plan.channel)}

@@ -59,13 +59,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Hourly: fires when cron hits the :00 minute mark
   if (minute === 0) {
     jobs.push(call('calendarSync', '/api/cron/calendar-sync'));
-    // Directory lead digest — self-gates per-workspace local hour + idempotency,
+    // Directory lead digest - self-gates per-workspace local hour + idempotency,
     // so an hourly call only delivers each workspace once at its configured time.
     jobs.push(call('signalsDirectory', '/api/cron/signals-directory'));
   }
 
   // Every 6 hours (00/06/12/18 UTC): refresh post metrics from X + Instagram.
-  // Spaced out to respect platform API rate limits — engagement grows slowly.
+  // Spaced out to respect platform API rate limits - engagement grows slowly.
   if (minute === 0 && hour % 6 === 0) {
     jobs.push(call('metricsSync', '/api/cron/metrics-sync'));
   }

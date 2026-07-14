@@ -73,7 +73,7 @@ export function AdvancedDrawer({
       if (!res.ok) throw new Error(data.error ?? 'ICP apply failed');
       onSettingsSaved(data.settings);
       const inserted = data.sync?.inserted ?? 0;
-      toast(inserted > 0 ? `ICP applied — ${inserted} new leads found.` : 'ICP applied — discovery running.');
+      toast(inserted > 0 ? `ICP applied - ${inserted} new leads found.` : 'ICP applied - discovery running.');
       onDiscoveryComplete?.();
     } catch (err) {
       console.error('ICP apply failed', err);
@@ -164,7 +164,7 @@ export function AdvancedDrawer({
       <section className="space-y-2 mb-6">
         <p className="text-xs tracking-wide text-text-tertiary">Meeting link</p>
         <p className="text-xs text-text-tertiary">
-          Paste Calendly / Google Calendar / Cal.com — included in reply drafts when booking a call.
+          Paste Calendly / Google Calendar / Cal.com - included in reply drafts when booking a call.
         </p>
         <input
           value={meetingLink}

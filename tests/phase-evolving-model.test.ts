@@ -1,5 +1,5 @@
 /**
- * Phase: Evolving model — closed learning flywheel
+ * Phase: Evolving model - closed learning flywheel
  */
 import { describe, it, expect, vi } from 'vitest';
 import { getBestHooksForGeneration } from '@/lib/hooks-intelligence/resolve-hooks';

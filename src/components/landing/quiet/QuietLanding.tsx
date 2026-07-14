@@ -408,7 +408,7 @@ function ProductStories() {
     {
       kicker: 'Warm contacts and signal leads',
       title: 'Reach people worth talking to.',
-      copy: 'Find warm contacts from your network and signal leads that match your ICP—with research, connect notes, and outreach drafts ready.',
+      copy: 'Find warm contacts from your network and signal leads that match your ICP-with research, connect notes, and outreach drafts ready.',
       visual: <LeadProof />,
       icon: MessageCircle,
       section: 'bg-[#f8f0ff]',

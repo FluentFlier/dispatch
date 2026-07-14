@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { getBestHooksForContext } from '@/lib/hooks-intelligence';
 
 /**
- * F6: the surfaced hook list must be diverse — not five clones of the
+ * F6: the surfaced hook list must be diverse - not five clones of the
  * "I made $X from a viral thread" template.
  */
 describe('F6: hook diversity', () => {

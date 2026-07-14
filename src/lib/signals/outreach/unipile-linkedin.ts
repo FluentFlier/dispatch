@@ -62,7 +62,7 @@ type StoredLinkedInAccount = {
  * mirrors the publish/metrics-sync self-heal: verify the stored id, and when it is
  * stale recover the current id by the stable identity (account_id = publicIdentifier
  * / member id). Returns null when Unipile is unreachable so callers fall back to the
- * stored id — unconfigured/local environments then behave exactly as before.
+ * stored id - unconfigured/local environments then behave exactly as before.
  */
 async function healUnipileAccountId(
   storedId: string,
@@ -74,7 +74,7 @@ async function healUnipileAccountId(
       return { accountId: target.unipileAccountId, refreshed: target.refreshed };
     }
   } catch {
-    // Unipile unreachable / unexpected shape — caller falls back to the stored id.
+    // Unipile unreachable / unexpected shape - caller falls back to the stored id.
   }
   return null;
 }

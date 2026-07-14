@@ -15,7 +15,7 @@ const KNOWN_SECTION_HEADERS = [
   'CREATOR BRAIN',
   // The retrieved past-posts block (voice-context.ts). Was previously unrecognized
   // (the list carried a dead 'SEMANTIC MEMORY' header nobody emits), so the block
-  // glued onto the preceding section and got stripped for posts — that is how real
+  // glued onto the preceding section and got stripped for posts - that is how real
   // names/context like "Anirudh Manjesh" were lost before reaching the model.
   'PAST CONTENT YOU HAVE ALREADY PUBLISHED',
   'SEMANTIC MEMORY',

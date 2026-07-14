@@ -28,7 +28,7 @@ const AGENT_ENDPOINT = 'https://agent.tinyfish.ai/v1/automation/run';
 // Agent extraction from JS-heavy directory SPAs is nondeterministic: one run can
 // return 0-10 rows (the page renders lazily). So we make up to MAX_ATTEMPTS runs
 // and accumulate unique companies across them, stopping early once we clear
-// TARGET_FLOOR. Attempts also absorb a transient failure. Kept small — each run
+// TARGET_FLOOR. Attempts also absorb a transient failure. Kept small - each run
 // is slow (~25-130s) and metered.
 const MAX_ATTEMPTS = 3;
 
@@ -62,7 +62,7 @@ export function isDemoSeedEnabled(): boolean {
  * the per-directory goals (see DIRECTORY_QUERIES). When no API key is
  * configured, returns an empty array for a real workspace; the deterministic
  * seed set is returned ONLY behind the explicit SIGNALS_DEMO_SEED flag (demo /
- * offline testing), never as a silent fallback — swap in creds to go live.
+ * offline testing), never as a silent fallback - swap in creds to go live.
  *
  * Retries to a target: because a single run is unreliable, it runs up to
  * MAX_ATTEMPTS times and accumulates unique companies across runs, breaking once
@@ -78,7 +78,7 @@ export async function fetchDirectoryLeads(
 
   // YC directory is served by YC's OWN public Algolia index (see yc-algolia.ts):
   // keyless from our side, ~300ms, deterministic, real company homepages. It must
-  // run whether or not a TinyFish Agent key is configured — otherwise a workspace
+  // run whether or not a TinyFish Agent key is configured - otherwise a workspace
   // with no paid scraping credentials gets an empty feed even though the free,
   // reliable YC source is right there. Only the demo-seed flag short-circuits it
   // to fabricated data (fully-offline testing).
@@ -145,7 +145,7 @@ export async function fetchDirectoryLeads(
       if (!res.ok) throw new Error(`TinyFish ${res.status}: ${await res.text()}`);
 
       const payload = (await res.json()) as AgentRunResponse;
-      // A 200 can still carry a failed run — treat anything but COMPLETED as an error.
+      // A 200 can still carry a failed run - treat anything but COMPLETED as an error.
       if (payload.status !== 'COMPLETED' || payload.error) {
         throw new Error(
           `TinyFish run ${payload.status ?? 'unknown'}: ${payload.error ?? 'no result returned'}`,
@@ -180,7 +180,7 @@ export async function fetchDirectoryLeads(
       }
 
       if (collected.size >= targetFloor) break;
-      // Under-extracted (common on lazy SPAs) — fall through and try again.
+      // Under-extracted (common on lazy SPAs) - fall through and try again.
     } catch (err) {
       lastErr = err;
       if (debug) {

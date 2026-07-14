@@ -215,7 +215,7 @@ export function BrainGraphView() {
           <InsightCard label="Story memories" value={String(insights.storyCount)} />
           <InsightCard
             label="Top pillar"
-            value={insights.topPillarByPerformance?.label ?? '—'}
+            value={insights.topPillarByPerformance?.label ?? '-'}
             hint={
               insights.topPillarByPerformance?.views
                 ? `${insights.topPillarByPerformance.views.toLocaleString()} views`
@@ -224,7 +224,7 @@ export function BrainGraphView() {
           />
           <InsightCard
             label="Best performer"
-            value={insights.bestPost?.label ?? '—'}
+            value={insights.bestPost?.label ?? '-'}
             hint={
               insights.bestPost?.views
                 ? `${insights.bestPost.views.toLocaleString()} views`
@@ -234,7 +234,7 @@ export function BrainGraphView() {
         </div>
       )}
 
-      {/* What's working — mined content-performance learnings */}
+      {/* What's working - mined content-performance learnings */}
       <LearningSection
         title="What's working"
         subtitle="Learned from your published performance. Click a learning to trace it on the graph."
@@ -244,7 +244,7 @@ export function BrainGraphView() {
         onClear={() => setHighlight(null)}
       />
 
-      {/* From your pipeline — content ↔ lead fit */}
+      {/* From your pipeline - content ↔ lead fit */}
       <LearningSection
         title="From your pipeline"
         subtitle="How your content lines up with the themes and intent of your actual leads."
@@ -254,12 +254,12 @@ export function BrainGraphView() {
         onClear={() => setHighlight(null)}
       />
 
-      {/* Setup nudges — shown only when there isn't enough data for real learnings */}
+      {/* Setup nudges - shown only when there isn't enough data for real learnings */}
       {insights && learnings.length === 0 && pipelineLearnings.length === 0 && insights.decisions.length > 0 && (
         <section className="card-surface p-4">
           <h2 className="text-[13px] font-semibold tracking-[0.01em] text-ink">What to do next</h2>
           <p className="mt-0.5 text-[12px] text-ink3">
-            Based on what your brain has learned — and what&apos;s still missing.
+            Based on what your brain has learned - and what&apos;s still missing.
           </p>
           <ul className="mt-3 space-y-2">
             {insights.decisions.map((decision) => (

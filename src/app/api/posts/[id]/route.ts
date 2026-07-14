@@ -133,7 +133,7 @@ export async function PATCH(
       });
     }
 
-    // L3: keep memory in sync with manual edits — reuses the existing content-diff
+    // L3: keep memory in sync with manual edits - reuses the existing content-diff
     // above so trivial autosaves don't re-embed. Keyed on the URN when the post
     // was published so the edit updates the same document as publish/import.
     try {
@@ -151,7 +151,7 @@ export async function PATCH(
           userId: user.id,
           workspaceId: data.workspace_id ?? existingPost?.workspace_id ?? null,
           kind: 'edited_post',
-          content: `[Your ${data.platform ?? 'social'} post from ${data.posted_date ?? 'unknown date'}] — this ALREADY happened; reference as past.\n\n${editedText}`,
+          content: `[Your ${data.platform ?? 'social'} post from ${data.posted_date ?? 'unknown date'}] - this ALREADY happened; reference as past.\n\n${editedText}`,
           customId: buildPostMemoryCustomId(data.platform, providerPostId, params.id),
           metadata: { platform: data.platform ?? '', posted_date: data.posted_date ?? '' },
         });

@@ -9,7 +9,7 @@ import { logError, logInfo } from '@/lib/logger';
  *
  * The worker claims tasks with lease-based locking (see runEngagementTaskQueue),
  * so overlapping invocations never double-post. Small batch per run keeps
- * outbound activity drip-fed rather than bursty — LinkedIn watches for bursts.
+ * outbound activity drip-fed rather than bursty - LinkedIn watches for bursts.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const authHeader = request.headers.get('authorization');

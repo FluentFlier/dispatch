@@ -13,7 +13,7 @@ const POS = {
   center: 'left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
 } as const;
 
-/** Soft accent orb — matches section theme glow. */
+/** Soft accent orb - matches section theme glow. */
 export default function LandingGlowOrb({
   tone,
   position = 'right',

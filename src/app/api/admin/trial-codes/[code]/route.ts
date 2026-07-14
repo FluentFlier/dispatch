@@ -7,7 +7,7 @@ import { logAdminAction } from '@/lib/admin/audit';
 const PatchSchema = z.object({ active: z.boolean() });
 
 /**
- * PATCH /api/admin/trial-codes/[code] — enable/disable a code.
+ * PATCH /api/admin/trial-codes/[code] - enable/disable a code.
  */
 export async function PATCH(
   request: NextRequest,
@@ -44,7 +44,7 @@ export async function PATCH(
 }
 
 /**
- * DELETE /api/admin/trial-codes/[code] — permanently remove a code.
+ * DELETE /api/admin/trial-codes/[code] - permanently remove a code.
  */
 export async function DELETE(
   _request: NextRequest,

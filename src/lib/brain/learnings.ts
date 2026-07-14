@@ -21,7 +21,7 @@ export interface ContentLearning {
   /** Short badge, e.g. "2.3×" or "r=0.5". */
   metric?: string;
   sentiment: LearningSentiment;
-  /** Low when the sample is thin — surfaced to the user, never hidden. */
+  /** Low when the sample is thin - surfaced to the user, never hidden. */
   confidence: 'high' | 'low';
   sampleSize: number;
   /** Graph node ids to highlight when the learning is engaged. */
@@ -45,7 +45,7 @@ export interface LearningPost {
   posted_date: string | null;
 }
 
-// Below MIN_POSTS total we don't claim any learning — the graph falls back to
+// Below MIN_POSTS total we don't claim any learning - the graph falls back to
 // the setup-nudge decisions instead of inventing patterns from noise.
 const MIN_POSTS = 4;
 const MIN_GROUP = 3;
@@ -292,7 +292,7 @@ function slug(s: string): string {
  * alignment (pillars the pipeline rewards), and dominant buyer intent.
  *
  * There is no post→lead link in the data, so this is topical fit, not
- * attribution — and it's gated on lead volume so it never speaks from noise.
+ * attribution - and it's gated on lead volume so it never speaks from noise.
  */
 export function deriveLeadFitLearnings(leads: LeadSignal[], graph: BrainGraph): ContentLearning[] {
   if (leads.length < MIN_LEADS) return [];
@@ -353,7 +353,7 @@ export function deriveLeadFitLearnings(leads: LeadSignal[], graph: BrainGraph): 
         id: `align-${slug(theme.label)}`,
         kind: 'alignment',
         headline: `Your "${pillar.label}" pillar matches your pipeline`,
-        detail: `${theme.count} leads are tagged "${theme.label}" — this pillar is aimed at real demand. Keep feeding it.`,
+        detail: `${theme.count} leads are tagged "${theme.label}" - this pillar is aimed at real demand. Keep feeding it.`,
         metric: String(theme.count),
         sentiment: 'positive',
         confidence: theme.count >= 6 ? 'high' : 'low',
@@ -367,7 +367,7 @@ export function deriveLeadFitLearnings(leads: LeadSignal[], graph: BrainGraph): 
         id: `gap-${slug(theme.label)}`,
         kind: 'gap',
         headline: `No content for "${theme.label}"`,
-        detail: `${theme.count} leads care about "${theme.label}" but none of your pillars cover it — a gap worth filling.`,
+        detail: `${theme.count} leads care about "${theme.label}" but none of your pillars cover it - a gap worth filling.`,
         metric: String(theme.count),
         sentiment: 'watch',
         confidence: theme.count >= 6 ? 'high' : 'low',

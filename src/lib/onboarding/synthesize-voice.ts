@@ -9,7 +9,7 @@ export interface OnboardingPersona {
   exportable_prompt: string;
 }
 
-const FAST_SYNTHESIZE_PROMPT = `You are a voice synthesis expert. Given a voice analysis from real posts AND emails, produce a final persona profile WITHOUT interview answers — infer anything missing from the samples.
+const FAST_SYNTHESIZE_PROMPT = `You are a voice synthesis expert. Given a voice analysis from real posts AND emails, produce a final persona profile WITHOUT interview answers - infer anything missing from the samples.
 
 Merge public post voice with private email voice: emails often show how they explain, persuade, and sign off 1:1; posts show hooks and public positioning. The persona must work for both.
 
@@ -33,7 +33,7 @@ Return ONLY valid JSON. Use \\n for line breaks inside strings, never literal ne
 }`;
 
 /**
- * Fast-path persona synthesis for onboarding — skips gap-question interview
+ * Fast-path persona synthesis for onboarding - skips gap-question interview
  * so users reach their Creator Baseline in one shot (Stanley-style speed).
  */
 export async function synthesizePersonaFromAnalysis(

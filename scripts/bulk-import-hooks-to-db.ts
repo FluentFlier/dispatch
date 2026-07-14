@@ -24,7 +24,7 @@ async function main() {
 
   console.log(`Importing ${hooks.length} hooks + ${analytics.length} analytics rows to InsForge...`);
 
-  // 1) hook_examples — use the per-hook scores/details from the dataset
+  // 1) hook_examples - use the per-hook scores/details from the dataset
   //    (generated with the app's own scoreHook logic), not a flat default.
   const rows = hooks.map((h: any) => ({
     id: h.id,
@@ -50,7 +50,7 @@ async function main() {
     }
   }
 
-  // 2) analytics_snapshots — the "respective analytics" for the hooks
+  // 2) analytics_snapshots - the "respective analytics" for the hooks
   //    (per-hook performance + 30-day aggregate time series). No stable unique
   //    key on this table, so insert rather than upsert.
   if (analytics.length > 0) {
