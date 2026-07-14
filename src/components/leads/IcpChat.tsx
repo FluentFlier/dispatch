@@ -63,6 +63,9 @@ export function IcpChat({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [discovering, setDiscovering] = useState(false);
+  // LOCAL DEBUG ONLY (do not commit): surfaces when a message failed to set up the
+  // ICP so we can see silent no-ops while testing. Renders nothing in prod builds.
+  const [icpDebug, setIcpDebug] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const didMountRef = useRef(false);
@@ -206,6 +209,16 @@ export function IcpChat({
       if (data.settings) onSettingsSaved?.(data.settings as DirectorySettingsRow);
       if (data.applied) toast?.('ICP updated.', 'success');
       if (data.suggestRun) void runDiscovery();
+
+      // LOCAL DEBUG ONLY (do not commit): flag a message that neither set up an
+      // ICP nor triggered discovery, so a silent no-op is visible while testing.
+      if (process.env.NODE_ENV === 'development') {
+        setIcpDebug(
+          !data.suggestRun && !data.applied && !data.icpUnderstood
+            ? `[dev] ICP NOT set up from this message. applied=${data.applied} hasIcp=${data.hasIcp} suggestRun=${data.suggestRun}. The classifier returned no ICP and the message did not look like one — check /api/leads/icp/chat.`
+            : null,
+        );
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not send message.';
       toast?.(msg, 'error');
@@ -239,6 +252,12 @@ export function IcpChat({
         compact ? 'min-h-[320px]' : 'min-h-[420px]'
       }`}
     >
+      {/* LOCAL DEBUG ONLY (do not commit) — hidden in production builds. */}
+      {process.env.NODE_ENV === 'development' && icpDebug && (
+        <div className="border-b border-red-500/40 bg-red-500/10 px-4 py-2 text-[11px] text-red-600">
+          {icpDebug}
+        </div>
+      )}
       <div className="border-b border-border px-4 py-3 flex items-start gap-3">
         <div className="rounded-full bg-accent-primary/10 p-2 shrink-0">
           <Target className="h-4 w-4 text-accent-primary" />

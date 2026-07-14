@@ -8,6 +8,7 @@ import {
   contactPillLabel,
   isReachable,
   scoreChip,
+  importedLabel,
 } from './feed-format';
 
 interface LeadCardProps {
@@ -39,6 +40,8 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown, checke
   const summary = card.tagline || card.signalSummary || null;
   // Hidden (null) for near-zero ICP scores so a wall of "0.00" doesn't read as broken.
   const scoreLabel = scoreChip(card.score);
+  // Import date + how long ago we pulled it (freshness at a glance).
+  const imported = importedLabel(card.firstSeenAt);
 
   return (
     <div className={`flex items-stretch border-b border-border last:border-0 ${followed ? 'bg-sage-light/40' : ''}`}>
@@ -136,6 +139,11 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown, checke
         {card.needsReply && (
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-coral-light text-coral-dark font-medium">
             Needs reply
+          </span>
+        )}
+        {imported && (
+          <span className="text-[10px] text-text-tertiary ml-auto shrink-0" title={imported}>
+            {imported}
           </span>
         )}
       </div>

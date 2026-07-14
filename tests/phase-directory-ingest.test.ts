@@ -8,18 +8,31 @@ import { SEED_DIRECTORY_LEADS } from '@/lib/signals/ingest/seed-leads';
 import { fetchYcFounders, fetchYcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { decideContactStatus } from '@/lib/signals/leads/identity';
 
-/** Builds a fetch Response-like stub for the TinyFish Agent /run endpoint. */
-function agentResponse(
-  body: unknown,
-  init: { ok?: boolean; status?: number } = {},
-): Response {
-  const text = JSON.stringify(body);
+// Directory extraction (Product Hunt / YC Launches) runs an LLM over the fetched
+// page text. Mock it so the fetch-path tests are deterministic; individual tests
+// override the return via vi.mocked(chatCompletion).mockResolvedValueOnce(...).
+vi.mock('@/lib/llm', () => ({
+  isLlmConfigured: () => true,
+  chatCompletion: vi.fn(async () =>
+    JSON.stringify({
+      companies: [
+        { company_name: 'Lumen', website: 'https://lumen.so', tagline: 'AI notes', tags: ['AI'] },
+        { company_name: 'Harbor', website: 'https://harbor.app', tagline: 'CRM', tags: ['CRM'] },
+      ],
+    }),
+  ),
+}));
+import { chatCompletion } from '@/lib/llm';
+
+/** A TinyFish Fetch response carrying rendered page `text` for one URL. */
+function fetchPageResponse(text: string, init: { ok?: boolean; status?: number } = {}): Response {
+  const body = { results: [{ url: 'https://www.producthunt.com/', text }] };
   return {
     ok: init.ok ?? true,
     status: init.status ?? 200,
-    statusText: init.status === 401 ? 'Unauthorized' : 'OK',
-    json: async () => JSON.parse(text),
-    text: async () => text,
+    statusText: init.status && init.status >= 400 ? 'Error' : 'OK',
+    json: async () => body,
+    text: async () => JSON.stringify(body),
   } as Response;
 }
 
@@ -122,10 +135,11 @@ describe('Phase: Directory ingest (no key, demo flag OFF)', () => {
   });
 });
 
-describe('Phase: Directory ingest (live TinyFish Agent path)', () => {
+describe('Phase: Directory ingest (live Fetch + extract path)', () => {
   const prevKey = process.env.TINYFISH_API_KEY;
   beforeEach(() => {
     process.env.TINYFISH_API_KEY = 'sk-test-key';
+    vi.mocked(chatCompletion).mockClear();
   });
   afterEach(() => {
     if (prevKey === undefined) delete process.env.TINYFISH_API_KEY;
@@ -133,68 +147,41 @@ describe('Phase: Directory ingest (live TinyFish Agent path)', () => {
     vi.restoreAllMocks();
   });
 
-  /** A COMPLETED run carrying N synthetic companies (external_id c0..c{N-1}). */
-  function completedRun(n: number): Response {
-    return agentResponse({
-      run_id: 'r',
-      status: 'COMPLETED',
-      error: null,
-      result: {
-        companies: Array.from({ length: n }, (_, i) => ({
-          external_id: `c${i}`,
-          company_name: `Co ${i}`,
-          tagline: 't',
-          batch: 'W2009',
-          tags: ['travel'],
-          founders: i === 0 ? [{ name: 'Brian', role: 'CEO', linkedin_url: 'https://li/brian' }] : [],
-        })),
-      },
-    });
-  }
-
-  // product_hunt uses the agent path (yc_directory now uses the Algolia path).
-  it('normalizes a COMPLETED Agent run and breaks on the first sufficient run', async () => {
-    // 6 companies clears the target floor (5) → exactly one agent call.
-    const spy = vi.spyOn(global, 'fetch').mockResolvedValue(completedRun(6));
+  // product_hunt now uses TinyFish Fetch (render the listing) + LLM extract
+  // (yc_directory uses the Algolia path; the slow Agent path was retired).
+  it('renders the listing via Fetch and extracts every listed company', async () => {
+    const spy = vi.spyOn(global, 'fetch').mockResolvedValue(
+      fetchPageResponse('Lumen - AI notes.  Harbor - vertical CRM.'),
+    );
 
     const leads = await fetchDirectoryLeads('product_hunt');
-    expect(spy).toHaveBeenCalledTimes(1);
     expect(spy).toHaveBeenCalledWith(
-      'https://agent.tinyfish.ai/v1/automation/run',
+      'https://api.fetch.tinyfish.ai',
       expect.objectContaining({ method: 'POST' }),
     );
-    expect(leads).toHaveLength(6);
-    expect(leads[0]).toMatchObject({ source: 'product_hunt', externalId: 'c0', companyName: 'Co 0' });
-    expect(leads[0].founders?.[0]).toMatchObject({ name: 'Brian', linkedinUrl: 'https://li/brian' });
+    expect(leads).toHaveLength(2);
+    expect(leads.every((l) => l.source === 'product_hunt')).toBe(true);
+    expect(leads[0]).toMatchObject({ companyName: 'Lumen', website: 'https://lumen.so' });
+    expect(leads[0].externalId).toContain('product_hunt-lumen');
   });
 
-  // Reliability regression: a single agent run is nondeterministic (0-10 rows).
-  // An empty run must NOT end the scrape - the next attempt should recover.
-  it('retries past an empty run and accumulates unique companies', async () => {
-    const spy = vi
-      .spyOn(global, 'fetch')
-      .mockResolvedValueOnce(completedRun(0)) // attempt 1: agent under-extracts
-      .mockResolvedValueOnce(completedRun(6)); // attempt 2: recovers
-
-    const leads = await fetchDirectoryLeads('product_hunt');
-    expect(spy).toHaveBeenCalledTimes(2);
-    expect(leads).toHaveLength(6);
-  });
-
-  // Regression: a 401 (wrong key) must SURFACE as a thrown DirectoryScrapeError,
-  // not be silently normalized into 0 leads. This is the original silent-failure bug.
-  it('throws DirectoryScrapeError on a 401 (never swallows into 0 leads)', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue(
-      agentResponse({ error_info: 'API Key not found' }, { ok: false, status: 401 }),
-    );
+  // Regression: a Fetch non-200 must SURFACE as a thrown DirectoryScrapeError,
+  // not be silently swallowed into 0 leads.
+  it('throws DirectoryScrapeError on a Fetch non-200 (never swallows into 0 leads)', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(fetchPageResponse('', { ok: false, status: 401 }));
     await expect(fetchDirectoryLeads('product_hunt')).rejects.toBeInstanceOf(DirectoryScrapeError);
   });
 
-  // Regression: a 200 carrying a FAILED run is still a failure, not empty success.
-  it('throws when the run status is not COMPLETED', async () => {
-    vi.spyOn(global, 'fetch').mockResolvedValue(
-      agentResponse({ run_id: 'r2', status: 'FAILED', error: 'navigation timeout', result: null }),
-    );
+  // A rendered page with no extractable text is a failure, not empty success.
+  it('throws when Fetch returns no page text', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(fetchPageResponse(''));
+    await expect(fetchDirectoryLeads('product_hunt')).rejects.toBeInstanceOf(DirectoryScrapeError);
+  });
+
+  // Extraction that finds zero companies must throw so the source surfaces as failed.
+  it('throws when extraction finds no companies', async () => {
+    vi.spyOn(global, 'fetch').mockResolvedValue(fetchPageResponse('a page with no companies on it'));
+    vi.mocked(chatCompletion).mockResolvedValueOnce(JSON.stringify({ companies: [] }));
     await expect(fetchDirectoryLeads('product_hunt')).rejects.toBeInstanceOf(DirectoryScrapeError);
   });
 });
