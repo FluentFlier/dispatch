@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
-import { fetchUnipileAccountDetails, mapPlatform } from '@/lib/social/unipile';
+import { fetchUnipileAccountDetails, mapPlatform, pruneDuplicateUnipileAccounts } from '@/lib/social/unipile';
 import { isValidUnipileAuth, validateUnipileWebhookAuth } from '@/lib/webhooks/unipile-auth';
 import { ensureSoloWorkspace } from '@/lib/workspace';
 import { handleInboundUnipileMessage } from '@/lib/signals/leads/inbound-message';
@@ -169,6 +169,13 @@ async function upsertSocialAccountFromUnipileAccount({
     .from('unipile_connect_snapshots')
     .delete()
     .eq('user_id', userId);
+
+  // Reap this person's stale duplicate boxes (dev + prod share one Unipile key,
+  // so every reconnect anywhere piles up another session on the same tenant).
+  await pruneDuplicateUnipileAccounts(
+    unipileAccountId,
+    full?.connection_params?.im?.publicIdentifier ?? null,
+  );
 }
 
 /**
