@@ -27,6 +27,8 @@ export interface VoicePipelineInput {
   structural?: StructuralPatterns;
   /** Stage 0: web-research the brief before drafting (best-effort). */
   research?: boolean;
+  /** Progress callback fired at each pipeline stage start (interactive SSE UIs). */
+  onStage?: (stage: string) => void;
 }
 
 export interface VoicePipelineResult {
@@ -75,6 +77,7 @@ export async function generateWithVoicePipeline(
     vocabulary: input.vocabulary,
     structural: input.structural,
     research: input.research,
+    onStage: input.onStage,
   };
 
   const result: ContentPipelineResult = await runContentPipeline(pipelineInput);

@@ -73,12 +73,30 @@ export function backoffMs(attempt: number, retryAfterHeader: string | null, body
   return Math.min(Math.max(1000 * 2 ** attempt, MIN_BACKOFF_MS) + jitter(), MAX_BACKOFF_MS);
 }
 
+/**
+ * Semantic provider role. Prod runs three SEPARATE endpoints (OpenAI for
+ * generation, Cerebras for judging/small tasks, Groq as fallback) that cannot
+ * be consolidated behind one base URL, so a role selects its own
+ * {baseUrl, apiKey, model} triplet from env. Unset role env → falls back to the
+ * global LLM_* primary, so local/CI (one provider) needs zero role config.
+ *   generate → LLM_GENERATE_*  (main quality model, e.g. GPT-5.5)
+ *   judge    → LLM_JUDGE_*     (scoring/evaluation, e.g. Cerebras)
+ *   small    → LLM_SMALL_*     (humanize, targeted revise, edit passes)
+ */
+export type ProviderRole = 'generate' | 'judge' | 'small';
+
 /** Options for a single chat completion. All optional. */
 export interface ChatCompletionOptions {
   maxTokens?: number;
   temperature?: number;
   /** Override the env model for this call (rarely needed). */
   model?: string;
+  /**
+   * Route this call to a specific provider endpoint by role. When the role's
+   * LLM_<ROLE>_* env triplet is set it owns baseUrl+key+model (options.model is
+   * ignored). When unset, resolution falls through to the global LLM_* primary.
+   */
+  role?: ProviderRole;
   /**
    * Ask the provider for a guaranteed-JSON response (response_format
    * json_object). Providers that reject the param 400 - the call is retried
@@ -178,6 +196,43 @@ function getFallbackProvider(primary: Provider | null): Provider | null {
     };
   }
   return null;
+}
+
+/**
+ * Per-role env triplets. A role selects its own endpoint so generate/judge/small
+ * can point at three separate providers (OpenAI/Cerebras/Groq) that cannot share
+ * one base URL.
+ */
+const ROLE_ENV: Record<ProviderRole, { url: string; key: string; model: string }> = {
+  generate: { url: 'LLM_GENERATE_BASE_URL', key: 'LLM_GENERATE_API_KEY', model: 'LLM_GENERATE_MODEL' },
+  judge: { url: 'LLM_JUDGE_BASE_URL', key: 'LLM_JUDGE_API_KEY', model: 'LLM_JUDGE_MODEL' },
+  small: { url: 'LLM_SMALL_BASE_URL', key: 'LLM_SMALL_API_KEY', model: 'LLM_SMALL_MODEL' },
+};
+
+/**
+ * Resolves a role to its dedicated provider, or null when the role's env triplet
+ * is not fully set (so the caller falls back to the global LLM_* primary). All
+ * three vars (url+key+model) must be present; a partial triplet is treated as
+ * unconfigured rather than a half-built provider.
+ */
+function resolveRoleProvider(role: ProviderRole): Provider | null {
+  const env = ROLE_ENV[role];
+  const url = process.env[env.url]?.trim();
+  const key = process.env[env.key]?.trim();
+  const model = process.env[env.model]?.trim();
+  if (url && key && model) {
+    return { baseUrl: url.replace(/\/+$/, ''), apiKey: key, model, label: `role:${role}` };
+  }
+  return null;
+}
+
+/**
+ * Selects the primary provider for a call: an explicit role endpoint when
+ * configured, else the global LLM_* primary (which honors options.model). Shared
+ * by chatCompletion and chatCompletionStream so both route roles identically.
+ */
+function resolvePrimary(options: ChatCompletionOptions): Provider | null {
+  return (options.role ? resolveRoleProvider(options.role) : null) ?? getPrimaryProvider(options.model);
 }
 
 /**
@@ -325,7 +380,7 @@ export async function chatCompletion(
     throw new LlmError('Global daily AI budget reached. Generation paused to protect credits.', 429);
   }
 
-  const primary = getPrimaryProvider(options.model);
+  const primary = resolvePrimary(options);
   if (!primary) {
     // No provider configured -> legacy HuggingFace SDK path (last resort).
     return generateContentHF(systemPrompt, userPrompt);
@@ -363,6 +418,58 @@ export async function chatCompletion(
       return callProviderWithJsonFallback(fallback, systemPrompt, userPrompt, { ...options, model: undefined }, true);
     }
     throw err;
+  }
+}
+
+const DESCRIBE_IMAGE_PROMPT =
+  'Describe this image in one or two plain sentences: setting, people count, what is ' +
+  'happening, any visible text/signage. Concrete visual details only - never guess names ' +
+  'or identities of people in the photo.';
+
+/**
+ * One-time vision description of an image URL, cached by the caller (imports
+ * call this once per image and store the result - never re-run per generation).
+ * Best-effort like every other optional enhancement in this codebase (Supermemory
+ * writes, humanizer, evaluator): never throws, returns null on any failure
+ * (no vision-capable model configured, provider rejects the request, network
+ * error) so a bad/missing description degrades to "no image context" rather
+ * than blocking the import.
+ */
+export async function describeImage(imageUrl: string, model?: string): Promise<string | null> {
+  if ((await checkGlobalLlmBudget()) === 'blocked') return null;
+
+  const visionModel = model ?? process.env.LLM_VISION_MODEL;
+  const primary = getPrimaryProvider(visionModel);
+  if (!primary || !visionModel) return null;
+
+  try {
+    const response = await fetch(`${primary.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${primary.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: primary.model,
+        max_tokens: 150,
+        temperature: 0.2,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: DESCRIBE_IMAGE_PROMPT },
+              { type: 'image_url', image_url: { url: imageUrl } },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!response.ok) {
+      console.warn('[describeImage] provider rejected request', response.status, await response.text().catch(() => ''));
+      return null;
+    }
+    const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    return data.choices?.[0]?.message?.content?.trim() || null;
+  } catch (err) {
+    console.warn('[describeImage] failed (non-fatal)', err);
+    return null;
   }
 }
 
@@ -486,7 +593,7 @@ export async function chatCompletionStream(
     throw new LlmError('Global daily AI budget reached. Generation paused to protect credits.', 429);
   }
 
-  const primary = getPrimaryProvider(options.model);
+  const primary = resolvePrimary(options);
   if (!primary) {
     const text = await generateContentHF(systemPrompt, userPrompt);
     if (text) onToken(text);

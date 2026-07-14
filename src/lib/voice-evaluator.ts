@@ -1,7 +1,6 @@
 ﻿import { type CreatorProfileForPrompt } from '@/lib/ai';
 import { chatCompletion } from '@/lib/llm';
 import { parseLlmJson } from '@/lib/llm-json';
-import { resolveModel } from '@/lib/ai-tiers';
 import { voiceEvidenceOnly } from '@/lib/content-pipeline/context-split';
 
 /** Mirrors Imagine Content Writer internal matrix (1-10 each). */
@@ -106,7 +105,9 @@ ${draft}
       temperature: 0.2,
       maxTokens: 400,
       responseFormat: 'json',
-      model: resolveModel('fast'),
+      // Route scoring to the dedicated judge endpoint (LLM_JUDGE_*, e.g. Cerebras).
+      // Unconfigured -> falls back to the global primary, preserving prior behavior.
+      role: 'judge',
     });
     const parsed = parseLlmJson<Partial<VoiceEvaluationMatrix>>(raw);
     if (!parsed) {

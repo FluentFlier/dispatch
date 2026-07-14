@@ -96,7 +96,10 @@ export async function targetedRevise(
       await chatCompletion(
         'You are a precise editor. Fix only what is asked; never rewrite from scratch.',
         buildTargetedRevisePrompt(text, fails),
-        { temperature: 0.4, maxTokens: 1200, model },
+        // Targeted fix-only edit is a small-model task: route to LLM_SMALL_* when
+        // set. The `model` override only applies when no small endpoint is
+        // configured (role provider takes precedence in resolvePrimary).
+        { temperature: 0.4, maxTokens: 1200, model, role: 'small' },
       ),
     );
   } catch (err) {

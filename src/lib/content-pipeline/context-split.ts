@@ -17,6 +17,7 @@ const KNOWN_SECTION_HEADERS = [
   'UNUSED STORY BANK',
   'PERFORMANCE BASELINE:',
   'RESEARCH NOTES',
+  'PAST CONTENT YOU HAVE ALREADY PUBLISHED',
 ] as const;
 
 // The subset the substance stages are allowed to see. EMAIL VOICE is withheld
@@ -32,6 +33,7 @@ const SUBSTANCE_ALLOWED_HEADERS = [
   'VOICE EXAMPLES',
   'PERFORMANCE BASELINE:',
   'RESEARCH NOTES',
+  'PAST CONTENT YOU HAVE ALREADY PUBLISHED',
 ] as const;
 
 /**

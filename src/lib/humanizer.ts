@@ -83,10 +83,12 @@ function preserveBlock(preserve: string[]): string {
  * Pass 1: Remove AI patterns without applying creator voice.
  */
 export async function humanizeClean(text: string, preserve: string[] = []): Promise<string> {
-  const result = await generateContent(
-    `Humanize this text (remove AI tells only):\n\n---\n${text}\n---`,
-    undefined,
+  // Anti-slop cleanup is a small-model task; route to LLM_SMALL_* when configured
+  // (falls back to the global primary otherwise).
+  const result = await chatCompletion(
     HUMANIZE_CLEAN_PROMPT + preserveBlock(preserve),
+    `Humanize this text (remove AI tells only):\n\n---\n${text}\n---`,
+    { role: 'small' },
   );
   return stripEmDashes(result.trim());
 }
@@ -95,10 +97,11 @@ export async function humanizeClean(text: string, preserve: string[] = []): Prom
  * Pass 2: Final audit - catch anything the first pass missed.
  */
 export async function humanizeAudit(text: string, preserve: string[] = []): Promise<string> {
-  const result = await generateContent(
-    `Audit this draft:\n\n---\n${text}\n---`,
-    undefined,
+  // Small-model task; route to LLM_SMALL_* when configured.
+  const result = await chatCompletion(
     HUMANIZE_AUDIT_PROMPT + preserveBlock(preserve),
+    `Audit this draft:\n\n---\n${text}\n---`,
+    { role: 'small' },
   );
   return stripEmDashes(result.trim());
 }

@@ -71,6 +71,13 @@ export interface ContentPipelineInput {
   requestId?: string;
   /** Attached to pipeline_events rows when known; nullable, best-effort. */
   userId?: string;
+  /**
+   * Progress callback fired at the start of each pipeline stage. Lets an
+   * interactive caller (the generate UI over SSE) show staged progress while the
+   * multi-call full pipeline runs, since it does not stream tokens. Best-effort:
+   * a throwing callback never affects generation.
+   */
+  onStage?: (stage: PipelineStage) => void;
 }
 
 export interface ContentPipelineResult {
@@ -133,7 +140,7 @@ function formatHookExamples(hooks: Array<{ id: string; text: string; author: str
  * gates (Task 3+). Single construction site so all three always agree on
  * platform/contentType/mentions for a given request.
  */
-function buildCheckContext(
+export function buildCheckContext(
   input: ContentPipelineInput,
   contentType: string,
   sourceContext: string | undefined,
@@ -225,6 +232,13 @@ async function runContentPipelineInner(
   const useVoice = input.useVoice !== false;
   const profile = useVoice ? input.profile : null;
   const skipEval = input.fast || !useVoice;
+  const emitStage = (stage: PipelineStage) => {
+    try {
+      input.onStage?.(stage);
+    } catch {
+      // Progress reporting must never affect generation.
+    }
+  };
 
   // --- Stage 0: Research (opt-in, best-effort) ---
   // Runs before the context split so both the full and compact paths draft
@@ -262,6 +276,7 @@ async function runContentPipelineInner(
   }
 
   // --- Stage 1: Base ---
+  emitStage('base');
   const baseCheckCtx = buildCheckContext(input, contentType, substanceContext, profile);
   let text = await withSpan('stage:base', { model: input.model ?? process.env.LLM_MODEL ?? 'env-default' },
     () => runBaseStage(input, substanceContext, baseCheckCtx, requestId));
@@ -337,6 +352,7 @@ async function runContentPipelineInner(
     if (resolved.usedStaticFallback) {
       await emitPipelineEvent({ requestId, userId: input.userId, event: 'hook_fallback_static', detail: { vertical } });
     }
+    emitStage('hooks');
     text = await withSpan('stage:hooks', { hookCount: resolved.hooks.length },
       () => runHookStage(text, resolved.hooks, input.userPrompt, substanceContext, input.model, baseCheckCtx, requestId));
     stagesCompleted.push('hooks');
@@ -347,6 +363,7 @@ async function runContentPipelineInner(
   const shouldHumanize = input.humanizeAlways || isProse;
 
   if (shouldHumanize) {
+    emitStage('humanize');
     const humanized = await withSpan('stage:humanize', {}, () => humanizePipeline(text, {
       profile: null,
       skipVoice: true,
@@ -377,6 +394,7 @@ async function runContentPipelineInner(
 
   // --- Stage 4: Voice ---
   if (useVoice && profile) {
+    emitStage('voice');
     const voiceSystem = buildSystemPrompt(profile, voiceStageContext || undefined);
     const voicePrompt = `Apply this creator's voice to the draft below. Keep topic and facts identical.
 
@@ -403,6 +421,7 @@ Return ONLY the final post.`;
   const maxIterations = input.maxIterations ?? 2;
 
   if (!skipEval && useVoice) {
+    emitStage('evaluate');
     let lastActionWasRevise = false;
 
     for (let i = 0; i < maxIterations; i++) {

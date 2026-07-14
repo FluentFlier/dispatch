@@ -15,56 +15,23 @@ import {
   mergeMentions,
 } from '@/lib/mentions';
 
+// Pillar briefs describe the GOAL and the beats to hit as NARRATIVE guidance,
+// never as a labeled one-line-per-beat skeleton. The old "HOOK: one sentence /
+// SETUP: 2 bullets" format forced broetry (single-sentence paragraphs) that
+// reads as generic AI slop and fights the pipeline's paragraph_shape rule. These
+// ask for flowing paragraphs instead, so the draft sounds like a person wrote it.
 const PILLAR_PROMPTS: Record<string, string> = {
-  'hot-take': `Generate a hot take Reel script.
-TOPIC (optional): [topic or "choose a strong angle based on the creator's real experience"]
-HOOK: One bold controversial sentence. Stop-scrolling.
-ARGUMENT: The actual claim, one sentence.
-EVIDENCE: Specific proof or real example from the creator's background, one sentence.
-FLIP: What they should do or think instead, one sentence.
-CTA: One direct question.
-Under 60 seconds when spoken. No em dashes. The creator's voice only.`,
+  'hot-take': `Write a hot take in the creator's voice (pick a strong angle from their real experience if no topic is given). Open with one bold, scroll-stopping line that states the controversial claim, then back it with a specific real example from the creator's background, turn to what people should think or do instead, and close with one direct question. Write it as flowing paragraphs, not labeled beats or one-line fragments. Under 60 seconds when spoken. No em dashes.`,
 
-  hackathon: `Generate a hackathon story Reel script. Draw from the creator's hackathon experience. Pick a specific, realistic, dramatic story.
-HOOK: Drop into the most intense moment. No setup.
-SETUP: 2 bullets -- challenge, stakes.
-TURN: 1 bullet -- what changed under pressure.
-LESSON: 1 bullet -- what this teaches about building.
-CTA: Ask viewers about their own experience.
-No em dashes.`,
+  hackathon: `Write a hackathon story in the creator's voice, drawn from one specific, real, dramatic moment. Drop straight into the most intense moment with no setup, give just enough of the challenge and stakes to make it land, then what changed under pressure and what it taught about building. End by asking viewers about their own experience. Flowing paragraphs, not a beat list. No em dashes.`,
 
-  founder: `Generate a founder-in-public script about building the creator's product or startup.
-HOOK: One honest vulnerable sentence. Real energy, no spin.
-REALITY: 2 bullets -- what was hard or went wrong.
-PROGRESS: 1 bullet -- one thing that moved.
-LESSON: 1 bullet -- what this is teaching about startups.
-CTA: Invite builders to share their week.
-Sound like Tuesday at 11pm, not a success story. No em dashes.`,
+  founder: `Write a founder-in-public update in the creator's voice about building their product or startup. Open with one honest, vulnerable line (real energy, no spin), be specific about what was hard or went wrong, name the one thing that actually moved, and what it is teaching about startups. Invite other builders to share their week. Sound like Tuesday at 11pm, not a polished success story. Flowing paragraphs, not a beat list. No em dashes.`,
 
-  explainer: `Generate a concept explainer based on the creator's expertise. Under 60 seconds.
-TOPIC (optional): [topic or "choose one concept from the creator's domain"]
-HOOK: A question that makes them feel dumb for not knowing.
-SIMPLE VERSION: 2 bullets, zero jargon. 16-year-old readable.
-WHY IT MATTERS: 1 bullet.
-MISCONCEPTION: 1 bullet.
-CTA: Ask what to explain next.
-No em dashes.`,
+  explainer: `Write a concept explainer in the creator's voice from their expertise (pick one concept from their domain if no topic is given). Open with a question that makes the reader feel they are missing something, explain it simply enough for a 16-year-old with zero jargon, say why it matters, correct the common misconception, and close by asking what to explain next. Flowing paragraphs, not a beat list. Under 60 seconds when spoken. No em dashes.`,
 
-  origin: `Generate an origin/arc video script based on the creator's background and journey.
-HOOK: One specific detail that makes someone lean in.
-THE PATH: 2 bullets -- the unexpected parts.
-THROUGH LINE: 1 bullet -- what actually connects it all.
-NOW: 1 bullet -- where it's heading.
-CTA: Invite non-linear paths in comments.
-No em dashes.`,
+  origin: `Write an origin/arc piece in the creator's voice from their real background and journey. Open with one specific detail that makes someone lean in, move through the unexpected parts of the path, name the through-line that actually connects them, and where it is heading now. Invite non-linear paths in the comments. Flowing paragraphs, not a beat list. No em dashes.`,
 
-  research: `Generate a research unlocked video script that makes the creator's research feel accessible and interesting.
-HOOK: One line that makes someone who hates science want to keep watching.
-THE WEIRD PART: 2 bullets -- what is genuinely surprising about the research.
-WHY IT MATTERS: 1 bullet -- real-world stakes.
-THE META LESSON: 1 bullet -- what doing research teaches you that classes do not.
-CTA: Ask if they knew this kind of research existed.
-No em dashes.`,
+  research: `Write a "research unlocked" piece in the creator's voice that makes their research feel accessible and interesting. Open with a line that hooks even someone who hates science, share what is genuinely surprising about the research and its real-world stakes, then the meta lesson about what doing research teaches that classes do not. Ask if they knew this kind of research existed. Flowing paragraphs, not a beat list. No em dashes.`,
 };
 
 type MessageCompleteness = { starved?: boolean; voiceSource?: string } | null;
@@ -79,7 +46,7 @@ type ChatMessage =
       completeness?: MessageCompleteness;
     };
 
-type GenStage = 'thinking' | 'writing' | 'revising' | 'polishing';
+type GenStage = 'thinking' | 'writing' | 'revising' | 'polishing' | 'scoring';
 
 type StreamEvent =
   | { type: 'stage'; stage: GenStage }
@@ -89,9 +56,11 @@ type StreamEvent =
       text: string;
       used_hook_ids?: string[];
       ai_score?: number;
+      voice_match_score?: number | null;
       humanized?: boolean;
       starved?: boolean;
       voice_source?: string;
+      context_id?: string | null;
     }
   | { type: 'error'; error: string };
 
@@ -100,6 +69,7 @@ const STAGE_LABELS: Record<GenStage, string> = {
   writing: 'Writing your draft…',
   revising: 'Reworking the draft…',
   polishing: 'Polishing out the AI tells…',
+  scoring: 'Scoring voice match…',
 };
 
 function isPlatform(value: unknown): value is DashboardPlatform {
@@ -173,23 +143,12 @@ function buildFirstDraftBase(
   if (promptTemplate) return promptTemplate;
   if (PILLAR_PROMPTS[pillar]) return PILLAR_PROMPTS[pillar];
   if (platform === 'linkedin') {
-    return `Write a LinkedIn post. Creator's voice only. 200-350 words. No em dashes.
-Hook: One strong first line.
-Setup: 2-3 sentences of context or stakes.
-Story or data: 2-4 sentences of specific detail.
-Insight: 2-3 sentences of real takeaway.
-CTA: One direct question.`;
+    return `Write a LinkedIn post in the creator's voice only, 200-350 words, no em dashes. Open with one strong first line that earns the read, give the context or stakes, then a specific story or real detail, land a genuine takeaway, and close with one direct question. Write it as real flowing paragraphs (2-4 sentences each), never a stack of one-line fragments or labeled beats.`;
   }
   if (platform === null) {
-    return `Write a short post. Creator's voice only. No em dashes.
-HOOK: One bold first line.
-BODY: 3-4 beats, each one sentence.
-CTA: One direct question.`;
+    return `Write a short post in the creator's voice only, no em dashes. Open with one bold first line, carry a single clear idea through a few sentences of real substance, and close with one direct question. Flowing sentences, not labeled one-line beats.`;
   }
-  return `Write a ${platform} post script. Creator's voice only. Under 60 seconds when spoken. No em dashes.
-HOOK: One bold first line.
-BODY: 3-4 beats, each one sentence.
-CTA: One direct question.`;
+  return `Write a ${platform} post in the creator's voice only, tight enough to say in under 60 seconds, no em dashes. Open with one bold first line, carry a single clear idea with real substance, and close with one direct question. Flowing sentences, not labeled one-line beats.`;
 }
 
 interface ScriptGeneratorProps {
@@ -276,6 +235,10 @@ export function ScriptGenerator({
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Generation-context bundle id for this thread. The server returns it on each
+  // draft; we echo it back on revises so regens reuse the cached context and the
+  // server can track the light-regen budget. Reset on new/loaded chats.
+  const contextIdRef = useRef<string | null>(null);
   // Token flushing is batched to one rAF tick so a fast stream doesn't trigger a
   // React re-render (and JSON.stringify to sessionStorage) on every single token.
   const flushRef = useRef<{ id: string; text: string } | null>(null);
@@ -387,6 +350,7 @@ export function ScriptGenerator({
       const chat = data?.chat;
       if (!chat || !Array.isArray(chat.messages)) return;
       abortRef.current?.abort();
+      contextIdRef.current = null;
       setMessages(chat.messages as ChatMessage[]);
       setConversationId(id);
       if (isPlatform(chat.platform)) setPlatform(chat.platform);
@@ -479,7 +443,7 @@ export function ScriptGenerator({
       id: string,
       text: string,
       hookIds: string[],
-      extra?: { ai_score?: number; starved?: boolean; voice_source?: string },
+      extra?: { ai_score?: number; voice_match_score?: number | null; starved?: boolean; voice_source?: string },
     ) => {
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
@@ -495,6 +459,7 @@ export function ScriptGenerator({
                 voiceMetrics: {
                   used_hook_ids: hookIds,
                   ...(extra?.ai_score !== undefined ? { ai_score: extra.ai_score } : {}),
+                  ...(extra?.voice_match_score != null ? { voice_match_score: extra.voice_match_score } : {}),
                 },
                 completeness:
                   extra?.starved || extra?.voice_source
@@ -562,6 +527,7 @@ export function ScriptGenerator({
           useVoice,
           mode,
           ...(mentions.length > 0 ? { mentions } : {}),
+          ...(mode === 'revise' && contextIdRef.current ? { context_id: contextIdRef.current } : {}),
         },
         (ev) => {
           if (ev.type === 'stage') {
@@ -571,8 +537,10 @@ export function ScriptGenerator({
             scheduleFlush(assistantId, acc);
           } else if (ev.type === 'done') {
             finalized = true;
+            if (ev.context_id) contextIdRef.current = ev.context_id;
             finalizeMessage(assistantId, ev.text || acc, ev.used_hook_ids ?? [], {
               ai_score: ev.ai_score,
+              voice_match_score: ev.voice_match_score,
               starved: ev.starved,
               voice_source: ev.voice_source,
             });
@@ -649,6 +617,7 @@ export function ScriptGenerator({
     setInput('');
     setError('');
     setConversationId(null);
+    contextIdRef.current = null;
     try {
       sessionStorage.removeItem(CHAT_KEY);
       sessionStorage.removeItem(CHAT_ID_KEY);

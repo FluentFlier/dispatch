@@ -31,6 +31,9 @@ describe('temporal framing rule', () => {
       'a lesson from 3 years ago',
       'a throwback to our launch day',
       'reflecting on last year',
+      'it happened long back',
+      'long ago I went to this event',
+      'this happened a long time back',
     ]) {
       expect(styleRulesFromChecks({ ...base, userPrompt: p })).toContain('TEMPORAL FRAMING');
     }

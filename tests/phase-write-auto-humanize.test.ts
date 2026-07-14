@@ -1,26 +1,35 @@
 /**
- * Phase: Write auto-humanize.
- * The streamed Write draft is a single fast LLM pass, so it still carries AI
- * tells. The stream route must run the anti-slop humanizer as a "polishing"
- * stage after the stream completes and swap the polished text into the final
- * `done` event — without a manual Polish tap.
+ * Phase: Write auto-humanize (revise/light path).
+ * First drafts now run the full staged pipeline; the single-call streaming path
+ * (streamCreatorDraft) serves follow-up edits (mode 'revise'). That streamed
+ * draft is one fast LLM pass, so it still carries AI tells - the route runs the
+ * anti-slop humanizer as a "polishing" stage after the stream completes and
+ * swaps the polished text into the final `done` event, without a manual Polish tap.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const {
   streamCreatorDraft,
+  runContentPipeline,
   humanizePipeline,
   heuristicAiScore,
   getAuthenticatedUser,
   loadCreatorVoiceContext,
   guardAiRequest,
+  saveGenerationContext,
+  loadGenerationContext,
+  recordRegen,
 } = vi.hoisted(() => ({
   streamCreatorDraft: vi.fn(),
+  runContentPipeline: vi.fn(),
   humanizePipeline: vi.fn(),
   heuristicAiScore: vi.fn(),
   getAuthenticatedUser: vi.fn(),
   loadCreatorVoiceContext: vi.fn(),
   guardAiRequest: vi.fn(),
+  saveGenerationContext: vi.fn(),
+  loadGenerationContext: vi.fn(),
+  recordRegen: vi.fn(),
 }));
 
 vi.mock('@/lib/insforge/server', () => ({
@@ -33,6 +42,13 @@ vi.mock('@/lib/workspace', () => ({
 vi.mock('@/lib/voice-context', () => ({ loadCreatorVoiceContext }));
 vi.mock('@/lib/ai-guard', () => ({ guardAiRequest }));
 vi.mock('@/lib/content-pipeline/stream', () => ({ streamCreatorDraft }));
+vi.mock('@/lib/content-pipeline', () => ({ runContentPipeline }));
+vi.mock('@/lib/generation-context', () => ({
+  saveGenerationContext,
+  loadGenerationContext,
+  recordRegen,
+  REGEN_LIGHT_LIMIT: 3,
+}));
 vi.mock('@/lib/humanizer', () => ({ humanizePipeline, heuristicAiScore }));
 vi.mock('@/lib/signals/content-bridge', () => ({
   getSignalTopicsForGeneration: vi.fn().mockResolvedValue([]),
@@ -81,10 +97,37 @@ describe('Phase: Write auto-humanize', () => {
       passes: ['pre_clean', 'clean', 'audit'],
     });
     heuristicAiScore.mockReturnValue(4);
+    saveGenerationContext.mockResolvedValue('ctx-1');
+    loadGenerationContext.mockResolvedValue(null);
+    recordRegen.mockResolvedValue(undefined);
+    runContentPipeline.mockResolvedValue({
+      text: 'Full pipeline draft, in voice.',
+      voice_match_score: 88,
+      ai_score: 12,
+      usedHookIds: ['h1'],
+      flags: [],
+      revised: true,
+      iterations: 1,
+      stagesCompleted: ['base', 'voice', 'evaluate'],
+    });
+  });
+
+  it('first draft runs the full pipeline, returns its text + score + context_id', async () => {
+    const res = await POST(makeRequest({ prompt: 'write about shipping fast', platform: 'linkedin' }));
+    const events = await readEvents(res);
+
+    expect(runContentPipeline).toHaveBeenCalledTimes(1);
+    expect(streamCreatorDraft).not.toHaveBeenCalled();
+
+    const done = events.find((e) => e.type === 'done');
+    expect(done?.text).toBe('Full pipeline draft, in voice.');
+    expect(done?.voice_match_score).toBe(88);
+    expect(done?.context_id).toBe('ctx-1');
+    expect(saveGenerationContext).toHaveBeenCalledTimes(1);
   });
 
   it('runs a polishing stage and returns the humanized text in done', async () => {
-    const res = await POST(makeRequest({ prompt: 'write about shipping fast', platform: 'linkedin' }));
+    const res = await POST(makeRequest({ prompt: 'write about shipping fast', platform: 'linkedin', mode: 'revise' }));
     const events = await readEvents(res);
 
     const stages = events.filter((e) => e.type === 'stage').map((e) => e.stage);
@@ -107,7 +150,7 @@ describe('Phase: Write auto-humanize', () => {
 
   it('skips humanize when humanize:false and returns the raw draft', async () => {
     const res = await POST(
-      makeRequest({ prompt: 'write about shipping fast', platform: 'linkedin', humanize: false }),
+      makeRequest({ prompt: 'write about shipping fast', platform: 'linkedin', humanize: false, mode: 'revise' }),
     );
     const events = await readEvents(res);
 
@@ -123,7 +166,7 @@ describe('Phase: Write auto-humanize', () => {
   it('keeps the streamed draft when humanize throws (non-fatal)', async () => {
     humanizePipeline.mockRejectedValueOnce(new Error('humanize provider down'));
 
-    const res = await POST(makeRequest({ prompt: 'write about shipping fast', platform: 'linkedin' }));
+    const res = await POST(makeRequest({ prompt: 'write about shipping fast', platform: 'linkedin', mode: 'revise' }));
     const events = await readEvents(res);
 
     const done = events.find((e) => e.type === 'done');
