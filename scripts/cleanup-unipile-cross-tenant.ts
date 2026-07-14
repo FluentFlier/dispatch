@@ -52,7 +52,9 @@ if (!url || !serviceKey || !unipileKey || !unipileDsn) {
 const APPLY = process.argv.includes('--apply');
 const UNLINK_STALE = process.argv.includes('--unlink-stale');
 
-const client = createClient({ baseUrl: url, anonKey: serviceKey, isServerMode: true });
+// Strip trailing slash: a baseUrl like "https://x.insforge.app/" yields "//api/..."
+// which 404s and (with the swallowed .error) silently reports 0 rows to clean.
+const client = createClient({ baseUrl: url.replace(/\/+$/, ''), anonKey: serviceKey, isServerMode: true });
 
 interface UnipileAccount {
   id: string;
