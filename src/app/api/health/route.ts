@@ -134,6 +134,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       checks,
       llm: llmConfigSummary(),
       observability: observabilityConfigSummary(),
+      // Presence (not values) of the lead-discovery source keys, so an empty feed
+      // for X / LinkedIn / web discovery can be traced to a missing prod key.
+      lead_sources: {
+        tinyfish: Boolean(process.env.TINYFISH_API_KEY?.trim()), // X + directory scrape
+        apify: Boolean(process.env.APIFY_TOKEN?.trim()), // LinkedIn discovery
+        serper: Boolean(process.env.SERPER_API_KEY?.trim()), // web-discovery fallback
+      },
       provider: socialMode,
       intelligence_health_url: '/api/intelligence/health',
       composio_health_url: '/api/integrations/composio/health',
