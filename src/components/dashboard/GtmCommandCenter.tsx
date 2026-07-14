@@ -46,7 +46,7 @@ function LimitBar({
   const pct = max > 0 ? Math.min(100, Math.round((used / max) * 100)) : 0;
   const hot = pct >= 85;
   return (
-    <div className="rounded-2xl border border-hair bg-white/80 p-3 backdrop-blur-sm">
+    <div className="flex h-full flex-col justify-center rounded-2xl border border-hair bg-white/80 p-3 backdrop-blur-sm">
       <div className="flex items-center justify-between gap-2 text-xs">
         <span className="text-ink2">{label}</span>
         <span className={`tabular-nums ${hot ? 'text-flame' : 'text-ink'}`}>
@@ -123,17 +123,16 @@ export function GtmCommandCenter() {
       <div className="p-5 md:p-6 border-b border-hair">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <span className="inline-flex items-center gap-2 rounded-full border border-hair bg-white/80 px-3 py-1 text-[11px] font-medium tracking-[0.01em] text-ink2">
-              <Target className="h-3 w-3" />
-              GTM pipeline
-            </span>
-            <h2 className="mt-3 text-lg font-semibold text-ink tracking-tight">
-              Today&apos;s outreach
-            </h2>
-            <p className="mt-1 text-sm text-ink2">
+            <div className="flex items-center gap-2.5">
+              <Target className="h-6 w-6 text-blue" />
+              <h2 className="text-[clamp(22px,2.5vw,28px)] font-semibold tracking-[-0.03em] text-ink">
+                Today&apos;s outreach
+              </h2>
+            </div>
+            <p className="mt-2 max-w-xl text-base text-ink2">
               {icpConfigured
-                ? 'ICP leads surface daily. Plan nurture → comment → connect on autopilot or approve each step.'
-                : 'Head to Leads to describe who you sell to, then ask the ICP assistant to find leads.'}
+                ? 'Fresh leads daily, moved comment → connect → DM.'
+                : 'Set up your ICP in Leads to start surfacing matches.'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -181,7 +180,7 @@ export function GtmCommandCenter() {
             <p className="text-xs text-ink2">Sent today</p>
             <p className="text-2xl font-semibold text-flame tabular-nums">{pipeline.sentToday}</p>
           </div>
-          <div className="w-[240px]">
+          <div className="min-w-[240px] flex-1">
             <LimitBar
               label="LinkedIn invites today"
               used={safety.usage.linkedin_invites_today}

@@ -18,27 +18,26 @@ export function MorningBriefStrip({ brief }: { brief: MorningBrief }) {
       <div className="flex items-center gap-2.5">
         <Sunrise className="h-6 w-6 text-blue" />
         <h2 className="text-[clamp(22px,2.5vw,28px)] font-semibold tracking-[-0.03em] text-ink">Morning brief</h2>
-        <span className="ml-auto text-xs text-ink3">{brief.dateLabel}</span>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* Today's top trend */}
         <div>
-          <div className="flex items-center gap-1.5 text-xs font-medium text-ink2">
-            <TrendingUp className="h-3.5 w-3.5" />
+          <div className="flex items-center gap-1.5 text-sm font-medium text-ink2">
+            <TrendingUp className="h-4 w-4" />
             Today&apos;s trend
           </div>
           {topTrend ? (
             <div className="mt-2">
-              <p className="text-sm font-medium text-ink leading-snug">{topTrend.topic}</p>
+              <p className="text-base font-medium text-ink leading-snug">{topTrend.topic}</p>
               {topTrend.hook && (
-                <p className="mt-1 text-xs text-ink3 leading-snug line-clamp-2">
+                <p className="mt-1 text-sm text-ink3 leading-snug line-clamp-2">
                   &ldquo;{topTrend.hook}&rdquo;
                 </p>
               )}
               <Link
                 href="/generate?tab=trend"
-                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue hover:underline"
+                className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-blue hover:underline"
               >
                 Draft on this <ArrowRight className="h-3 w-3" />
               </Link>
@@ -54,20 +53,20 @@ export function MorningBriefStrip({ brief }: { brief: MorningBrief }) {
 
         {/* Latest post analytics (falls back from yesterday to the most recent post) */}
         <div>
-          <div className="flex items-center gap-1.5 text-xs font-medium text-ink2">
-            <BarChart3 className="h-3.5 w-3.5" />
+          <div className="flex items-center gap-1.5 text-sm font-medium text-ink2">
+            <BarChart3 className="h-4 w-4" />
             {latestPost?.isYesterday ? 'Yesterday' : 'Latest post'}
           </div>
           {latestPost ? (
             <div className="mt-2">
-              <p className="text-sm font-medium text-ink leading-snug line-clamp-1">{latestPost.title}</p>
-              <p className="mt-1 text-xs text-ink3">
+              <p className="text-base font-medium text-ink leading-snug line-clamp-1">{latestPost.title}</p>
+              <p className="mt-1 text-sm text-ink3">
                 <span className="font-medium text-ink2">{latestPost.views.toLocaleString()}</span> views ·{' '}
                 <span className="font-medium text-ink2">{latestPost.saves.toLocaleString()}</span> saves
               </p>
               <Link
                 href="/analytics"
-                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue hover:underline"
+                className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-blue hover:underline"
               >
                 Show more <ArrowRight className="h-3 w-3" />
               </Link>

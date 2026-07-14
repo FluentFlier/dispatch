@@ -21,25 +21,9 @@ const COLUMNS: string[] = [
   'first_seen_at', 'last_seen_at',
 ];
 
-/**
- * GET /api/leads/export?status=
- * Streams the workspace's leads as CSV so they can be pulled into a CRM or
- * spreadsheet. Surfaces the rich fields the feed UI hides: intent flags,
- * fit/rank scores, primary-contact details, enrichment source, and timestamps.
- */
-export async function GET(request: NextRequest): Promise<NextResponse> {
-  const user = await getAuthenticatedUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+type LeadRow = Awaited<ReturnType<typeof listLeads>>[number];
 
-  const workspaceId = await getActiveWorkspaceId(user.id);
-  if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
-
-  const statusParam = request.nextUrl.searchParams.get('status');
-  const listFilter = parseLeadListStatusParam(statusParam);
-
-  const client = getServerClient();
-  const leads = await listLeads(client, workspaceId, { ...listFilter, limit: 200 });
-
+function csvResponse(leads: LeadRow[]): NextResponse {
   const rows = leads.map((lead) => {
     const intent = (lead.intent_flags ?? {}) as Record<string, boolean>;
     const c = lead.primary_contact;
@@ -63,4 +47,51 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       'Cache-Control': 'no-store',
     },
   });
+}
+
+/**
+ * GET /api/leads/export?status=
+ * Streams the workspace's leads as CSV so they can be pulled into a CRM or
+ * spreadsheet. Surfaces the rich fields the feed UI hides: intent flags,
+ * fit/rank scores, primary-contact details, enrichment source, and timestamps.
+ */
+export async function GET(request: NextRequest): Promise<NextResponse> {
+  const user = await getAuthenticatedUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const workspaceId = await getActiveWorkspaceId(user.id);
+  if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
+
+  const statusParam = request.nextUrl.searchParams.get('status');
+  const listFilter = parseLeadListStatusParam(statusParam);
+
+  const client = getServerClient();
+  const leads = await listLeads(client, workspaceId, { ...listFilter, limit: 200 });
+  return csvResponse(leads);
+}
+
+/**
+ * POST /api/leads/export  { ids: string[], status?: string }
+ * Exports only the selected lead ids (a GET query can't carry a large id set).
+ * Empty/absent ids falls back to the full status-filtered export, matching the
+ * feed rule: a partial selection exports just those; select-all/none exports all.
+ */
+export async function POST(request: NextRequest): Promise<NextResponse> {
+  const user = await getAuthenticatedUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const workspaceId = await getActiveWorkspaceId(user.id);
+  if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
+
+  const body = (await request.json().catch(() => ({}))) as { ids?: unknown; status?: unknown };
+  const ids = Array.isArray(body.ids) ? body.ids.filter((v): v is string => typeof v === 'string') : [];
+  const statusParam = typeof body.status === 'string' ? body.status : null;
+  const listFilter = parseLeadListStatusParam(statusParam);
+
+  const client = getServerClient();
+  // Pull the full page (feed cap), then narrow to the selected ids. Selected ids
+  // may sit below the default 200 window, so widen to the feed max first.
+  const leads = await listLeads(client, workspaceId, { ...listFilter, limit: 300 });
+  const filtered = ids.length ? leads.filter((l) => ids.includes(l.id)) : leads;
+  return csvResponse(filtered);
 }

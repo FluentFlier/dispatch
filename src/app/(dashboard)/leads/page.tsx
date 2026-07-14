@@ -696,6 +696,13 @@ export default function LeadsPage() {
     });
   };
   const clearSelection = () => setSelectedIds(new Set());
+  // Select-all toggles every currently-visible card; re-clicking clears it.
+  const allVisibleSelected =
+    visibleCards.length > 0 && visibleCards.every((c) => selectedIds.has(c.id));
+  const toggleSelectAll = () => {
+    if (allVisibleSelected) clearSelection();
+    else setSelectedIds(new Set(visibleCards.map((c) => c.id)));
+  };
 
   // Bulk dismiss/snooze: only directory leads carry a PATCHable lead row, so we
   // act on the selected ids that resolve to a directory lead and drop them from
@@ -743,16 +750,51 @@ export default function LeadsPage() {
     }
   };
 
-  const handleExport = () => {
-    // Attachment Content-Disposition downloads without navigating away. Carry the
-    // active status filter so the export matches what the user is looking at.
-    const qs = filters.status !== 'all' ? `?status=${encodeURIComponent(filters.status)}` : '';
+  // Download a Blob response as a file without navigating away.
+  const triggerDownload = (href: string, download?: string) => {
     const a = document.createElement('a');
-    a.href = `/api/leads/export${qs}`;
+    a.href = href;
+    if (download) a.download = download;
     a.rel = 'noopener';
     document.body.appendChild(a);
     a.click();
     a.remove();
+  };
+
+  // Export the whole (status-filtered) workspace via the GET attachment route.
+  const exportAll = () => {
+    const qs = filters.status !== 'all' ? `?status=${encodeURIComponent(filters.status)}` : '';
+    triggerDownload(`/api/leads/export${qs}`);
+  };
+
+  // Export a specific id subset (POST, since a GET can't carry many UUIDs).
+  const exportSelectedIds = async (ids: string[]) => {
+    try {
+      const res = await fetch('/api/leads/export', {
+        method: 'POST',
+        headers: jsonHeaders,
+        body: JSON.stringify({ ids, status: filters.status }),
+      });
+      if (!res.ok) throw new Error();
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      triggerDownload(url, `leads-${new Date().toISOString().slice(0, 10)}.csv`);
+      URL.revokeObjectURL(url);
+    } catch {
+      toast('Could not export.', 'error');
+    }
+  };
+
+  // Selection-aware export: a partial selection exports just those leads; select
+  // all (or nothing selected) exports every lead. Matches the requested rule.
+  const handleExport = () => {
+    const ids = Array.from(selectedIds);
+    const partial = ids.length > 0 && !visibleCards.every((c) => selectedIds.has(c.id));
+    if (partial) {
+      void exportSelectedIds(ids);
+      return;
+    }
+    exportAll();
   };
 
   const handleTogglePlaybookStep = async (
@@ -1228,8 +1270,26 @@ export default function LeadsPage() {
           <div className="lg:col-span-2 space-y-2">
             {selectedIds.size > 0 && (
               <div className="flex items-center justify-between gap-2 rounded-lg border border-accent-primary/30 bg-accent-primary/5 px-3 py-2">
-                <span className="text-xs font-medium text-text-primary">{selectedIds.size} selected</span>
+                <label className="flex cursor-pointer items-center gap-2 text-xs font-medium text-text-primary">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    ref={(el) => {
+                      if (el) el.indeterminate = !allVisibleSelected;
+                    }}
+                    onChange={toggleSelectAll}
+                    className="h-3.5 w-3.5 cursor-pointer accent-accent-primary"
+                  />
+                  {allVisibleSelected ? `All ${visibleCards.length} selected` : `${selectedIds.size} selected`}
+                </label>
                 <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleExport}
+                    className="text-xs px-2 py-1 rounded-md border border-border bg-bg-secondary hover:bg-bg-primary text-text-secondary"
+                  >
+                    Export
+                  </button>
                   <button
                     type="button"
                     disabled={bulkBusy}

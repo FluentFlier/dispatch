@@ -64,8 +64,16 @@ export const navItems: NavItem[] = [
 /** Visible primary nav entries (sidebar + mobile bottom bar). */
 export const primaryNav = navItems.filter((item) => item.section === 'primary' && !item.hidden);
 
-/** Visible secondary nav entries (sidebar "More" + mobile sheet). */
-export const moreNav = navItems.filter((item) => item.section === 'more' && !item.hidden);
+/**
+ * Visible secondary nav entries (sidebar "Advanced" dropdown + mobile sheet).
+ * Settings is pulled out so it can live as a standalone row, always visible.
+ */
+export const moreNav = navItems.filter(
+  (item) => item.section === 'more' && !item.hidden && item.href !== '/settings',
+);
+
+/** Settings — rendered on its own outside the Advanced dropdown. */
+export const settingsNav = navItems.find((item) => item.href === '/settings')!;
 
 /**
  * Single source of truth for nav icons, shared by the desktop `Sidebar` and the

@@ -242,7 +242,12 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const accountId = payload.AccountStatus.account_id;
     const status = payload.AccountStatus.message?.toLowerCase();
 
-    if (status === 'credentials' || status === 'deleted' || status === 'error' || status === 'stopped') {
+    // Only a genuine credential loss forces the user to reconnect. Unipile also
+    // emits transient `error`/`stopped` on temporary sync pauses (rate limits,
+    // brief LinkedIn hiccups) while the session is still authenticated - nulling
+    // connected_at on those made accounts look disconnected and nagged users to
+    // reconnect a live session every few days. Leave transient states alone.
+    if (status === 'credentials' || status === 'deleted') {
       await client.database
         .from('social_accounts')
         .update({ connected_at: null })

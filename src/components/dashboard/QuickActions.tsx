@@ -44,17 +44,17 @@ export function QuickActions({ variant = 'row' }: { variant?: 'row' | 'rail' }) 
         >
           <div className="flex items-start justify-between gap-3">
             <div
-              className={`flex h-9 w-9 items-center justify-center rounded-full ${action.accent}`}
+              className={`-ml-1 flex h-10 w-10 items-center justify-center rounded-full ${action.accent}`}
             >
-              <action.icon className="h-4 w-4" strokeWidth={2} />
+              <action.icon className="h-5 w-5" strokeWidth={2} />
             </div>
             <ArrowRight className="h-4 w-4 text-ink3 opacity-0 transition-opacity group-hover:opacity-100" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-ink group-hover:text-blue transition-colors">
+            <h2 className="text-base font-semibold text-ink group-hover:text-blue transition-colors">
               {action.title}
             </h2>
-            <p className="mt-1 text-xs text-ink2 leading-snug">
+            <p className="mt-1 text-sm text-ink2 leading-snug">
               {action.description}
             </p>
           </div>
