@@ -214,4 +214,45 @@ export async function listUnipileAccounts(): Promise<UnipileFullAccount[]> {
   }
 }
 
+/**
+ * Deletes a Unipile account *session* (the connector box) — NOT the underlying
+ * LinkedIn account. Best-effort.
+ */
+export async function deleteUnipileAccount(unipileAccountId: string): Promise<boolean> {
+  try {
+    const res = await unipoleFetch(`/accounts/${encodeURIComponent(unipileAccountId)}`, { method: 'DELETE' });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Unipile mints a NEW account box on every reconnect, so the same LinkedIn piles
+ * up as stale duplicate sessions in the shared tenant — clutter that also feeds
+ * the account cross-wire. After an authoritative bind, delete the person's OTHER
+ * boxes (same stable publicIdentifier, different id), keeping only `keepId`.
+ * Matching on publicIdentifier only — never deletes a different person's box.
+ */
+export async function pruneDuplicateUnipileAccounts(
+  keepId: string,
+  publicIdentifier: string | null,
+): Promise<number> {
+  if (!publicIdentifier) return 0;
+  let removed = 0;
+  try {
+    const all = await listUnipileAccounts();
+    for (const account of all) {
+      if (account.id === keepId) continue;
+      const pid = account.connection_params?.im?.publicIdentifier ?? null;
+      if (pid && pid === publicIdentifier) {
+        if (await deleteUnipileAccount(account.id)) removed++;
+      }
+    }
+  } catch {
+    // Non-fatal: a failed prune only leaves clutter, never blocks the bind.
+  }
+  return removed;
+}
+
 export { unipoleFetch, mapPlatform };
