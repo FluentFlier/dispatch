@@ -110,8 +110,14 @@ export function buildSystemPrompt(
       );
     }
     if (reference) {
+      // FACTS the model may use, not a style template. Earlier wording ("do not
+      // introduce companies/products/claims not in this creator's PROFILE") told
+      // the model to suppress real people/companies that live in retrieved past
+      // posts — that is how a name the user asked to credit (e.g. the person who
+      // got them into an event) got dropped. Permit reuse of what is HERE; still
+      // forbid inventing beyond it and hijacking the topic toward the creator.
       parts.push(
-        `\nADDITIONAL CONTEXT (reference only — the VOICE RULES above are authoritative; do not introduce companies, products, or claims that are not in this creator's profile):\n${reference}`,
+        `\nADDITIONAL CONTEXT (real facts you may draw on — VOICE EVIDENCE above governs STYLE, this governs FACTS): use the actual people, names, companies, and events below when the request calls for them (e.g. crediting who you met or who made something happen). Do NOT invent anything that is not present here or in the request, and do not redirect the post toward the creator's own background unless the request is about it:\n${reference}`,
       );
     }
   }

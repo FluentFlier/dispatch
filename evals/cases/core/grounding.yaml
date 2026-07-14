@@ -1,0 +1,14 @@
+# Grounding regression cases: real people/facts present in the retrieved context
+# (sourceContext -> contextAdditions) must survive into the draft, not get dropped
+# or genericized. Guards the Forbes "Anirudh Manjesh" name-drop class end-to-end
+# (context-split header + system-prompt framing + humanize name-preservation).
+- description: "core/grounding: credits the real person named in retrieved past content (Forbes regression)"
+  vars:
+    caseJson: '{"userPrompt":"Write a LinkedIn post remembering the people I met at the Forbes 30 Under 30 summit and thanking whoever made it happen.","platform":"linkedin","contentType":"post","useVoice":false,"sourceContext":"PAST CONTENT YOU HAVE ALREADY PUBLISHED (each shown with its date):\n[Your linkedin post from 2026-01-10] - this ALREADY happened; reference as past.\nForbes Under 30 Summit in Phoenix was unreal. Met so many builders. Huge shoutout to Anirudh Manjesh for making this happen - I would not have been in that room without him. Also got a quick chat with AdamW."}'
+    userPrompt: "Write a LinkedIn post remembering the people I met at the Forbes 30 Under 30 summit and thanking whoever made it happen."
+    platform: linkedin
+    contentType: post
+    sourceContext: "Shoutout to Anirudh Manjesh for making this happen. Met AdamW at the Forbes Under 30 Summit in Phoenix."
+  assert:
+    - type: icontains
+      value: "Anirudh Manjesh"

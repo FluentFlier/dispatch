@@ -49,6 +49,18 @@ describe('check: fabricated_specifics (hard)', () => {
     const r = get(FLOWING + '\n\nEven Sundar Pichai reposted it.', 'fabricated_specifics');
     expect(r.pass).toBe(false);
   });
+  it('fails on an invented single-word CamelCase company (the GreenLoop miss)', () => {
+    const r = get(FLOWING + '\n\nThe founder of GreenLoop loved it.', 'fabricated_specifics');
+    expect(r.pass).toBe(false);
+    expect(r.evidence).toBe('GreenLoop');
+  });
+  it('passes a CamelCase name that appears in context', () => {
+    const c = ctx({ sourceContext: ctx().sourceContext + ' Met the GreenLoop founder.' });
+    expect(get(FLOWING + '\n\nThe founder of GreenLoop loved it.', 'fabricated_specifics', c).pass).toBe(true);
+  });
+  it('does not flag whitelisted interior-caps tokens like PhD', () => {
+    expect(get(FLOWING + '\n\nShe just finished her PhD.', 'fabricated_specifics').pass).toBe(true);
+  });
   it('catches a fabricated proper noun that IS the sentence start (the fail-open this fixes)', () => {
     // Previously: any 2+ word capped run beginning exactly at a sentence/line
     // start was skipped outright, so a fabricated name as its OWN opening

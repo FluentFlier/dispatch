@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { classifyPromptForMemory } from '@/lib/memory/classify-prompt';
 import { z } from 'zod';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { LlmError } from '@/lib/llm';
@@ -88,10 +89,23 @@ export async function POST(request: NextRequest): Promise<Response> {
     signalBlock = formatSignalTopicsBlock(topics);
   }
 
+  // Steer memory retrieval the same way the non-stream /api/generate route does.
+  // Without classification the composer searched memory with the raw prompt prefix
+  // and only the top 3 docs, so a "remember the people I met at <event>" prompt
+  // failed to surface the specific past post and the model invented/dropped real
+  // names. Classify → entity-rich query + limit 10 for a specific event. Skipped
+  // on the cached regen fast-path. Never throws (degrades to the naive query).
+  const memoryPlan =
+    !cached && useVoice
+      ? await classifyPromptForMemory(parsed.data.prompt)
+      : { topics: [] as string[], time_scope: 'any' as const, search_query: '' };
+  const memoryLimit = memoryPlan.time_scope === 'specific' ? 10 : 3;
+
   const voiceContext =
     !cached && useVoice
       ? await loadCreatorVoiceContext(client, user.id, {
-          memoryQuery: parsed.data.topic ?? parsed.data.prompt.slice(0, 200),
+          memoryQuery: memoryPlan.search_query || parsed.data.topic || parsed.data.prompt.slice(0, 200),
+          memoryLimit,
           workspaceId: workspaceId ?? undefined,
           platform: parsed.data.platform,
         })
