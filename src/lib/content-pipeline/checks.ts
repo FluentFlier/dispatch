@@ -250,6 +250,12 @@ const SENTENCE_STARTER_WHITELIST = new Set([
   'their', 'one', 'another', 'the',
 ]);
 
+// Common interior-caps tokens that are NOT invented names — exempt them from the
+// single-word coinage scan so real words like "PhD" don't read as fabrications.
+const CAMEL_WHITELIST = new Set([
+  'phd', 'iphone', 'ipad', 'macos', 'ios', 'ipados', 'youtube', 'linkedin',
+]);
+
 const fabricatedSpecifics: Check = {
   id: 'fabricated_specifics', severity: 'hard',
   appliesTo: isProse,
@@ -298,6 +304,22 @@ const fabricatedSpecifics: Check = {
         return fail('fabricated_specifics', 'hard', evidence,
           `Remove "${evidence}" - this name does not appear in the request or provided context. Never invent people or companies.`);
       }
+    }
+
+    // Single-word coined names: interior caps after a lowercase run ("GreenLoop",
+    // "McKinsey"). The 2+word scan above misses these, which is how a fabricated
+    // "founder of GreenLoop" slipped through. A plain Capitalized word (Phoenix,
+    // Monday) is NOT flagged - only an interior cap, which is almost always a
+    // brand/product coinage. Grounded ones (LinkedIn/GitHub in the prompt or
+    // retrieved context) pass via the allowed check.
+    // ponytail: heuristic - relies on the allowed-grounding check to gate false
+    // positives; broaden CAMEL_WHITELIST if legit tokens get flagged.
+    for (const m of Array.from(text.matchAll(/\b[A-Z][a-z]+[A-Z][A-Za-z]*\b/g))) {
+      const token = m[0];
+      if (CAMEL_WHITELIST.has(token.toLowerCase())) continue;
+      if (allowed.includes(token.toLowerCase())) continue;
+      return fail('fabricated_specifics', 'hard', token,
+        `Remove "${token}" - this name does not appear in the request or provided context. Never invent people, products, or companies.`);
     }
     return pass('fabricated_specifics', 'hard');
   },
