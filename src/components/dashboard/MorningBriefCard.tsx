@@ -1,28 +1,27 @@
 import Link from 'next/link';
-import { Sunrise, TrendingUp, BarChart3, Lightbulb, ArrowRight } from 'lucide-react';
+import { Sunrise, TrendingUp, BarChart3, ArrowRight } from 'lucide-react';
 import type { MorningBrief } from '@/lib/rituals/morning-brief';
 import { TrendDetectAction } from '@/components/dashboard/TrendDetectAction';
 
 /**
- * Renders the daily morning brief: today's top trend, yesterday's numbers, and
- * ready-to-draft idea seeds. Presentational only — the brief is composed
- * server-side in the dashboard page from already-persisted data, so this card
- * adds no client fetch and no AI cost.
+ * Top "signals" strip of the unified dashboard card: today's top trend +
+ * yesterday's numbers. Presentational only — composed server-side, no client
+ * fetch or AI cost. The old "Ready to draft" column was dropped: it showed the
+ * same ideas as the card's Backlog lane, so it lived on there instead. Renders
+ * with no card wrapper so it can nest inside the merged dashboard card.
  */
-export function MorningBriefCard({ brief }: { brief: MorningBrief }) {
-  if (!brief.hasContent) return null;
-
-  const { topTrend, yesterday, ideas } = brief;
+export function MorningBriefStrip({ brief }: { brief: MorningBrief }) {
+  const { topTrend, yesterday } = brief;
 
   return (
-    <div className="card-surface p-5">
+    <>
       <div className="flex items-center gap-2">
         <Sunrise className="h-4 w-4 text-blue" />
         <span className="text-sm font-medium text-ink">Morning brief</span>
         <span className="ml-auto text-xs text-ink3">{brief.dateLabel}</span>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* Today's top trend */}
         <div>
           <div className="flex items-center gap-1.5 text-xs font-medium text-ink2">
@@ -77,31 +76,7 @@ export function MorningBriefCard({ brief }: { brief: MorningBrief }) {
             <p className="mt-2 text-xs text-ink3">Nothing posted yesterday.</p>
           )}
         </div>
-
-        {/* Ready-to-draft ideas */}
-        <div>
-          <div className="flex items-center gap-1.5 text-xs font-medium text-ink2">
-            <Lightbulb className="h-3.5 w-3.5" />
-            Ready to draft
-          </div>
-          {ideas.length > 0 ? (
-            <ul className="mt-2 space-y-1.5">
-              {ideas.map((idea) => (
-                <li key={idea.id}>
-                  <Link
-                    href={`/generate?tab=script&topic=${encodeURIComponent(idea.idea)}${idea.pillar ? `&pillar=${encodeURIComponent(idea.pillar)}` : ''}`}
-                    className="text-xs text-ink2 hover:text-blue leading-snug line-clamp-2"
-                  >
-                    {idea.idea}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-2 text-xs text-ink3">Idea bank is empty.</p>
-          )}
-        </div>
       </div>
-    </div>
+    </>
   );
 }
