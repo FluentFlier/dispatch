@@ -61,6 +61,7 @@ vi.mock('@/lib/social/unipile', () => ({
     },
   }),
   mapPlatform: vi.fn((provider: string) => provider.toLowerCase() === 'linkedin' ? 'linkedin' : null),
+  pruneDuplicateUnipileAccounts: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock('@/lib/workspace', () => ({
