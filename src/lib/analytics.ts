@@ -14,6 +14,7 @@ export type AnalyticsEvent =
   | 'upgrade_checkout_started'
   | 'subscription_active'
   | 'trial_started'
+  | 'trial_code_redeemed'
   | 'publish_failed'
   | 'generation_complete'
   | 'edit_feedback_submitted'

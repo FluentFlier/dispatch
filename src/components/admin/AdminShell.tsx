@@ -14,6 +14,7 @@ import {
   ScrollText,
   Clock,
   Webhook,
+  Ticket,
 } from 'lucide-react';
 import { PRODUCT_NAME } from '@/lib/brand';
 import DashboardShell from '@/components/layout/DashboardShell';
@@ -22,6 +23,7 @@ const NAV = [
   { href: '/admin', label: 'Overview', icon: LayoutDashboard, exact: true },
   { href: '/admin/users', label: 'Users', icon: Users },
   { href: '/admin/subscriptions', label: 'Billing', icon: CreditCard },
+  { href: '/admin/trial-codes', label: 'Trial codes', icon: Ticket },
   { href: '/admin/publish', label: 'Publish Queue', icon: Send },
   { href: '/admin/flags', label: 'Feature Flags', icon: Flag },
   { href: '/admin/usage', label: 'Usage', icon: BarChart3 },

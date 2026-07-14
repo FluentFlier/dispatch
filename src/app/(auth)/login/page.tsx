@@ -268,10 +268,10 @@ export default function LoginPage() {
             Content OS
           </p>
           <h1 className="text-3xl font-semibold text-text-primary leading-tight tracking-tight">
-            Sign in. Trial starts automatically.
+            Sign in and enter your access code.
           </h1>
           <p className="text-[15px] text-text-secondary mt-4 max-w-sm leading-relaxed">
-            7 days of Starter access — no card. Quick profile setup, then you&apos;re in.
+            Redeem your code for a free trial — no card. Quick profile setup, then you&apos;re in.
           </p>
         </div>
         <blockquote className="border-l-2 border-accent-primary/40 pl-4">
@@ -299,7 +299,7 @@ export default function LoginPage() {
                   Sign in
                 </h2>
                 <p className="text-[15px] text-text-secondary mt-2">
-                  Google or GitHub. Your 7-day trial begins right after sign-in.
+                  Google or GitHub. You&apos;ll enter your access code next.
                 </p>
               </div>
 
