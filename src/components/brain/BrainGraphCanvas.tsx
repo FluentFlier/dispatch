@@ -23,6 +23,8 @@ interface BrainGraphCanvasProps {
   onSelect: (node: BrainGraphNode | null) => void;
   /** Externally highlight a node (e.g. from a decision card). */
   focusId?: string | null;
+  /** Highlight a set of nodes (e.g. from a learning) — dims everything else. */
+  highlightIds?: string[];
 }
 
 const KIND_STYLE: Record<BrainNodeKind, { fill: string; radius: number }> = {
@@ -76,7 +78,7 @@ function linkDistance(link: SimLink): number {
   return 104;
 }
 
-export function BrainGraphCanvas({ graph, selectedId, onSelect, focusId }: BrainGraphCanvasProps) {
+export function BrainGraphCanvas({ graph, selectedId, onSelect, focusId, highlightIds }: BrainGraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ w: 800, h: 560 });
@@ -189,10 +191,12 @@ export function BrainGraphCanvas({ graph, selectedId, onSelect, focusId }: Brain
     return map;
   }, [graph]);
 
+  const highlightSet = useMemo(() => new Set(highlightIds ?? []), [highlightIds]);
   const activeId = hoverId ?? selectedId ?? focusId ?? null;
   const activeNeighbors = activeId ? neighbors.get(activeId) : null;
 
   const isDimmed = (id: string): boolean => {
+    if (highlightSet.size > 0) return !highlightSet.has(id);
     if (!activeId || id === activeId) return false;
     return !(activeNeighbors?.has(id) ?? false);
   };
@@ -247,7 +251,10 @@ export function BrainGraphCanvas({ graph, selectedId, onSelect, focusId }: Brain
             const s = nodePos.get(e.source);
             const t = nodePos.get(e.target);
             if (!s || s.x == null || !t || t.x == null) return null;
-            const dim = isDimmed(e.source) && isDimmed(e.target);
+            const dim =
+              highlightSet.size > 0
+                ? !(highlightSet.has(e.source) && highlightSet.has(e.target))
+                : isDimmed(e.source) && isDimmed(e.target);
             const isWin = e.kind === 'win';
             const mx = (s.x! + t.x!) / 2;
             const my = (s.y! + t.y!) / 2;
@@ -280,7 +287,7 @@ export function BrainGraphCanvas({ graph, selectedId, onSelect, focusId }: Brain
             const r = nodeRadius(node);
             const dim = isDimmed(node.id);
             const selected = selectedId === node.id;
-            const focused = focusId === node.id;
+            const focused = focusId === node.id || highlightSet.has(node.id);
             const hovered = hoverId === node.id;
             const alwaysLabel =
               node.id === 'profile' ||

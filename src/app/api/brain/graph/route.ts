@@ -3,6 +3,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { listBrainPages } from '@/lib/brain/pages';
 import { buildBrainGraph } from '@/lib/brain/graph';
 import { deriveBrainInsights } from '@/lib/brain/insights';
+import { deriveContentLearnings, type LearningPost } from '@/lib/brain/learnings';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 
 /**
@@ -21,11 +22,27 @@ export async function GET(): Promise<NextResponse> {
     const graph = buildBrainGraph(pages);
     const insights = deriveBrainInsights(pages, graph);
 
+    // Content-intelligence learnings need richer per-post metrics than the brain
+    // pages carry, so pull posted rows straight from `posts`.
+    let postsQuery = client.database
+      .from('posts')
+      .select(
+        'id, pillar, platform, views, likes, comments, shares, saves, follows_gained, voice_match_score, posted_date',
+      )
+      .eq('user_id', user.id)
+      .eq('status', 'posted')
+      .order('posted_date', { ascending: false })
+      .limit(500);
+    if (workspaceId) postsQuery = postsQuery.eq('workspace_id', workspaceId);
+    const { data: postRows } = await postsQuery;
+    const learnings = deriveContentLearnings((postRows ?? []) as LearningPost[], graph);
+
     return NextResponse.json({
       provisioned: pages.length > 0,
       page_count: pages.length,
       last_updated: pages[0]?.updated_at ?? null,
       insights,
+      learnings,
       ...graph,
     });
   } catch (err) {
