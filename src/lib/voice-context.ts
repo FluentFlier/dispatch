@@ -82,6 +82,16 @@ interface LoadVoiceContextOptions {
    * into ordinary content posts.
    */
   includeGtm?: boolean;
+  /**
+   * Outreach mode: build VOICE EXAMPLES from the SINGLE best-available source by
+   * priority (Gmail email > LinkedIn > X), up to `voiceSampleLimit`, so a drafted
+   * message matches how the sender actually writes in that medium. The chosen
+   * source is folded into VOICE EXAMPLES and the separate EMAIL VOICE block is
+   * dropped (no double-injection, no email register bleeding into public posts).
+   */
+  outreachVoicePriority?: boolean;
+  /** Max voice samples when outreachVoicePriority is set (default 15). */
+  voiceSampleLimit?: number;
 }
 
 function parseJsonSetting<T>(value: string | null | undefined): T | undefined {
@@ -336,11 +346,29 @@ export async function loadCreatorVoiceContext(
     });
   }
 
-  if (samplePosts && samplePosts.length > maxSamples) {
-    samplePosts = samplePosts.slice(0, maxSamples);
-  }
-  if (emailSamples && emailSamples.length > 2) {
-    emailSamples = emailSamples.slice(0, 2);
+  // Outreach voice source: pick the single best-available channel by priority
+  // (Gmail email > LinkedIn > X), fold it into VOICE EXAMPLES, and cap at the
+  // outreach limit. First-available-wins (weighting can come later).
+  if (options.outreachVoicePriority) {
+    const limit = options.voiceSampleLimit ?? 15;
+    const linkedin = samplePosts?.filter((s) => s.platform === 'linkedin') ?? [];
+    const x = samplePosts?.filter((s) => s.platform === 'twitter' || s.platform === 'x') ?? [];
+    const chosen =
+      (emailSamples?.length ? emailSamples
+        : linkedin.length ? linkedin
+        : x.length ? x
+        : samplePosts) ?? [];
+    samplePosts = chosen.slice(0, limit);
+    // Chosen source already lives in VOICE EXAMPLES; drop the 1:1 EMAIL VOICE
+    // block so it is not injected twice (and email tone can't leak into a post).
+    emailSamples = undefined;
+  } else {
+    if (samplePosts && samplePosts.length > maxSamples) {
+      samplePosts = samplePosts.slice(0, maxSamples);
+    }
+    if (emailSamples && emailSamples.length > 2) {
+      emailSamples = emailSamples.slice(0, 2);
+    }
   }
 
   let brainSnippets: string[] | undefined;

@@ -3,6 +3,7 @@ import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { saveOutreachDraft, getEvent } from '@/lib/signals/store';
 import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
+import { detectRelationshipTier, outreachFrameworkBlock } from '@/lib/signals/outreach/framework';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import type { SignalEventWithPost, OutreachChannel } from '@/lib/signals/types';
 
@@ -46,6 +47,8 @@ function buildOutreachPrompt(event: SignalEventWithPost, channel: OutreachChanne
     post?.content ? `- Original post:\n${post.content.slice(0, 600)}` : null,
     post?.post_url ? `- Post URL: ${post.post_url}` : null,
     '',
+    outreachFrameworkBlock(detectRelationshipTier({})),
+    '',
     'RULES:',
     '- Sound like a real founder-friendly GTM rep, not a bot.',
     '- Reference the specific signal (YC batch, funding, launch).',
@@ -82,6 +85,9 @@ export async function draftOutreachForEvent(
     // Outreach drafts must carry the GTM playbook (ICP/pitch/CTA). Without this the
     // brain block is skipped and drafts generate with voice but no sales awareness.
     includeGtm: true,
+    // Draft in the sender's real voice from their best-available channel
+    // (Gmail > LinkedIn > X), latest 15 samples.
+    outreachVoicePriority: true,
   });
 
   const result = await generateWithVoicePipeline({

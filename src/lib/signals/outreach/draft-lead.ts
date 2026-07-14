@@ -6,6 +6,7 @@ import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import { fetchYcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { loadEditStyleGuidance } from '@/lib/signals/outreach/edit-feedback';
+import { detectRelationshipTier, outreachFrameworkBlock } from '@/lib/signals/outreach/framework';
 import { withTimeout } from '@/lib/util/timeout';
 import type {
   LeadCompanyDetail,
@@ -94,6 +95,7 @@ function buildLeadPrompt(
   rewriteInstruction?: string | null,
   company?: LeadCompanyDetail | null,
   editGuidance?: string[],
+  frameworkBlock?: string,
 ): string {
   const sourceLabel = lead.source === 'product_hunt' ? 'Product Hunt' : 'YC';
   const firstName = contact?.name ? contact.name.split(' ')[0] : null;
@@ -129,6 +131,8 @@ function buildLeadPrompt(
     lead.batch ? `- ${sourceLabel} batch: ${lead.batch}` : `- Discovered via ${sourceLabel}`,
     lead.intent_flags?.raised ? '- Signal: recently raised funding' : null,
     '',
+    frameworkBlock ?? null,
+    frameworkBlock ? '' : null,
     'THE MESSAGE MUST:',
     '1. Open with a specific, genuine observation about THEM or what they build — reference a concrete detail above, not generic praise.',
     '2. Give one authentic reason you are reaching out (a real overlap or shared interest), not a pitch.',
@@ -217,6 +221,9 @@ export async function draftOutreachForLead(
       platform,
       lightweight: true,
       includeGtm: true,
+      // Draft in the sender's real voice from their best-available channel
+      // (Gmail > LinkedIn > X), latest 15 samples.
+      outreachVoicePriority: true,
     }),
     // Load (or one-time fetch + persist) rich company facts so the prompt has
     // real substance without a re-scrape on repeat drafts. Time-boxed so a cold
@@ -227,11 +234,16 @@ export async function draftOutreachForLead(
   ]);
   const loadsMs = Date.now() - loadsStartedAt;
 
+  // Relationship-tier outreach framework. Directory leads have no prior-contact
+  // signal, so they resolve to 'stranger' (brief, low-pressure, easy out) - the
+  // correct default; warm/connected leads can pass real signals later.
+  const frameworkBlock = outreachFrameworkBlock(detectRelationshipTier({}));
+
   // Fast path for the interactive first render; heavy loop only on polish.
   const pipe = draftPipelineOptions(opts.polish ?? false);
   const genStartedAt = Date.now();
   const result = await generateWithVoicePipeline({
-    userPrompt: buildLeadPrompt(lead, contact, channel, opts.rewriteInstruction, companyDetail, editGuidance),
+    userPrompt: buildLeadPrompt(lead, contact, channel, opts.rewriteInstruction, companyDetail, editGuidance, frameworkBlock),
     profile: voiceContext.profile,
     contextAdditions: voiceContext.contextAdditions,
     platform,
