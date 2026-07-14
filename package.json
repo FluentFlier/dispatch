@@ -22,6 +22,7 @@
     "db:intelligence": "bash scripts/apply-all-intelligence.sh",
     "db:agent": "bash scripts/apply-agent-integration.sh",
     "db:admin-ops": "npx @insforge/cli db import db/admin-ops.sql -y",
+    "db:trial-codes": "npx @insforge/cli db import migrations/20260714120000_trial-codes.sql -y",
     "brain:backfill": "npx @insforge/cli db import db/backfill-creator-brain.sql -y",
     "deploy:vercel": "bash scripts/deploy-vercel.sh",
     "eval:smoke": "promptfoo eval --env-file .env.local -c evals/promptfooconfig.smoke.ts -o evals/out/smoke.json",
