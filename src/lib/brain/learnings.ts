@@ -1,6 +1,14 @@
 import type { BrainGraph } from './graph';
 
-export type LearningKind = 'pillar' | 'timing' | 'platform' | 'voice' | 'engagement';
+export type LearningKind =
+  | 'pillar'
+  | 'timing'
+  | 'platform'
+  | 'voice'
+  | 'engagement'
+  | 'gap'
+  | 'alignment'
+  | 'intent';
 export type LearningSentiment = 'positive' | 'watch' | 'neutral';
 
 export interface ContentLearning {
@@ -18,6 +26,8 @@ export interface ContentLearning {
   sampleSize: number;
   /** Graph node ids to highlight when the learning is engaged. */
   nodeIds: string[];
+  /** Optional next step (e.g. draft a post for an uncovered pipeline theme). */
+  action?: { label: string; href: string };
 }
 
 /** Minimal shape of a `posts` row needed to mine learnings. */
@@ -233,4 +243,142 @@ export function deriveContentLearnings(posts: LearningPost[], graph: BrainGraph)
   // Positive wins first, then things to watch; strongest signal within each.
   const rank: Record<LearningSentiment, number> = { positive: 0, watch: 1, neutral: 2 };
   return learnings.sort((a, b) => rank[a.sentiment] - rank[b.sentiment] || b.sampleSize - a.sampleSize);
+}
+
+// ---------------------------------------------------------------------------
+// Content ↔ pipeline fit
+// ---------------------------------------------------------------------------
+
+/** Minimal shape of a `signal_leads` row needed to score content fit. */
+export interface LeadSignal {
+  tags: string[];
+  intent_flags: Record<string, boolean>;
+}
+
+const MIN_LEADS = 5;
+const MIN_THEME = 3;
+const STOPWORDS = new Set(['the', 'and', 'for', 'with', 'your', 'you', 'content', 'about', 'from', 'this', 'that']);
+
+const INTENT_LABELS: Record<string, string> = {
+  hiring: 'hiring',
+  raised: 'recently funded',
+  seeking_investors: 'raising',
+  seeking_tools: 'evaluating tools',
+};
+
+function tokens(s: string): string[] {
+  return s
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 4 && !STOPWORDS.has(w));
+}
+
+/** Loose match between a lead theme and a content pillar (shared word or substring). */
+function themeMatchesPillar(theme: string, pillarLabel: string): boolean {
+  const themeTokens = new Set(tokens(theme));
+  if (tokens(pillarLabel).some((w) => themeTokens.has(w))) return true;
+  const t = theme.toLowerCase();
+  const p = pillarLabel.toLowerCase();
+  return t.length >= 4 && p.length >= 4 && (t.includes(p) || p.includes(t));
+}
+
+function slug(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+}
+
+/**
+ * Scores how well the creator's content pillars cover the themes and intent
+ * present in their actual lead pipeline. Surfaces gaps (themes with no content),
+ * alignment (pillars the pipeline rewards), and dominant buyer intent.
+ *
+ * There is no post→lead link in the data, so this is topical fit, not
+ * attribution — and it's gated on lead volume so it never speaks from noise.
+ */
+export function deriveLeadFitLearnings(leads: LeadSignal[], graph: BrainGraph): ContentLearning[] {
+  if (leads.length < MIN_LEADS) return [];
+  const pillars = graph.nodes.filter((n) => n.kind === 'pillar');
+  const out: ContentLearning[] = [];
+
+  // --- Dominant buyer intent ---
+  const intentTally = new Map<string, number>();
+  for (const lead of leads) {
+    for (const [key, on] of Object.entries(lead.intent_flags ?? {})) {
+      if (on) intentTally.set(key, (intentTally.get(key) ?? 0) + 1);
+    }
+  }
+  const topIntent = Array.from(intentTally.entries()).sort((a, b) => b[1] - a[1])[0];
+  if (topIntent && topIntent[1] / leads.length >= 0.3) {
+    const [intent, count] = topIntent;
+    const label = INTENT_LABELS[intent] ?? intent.replace(/_/g, ' ');
+    const pct = Math.round((count / leads.length) * 100);
+    out.push({
+      id: `intent-${intent}`,
+      kind: 'intent',
+      headline: `${pct}% of your pipeline is ${label}`,
+      detail: `${count} of ${leads.length} leads. Content that speaks to ${label} will land with who's actually in your funnel.`,
+      metric: `${pct}%`,
+      sentiment: 'neutral',
+      confidence: leads.length >= 20 ? 'high' : 'low',
+      sampleSize: leads.length,
+      nodeIds: [],
+    });
+  }
+
+  // --- Theme gaps & alignment ---
+  const themeTally = new Map<string, { label: string; count: number }>();
+  for (const lead of leads) {
+    for (const raw of lead.tags ?? []) {
+      const label = String(raw).trim();
+      if (label.length < 3) continue;
+      const key = label.toLowerCase();
+      const cur = themeTally.get(key);
+      if (cur) cur.count += 1;
+      else themeTally.set(key, { label, count: 1 });
+    }
+  }
+  const topThemes = Array.from(themeTally.values())
+    .filter((t) => t.count >= MIN_THEME)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+
+  let gaps = 0;
+  let aligns = 0;
+  for (const theme of topThemes) {
+    const pillar = pillars.find((p) => themeMatchesPillar(theme.label, p.label));
+    if (pillar) {
+      if (aligns >= 2) continue;
+      aligns += 1;
+      const posts = graph.edges.filter((e) => e.source === pillar.id).map((e) => e.target);
+      out.push({
+        id: `align-${slug(theme.label)}`,
+        kind: 'alignment',
+        headline: `Your "${pillar.label}" pillar matches your pipeline`,
+        detail: `${theme.count} leads are tagged "${theme.label}" — this pillar is aimed at real demand. Keep feeding it.`,
+        metric: String(theme.count),
+        sentiment: 'positive',
+        confidence: theme.count >= 6 ? 'high' : 'low',
+        sampleSize: theme.count,
+        nodeIds: presentNodeIds(graph, [pillar.id, ...posts]),
+      });
+    } else {
+      if (gaps >= 3) continue;
+      gaps += 1;
+      out.push({
+        id: `gap-${slug(theme.label)}`,
+        kind: 'gap',
+        headline: `No content for "${theme.label}"`,
+        detail: `${theme.count} leads care about "${theme.label}" but none of your pillars cover it — a gap worth filling.`,
+        metric: String(theme.count),
+        sentiment: 'watch',
+        confidence: theme.count >= 6 ? 'high' : 'low',
+        sampleSize: theme.count,
+        nodeIds: [],
+        action: { label: 'Draft a post', href: `/generate?topic=${encodeURIComponent(theme.label)}` },
+      });
+    }
+  }
+
+  // Gaps are the most actionable, then intent, then alignment.
+  const kindRank: Record<string, number> = { gap: 0, intent: 1, alignment: 2 };
+  return out.sort((a, b) => (kindRank[a.kind] ?? 3) - (kindRank[b.kind] ?? 3) || b.sampleSize - a.sampleSize);
 }

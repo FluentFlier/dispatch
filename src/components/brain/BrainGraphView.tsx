@@ -15,6 +15,7 @@ interface GraphResponse extends BrainGraph {
   last_updated: string | null;
   insights?: BrainInsightsSummary;
   learnings?: ContentLearning[];
+  pipeline_learnings?: ContentLearning[];
   migration_required?: boolean;
   error?: string;
 }
@@ -107,11 +108,15 @@ export function BrainGraphView() {
 
   const insights = data?.insights;
   const learnings = data?.learnings ?? [];
+  const pipelineLearnings = data?.pipeline_learnings ?? [];
 
   const handleLearningClick = useCallback((learning: ContentLearning) => {
     setSelected(null);
     setFocusId(null);
-    setHighlight((cur) => (cur?.id === learning.id ? null : { id: learning.id, nodeIds: learning.nodeIds }));
+    setHighlight((cur) => {
+      if (learning.nodeIds.length === 0) return null; // nothing to trace (e.g. a content gap)
+      return cur?.id === learning.id ? null : { id: learning.id, nodeIds: learning.nodeIds };
+    });
   }, []);
 
   const counts = useMemo(() => {
@@ -229,67 +234,28 @@ export function BrainGraphView() {
         </div>
       )}
 
-      {/* What's working — mined content learnings */}
-      {learnings.length > 0 && (
-        <section className="card-surface p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-[13px] font-semibold tracking-[0.01em] text-ink">What&apos;s working</h2>
-              <p className="mt-0.5 text-[12px] text-ink3">
-                Learned from your published performance. Click a learning to trace it on the graph.
-              </p>
-            </div>
-            {highlight && (
-              <button
-                type="button"
-                onClick={() => setHighlight(null)}
-                className="shrink-0 text-[12px] font-semibold text-ink3 hover:text-ink"
-              >
-                Clear
-              </button>
-            )}
-          </div>
-          <ul className="mt-3 space-y-2">
-            {learnings.map((learning) => {
-              const style = LEARNING_STYLE[learning.sentiment];
-              const active = highlight?.id === learning.id;
-              return (
-                <li key={learning.id}>
-                  <button
-                    type="button"
-                    onClick={() => handleLearningClick(learning)}
-                    className={`flex w-full items-start justify-between gap-3 rounded-card border p-3 text-left transition-colors ${
-                      active ? 'border-ink/30 bg-paper2/80' : `${style.accent} bg-white/70 hover:bg-paper2/50`
-                    }`}
-                  >
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-[13px] font-semibold text-ink">{learning.headline}</p>
-                        {learning.confidence === 'low' && (
-                          <span className="rounded-badge border border-hair bg-paper2 px-1.5 py-0.5 text-[10px] font-medium text-ink3">
-                            low confidence · {learning.sampleSize} posts
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-0.5 text-[12px] leading-relaxed text-ink2">{learning.detail}</p>
-                    </div>
-                    {learning.metric && (
-                      <span
-                        className={`shrink-0 rounded-badge border px-2 py-0.5 text-[12px] font-semibold tabular-nums ${style.badge}`}
-                      >
-                        {learning.metric}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
+      {/* What's working — mined content-performance learnings */}
+      <LearningSection
+        title="What's working"
+        subtitle="Learned from your published performance. Click a learning to trace it on the graph."
+        learnings={learnings}
+        activeId={highlight?.id ?? null}
+        onPick={handleLearningClick}
+        onClear={() => setHighlight(null)}
+      />
+
+      {/* From your pipeline — content ↔ lead fit */}
+      <LearningSection
+        title="From your pipeline"
+        subtitle="How your content lines up with the themes and intent of your actual leads."
+        learnings={pipelineLearnings}
+        activeId={highlight?.id ?? null}
+        onPick={handleLearningClick}
+        onClear={() => setHighlight(null)}
+      />
 
       {/* Setup nudges — shown only when there isn't enough data for real learnings */}
-      {insights && learnings.length === 0 && insights.decisions.length > 0 && (
+      {insights && learnings.length === 0 && pipelineLearnings.length === 0 && insights.decisions.length > 0 && (
         <section className="card-surface p-4">
           <h2 className="text-[13px] font-semibold tracking-[0.01em] text-ink">What to do next</h2>
           <p className="mt-0.5 text-[12px] text-ink3">
@@ -377,6 +343,93 @@ export function BrainGraphView() {
         )}
       </div>
     </div>
+  );
+}
+
+function LearningSection({
+  title,
+  subtitle,
+  learnings,
+  activeId,
+  onPick,
+  onClear,
+}: {
+  title: string;
+  subtitle: string;
+  learnings: ContentLearning[];
+  activeId: string | null;
+  onPick: (learning: ContentLearning) => void;
+  onClear: () => void;
+}) {
+  if (learnings.length === 0) return null;
+  const anyActive = learnings.some((l) => l.id === activeId);
+  return (
+    <section className="card-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-[13px] font-semibold tracking-[0.01em] text-ink">{title}</h2>
+          <p className="mt-0.5 text-[12px] text-ink3">{subtitle}</p>
+        </div>
+        {anyActive && (
+          <button type="button" onClick={onClear} className="shrink-0 text-[12px] font-semibold text-ink3 hover:text-ink">
+            Clear
+          </button>
+        )}
+      </div>
+      <ul className="mt-3 space-y-2">
+        {learnings.map((learning) => {
+          const style = LEARNING_STYLE[learning.sentiment];
+          const active = activeId === learning.id;
+          const traceable = learning.nodeIds.length > 0;
+          const body = (
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[13px] font-semibold text-ink">{learning.headline}</p>
+                {learning.confidence === 'low' && (
+                  <span className="rounded-badge border border-hair bg-paper2 px-1.5 py-0.5 text-[10px] font-medium text-ink3">
+                    low confidence · {learning.sampleSize}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-[12px] leading-relaxed text-ink2">{learning.detail}</p>
+            </div>
+          );
+          return (
+            <li key={learning.id}>
+              <div
+                className={`flex items-start justify-between gap-3 rounded-card border p-3 transition-colors ${
+                  active ? 'border-ink/30 bg-paper2/80' : `${style.accent} bg-white/70`
+                }`}
+              >
+                {traceable ? (
+                  <button type="button" onClick={() => onPick(learning)} className="min-w-0 flex-1 text-left" title="Trace on the graph">
+                    {body}
+                  </button>
+                ) : (
+                  body
+                )}
+                <div className="flex shrink-0 items-center gap-2">
+                  {learning.metric && (
+                    <span className={`rounded-badge border px-2 py-0.5 text-[12px] font-semibold tabular-nums ${style.badge}`}>
+                      {learning.metric}
+                    </span>
+                  )}
+                  {learning.action && (
+                    <Link
+                      href={learning.action.href}
+                      className="inline-flex items-center gap-1 text-[12px] font-semibold text-blue hover:underline"
+                    >
+                      {learning.action.label}
+                      <ArrowRight className="h-3 w-3" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

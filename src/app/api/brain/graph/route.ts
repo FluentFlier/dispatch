@@ -3,7 +3,12 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { listBrainPages } from '@/lib/brain/pages';
 import { buildBrainGraph } from '@/lib/brain/graph';
 import { deriveBrainInsights } from '@/lib/brain/insights';
-import { deriveContentLearnings, type LearningPost } from '@/lib/brain/learnings';
+import {
+  deriveContentLearnings,
+  deriveLeadFitLearnings,
+  type LeadSignal,
+  type LearningPost,
+} from '@/lib/brain/learnings';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 
 /**
@@ -37,12 +42,31 @@ export async function GET(): Promise<NextResponse> {
     const { data: postRows } = await postsQuery;
     const learnings = deriveContentLearnings((postRows ?? []) as LearningPost[], graph);
 
+    // Content ↔ pipeline fit — leads are strictly workspace-scoped.
+    let pipelineLearnings: ReturnType<typeof deriveLeadFitLearnings> = [];
+    if (workspaceId) {
+      const { data: leadRows } = await client.database
+        .from('signal_leads')
+        .select('tags, intent_flags')
+        .eq('workspace_id', workspaceId)
+        .limit(1000);
+      const leads: LeadSignal[] = (leadRows ?? []).map((r) => ({
+        tags: Array.isArray(r.tags) ? (r.tags as string[]) : [],
+        intent_flags:
+          r.intent_flags && typeof r.intent_flags === 'object'
+            ? (r.intent_flags as Record<string, boolean>)
+            : {},
+      }));
+      pipelineLearnings = deriveLeadFitLearnings(leads, graph);
+    }
+
     return NextResponse.json({
       provisioned: pages.length > 0,
       page_count: pages.length,
       last_updated: pages[0]?.updated_at ?? null,
       insights,
       learnings,
+      pipeline_learnings: pipelineLearnings,
       ...graph,
     });
   } catch (err) {
