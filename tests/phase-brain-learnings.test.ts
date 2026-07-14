@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { deriveContentLearnings, type LearningPost } from '@/lib/brain/learnings';
-import type { BrainGraph, BrainGraphNode } from '@/lib/brain/graph';
+import {
+  deriveContentLearnings,
+  deriveLeadFitLearnings,
+  type LeadSignal,
+  type LearningPost,
+} from '@/lib/brain/learnings';
+import type { BrainGraph, BrainGraphNode, BrainGraphEdge } from '@/lib/brain/graph';
 
 function post(over: Partial<LearningPost> & { id: string }): LearningPost {
   return {
@@ -18,8 +23,15 @@ function post(over: Partial<LearningPost> & { id: string }): LearningPost {
   };
 }
 
-function graphWith(nodes: Array<Pick<BrainGraphNode, 'id' | 'label' | 'kind'>>): BrainGraph {
-  return { nodes: nodes as BrainGraphNode[], edges: [] };
+function graphWith(
+  nodes: Array<Pick<BrainGraphNode, 'id' | 'label' | 'kind'>>,
+  edges: BrainGraphEdge[] = [],
+): BrainGraph {
+  return { nodes: nodes as BrainGraphNode[], edges };
+}
+
+function lead(over: Partial<LeadSignal>): LeadSignal {
+  return { tags: [], intent_flags: {}, ...over };
 }
 
 describe('deriveContentLearnings', () => {
@@ -92,5 +104,56 @@ describe('deriveContentLearnings', () => {
     const strong = learnings.find((l) => l.id === 'pillar-strong');
     expect(strong?.confidence).toBe('high');
     expect(strong?.sampleSize).toBe(5);
+  });
+});
+
+describe('deriveLeadFitLearnings', () => {
+  it('returns nothing below the lead threshold', () => {
+    const few = Array.from({ length: 4 }, () => lead({ tags: ['devtools'] }));
+    expect(deriveLeadFitLearnings(few, graphWith([]))).toEqual([]);
+  });
+
+  it('flags a content gap for a pipeline theme with no matching pillar', () => {
+    const leads = Array.from({ length: 6 }, () => lead({ tags: ['devtools'] }));
+    const graph = graphWith([{ id: 'pillar:fundraising', label: 'Fundraising', kind: 'pillar' }]);
+    const out = deriveLeadFitLearnings(leads, graph);
+    const gap = out.find((l) => l.kind === 'gap');
+    expect(gap).toBeDefined();
+    expect(gap!.headline.toLowerCase()).toContain('devtools');
+    expect(gap!.sentiment).toBe('watch');
+    expect(gap!.action?.href).toContain('/generate');
+    expect(gap!.nodeIds).toEqual([]);
+  });
+
+  it('flags alignment (with node ids) when a theme matches a pillar', () => {
+    const leads = Array.from({ length: 6 }, () => lead({ tags: ['Fundraising'] }));
+    const graph = graphWith(
+      [
+        { id: 'pillar:fund', label: 'Fundraising', kind: 'pillar' },
+        { id: 'post/x', label: 'x', kind: 'post' },
+      ],
+      [{ source: 'pillar:fund', target: 'post/x', kind: 'structural' }],
+    );
+    const out = deriveLeadFitLearnings(leads, graph);
+    const align = out.find((l) => l.kind === 'alignment');
+    expect(align).toBeDefined();
+    expect(align!.sentiment).toBe('positive');
+    expect(align!.nodeIds).toContain('pillar:fund');
+    expect(align!.nodeIds).toContain('post/x');
+  });
+
+  it('surfaces dominant buyer intent', () => {
+    const leads = [
+      lead({ intent_flags: { hiring: true } }),
+      lead({ intent_flags: { hiring: true } }),
+      lead({ intent_flags: { hiring: true } }),
+      lead({ intent_flags: { raised: true } }),
+      lead({ intent_flags: {} }),
+    ];
+    const out = deriveLeadFitLearnings(leads, graphWith([]));
+    const intent = out.find((l) => l.kind === 'intent');
+    expect(intent).toBeDefined();
+    expect(intent!.metric).toBe('60%');
+    expect(intent!.headline.toLowerCase()).toContain('hiring');
   });
 });
