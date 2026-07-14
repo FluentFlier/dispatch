@@ -118,7 +118,7 @@ export default function IdeaRow({
           </p>
         )}
 
-        {/* Badges — one per pillar, weight-ordered (primary first). */}
+        {/* Badges - one per pillar, weight-ordered (primary first). */}
         <div className="flex flex-wrap items-center gap-[6px] mt-1">
           {postPillars(idea).map((p) => {
             const c = getColor(p);

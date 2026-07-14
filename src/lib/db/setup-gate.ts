@@ -29,7 +29,7 @@ export function isMissingRelationError(err: unknown): boolean {
   const code = errorCode(err);
   const message = errorMessage(err);
 
-  // Column-missing errors (42703 / PGRST204) often mention "schema cache" too —
+  // Column-missing errors (42703 / PGRST204) often mention "schema cache" too -
   // those belong to isSchemaMismatchError, not missing-relation.
   if (isSchemaMismatchError(err)) return false;
 
@@ -65,7 +65,7 @@ export interface SetupRequiredPayload {
   setupRequired: true;
   missing: string[];
   error: string;
-  /** Operator hint — safe to show in admin / logs; UI may soften for end users. */
+  /** Operator hint - safe to show in admin / logs; UI may soften for end users. */
   detail?: string;
 }
 
@@ -86,7 +86,7 @@ export function setupRequiredResponse(
 
 /**
  * Probes whether a table is queryable. Returns true when the relation is missing.
- * Does not treat wrong-shape (missing column) as missing — use probeTableUnusable.
+ * Does not treat wrong-shape (missing column) as missing - use probeTableUnusable.
  */
 export async function isTableMissing(
   client: InsforgeClient,

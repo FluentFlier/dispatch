@@ -10,7 +10,7 @@ const postSchema = z.object({
   body: z.string().min(1).max(4000),
 });
 
-/** GET /api/leads/:id/notes — development notes for a lead. */
+/** GET /api/leads/:id/notes - development notes for a lead. */
 export async function GET(
   _request: NextRequest,
   { params }: { params: { id: string } },
@@ -33,7 +33,7 @@ export async function GET(
   }
 }
 
-/** POST /api/leads/:id/notes — add a development note (comment, next step, etc.). */
+/** POST /api/leads/:id/notes - add a development note (comment, next step, etc.). */
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } },

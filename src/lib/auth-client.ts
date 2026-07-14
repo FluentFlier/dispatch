@@ -12,7 +12,7 @@ interface TokenPair {
  *
  * InsForge SDK internals (verified from SDK source):
  * - accessToken lives in auth.tokenManager (via tokenManager.getAccessToken())
- * - refreshToken lives in auth.http.refreshToken (NOT tokenManager — it only stores accessToken+user)
+ * - refreshToken lives in auth.http.refreshToken (NOT tokenManager - it only stores accessToken+user)
  *
  * detectAuthCallback() strips ?insforge_code from the URL before our code reads it,
  * so we cannot rely on URL params to detect OAuth callbacks. Instead we just try to
@@ -60,7 +60,7 @@ export function getClientTokens(client: InsforgeClient): TokenPair {
   return { accessToken, refreshToken };
 }
 
-/** Backwards-compat shim — use getClientTokens for new code. */
+/** Backwards-compat shim - use getClientTokens for new code. */
 export function getClientAccessToken(client: InsforgeClient): string | null {
   return getClientTokens(client).accessToken;
 }

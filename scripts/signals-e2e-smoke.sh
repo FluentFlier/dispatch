@@ -5,7 +5,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
 
 if [ ! -f .env.local ]; then
-  echo "FAIL: .env.local missing — need InsForge creds"
+  echo "FAIL: .env.local missing - need InsForge creds"
   exit 1
 fi
 
@@ -26,7 +26,7 @@ HEALTH=$(curl -sS -m 20 "$BASE/api/health" || true)
 if echo "$HEALTH" | grep -q '"status":"ok"'; then
   pass "GET /api/health"
 else
-  fail "GET /api/health — $HEALTH"
+  fail "GET /api/health - $HEALTH"
 fi
 
 # 2. Cron sync (should run without 500 even with no Unipile)
@@ -34,10 +34,10 @@ SYNC=$(curl -sS -m 60 -H "Authorization: Bearer $CRON" "$BASE/api/cron/signals-s
 if echo "$SYNC" | grep -q '"status":"ok"'; then
   pass "GET /api/cron/signals-sync"
 else
-  fail "GET /api/cron/signals-sync — $SYNC"
+  fail "GET /api/cron/signals-sync - $SYNC"
 fi
 
-# 3. Webhook ingest — need workspace_id from DB
+# 3. Webhook ingest - need workspace_id from DB
 WS=$(npx @insforge/cli db query "select id from workspaces limit 1" --json 2>/dev/null | node -e "
 let s=''; process.stdin.on('data',d=>s+=d); process.stdin.on('end',()=>{
   try { const j=JSON.parse(s); const row=j.rows?.[0]||j[0]; console.log(row?.id||''); }
@@ -58,7 +58,7 @@ else
   if echo "$INGEST" | grep -q '"ok":true'; then
     pass "POST /api/signals/ingest"
   else
-    fail "POST /api/signals/ingest — $INGEST"
+    fail "POST /api/signals/ingest - $INGEST"
   fi
 
   COUNT=$(npx @insforge/cli db query "select count(*) as c from signal_events where workspace_id='$WS'" 2>/dev/null | rg -o '[0-9]+' | tail -1 || echo 0)

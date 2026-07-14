@@ -6,6 +6,7 @@ import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import { fetchYcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { loadEditStyleGuidance } from '@/lib/signals/outreach/edit-feedback';
+import { detectRelationshipTier, outreachFrameworkBlock } from '@/lib/signals/outreach/framework';
 import { withTimeout } from '@/lib/util/timeout';
 import type {
   LeadCompanyDetail,
@@ -37,7 +38,7 @@ export async function ensureLeadCompanyDetail(
   lead: SignalLeadWithContacts,
 ): Promise<LeadCompanyDetail | null> {
   const existing = (lead.company_detail as LeadCompanyDetail | null | undefined) ?? null;
-  // Already fully fetched once — reuse, never re-scrape.
+  // Already fully fetched once - reuse, never re-scrape.
   if (existing?.fetchedAt) return existing;
   // Only YC leads have a detail page to complete from.
   if (lead.source !== 'yc_directory' || !lead.external_id) return existing;
@@ -94,6 +95,7 @@ function buildLeadPrompt(
   rewriteInstruction?: string | null,
   company?: LeadCompanyDetail | null,
   editGuidance?: string[],
+  frameworkBlock?: string,
 ): string {
   const sourceLabel = lead.source === 'product_hunt' ? 'Product Hunt' : 'YC';
   const firstName = contact?.name ? contact.name.split(' ')[0] : null;
@@ -113,13 +115,13 @@ function buildLeadPrompt(
 
   return [
     `Write a ${channelLabel(channel)} to a startup founder. It must read like a real,`,
-    `thoughtful note from one founder to another: specific, warm, and low-pressure —`,
+    `thoughtful note from one founder to another: specific, warm, and low-pressure -`,
     `good enough to send as-is with zero edits.`,
     '',
     'WHO YOU ARE MESSAGING:',
     firstName
-      ? `- Founder: ${contact!.name}${contact?.role ? ` (${contact.role})` : ''} — address them as "${firstName}".`
-      : `- A founder at ${lead.company_name} (name unknown — do NOT invent one; open with the company/what they build).`,
+      ? `- Founder: ${contact!.name}${contact?.role ? ` (${contact.role})` : ''} - address them as "${firstName}".`
+      : `- A founder at ${lead.company_name} (name unknown - do NOT invent one; open with the company/what they build).`,
     `- Company: ${lead.company_name}`,
     // Cap the description so a long one does not bloat the prompt (latency).
     description ? `- What they build: ${description.slice(0, 400)}` : null,
@@ -129,8 +131,10 @@ function buildLeadPrompt(
     lead.batch ? `- ${sourceLabel} batch: ${lead.batch}` : `- Discovered via ${sourceLabel}`,
     lead.intent_flags?.raised ? '- Signal: recently raised funding' : null,
     '',
+    frameworkBlock ?? null,
+    frameworkBlock ? '' : null,
     'THE MESSAGE MUST:',
-    '1. Open with a specific, genuine observation about THEM or what they build — reference a concrete detail above, not generic praise.',
+    '1. Open with a specific, genuine observation about THEM or what they build - reference a concrete detail above, not generic praise.',
     '2. Give one authentic reason you are reaching out (a real overlap or shared interest), not a pitch.',
     '3. End with a light, specific ask (swap notes / a quick chat), no hard sell.',
     '',
@@ -217,6 +221,9 @@ export async function draftOutreachForLead(
       platform,
       lightweight: true,
       includeGtm: true,
+      // Draft in the sender's real voice from their best-available channel
+      // (Gmail > LinkedIn > X), latest 15 samples.
+      outreachVoicePriority: true,
     }),
     // Load (or one-time fetch + persist) rich company facts so the prompt has
     // real substance without a re-scrape on repeat drafts. Time-boxed so a cold
@@ -227,11 +234,16 @@ export async function draftOutreachForLead(
   ]);
   const loadsMs = Date.now() - loadsStartedAt;
 
+  // Relationship-tier outreach framework. Directory leads have no prior-contact
+  // signal, so they resolve to 'stranger' (brief, low-pressure, easy out) - the
+  // correct default; warm/connected leads can pass real signals later.
+  const frameworkBlock = outreachFrameworkBlock(detectRelationshipTier({}));
+
   // Fast path for the interactive first render; heavy loop only on polish.
   const pipe = draftPipelineOptions(opts.polish ?? false);
   const genStartedAt = Date.now();
   const result = await generateWithVoicePipeline({
-    userPrompt: buildLeadPrompt(lead, contact, channel, opts.rewriteInstruction, companyDetail, editGuidance),
+    userPrompt: buildLeadPrompt(lead, contact, channel, opts.rewriteInstruction, companyDetail, editGuidance, frameworkBlock),
     profile: voiceContext.profile,
     contextAdditions: voiceContext.contextAdditions,
     platform,

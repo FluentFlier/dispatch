@@ -61,13 +61,13 @@ export const LEAD_OUTPUT_SCHEMA = {
 // Partial: `manual` leads (watchlist-created) have no directory goal.
 //
 // Goals are LISTING-ONLY by design: the agent must not open individual company
-// pages. Founder/LinkedIn data lives on per-company subpages — visiting N of them
+// pages. Founder/LinkedIn data lives on per-company subpages - visiting N of them
 // turns one ~60s run into a 5+ minute run that trips the socket timeout. Founder
 // contacts are resolved later, per-lead, by the enrichment path instead. Keep
 // maxCompanies small: agent latency is high and variable (~60-130s regardless).
 export const DIRECTORY_QUERIES: Partial<Record<LeadSource, DirectoryQueryConfig>> = {
   // NOTE: yc_directory is served by the YC Algolia index (see yc-algolia.ts), not
-  // the agent `goal` below — maxCompanies is used as the Algolia hit count. The
+  // the agent `goal` below - maxCompanies is used as the Algolia hit count. The
   // goal/url are retained as documentation and a potential agent fallback.
   yc_directory: {
     version: 3,

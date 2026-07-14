@@ -31,6 +31,7 @@ export const CONNECT_LIMIT = LINKEDIN_CONNECT_NOTE_LIMIT;
 
 /** Short source tag for a directory lead. */
 export function sourceTag(lead: SignalLeadWithContacts): string {
+  if (lead.source === 'web_discovery') return 'Web';
   if (lead.source === 'product_hunt') return lead.batch ? `PH · ${lead.batch}` : 'PH';
   if (lead.source === 'manual') return 'ICP';
   const src = 'YC';
@@ -76,7 +77,7 @@ function AboutText({ text }: { text: string }) {
 
   return (
     <>
-      <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary mb-1">About</p>
+      <p className="text-xs tracking-wide text-text-tertiary mb-1">About</p>
       <p className="text-sm text-text-secondary leading-relaxed">{shown}</p>
       {isLong && (
         <button
@@ -117,6 +118,9 @@ interface LeadDetailProps {
   onToggleStep?: (stepIndex: number, status: 'pending' | 'done') => void;
   onDraftFollowup?: () => void;
   onCheckConnection?: () => void;
+  onDraftReply?: () => void;
+  onSendReply?: () => void;
+  onMarkConversion?: (stage: 'interested' | 'meeting_booked' | 'not_now' | 'lost') => void;
   accepted?: boolean;
   /** Advance the outreach lifecycle past "sent": mark a reply / close it out. */
   onMarkReplied?: () => void;
@@ -158,6 +162,9 @@ export function LeadDetail({
   onToggleStep,
   onDraftFollowup,
   onCheckConnection,
+  onDraftReply,
+  onSendReply,
+  onMarkConversion,
   accepted,
   onMarkReplied,
   onMarkClosed,
@@ -165,7 +172,7 @@ export function LeadDetail({
   // Per-action flags: a spinner shows only on the button whose action is live.
   // `anyBusy` gates send/email/dismiss so an unrelated in-flight action can't be
   // double-submitted, without skeletoning those buttons.
-  const { draftBusy, planBusy, approveBusy, resolveBusy, followupBusy, checkBusy, stageBusy, anyBusy } =
+  const { draftBusy, planBusy, approveBusy, resolveBusy, followupBusy, checkBusy, replyBusy, stageBusy, anyBusy } =
     leadButtonBusy(busyAction);
   // Outreach lifecycle stage persisted on the outreach row (draft → sent →
   // accepted → replied → closed). Drives the post-send stage control below.
@@ -176,6 +183,8 @@ export function LeadDetail({
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [noteText, setNoteText] = useState('');
   const [notesLoading, setNotesLoading] = useState(false);
+  const [threadMessages, setThreadMessages] = useState<Array<{ id: string; direction: string; body: string; sent_at: string }>>([]);
+  const [threadLoading, setThreadLoading] = useState(false);
   // Free-text "how to change it" instruction for a targeted rewrite of the draft.
   const [rewriteInstruction, setRewriteInstruction] = useState('');
 
@@ -186,7 +195,7 @@ export function LeadDetail({
       const data = await res.json();
       if (res.ok) setNotes(data.notes ?? []);
     } catch {
-      // Notes are optional — a missing table should not break the panel.
+      // Notes are optional - a missing table should not break the panel.
     } finally {
       setNotesLoading(false);
     }
@@ -195,6 +204,24 @@ export function LeadDetail({
   useEffect(() => {
     void loadNotes();
   }, [loadNotes]);
+
+  const loadThread = useCallback(async () => {
+    if (!lead.needs_reply && lead.nurture_stage !== 'replied') return;
+    setThreadLoading(true);
+    try {
+      const res = await fetch(`/api/leads/${lead.id}/messages`);
+      const data = await res.json();
+      if (res.ok) setThreadMessages(data.messages ?? []);
+    } catch {
+      // Thread is optional - missing table should not break the panel.
+    } finally {
+      setThreadLoading(false);
+    }
+  }, [lead.id, lead.needs_reply, lead.nurture_stage]);
+
+  useEffect(() => {
+    void loadThread();
+  }, [loadThread]);
 
   const addNote = async () => {
     const body = noteText.trim();
@@ -218,6 +245,7 @@ export function LeadDetail({
   const hasLinkedIn = Boolean(contact?.linkedin_url?.trim());
   const overLimit = draft.length > CONNECT_LIMIT;
   const fact = lead.source_fact as { batch?: string; tagline?: string };
+  const inReplyMode = Boolean(lead.needs_reply || lead.nurture_stage === 'replied');
 
   const detail = company && company !== 'loading' && company !== 'error' ? company : null;
   const loadingCompany = company === 'loading';
@@ -258,7 +286,7 @@ export function LeadDetail({
     });
 
   return (
-    <div className="space-y-4 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
+    <div className="space-y-4">
       {/* Header: logo + name + tagline + follow */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0">
@@ -271,7 +299,7 @@ export function LeadDetail({
             </div>
           )}
           <div className="min-w-0">
-            <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">{sourceTag(lead)}</p>
+            <p className="text-xs tracking-wide text-text-tertiary">{sourceTag(lead)}</p>
             <h2 className="text-xl font-display text-text-primary truncate">{lead.company_name}</h2>
             {tagline && <p className="text-sm text-text-secondary line-clamp-2">{tagline}</p>}
             {(lead.name_history ?? []).length > 0 && (
@@ -391,7 +419,7 @@ export function LeadDetail({
       {/* Nurture playbook */}
       <section className="space-y-2 border border-border rounded-lg p-3 bg-bg-secondary/40">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary flex items-center gap-1.5">
+          <p className="text-xs tracking-wide text-text-tertiary flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5" /> Nurture plan
           </p>
           {onPlanNurture && lead.contact_status === 'resolved' && (
@@ -415,7 +443,7 @@ export function LeadDetail({
             <span className="text-xs text-text-secondary flex items-center gap-1.5">
               {accepted && <Check className="h-3.5 w-3.5 text-accent-secondary" />}
               {accepted
-                ? 'Connection accepted — send the follow-up DM.'
+                ? 'Connection accepted - send the follow-up DM.'
                 : 'Connect sent. Check if they have accepted.'}
             </span>
             {lead.outreach?.channel === 'linkedin_dm' && lead.outreach?.draft_text ? (
@@ -460,13 +488,78 @@ export function LeadDetail({
         )}
       </section>
 
+      {/* Conversation thread when the prospect has replied */}
+      {inReplyMode && (
+        <section className="space-y-2 border border-coral-light rounded-lg p-3 bg-coral-light/20">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs tracking-wide text-coral-dark flex items-center gap-1.5">
+              <MessageSquare className="h-3.5 w-3.5" />
+              {lead.needs_reply ? 'Needs reply' : 'Conversation'}
+            </p>
+            {onDraftReply && lead.needs_reply && !draft && (
+              <Button variant="secondary" size="sm" onClick={onDraftReply} loading={replyBusy}>
+                <Sparkles className="h-4 w-4" /> Draft reply
+              </Button>
+            )}
+          </div>
+          {threadLoading ? (
+            <p className="text-xs text-text-tertiary">Loading thread…</p>
+          ) : threadMessages.length > 0 ? (
+            <ul className="space-y-2 max-h-40 overflow-y-auto">
+              {threadMessages.map((m) => (
+                <li
+                  key={m.id}
+                  className={`text-sm rounded-md px-2.5 py-2 ${
+                    m.direction === 'inbound'
+                      ? 'bg-bg-primary border border-border text-text-primary'
+                      : 'bg-accent-light/40 text-text-secondary ml-4'
+                  }`}
+                >
+                  <span className="text-[10px] text-text-tertiary block mb-0.5">
+                    {m.direction === 'inbound' ? 'Them' : 'You'}
+                  </span>
+                  {m.body}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-text-tertiary">
+              Reply detected - draft a response below. Full thread syncs when Unipile webhooks are configured.
+            </p>
+          )}
+        </section>
+      )}
+
+      {inReplyMode && onMarkConversion && (
+        <section className="space-y-2 border border-border rounded-lg p-3 bg-bg-secondary/40">
+          <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">Outcome</p>
+          <div className="flex flex-wrap gap-2">
+            {([
+              ['interested', 'Interested'],
+              ['meeting_booked', 'Meeting booked'],
+              ['not_now', 'Not now'],
+              ['lost', 'Lost'],
+            ] as const).map(([key, label]) => (
+              <Button
+                key={key}
+                variant={lead.conversion_stage === key ? 'primary' : 'ghost'}
+                size="sm"
+                onClick={() => onMarkConversion(key)}
+              >
+                {label}
+              </Button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Develop: notes + watch */}
       <section className="space-y-2 border border-border rounded-lg p-3 bg-bg-secondary/40">
-        <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary flex items-center gap-1.5">
+        <p className="text-xs tracking-wide text-text-tertiary flex items-center gap-1.5">
           <MessageSquare className="h-3.5 w-3.5" /> Develop this lead
         </p>
         <p className="text-xs text-text-tertiary">
-          Log next steps — comment ideas, follow-up timing, objections heard.
+          Log next steps - comment ideas, follow-up timing, objections heard.
         </p>
         {notesLoading ? (
           <p className="text-xs text-text-tertiary">Loading notes…</p>
@@ -510,7 +603,9 @@ export function LeadDetail({
       {/* Draft */}
       {draft ? (
         <div className="space-y-1">
-          <label className="sr-only" htmlFor="lead-draft">Outreach draft</label>
+          <label className="sr-only" htmlFor="lead-draft">
+            {inReplyMode ? 'Reply draft' : 'Outreach draft'}
+          </label>
           <textarea
             id="lead-draft"
             value={draft}
@@ -518,10 +613,14 @@ export function LeadDetail({
             rows={5}
             className="w-full rounded-md border border-border bg-bg-primary p-3 text-sm text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
           />
-          <div className={`text-xs text-right ${overLimit ? 'text-red-600' : 'text-text-tertiary'}`}>
-            {draft.length}/{CONNECT_LIMIT}
+          <div className={`text-xs text-right ${!inReplyMode && overLimit ? 'text-red-600' : 'text-text-tertiary'}`}>
+            {inReplyMode ? `${draft.length} chars` : `${draft.length}/${CONNECT_LIMIT}`}
           </div>
         </div>
+      ) : inReplyMode && onDraftReply ? (
+        <Button variant="primary" size="sm" onClick={onDraftReply} loading={replyBusy}>
+          <Sparkles className="h-4 w-4" /> Draft reply
+        </Button>
       ) : (
         <Button variant="primary" size="sm" onClick={() => onDraft()} loading={draftBusy}>
           <Sparkles className="h-4 w-4" /> Draft message
@@ -531,7 +630,17 @@ export function LeadDetail({
       {/* Actions */}
       {draft && (
         <div className="flex flex-wrap items-center gap-2 pt-1">
-          {hasLinkedIn && (
+          {lead.needs_reply && onSendReply ? (
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={onSendReply}
+              loading={approveBusy}
+              disabled={noContact || anyBusy}
+            >
+              <Send className="h-4 w-4" /> Send reply
+            </Button>
+          ) : inReplyMode ? null : hasLinkedIn && (
             <Button variant="primary" size="sm" onClick={() => onApprove('linkedin_connect')} loading={approveBusy} disabled={noContact || overLimit || anyBusy}>
               <Send className="h-4 w-4" /> LinkedIn
             </Button>
@@ -630,7 +739,7 @@ function PlaybookView({
     return (
       <div className="space-y-2 text-sm">
         <label className="block">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Why them</span>
+          <span className="text-[11px] font-medium tracking-wide text-text-tertiary">Why them</span>
           <textarea
             value={whyThem}
             onChange={(e) => setWhyThem(e.target.value)}
@@ -639,7 +748,7 @@ function PlaybookView({
           />
         </label>
         <label className="block">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Angle</span>
+          <span className="text-[11px] font-medium tracking-wide text-text-tertiary">Angle</span>
           <textarea
             value={angle}
             onChange={(e) => setAngle(e.target.value)}
@@ -648,7 +757,7 @@ function PlaybookView({
           />
         </label>
         <div className="space-y-1">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Steps</span>
+          <span className="text-[11px] font-medium tracking-wide text-text-tertiary">Steps</span>
           {stepLabels.map((label, i) => (
             <input
               key={`edit-step-${i}`}
@@ -711,7 +820,7 @@ function PlaybookView({
         </p>
       )}
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">Steps</span>
+        <span className="text-[11px] font-medium tracking-wide text-text-tertiary">Steps</span>
         <span className="text-[11px] text-text-tertiary">{doneCount}/{playbook.steps.length} done</span>
       </div>
       <ul className="space-y-1">

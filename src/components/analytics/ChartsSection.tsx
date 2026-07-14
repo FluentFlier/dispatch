@@ -63,7 +63,7 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
     comments: p.comments ?? 0,
   }));
 
-  // LinkedIn often hides impressions — only chart views when we actually have them.
+  // LinkedIn often hides impressions - only chart views when we actually have them.
   const viewsData = sorted
     .filter((p) => (p.views ?? 0) > 0)
     .map((p) => ({
@@ -116,7 +116,7 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
 
   return (
     <section className="bg-bg-secondary border border-border rounded-lg p-6 space-y-8">
-      <h2 className="font-serif text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
+      <h2 className="text-[24px] font-normal tracking-[-0.025em] text-ink flex items-center gap-2.5">
         <TrendingUp size={20} className="text-ink3" /> Performance Overview
       </h2>
 
@@ -261,9 +261,9 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
                 <table className="w-full text-sm min-w-[300px]">
                   <thead>
                     <tr className="border-b border-hair">
-                      <th className="text-left px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium">Pillar</th>
-                      <th className="text-right px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium">Posts</th>
-                      <th className="text-right px-4 py-2.5 font-mono text-[10px] uppercase tracking-[0.1em] text-ink3 font-medium">Avg engagement</th>
+                      <th className="text-left px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium">Pillar</th>
+                      <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium">Posts</th>
+                      <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium">Avg engagement</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -275,8 +275,8 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
                             <span className="text-ink">{getLabel(pillar)}</span>
                           </span>
                         </td>
-                        <td className="text-right px-4 py-2.5 font-mono tabular-nums text-ink">{count}</td>
-                        <td className="text-right px-4 py-2.5 font-mono tabular-nums text-ink">{Math.round(total / count)}</td>
+                        <td className="text-right px-4 py-2.5 tabular-nums text-ink">{count}</td>
+                        <td className="text-right px-4 py-2.5 tabular-nums text-ink">{Math.round(total / count)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -290,10 +290,10 @@ export default function ChartsSection({ posts, getLabel, getColor }: ChartsSecti
             <div className="space-y-2">
               {topByEngagement.map((p, i) => (
                 <div key={p.id} className="flex items-center gap-3 bg-bg-tertiary border border-border rounded-lg px-4 py-3">
-                  <span className="text-flame font-mono text-lg tabular-nums w-6">{i + 1}</span>
+                  <span className="text-flame text-lg tabular-nums w-6">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-ink text-sm truncate">{getPostDisplayTitle(p)}</p>
-                    <p className="font-mono text-[11px] tracking-[0.02em] text-ink3">
+                    <p className="text-[11px] tracking-[0.02em] text-ink3">
                       {postEngagementScore(p).toLocaleString()} engagement · {p.likes ?? 0} likes · {p.comments ?? 0} comments
                     </p>
                   </div>

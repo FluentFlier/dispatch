@@ -2,7 +2,7 @@ import type { VoiceSample } from '@/lib/onboarding/import-posts';
 
 /**
  * Picks a balanced mix of social posts + emails for voice analysis.
- * Emails reveal conversational register; posts reveal public voice — both matter.
+ * Emails reveal conversational register; posts reveal public voice - both matter.
  */
 export function selectBalancedVoiceSamples(
   samples: VoiceSample[],

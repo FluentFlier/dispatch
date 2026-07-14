@@ -1,5 +1,6 @@
 import type { createClient } from '@insforge/sdk';
 import { classifyLeadChange, normalizeDomain } from '@/lib/signals/leads/identity';
+import { defaultEnabledSources, mergeEnabledSources } from '@/lib/signals/leads/directory-defaults';
 import type {
   DirectorySettingsRow,
   FollowedCompanyRow,
@@ -13,11 +14,20 @@ import type {
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
+/** Maps ?status= query param to listLeads filters (`needs_reply` is synthetic, not a DB enum). */
+export function parseLeadListStatusParam(
+  statusParam: string | null,
+): { status?: LeadStatus; needsReply?: boolean } {
+  if (!statusParam || statusParam === 'all') return {};
+  if (statusParam === 'needs_reply') return { needsReply: true };
+  return { status: statusParam as LeadStatus };
+}
+
 // Re-exported for callers that import the anchor helper from the store.
 export { normalizeDomain };
 
 const DEFAULT_SETTINGS: Omit<DirectorySettingsRow, 'workspace_id' | 'created_at' | 'updated_at'> = {
-  enabled_sources: ['yc_directory'],
+  enabled_sources: defaultEnabledSources(),
   icp_description: null,
   icp_verticals: [],
   icp_keywords: [],
@@ -27,6 +37,7 @@ const DEFAULT_SETTINGS: Omit<DirectorySettingsRow, 'workspace_id' | 'created_at'
   digest_channels: { today: true, slack: false, email: false },
   digest_top_n: 15,
   sender_identity: null,
+  meeting_link: null,
   digest_delivered_at: null,
 };
 
@@ -35,7 +46,7 @@ const DEFAULT_SETTINGS: Omit<DirectorySettingsRow, 'workspace_id' | 'created_at'
 /**
  * Loads directory settings for a workspace, creating the row with conservative
  * defaults on first access. Directory config is intentionally separate from
- * signal_safety_settings (different lifecycle) — see the plan §3.2.
+ * signal_safety_settings (different lifecycle) - see the plan §3.2.
  */
 export async function getDirectorySettings(
   client: InsforgeClient,
@@ -69,6 +80,24 @@ export async function updateDirectorySettings(
   if (error) throw error;
 }
 
+/**
+ * Ensures a workspace has all default directory sources enabled (e.g. Product Hunt
+ * when TinyFish is configured). Idempotent - only writes when sources are missing.
+ */
+export async function ensureDirectorySourcesEnabled(
+  client: InsforgeClient,
+  workspaceId: string,
+): Promise<DirectorySettingsRow> {
+  const settings = await getDirectorySettings(client, workspaceId);
+  const merged = mergeEnabledSources(settings.enabled_sources ?? []);
+  if (merged.length === settings.enabled_sources.length &&
+      merged.every((s, i) => s === settings.enabled_sources[i])) {
+    return settings;
+  }
+  await updateDirectorySettings(client, workspaceId, { enabled_sources: merged });
+  return { ...settings, enabled_sources: merged };
+}
+
 // --- Leads ---
 
 /**
@@ -78,13 +107,9 @@ export async function updateDirectorySettings(
 export async function listLeads(
   client: InsforgeClient,
   workspaceId: string,
-  opts: { status?: LeadStatus; limit?: number } = {},
+  opts: { status?: LeadStatus; needsReply?: boolean; limit?: number } = {},
 ): Promise<SignalLeadWithContacts[]> {
   const limit = Math.min(opts.limit ?? 100, 200);
-  // NOTE: do NOT chain .order() here. On this backend, select('*') + embedded
-  // resources + .order() together collapse the result to a single row (each
-  // alone is fine) — which silently hid all but one lead from the UI. We sort by
-  // rank_score in JS instead (the leads UI also re-sorts client-side).
   let query = client.database
     .from('signal_leads')
     .select(`
@@ -96,13 +121,27 @@ export async function listLeads(
     .limit(limit);
 
   if (opts.status) query = query.eq('lead_status', opts.status);
+  if (opts.needsReply) query = query.eq('needs_reply', true);
 
   const { data, error } = await query;
   if (error) throw error;
 
   return (data ?? [])
     .map((row) => hydrateLead(row))
-    .sort((a, b) => b.rank_score - a.rank_score);
+    .sort((a, b) => leadSortScore(b) - leadSortScore(a));
+}
+
+/** Warm replies and active nurture stages float above cold leads in the feed. */
+function leadSortScore(lead: SignalLeadWithContacts): number {
+  let score = lead.rank_score ?? lead.fit_score ?? 0;
+  if (lead.needs_reply) score += 50;
+  if (lead.nurture_stage === 'replied') score += 15;
+  if (lead.nurture_stage === 'connect_sent' || lead.nurture_stage === 'dm_sent') score += 8;
+  if (lead.last_inbound_at) {
+    const ageHours = (Date.now() - Date.parse(lead.last_inbound_at)) / 3_600_000;
+    if (ageHours < 48) score += 10;
+  }
+  return score;
 }
 
 /** Fetches a single lead with contacts + outreach. */
@@ -145,6 +184,13 @@ export interface UpsertLeadsResult {
   inserted: number;
   updated: number;
   renamed: number;
+  /** Lead ids touched this upsert (inserted or updated) - used for batch resolve/score. */
+  leadIds: string[];
+}
+
+/** Dedupes lead ids touched during upsert (domain-merge can hit the same id twice). */
+function dedupeLeadIds(ids: string[]): string[] {
+  return Array.from(new Set(ids));
 }
 
 /**
@@ -152,7 +198,7 @@ export interface UpsertLeadsResult {
  * (source + external_id). New anchors insert as `new` with today's digest_date.
  * A known anchor with a changed company_name is auto-reconciled (rename): the
  * name updates, the old name is appended to name_history, and a `renamed` event
- * is logged — so a follow/lead survives a rename without manual re-keying.
+ * is logged - so a follow/lead survives a rename without manual re-keying.
  */
 export async function upsertIngestedLeads(
   client: InsforgeClient,
@@ -160,11 +206,11 @@ export async function upsertIngestedLeads(
   leads: IngestedLead[],
   digestDate: string,
 ): Promise<UpsertLeadsResult> {
-  const result: UpsertLeadsResult = { inserted: 0, updated: 0, renamed: 0 };
+  const result: UpsertLeadsResult = { inserted: 0, updated: 0, renamed: 0, leadIds: [] };
 
   // Explicit column list, NOT select('*'): on this backend, select('*') with
   // several .eq() filters + .limit(1) silently returns 0 rows (no error), which
-  // made this existence check miss every existing lead and re-insert it —
+  // made this existence check miss every existing lead and re-insert it -
   // crashing a re-scrape on the source+external_id unique constraint.
   const anchorCols = 'id, source, external_id, company_name, tagline, tags, domain, name_history';
 
@@ -201,6 +247,7 @@ export async function upsertIngestedLeads(
           into: domainMatch.source,
         });
         existing = domainMatch;
+        result.leadIds.push(domainMatch.id);
       }
     }
 
@@ -238,12 +285,13 @@ export async function upsertIngestedLeads(
       if (leadId) {
         await insertContactsForLead(client, workspaceId, leadId, lead);
         await logLeadEvent(client, workspaceId, leadId, 'new', { source: lead.source });
+        result.leadIds.push(leadId);
       }
       result.inserted += 1;
       continue;
     }
 
-    // Known anchor — classify the change (rename auto-reconciles, pivot re-scores).
+    // Known anchor - classify the change (rename auto-reconciles, pivot re-scores).
     const change = classifyLeadChange(existing, {
       companyName: lead.companyName,
       tags: lead.tags,
@@ -274,9 +322,10 @@ export async function upsertIngestedLeads(
       .eq('id', existing.id);
     if (updErr) throw updErr;
     result.updated += 1;
+    result.leadIds.push(existing.id);
   }
 
-  return result;
+  return { ...result, leadIds: dedupeLeadIds(result.leadIds) };
 }
 
 /**
@@ -285,7 +334,7 @@ export async function upsertIngestedLeads(
  * folding into an existing YC lead) re-runs this for a lead that already carries
  * these founders; without a guard the same contacts piled up ~4x. We insert only
  * founders NOT already present, matched on linkedin_url or lower(name), and only
- * mark a primary when the lead has no contacts yet — a merge never demotes the
+ * mark a primary when the lead has no contacts yet - a merge never demotes the
  * existing primary.
  */
 export async function insertContactsForLead(

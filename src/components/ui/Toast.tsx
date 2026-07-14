@@ -62,7 +62,7 @@ function ToastNotification({
 
   const styles =
     item.type === 'success'
-      ? 'border-teal/20 bg-teal/10 text-teal'
+      ? 'border-lime/25 bg-lime/15 text-ink'
       : 'border-flame/20 bg-flame/10 text-flame';
 
   return (

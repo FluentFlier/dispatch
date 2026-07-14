@@ -6,7 +6,10 @@ export type AdminAuditAction =
   | 'flag.toggle'
   | 'publish.retry'
   | 'impersonate.start'
-  | 'impersonate.end';
+  | 'impersonate.end'
+  | 'trial_code.create'
+  | 'trial_code.update'
+  | 'trial_code.delete';
 
 export interface AdminAuditEntry {
   id: string;

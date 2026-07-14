@@ -121,7 +121,7 @@ export async function listEvents(
  * filters (the feed store filters after normalizing both sources) and caps at
  * `opts.limit` rows (default 200, same ceiling as before this took a `limit`).
  * Uses explicit columns for the event row plus the same raw_post embed as
- * `listEvents` — no `select('*')` with an unfiltered `.order()` chained on,
+ * `listEvents` - no `select('*')` with an unfiltered `.order()` chained on,
  * since that combination has been observed to collapse embedded-resource
  * queries to a single row on this backend.
  */

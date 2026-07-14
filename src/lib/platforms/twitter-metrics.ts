@@ -2,7 +2,7 @@ import { TwitterApi } from 'twitter-api-v2';
 
 /**
  * Normalized post metrics shared across platforms. Fields are optional because
- * not every platform (or API tier) exposes every metric — callers must only
+ * not every platform (or API tier) exposes every metric - callers must only
  * overwrite stored values that actually came back.
  */
 export interface NormalizedMetrics {
@@ -27,7 +27,7 @@ export interface TweetPublicMetrics {
 
 /**
  * Map X `public_metrics` onto our normalized shape.
- * WHY explicit mapping: X terminology differs from ours — impressions are our
+ * WHY explicit mapping: X terminology differs from ours - impressions are our
  * "views", bookmarks are the closest analogue to "saves", and shares combine
  * retweets + quotes. impression_count and bookmark_count are only returned for
  * the tweet owner and on higher API tiers, so they stay undefined when absent
@@ -49,7 +49,7 @@ export function mapTweetPublicMetrics(pm: TweetPublicMetrics | undefined): Norma
 /**
  * Fetch live metrics for a single tweet using an OAuth2 user-context token.
  * Returns an empty object (never throws) on API failure so one bad tweet does
- * not abort a batch sync — the caller logs and continues.
+ * not abort a batch sync - the caller logs and continues.
  */
 export async function fetchTweetMetrics(
   accessToken: string,

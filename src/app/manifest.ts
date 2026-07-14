@@ -9,7 +9,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'Content OS',
     short_name: 'Content OS',
     description:
-      'The self-improving content command center for creators who ship — generate, schedule, publish, reply, and learn across X, LinkedIn, Instagram, and Threads.',
+      'The self-improving content command center for creators who ship - generate, schedule, publish, reply, and learn across X, LinkedIn, Instagram, and Threads.',
     start_url: '/',
     display: 'standalone',
     background_color: '#FBFAF7',

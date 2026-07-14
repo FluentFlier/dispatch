@@ -88,7 +88,7 @@ export default async function AdminStripePage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 font-mono text-[10px] text-text-tertiary">
-                    {w.eventId ?? '—'}
+                    {w.eventId ?? '-'}
                   </td>
                 </tr>
               ))}

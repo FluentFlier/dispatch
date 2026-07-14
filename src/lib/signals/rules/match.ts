@@ -33,7 +33,7 @@ export interface RuleResolution {
    * The effective action mode for this signal:
    *   - null  → no enabled rules configured; caller falls back to the workspace default.
    *   - a mode → a rule matched (its action_mode), OR rules exist but none matched
-   *     (then 'notify_only' — rules act as an action allowlist).
+   *     (then 'notify_only' - rules act as an action allowlist).
    */
   actionMode: SignalActionMode | null;
   channels: OutreachChannel[];

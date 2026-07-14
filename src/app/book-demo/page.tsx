@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 };
 
 /**
- * Public demo booking page — no auth required so GTM links work from ads and email.
+ * Public demo booking page - no auth required so GTM links work from ads and email.
  */
 export default function BookDemoPage(): JSX.Element {
   return (

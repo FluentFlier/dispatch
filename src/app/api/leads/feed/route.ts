@@ -40,7 +40,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const setup = await checkLeadsSetup(client);
     if (!setup.ok) {
       return setupRequiredResponse(setup.missing, {
-        error: 'Leads engine not provisioned — contact support',
+        error: 'Leads engine not provisioned - contact support',
         detail: setup.flagDisabled
           ? 'Enable signals_engine (feature_flags) and apply db/signals.sql + db/signals-leads.sql'
           : 'Apply db/signals.sql and db/signals-leads.sql on InsForge',
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   } catch (err) {
     if (isMissingRelationError(err)) {
       return setupRequiredResponse(['signal_leads', 'signal_events'], {
-        error: 'Leads engine not provisioned — contact support',
+        error: 'Leads engine not provisioned - contact support',
         detail: 'Apply db/signals.sql and db/signals-leads.sql on InsForge',
       });
     }

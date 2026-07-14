@@ -36,7 +36,7 @@ export default async function AdminUsagePage() {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         {Object.entries(byMetric).map(([metric, total]) => (
           <div key={metric} className={`${adminCard} py-3`}>
-            <p className="text-[11px] uppercase text-text-tertiary">
+            <p className="text-[11px] text-text-tertiary">
               {METRIC_LABELS[metric] ?? metric}
             </p>
             <p className="text-xl font-semibold text-text-primary tabular-nums">{total}</p>

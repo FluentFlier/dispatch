@@ -250,6 +250,19 @@ const SENTENCE_STARTER_WHITELIST = new Set([
   'their', 'one', 'another', 'the',
 ]);
 
+// Common interior-caps tokens that are NOT invented names - exempt them from the
+// single-word coinage scan so real words like "PhD" don't read as fabrications.
+const CAMEL_WHITELIST = new Set([
+  'phd', 'iphone', 'ipad', 'macos', 'ios', 'ipados', 'youtube', 'linkedin',
+]);
+
+// Real domains a model legitimately references (platform names, not invented
+// links) - exempt from the invented-URL scan so they don't read as fabrications.
+const DOMAIN_WHITELIST = new Set([
+  'linkedin.com', 'twitter.com', 'x.com', 'github.com', 'youtube.com',
+  'google.com', 'gmail.com', 'medium.com', 'substack.com',
+]);
+
 const fabricatedSpecifics: Check = {
   id: 'fabricated_specifics', severity: 'hard',
   appliesTo: isProse,
@@ -298,6 +311,34 @@ const fabricatedSpecifics: Check = {
         return fail('fabricated_specifics', 'hard', evidence,
           `Remove "${evidence}" - this name does not appear in the request or provided context. Never invent people or companies.`);
       }
+    }
+
+    // Single-word coined names: interior caps after a lowercase run ("GreenLoop",
+    // "McKinsey"). The 2+word scan above misses these, which is how a fabricated
+    // "founder of GreenLoop" slipped through. A plain Capitalized word (Phoenix,
+    // Monday) is NOT flagged - only an interior cap, which is almost always a
+    // brand/product coinage. Grounded ones (LinkedIn/GitHub in the prompt or
+    // retrieved context) pass via the allowed check.
+    // ponytail: heuristic - relies on the allowed-grounding check to gate false
+    // positives; broaden CAMEL_WHITELIST if legit tokens get flagged.
+    for (const m of Array.from(text.matchAll(/\b[A-Z][a-z]+[A-Z][A-Za-z]*\b/g))) {
+      const token = m[0];
+      if (CAMEL_WHITELIST.has(token.toLowerCase())) continue;
+      if (allowed.includes(token.toLowerCase())) continue;
+      return fail('fabricated_specifics', 'hard', token,
+        `Remove "${token}" - this name does not appear in the request or provided context. Never invent people, products, or companies.`);
+    }
+
+    // Invented bare domains ("greenloop.io", "acme-labs.com"). A CamelCase domain
+    // trips the scan above, but the common lowercase form does not, and
+    // mention_integrity only checks @handles. Grounded domains (in the prompt or
+    // retrieved context) and platform names (DOMAIN_WHITELIST) pass.
+    for (const m of Array.from(text.matchAll(/\b([a-z0-9][a-z0-9-]+\.(?:io|com|ai|co|dev|app|net|org|xyz))\b/gi))) {
+      const domain = m[1].toLowerCase();
+      if (DOMAIN_WHITELIST.has(domain)) continue;
+      if (allowed.includes(domain)) continue;
+      return fail('fabricated_specifics', 'hard', m[1],
+        `Remove "${m[1]}" - this link/domain does not appear in the request or provided context. Never invent URLs.`);
     }
     return pass('fabricated_specifics', 'hard');
   },
@@ -459,6 +500,26 @@ const FIXED_STYLE_LINES = {
 };
 
 /**
+ * Retrospective cues in the user's own request. When present, the post is about
+ * a PAST event (reflecting / remembering), so it must be written looking back in
+ * past tense - never "I just got back from" present-tense immediacy. Deterministic
+ * and model-agnostic: fires off the request wording, so it works even when the
+ * model would otherwise ignore the cue or when memory retrieval is empty.
+ */
+const RETROSPECTIVE_RE =
+  /\b(remember(ing|ed)?|looking back|reflect(ing|ion)?|recap|throwback|nostalg|revisit|that (time|day|event|trip|night)|back (when|then|in \d{4})|long (ago|back)|a long time (ago|back)|last (year|month|week|summer|winter|spring|fall|night)|(years?|months?|weeks?|days?) ago|a while ago|used to|earlier this (year|month|week))\b/i;
+
+function temporalFramingRule(userPrompt: string): string | undefined {
+  if (!RETROSPECTIVE_RE.test(userPrompt)) return undefined;
+  return (
+    'TEMPORAL FRAMING (the request is about a PAST event - reflecting or remembering, ' +
+    'not breaking news): write in past tense as a reflection looking back. Do NOT open ' +
+    'with present-tense immediacy such as "I just got back from", "I am at", or "I just ' +
+    'left". Frame it as remembering something that already happened.'
+  );
+}
+
+/**
  * Generates the style-rules prompt block FROM the registry. Every hard check
  * with a ruleText contributes its rule line only when the check applies to
  * ctx (mirroring the exact gating runChecks itself uses), so prompt and
@@ -476,6 +537,7 @@ export function styleRulesFromChecks(ctx: CheckContext): string {
 
   const lines = [
     'HARD RULES:',
+    temporalFramingRule(ctx.userPrompt),
     ruleFor('markdown'),
     ruleFor('em_dash'),
     FIXED_STYLE_LINES.concreteDetails,

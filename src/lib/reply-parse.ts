@@ -3,7 +3,7 @@
  *
  * Order of preference:
  *  1. A well-formed JSON array of strings.
- *  2. A malformed array (no commas / smart quotes) — extract quoted strings.
+ *  2. A malformed array (no commas / smart quotes) - extract quoted strings.
  *  3. REPLY-marker blocks (REPLY 1: ...).
  *  4. Last resort: the whole text as a single reply.
  *
@@ -27,7 +27,7 @@ export function parseReplies(
       if (Array.isArray(arr) && arr.length > 0) return toPairs(arr.map((x) => String(x)));
     } catch {
       // Weaker models sometimes emit an array without commas (["a" "b" "c"]) or
-      // with smart quotes — invalid JSON. Extract the quoted strings directly.
+      // with smart quotes - invalid JSON. Extract the quoted strings directly.
       const quoted = bracket[0].match(/[“”]((?:[^“”\\]|\\.)*)[“”]|"((?:[^"\\]|\\.)*)"/g);
       if (quoted && quoted.length > 0) {
         const cleaned = quoted

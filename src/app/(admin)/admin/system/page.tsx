@@ -28,8 +28,7 @@ export default async function AdminSystemPage() {
         description={`${PRODUCT_NAME} dependency checks · ${new Date(health.timestamp).toLocaleString()}`}
       />
 
-      <div
-        className={`rounded-lg border p-4 ${
+      <div className={`rounded-lg border p-4 ${
           health.status === 'ok'
             ? 'border-emerald-200 bg-emerald-50'
             : 'border-amber-200 bg-amber-50'
@@ -71,10 +70,10 @@ export default async function AdminSystemPage() {
       <section className={`${adminCard} space-y-2 text-sm text-text-secondary`}>
         <h2 className="text-sm font-semibold text-text-primary">Cron schedule</h2>
         <ul className="space-y-1 font-mono text-xs">
-          <li>/api/cron/fast — every 5 min (publish + signals)</li>
-          <li>/api/cron/medium — every 15 min (engagement, events, metrics)</li>
-          <li>/api/cron/auto-generate — daily 8 UTC</li>
-          <li>/api/cron/intelligence-sync — daily 2 UTC</li>
+          <li>/api/cron/fast - every 5 min (publish + signals)</li>
+          <li>/api/cron/medium - every 15 min (engagement, events, metrics)</li>
+          <li>/api/cron/auto-generate - daily 8 UTC</li>
+          <li>/api/cron/intelligence-sync - daily 2 UTC</li>
         </ul>
         <p className="text-xs text-text-tertiary pt-2">
           Probe: <code className="text-accent-primary">GET /api/health</code>

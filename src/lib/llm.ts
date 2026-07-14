@@ -21,11 +21,16 @@ import { checkGlobalLlmBudget } from '@/lib/llm-budget';
  * HF remains an automatic failover when configured.
  */
 
-/** Hugging Face OpenAI-compatible router — default experimentation provider. */
+/** Hugging Face OpenAI-compatible router - default experimentation provider. */
 export const HF_ROUTER_BASE_URL = 'https://router.huggingface.co/v1';
 export const HF_DEFAULT_CHAT_MODEL = 'meta-llama/Llama-3.1-8B-Instruct';
 
 const DEFAULT_MAX_TOKENS = 1024;
+// Reasoning models (gpt-oss, o-series, gpt-5) spend hundreds of tokens on hidden
+// reasoning BEFORE emitting content, so the normal 1024 cap truncates real output
+// mid-JSON. Give them headroom by default. This is a ceiling, not spend — billing
+// counts only tokens actually generated, and LLM_DAILY_HARD_CAP still guards total.
+const REASONING_DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0.7;
 
 /** How many times to retry a 429 (rate limit) before giving up. */
@@ -46,7 +51,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
  * router, Groq) keep the old `max_tokens` + `temperature` shape.
  */
 function isReasoningModel(model: string): boolean {
-  return /(^|\/)o\d/i.test(model) || /gpt-5/i.test(model);
+  return /(^|\/)o\d/i.test(model) || /gpt-5/i.test(model) || /gpt-oss/i.test(model);
 }
 
 /**
@@ -73,12 +78,30 @@ export function backoffMs(attempt: number, retryAfterHeader: string | null, body
   return Math.min(Math.max(1000 * 2 ** attempt, MIN_BACKOFF_MS) + jitter(), MAX_BACKOFF_MS);
 }
 
+/**
+ * Semantic provider role. Prod runs three SEPARATE endpoints (OpenAI for
+ * generation, Cerebras for judging/small tasks, Groq as fallback) that cannot
+ * be consolidated behind one base URL, so a role selects its own
+ * {baseUrl, apiKey, model} triplet from env. Unset role env → falls back to the
+ * global LLM_* primary, so local/CI (one provider) needs zero role config.
+ *   generate → LLM_GENERATE_*  (main quality model, e.g. GPT-5.5)
+ *   judge    → LLM_JUDGE_*     (scoring/evaluation, e.g. Cerebras)
+ *   small    → LLM_SMALL_*     (humanize, targeted revise, edit passes)
+ */
+export type ProviderRole = 'generate' | 'judge' | 'small';
+
 /** Options for a single chat completion. All optional. */
 export interface ChatCompletionOptions {
   maxTokens?: number;
   temperature?: number;
   /** Override the env model for this call (rarely needed). */
   model?: string;
+  /**
+   * Route this call to a specific provider endpoint by role. When the role's
+   * LLM_<ROLE>_* env triplet is set it owns baseUrl+key+model (options.model is
+   * ignored). When unset, resolution falls through to the global LLM_* primary.
+   */
+  role?: ProviderRole;
   /**
    * Ask the provider for a guaranteed-JSON response (response_format
    * json_object). Providers that reject the param 400 - the call is retried
@@ -167,7 +190,7 @@ function getFallbackProvider(primary: Provider | null): Provider | null {
       label: 'fallback',
     };
   }
-  // HF is already primary — don't use it as its own fallback.
+  // HF is already primary - don't use it as its own fallback.
   if (primary?.label === 'huggingface') return null;
   if (process.env.HUGGINGFACE_API_KEY) {
     return {
@@ -181,8 +204,45 @@ function getFallbackProvider(primary: Provider | null): Provider | null {
 }
 
 /**
+ * Per-role env triplets. A role selects its own endpoint so generate/judge/small
+ * can point at three separate providers (OpenAI/Cerebras/Groq) that cannot share
+ * one base URL.
+ */
+const ROLE_ENV: Record<ProviderRole, { url: string; key: string; model: string }> = {
+  generate: { url: 'LLM_GENERATE_BASE_URL', key: 'LLM_GENERATE_API_KEY', model: 'LLM_GENERATE_MODEL' },
+  judge: { url: 'LLM_JUDGE_BASE_URL', key: 'LLM_JUDGE_API_KEY', model: 'LLM_JUDGE_MODEL' },
+  small: { url: 'LLM_SMALL_BASE_URL', key: 'LLM_SMALL_API_KEY', model: 'LLM_SMALL_MODEL' },
+};
+
+/**
+ * Resolves a role to its dedicated provider, or null when the role's env triplet
+ * is not fully set (so the caller falls back to the global LLM_* primary). All
+ * three vars (url+key+model) must be present; a partial triplet is treated as
+ * unconfigured rather than a half-built provider.
+ */
+function resolveRoleProvider(role: ProviderRole): Provider | null {
+  const env = ROLE_ENV[role];
+  const url = process.env[env.url]?.trim();
+  const key = process.env[env.key]?.trim();
+  const model = process.env[env.model]?.trim();
+  if (url && key && model) {
+    return { baseUrl: url.replace(/\/+$/, ''), apiKey: key, model, label: `role:${role}` };
+  }
+  return null;
+}
+
+/**
+ * Selects the primary provider for a call: an explicit role endpoint when
+ * configured, else the global LLM_* primary (which honors options.model). Shared
+ * by chatCompletion and chatCompletionStream so both route roles identically.
+ */
+function resolvePrimary(options: ChatCompletionOptions): Provider | null {
+  return (options.role ? resolveRoleProvider(options.role) : null) ?? getPrimaryProvider(options.model);
+}
+
+/**
  * Run one chat completion against a specific provider. `retryRateLimit` controls
- * whether a 429 is retried in place with backoff — we disable it when a fallback
+ * whether a 429 is retried in place with backoff - we disable it when a fallback
  * provider exists so we fail over immediately instead of waiting out a (possibly
  * multi-minute) daily-limit backoff on the primary.
  */
@@ -193,7 +253,9 @@ async function callProvider(
   options: ChatCompletionOptions,
   retryRateLimit = true,
 ): Promise<string> {
-  const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
+  const maxTokens =
+    options.maxTokens ??
+    (isReasoningModel(provider.model) ? REASONING_DEFAULT_MAX_TOKENS : DEFAULT_MAX_TOKENS);
   const body: Record<string, unknown> = {
     model: provider.model,
     messages: [
@@ -299,7 +361,7 @@ async function callProviderWithJsonFallback(
 /**
  * Live auth/connectivity probe for the configured LLM provider. Runs one tiny
  * chat completion so a health check can distinguish "key present" from "key
- * actually works" — presence checks stay green even when the key is empty/wrong,
+ * actually works" - presence checks stay green even when the key is empty/wrong,
  * which is exactly how a prod 401 stayed invisible. Returns 'skipped' when no
  * provider is configured, 'ok' on a valid completion, 'error' on any failure.
  */
@@ -318,14 +380,14 @@ export async function chatCompletion(
   userPrompt: string,
   options: ChatCompletionOptions = {},
 ): Promise<string> {
-  // Global spend backstop — runs before ANY provider (primary or HF fallback),
+  // Global spend backstop - runs before ANY provider (primary or HF fallback),
   // so every text-gen path in the app (generate, signals, leads, crons) is
   // bounded by one deployment-wide daily cap. Inert unless LLM_DAILY_HARD_CAP set.
   if ((await checkGlobalLlmBudget()) === 'blocked') {
     throw new LlmError('Global daily AI budget reached. Generation paused to protect credits.', 429);
   }
 
-  const primary = getPrimaryProvider(options.model);
+  const primary = resolvePrimary(options);
   if (!primary) {
     // No provider configured -> legacy HuggingFace SDK path (last resort).
     return generateContentHF(systemPrompt, userPrompt);
@@ -333,7 +395,7 @@ export async function chatCompletion(
 
   const fallback = getFallbackProvider(primary);
   try {
-    // If a fallback exists, don't waste time retrying a rate-limited primary —
+    // If a fallback exists, don't waste time retrying a rate-limited primary -
     // fail fast and switch. Without a fallback, keep the in-place retry loop.
     return await callProviderWithJsonFallback(primary, systemPrompt, userPrompt, options, !fallback);
   } catch (err) {
@@ -366,6 +428,58 @@ export async function chatCompletion(
   }
 }
 
+const DESCRIBE_IMAGE_PROMPT =
+  'Describe this image in one or two plain sentences: setting, people count, what is ' +
+  'happening, any visible text/signage. Concrete visual details only - never guess names ' +
+  'or identities of people in the photo.';
+
+/**
+ * One-time vision description of an image URL, cached by the caller (imports
+ * call this once per image and store the result - never re-run per generation).
+ * Best-effort like every other optional enhancement in this codebase (Supermemory
+ * writes, humanizer, evaluator): never throws, returns null on any failure
+ * (no vision-capable model configured, provider rejects the request, network
+ * error) so a bad/missing description degrades to "no image context" rather
+ * than blocking the import.
+ */
+export async function describeImage(imageUrl: string, model?: string): Promise<string | null> {
+  if ((await checkGlobalLlmBudget()) === 'blocked') return null;
+
+  const visionModel = model ?? process.env.LLM_VISION_MODEL;
+  const primary = getPrimaryProvider(visionModel);
+  if (!primary || !visionModel) return null;
+
+  try {
+    const response = await fetch(`${primary.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${primary.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: primary.model,
+        max_tokens: 150,
+        temperature: 0.2,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: DESCRIBE_IMAGE_PROMPT },
+              { type: 'image_url', image_url: { url: imageUrl } },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!response.ok) {
+      console.warn('[describeImage] provider rejected request', response.status, await response.text().catch(() => ''));
+      return null;
+    }
+    const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    return data.choices?.[0]?.message?.content?.trim() || null;
+  } catch (err) {
+    console.warn('[describeImage] failed (non-fatal)', err);
+    return null;
+  }
+}
+
 /** Called for each text delta as it streams in. */
 export type StreamTokenHandler = (delta: string) => void;
 
@@ -382,7 +496,9 @@ async function callProviderStream(
   options: ChatCompletionOptions,
   onToken: StreamTokenHandler,
 ): Promise<string> {
-  const maxTokens = options.maxTokens ?? DEFAULT_MAX_TOKENS;
+  const maxTokens =
+    options.maxTokens ??
+    (isReasoningModel(provider.model) ? REASONING_DEFAULT_MAX_TOKENS : DEFAULT_MAX_TOKENS);
   const body: Record<string, unknown> = {
     model: provider.model,
     stream: true,
@@ -452,7 +568,7 @@ async function callProviderStream(
           onToken(delta);
         }
       } catch {
-        // Ignore malformed/partial JSON — the next chunk completes it.
+        // Ignore malformed/partial JSON - the next chunk completes it.
       }
     }
   };
@@ -473,7 +589,7 @@ async function callProviderStream(
  * delta and resolves with the full text. Degrades gracefully: on quota it fails
  * over to the fallback provider, and if streaming is unavailable (no provider or
  * a non-quota transport error before any token) it falls back to a single
- * non-streamed completion and emits the whole result at once — so callers always
+ * non-streamed completion and emits the whole result at once - so callers always
  * get text and never have to special-case provider capabilities.
  */
 export async function chatCompletionStream(
@@ -486,7 +602,7 @@ export async function chatCompletionStream(
     throw new LlmError('Global daily AI budget reached. Generation paused to protect credits.', 429);
   }
 
-  const primary = getPrimaryProvider(options.model);
+  const primary = resolvePrimary(options);
   if (!primary) {
     const text = await generateContentHF(systemPrompt, userPrompt);
     if (text) onToken(text);
@@ -503,7 +619,7 @@ export async function chatCompletionStream(
   try {
     return await callProviderStream(primary, systemPrompt, userPrompt, options, counted);
   } catch (err) {
-    // Only recover if nothing has streamed yet — otherwise we'd duplicate output.
+    // Only recover if nothing has streamed yet - otherwise we'd duplicate output.
     if (emitted === 0) {
       if (err instanceof LlmError && err.isQuota && fallback) {
         return callProviderStream(fallback, systemPrompt, userPrompt, { ...options, model: undefined }, counted);

@@ -9,6 +9,7 @@ import {
   SlidersHorizontal,
   Sparkles,
   TrendingUp,
+  Upload,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 
@@ -110,6 +111,7 @@ export function LeadsHeaderActions({
   onDraftAll,
   onRefresh,
   onExport,
+  onImport,
 }: {
   view: 'feed' | 'setup';
   scraping: boolean;
@@ -119,6 +121,7 @@ export function LeadsHeaderActions({
   onDraftAll: () => void;
   onRefresh: () => void;
   onExport: () => void;
+  onImport: () => void;
 }) {
   if (view !== 'feed') return null;
   return (
@@ -135,16 +138,19 @@ export function LeadsHeaderActions({
       <HeaderBtn onClick={onExport} icon={<FileDown className="h-3.5 w-3.5" />}>
         Export CSV
       </HeaderBtn>
+      <HeaderBtn onClick={onImport} icon={<Upload className="h-3.5 w-3.5" />}>
+        Import
+      </HeaderBtn>
     </div>
   );
 }
 
 /**
  * Empty state shown when the feed has leads but the ACTIVE FILTERS exclude them
- * all — distinct from `LeadsEmptyState` (no leads at all). Offers a one-click
+ * all - distinct from `LeadsEmptyState` (no leads at all). Offers a one-click
  * clear, and when a signal-type filter is the culprit, explains that
  * funding / role-change / accelerator signals come from the live Signal engine
- * (X/LinkedIn detection), not the directory scrape — so those can be legitimately
+ * (X/LinkedIn detection), not the directory scrape - so those can be legitimately
  * empty until the engine is configured.
  */
 export function LeadsFilteredEmptyState({
@@ -159,10 +165,10 @@ export function LeadsFilteredEmptyState({
       <div className="p-3 rounded-lg bg-bg-tertiary">
         <SlidersHorizontal className="h-6 w-6 text-text-secondary" aria-hidden="true" />
       </div>
-      <h2 className="font-serif text-[20px] text-text-primary">No leads match these filters</h2>
+      <h2 className="text-[20px] text-text-primary">No leads match these filters</h2>
       <p className="text-sm text-text-secondary max-w-md">
         {signalHint
-          ? 'Funding, new-role, and accelerator signals are detected from live X / LinkedIn posts by the Signal engine — the directory scrape only surfaces companies and launches. Configure the Signal engine in Setup, or clear the filter to see your scraped leads.'
+          ? 'Funding, new-role, and accelerator signals are detected from live X / LinkedIn posts by the Signal engine - the directory scrape only surfaces companies and launches. Configure the Signal engine in Setup, or clear the filter to see your scraped leads.'
           : 'Your scraped leads don’t match the current filters. Clear them to see everything.'}
       </p>
       <div className="flex gap-2 mt-1">
@@ -186,7 +192,7 @@ export function LeadsEmptyState({ onScrape, scraping }: { onScrape: () => void; 
       <div className="p-3 rounded-lg bg-coral-light">
         <TrendingUp className="h-6 w-6 text-accent-primary" />
       </div>
-      <h2 className="font-serif text-[20px] text-text-primary">No leads yet today</h2>
+      <h2 className="text-[20px] text-text-primary">No leads yet today</h2>
       <p className="text-sm text-text-secondary max-w-sm">
         Scrape the directories now, or your next batch lands at your configured digest hour. Tune
         sources and ICP in Setup.

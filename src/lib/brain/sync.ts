@@ -1,7 +1,6 @@
 import type { createClient } from '@insforge/sdk';
 import { BRAIN_SLUG, type BrainProvisionResult } from './types';
 import { getBrainPage, listBrainPages, putBrainPage } from './pages';
-import { isEnabled } from '@/lib/feature-flags';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -121,7 +120,7 @@ export async function syncBrainFromProfile(
 
   const profile = profileRow as ProfileRow;
 
-  // Guard against malformed JSON in content_pillars — a parse error here would
+  // Guard against malformed JSON in content_pillars - a parse error here would
   // crash the entire brain sync silently, leaving voice context stale with no
   // indication of why it stopped updating.
   let pillars: unknown = profile.content_pillars;
@@ -129,7 +128,7 @@ export async function syncBrainFromProfile(
     try {
       pillars = JSON.parse(profile.content_pillars);
     } catch {
-      console.warn('[brain/sync] content_pillars JSON parse failed for user', userId, '— using empty array');
+      console.warn('[brain/sync] content_pillars JSON parse failed for user', userId, '- using empty array');
       pillars = [];
     }
   }
@@ -170,7 +169,7 @@ export async function syncBrainFromProfile(
 }
 
 /**
- * Syncs a single published post into the brain and — when the feature flag is on —
+ * Syncs a single published post into the brain and - when the feature flag is on -
  * writes it to Supermemory so future generation can reference "you wrote about this".
  * The Supermemory write is intentionally non-blocking: a Supermemory outage must
  * never fail the publish operation. workspaceId scopes both the brain page and the
@@ -216,43 +215,43 @@ export async function syncBrainPublishedPost(
     workspaceId,
   });
 
-  // syncBrainWins is intentionally NOT called here — it runs a top-5 query and
+  // syncBrainWins is intentionally NOT called here - it runs a top-5 query and
   // was previously called inside this per-post function, causing N top-5 queries
   // when publishing N posts. Call it once at the end of syncCreatorBrainFull().
 
-  // L3: non-blocking Supermemory write — publish must succeed even if Supermemory is down.
-  // Flag check happens after putBrainPage (publish already complete above) so skipping
-  // memory writes never impacts publish latency or success.
-  if (!(await isEnabled(client, 'layer3_memory_writes'))) return;
-  try {
-    const { addMemory } = await import('@/lib/supermemory');
-    await addMemory({
-      content: [
-        `Published ${post.platform} post (${post.pillar}):`,
-        content,
-        post.views ? `Performance: ${post.views} views, ${post.likes ?? 0} likes` : '',
-      ]
-        .filter(Boolean)
-        .join('\n\n'),
-      containerTags: [
-        workspaceId ? `workspace_${workspaceId}` : `user_${userId}`,
-        'published_post',
-        post.platform,
-        post.pillar,
-      ],
-      // customId is idempotent — re-running sync for the same post is safe.
-      customId: `post_${postId}`,
-      metadata: {
-        type: 'published_post',
-        platform: post.platform,
-        pillar: post.pillar,
-        views: post.views ?? 0,
-        posted_date: post.posted_date ?? '',
-      },
-    });
-  } catch (err) {
-    console.error('[brain/sync] addMemory failed (non-blocking):', err);
-  }
+  // L3: non-blocking memory write via the shared helper. Publish must succeed
+  // even if memory is down (writeToMemory swallows its own errors and honors the
+  // layer3_memory_writes flag). Keyed on the platform URN so this publish path
+  // and the import path collapse to ONE document per real post - the dated header
+  // gives generation the temporal context that stops "I just got back from…" on
+  // a "remember that event" prompt.
+  const { data: jobRow } = await client.database
+    .from('publish_jobs')
+    .select('provider_post_id')
+    .eq('post_id', postId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  const providerPostId = (jobRow as { provider_post_id: string | null } | null)?.provider_post_id ?? null;
+
+  const { writeToMemory, buildPostMemoryCustomId } = await import('@/lib/memory/write');
+  await writeToMemory(client, {
+    userId,
+    workspaceId: workspaceId ?? null,
+    kind: 'published_post',
+    content: `[Your ${post.platform} post from ${post.posted_date ?? 'unknown date'}] - this ALREADY happened; reference as past.\n\n${[
+      content,
+      post.views ? `Performance: ${post.views} views, ${post.likes ?? 0} likes` : '',
+    ]
+      .filter(Boolean)
+      .join('\n\n')}`,
+    customId: buildPostMemoryCustomId(post.platform, providerPostId, post.id),
+    metadata: {
+      platform: post.platform,
+      pillar: post.pillar,
+      views: post.views ?? 0,
+      posted_date: post.posted_date ?? '',
+    },
+  });
 }
 
 async function syncBrainWins(
@@ -291,16 +290,71 @@ async function syncBrainWins(
   });
 }
 
+async function syncBrainStories(
+  client: InsforgeClient,
+  userId: string,
+  workspaceId?: string,
+): Promise<number> {
+  // story_bank stores mined memories, not title/body/category/tags columns.
+  // Derive the brain node fields from the real schema (raw_memory + mined_* + pillar).
+  let query = client.database
+    .from('story_bank')
+    .select('id, raw_memory, mined_angle, mined_hook, pillar')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(30);
+
+  if (workspaceId) query = query.eq('workspace_id', workspaceId);
+
+  const { data: stories } = await query;
+  let synced = 0;
+
+  for (const row of stories ?? []) {
+    const story = row as {
+      id: string;
+      raw_memory: string | null;
+      mined_angle: string | null;
+      mined_hook: string | null;
+      pillar: string | null;
+    };
+    const title = story.mined_angle?.trim() || story.mined_hook?.trim() || 'Story';
+    const content = story.raw_memory?.trim() ?? '';
+    if (!content && title === 'Story') continue;
+    const tags = story.pillar ? [story.pillar] : [];
+
+    await putBrainPage(client, userId, {
+      slug: BRAIN_SLUG.story(story.id),
+      title,
+      tags: ['story', ...tags],
+      body: JSON.stringify(
+        {
+          story_id: story.id,
+          title,
+          content: content.slice(0, 4000),
+          category: story.pillar,
+          tags,
+          synced_at: new Date().toISOString(),
+        },
+        null,
+        2,
+      ),
+      workspaceId,
+    });
+    synced++;
+  }
+
+  return synced;
+}
+
 /**
  * Full brain refresh: provisions, syncs profile, syncs all recent published posts,
- * and updates wins page. workspaceId scopes all writes to the correct workspace
- * namespace so agency clients don't share brain content.
+ * stories, and updates wins page.
  */
 export async function syncCreatorBrainFull(
   client: InsforgeClient,
   userId: string,
   workspaceId?: string,
-): Promise<{ synced_posts: number }> {
+): Promise<{ synced_posts: number; synced_stories: number }> {
   await provisionCreatorBrain(client, userId, workspaceId);
   await syncBrainFromProfile(client, userId, workspaceId);
 
@@ -321,8 +375,9 @@ export async function syncCreatorBrainFull(
   // Run syncBrainWins once here after all posts are synced, not inside each
   // syncBrainPublishedPost call (which caused N redundant top-5 queries).
   await syncBrainWins(client, userId, workspaceId);
+  const synced_stories = await syncBrainStories(client, userId, workspaceId);
 
-  return { synced_posts: synced };
+  return { synced_posts: synced, synced_stories };
 }
 
 /**

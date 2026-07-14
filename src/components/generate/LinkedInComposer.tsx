@@ -3,12 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   X, Image as ImageIcon, Link2, AtSign, Globe2,
-  ThumbsUp, MessageSquare, Repeat2, Send,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useToast } from '@/components/ui/Toast';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
-import { getInitials, normalizeUrl, SEE_MORE_AT } from '@/lib/compose-preview';
+import { getInitials, normalizeUrl } from '@/lib/compose-preview';
+import { LinkedInPostPreview } from '@/components/generate/LinkedInPostPreview';
 import type { Platform } from '@/lib/constants';
 
 interface LinkedInComposerProps {
@@ -27,7 +27,7 @@ const PLATFORM_LABELS: Record<string, string> = {
 /**
  * LinkedIn-style compose + live preview step. Mirrors LinkedIn's posting UI
  * layout and functionality (editor on top, live feed-style preview below) so the
- * user sees exactly how their post will look before publishing — plus image,
+ * user sees exactly how their post will look before publishing - plus image,
  * link, and mention controls. Uses app theme colors, not LinkedIn's palette.
  */
 export function LinkedInComposer({ open, onClose, initialText, platform, onPublished }: LinkedInComposerProps) {
@@ -40,7 +40,6 @@ export function LinkedInComposer({ open, onClose, initialText, platform, onPubli
   const [headline, setHeadline] = useState<string | null>(null);
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [linkValue, setLinkValue] = useState('');
-  const [expanded, setExpanded] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -49,7 +48,6 @@ export function LinkedInComposer({ open, onClose, initialText, platform, onPubli
     if (open) {
       setText(initialText);
       setImageUrl(null);
-      setExpanded(false);
       setShowLinkInput(false);
     }
   }, [open, initialText]);
@@ -136,15 +134,12 @@ export function LinkedInComposer({ open, onClose, initialText, platform, onPubli
     }
   }
 
-  const isLong = text.length > SEE_MORE_AT;
-  const previewText = !expanded && isLong ? text.slice(0, SEE_MORE_AT) : text;
-
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-8">
       <div className="w-full max-w-xl rounded-xl border border-hair bg-paper shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-hair px-5 py-3">
-          <h2 className="font-serif text-lg text-ink">Post to {label}</h2>
+          <h2 className="text-lg text-ink">Post to {label}</h2>
           <button onClick={onClose} aria-label="Close" className="text-ink3 hover:text-ink">
             <X className="h-5 w-5" />
           </button>
@@ -231,33 +226,8 @@ export function LinkedInComposer({ open, onClose, initialText, platform, onPubli
 
         {/* Live preview */}
         <div className="border-t border-hair bg-paper2 px-5 py-4">
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-ink3">Preview</p>
-          <div className="rounded-lg border border-hair bg-paper p-4 shadow-sm">
-            <div className="flex items-center gap-2">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-accent-primary text-xs font-semibold text-white">{initials}</div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-ink">{name}</p>
-                {headline && <p className="truncate text-[12px] text-ink2">{headline}</p>}
-                <p className="text-[11px] text-ink3">Now · 🌐</p>
-              </div>
-            </div>
-            <div className="mt-3 whitespace-pre-wrap font-body text-[14px] leading-[1.5] text-ink">
-              {previewText}
-              {isLong && !expanded && (
-                <button onClick={() => setExpanded(true)} className="text-ink3 hover:text-ink"> ...more</button>
-              )}
-            </div>
-            {imageUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={imageUrl} alt="Preview attachment" className="mt-3 max-h-80 w-full rounded-md object-cover" />
-            )}
-            <div className="mt-3 flex items-center justify-around border-t border-hair pt-2 text-[12px] text-ink2">
-              <span className="flex items-center gap-1.5"><ThumbsUp className="h-4 w-4" /> Like</span>
-              <span className="flex items-center gap-1.5"><MessageSquare className="h-4 w-4" /> Comment</span>
-              <span className="flex items-center gap-1.5"><Repeat2 className="h-4 w-4" /> Repost</span>
-              <span className="flex items-center gap-1.5"><Send className="h-4 w-4" /> Send</span>
-            </div>
-          </div>
+          <p className="mb-2 text-[11px] font-medium tracking-wide text-ink3">Preview</p>
+          <LinkedInPostPreview name={name} headline={headline} text={text} imageUrl={imageUrl} />
         </div>
 
         {/* Footer */}

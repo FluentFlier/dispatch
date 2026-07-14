@@ -1,5 +1,5 @@
 import { getServerClient, getServiceClient } from '@/lib/insforge/server';
-import { unipoleFetch } from '@/lib/social/unipile';
+import { unipoleFetch, pruneDuplicateUnipileAccounts } from '@/lib/social/unipile';
 import {
   backfillNullWorkspaceSocialAccounts,
   ensureActiveWorkspaceId,
@@ -43,6 +43,57 @@ function mapUnipilePlatform(account: UnipileAccount) {
   return null;
 }
 
+/**
+ * Picks the accounts safe to bind to the connecting user. An account qualifies
+ * only if it appeared AFTER the pre-connect snapshot, isn't owned by another
+ * user, and is the ONLY new account of its platform. Two concurrent connects
+ * produce >1 new account of a platform → ambiguous → bound to nobody here
+ * (the state-bound webhook resolves those). This is the guard against the old
+ * "grab the first id Unipile returns" cross-wiring bug — keep it pure + tested.
+ */
+export function pickAccountsToBind(
+  accounts: UnipileAccount[],
+  snapshotIds: Set<string>,
+  claimedByOthers: Set<string>,
+): UnipileAccount[] {
+  const seen = new Set<string>();
+  const byPlatform = new Map<string, UnipileAccount[]>();
+  for (const account of accounts) {
+    if (seen.has(account.id)) continue;
+    seen.add(account.id);
+    if (snapshotIds.has(account.id) || claimedByOthers.has(account.id)) continue;
+    const platform = mapUnipilePlatform(account);
+    if (!platform) continue;
+    const group = byPlatform.get(platform) ?? [];
+    group.push(account);
+    byPlatform.set(platform, group);
+  }
+  return Array.from(byPlatform.values())
+    .filter((group) => group.length === 1)
+    .map((group) => group[0]);
+}
+
+/**
+ * Waits for the notify_url webhook to bind the account from THIS user's hosted
+ * session. The webhook deletes the pre-connect snapshot once it has written the
+ * row, so a vanished snapshot is our signal that the ground-truth bind landed.
+ * Bounded poll — never blocks the connect flow indefinitely.
+ */
+async function waitForWebhookBind(
+  serviceClient: ReturnType<typeof getServiceClient>,
+  userId: string,
+): Promise<void> {
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { data: snap } = await serviceClient.database
+      .from('unipile_connect_snapshots')
+      .select('user_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (!snap) return; // webhook consumed the snapshot → bind is done
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+}
+
 export async function syncUnipileAccountsForUser(
   userId: string,
 ): Promise<UnipileAccountsSyncResult> {
@@ -50,6 +101,45 @@ export async function syncUnipileAccountsForUser(
     throw new UnipileAccountsSyncError('Unipile not configured', 503);
   }
 
+  const client = getServerClient();
+  const workspaceId = await ensureActiveWorkspaceId(userId);
+  await backfillNullWorkspaceSocialAccounts(userId, workspaceId);
+  const serviceClient = getServiceClient();
+
+  // Shared Unipile subscription: GET /accounts returns EVERY tenant user's
+  // LinkedIn, with no per-user signal. Deriving "which one is mine" from that
+  // list races concurrent connects and cross-wires strangers' accounts (users
+  // saw a random name that kept changing). In any deployed environment the
+  // notify_url webhook is reachable and binds the EXACT account from this user's
+  // hosted session (state=user.id) — that is the only trustworthy source, so we
+  // defer to it entirely here and never guess from the shared list.
+  const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? '').toLowerCase();
+  const isLocalhost = !appUrl || appUrl.includes('localhost') || appUrl.includes('127.0.0.1');
+
+  if (!isLocalhost) {
+    await waitForWebhookBind(serviceClient, userId);
+    // Drop any snapshot the webhook didn't consume so a later stray event can't
+    // re-bind off it.
+    await serviceClient.database
+      .from('unipile_connect_snapshots')
+      .delete()
+      .eq('user_id', userId);
+    const { data: rows } = await client.database
+      .from('social_accounts')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('workspace_id', workspaceId)
+      .not('unipile_account_id', 'is', null);
+    const synced = rows?.length ?? 0;
+    return {
+      synced,
+      workspaceId,
+      message: synced ? undefined : 'Awaiting connection confirmation',
+    };
+  }
+
+  // Localhost only: the webhook can't reach a dev machine, so fall back to the
+  // snapshot-diff bind. Safe here because a dev tenant has a single connector.
   const res = await unipoleFetch('/accounts', { method: 'GET' });
 
   if (!res.ok) {
@@ -66,15 +156,26 @@ export async function syncUnipileAccountsForUser(
     []
   );
 
-  const client = getServerClient();
-  const workspaceId = await ensureActiveWorkspaceId(userId);
-  await backfillNullWorkspaceSocialAccounts(userId, workspaceId);
-
   if (accounts.length === 0) {
     return { synced: 0, workspaceId, message: 'No accounts found in Unipile' };
   }
 
-  const serviceClient = getServiceClient();
+  // Pre-connect snapshot written by /connect/unipile. Its absence means this
+  // call is NOT a fresh connect (e.g. a settings-page load) — bind nothing, so
+  // we never re-derive identity from the shared list (the old cross-wiring bug).
+  const { data: snapRow } = await serviceClient.database
+    .from('unipile_connect_snapshots')
+    .select('account_ids')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!snapRow) {
+    return { synced: 0, workspaceId, message: 'No pending connect — nothing to bind' };
+  }
+  const snapshotIds = new Set(
+    ((snapRow as { account_ids?: string[] }).account_ids ?? []).filter(Boolean),
+  );
+
   const { data: allClaimed } = await serviceClient.database
     .from('social_accounts')
     .select('unipile_account_id, user_id')
@@ -87,32 +188,16 @@ export async function syncUnipileAccountsForUser(
       .filter(Boolean),
   );
 
-  const seen = new Set<string>();
-  const dedupedAccounts = accounts.filter((account) => {
-    if (seen.has(account.id)) return false;
-    seen.add(account.id);
-    return true;
-  });
+  const clearSnapshot = () =>
+    serviceClient.database.from('unipile_connect_snapshots').delete().eq('user_id', userId);
+
+  const toBind = pickAccountsToBind(accounts, snapshotIds, claimedByOthers);
 
   let synced = 0;
-  for (const account of dedupedAccounts) {
-    if (claimedByOthers.has(account.id)) {
-      console.warn('[sync/unipile] Skipping account owned by another user:', `${account.id.slice(0, 8)}...`);
-      continue;
-    }
-
-    const platform = mapUnipilePlatform(account);
-    if (!platform) continue;
-
+  for (const account of toBind) {
+    const platform = mapUnipilePlatform(account)!;
     const accountName = account.name ?? account.connection_params?.im?.username ?? null;
     const accountId = account.connection_params?.im?.publicIdentifier ?? account.username ?? null;
-
-    console.log(
-      `[sync/unipile] ${platform} account_id (publicIdentifier):`,
-      accountId,
-      '| unipile_id:',
-      `${account.id.slice(0, 8)}...`,
-    );
 
     const { data: existing } = await client.database
       .from('social_accounts')
@@ -147,8 +232,11 @@ export async function syncUnipileAccountsForUser(
           connected_at: new Date().toISOString(),
         });
     }
+    // Reap this LinkedIn's stale duplicate boxes so dev reconnects don't pile up.
+    if (accountId) await pruneDuplicateUnipileAccounts(account.id, accountId);
     synced++;
   }
 
+  await clearSnapshot();
   return { synced, workspaceId };
 }

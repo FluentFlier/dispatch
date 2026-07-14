@@ -17,7 +17,7 @@ const BodySchema = z
 /**
  * Whether the request carries the valid ops Bearer secret. Ops mode targets an
  * arbitrary user via the service client (RLS bypass), so this MUST hold in every
- * environment — there is no NODE_ENV shortcut.
+ * environment - there is no NODE_ENV shortcut.
  */
 function opsSecretValid(request: NextRequest): boolean {
   const secret = process.env.DEMO_SEED_SECRET || process.env.CRON_SECRET;
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   try {
     if (opsMode) {
-      // Ops mode uses the service client (bypasses RLS) — always require the secret.
+      // Ops mode uses the service client (bypasses RLS) - always require the secret.
       if (!opsSecretValid(request)) {
         logWarn('demo.seed.ops_denied', { userId: body.user_id });
         return NextResponse.json({ error: 'Invalid ops credentials' }, { status: 403 });

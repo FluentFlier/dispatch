@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getAuthenticatedUser } from '@/lib/insforge/server';
+import { getAuthenticatedUser, getServiceClient } from '@/lib/insforge/server';
 import {
   getUnipileApiBase,
   getUnipileApiKey,
@@ -8,12 +8,43 @@ import {
 } from '@/lib/unipile/config';
 
 /**
+ * Snapshot the shared subscription's current account IDs BEFORE the user connects.
+ * On return, /api/social-accounts/sync diffs against this to identify the exact
+ * account THIS user just connected - the shared key's GET /accounts otherwise
+ * gives no per-user signal. Best-effort: never blocks the connect flow.
+ */
+async function snapshotUnipileAccounts(userId: string, apiBase: string, apiKey: string) {
+  try {
+    const res = await fetch(`${apiBase}/accounts`, {
+      headers: { 'X-API-KEY': apiKey, accept: 'application/json' },
+      cache: 'no-store',
+    });
+    if (!res.ok) return;
+    const data = (await res.json()) as Record<string, unknown>;
+    const list =
+      (data.items as Array<{ id?: string }> | undefined) ??
+      (data.accounts as Array<{ id?: string }> | undefined) ??
+      (data.data as Array<{ id?: string }> | undefined) ??
+      [];
+    const ids = list.map((a) => a.id).filter((id): id is string => Boolean(id));
+    await getServiceClient()
+      .database.from('unipile_connect_snapshots')
+      .upsert(
+        { user_id: userId, account_ids: ids, created_at: new Date().toISOString() },
+        { onConflict: 'user_id' },
+      );
+  } catch (err) {
+    console.warn('[unipile/connect] snapshot failed (non-fatal):', err);
+  }
+}
+
+/**
  * GET /api/social-accounts/connect/unipile
  *
  * Calls Unipile POST /api/v1/hosted/accounts/link to generate a hosted
  * connect session URL, then redirects the user there.
  *
- * Webhook (api_url) is only set in production — on localhost Unipile can't
+ * Webhook (api_url) is only set in production - on localhost Unipile can't
  * reach the server, so the success redirect instead calls
  * POST /api/social-accounts/sync to poll and store accounts.
  */
@@ -62,10 +93,14 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const scopedProvider = providerParam ? PROVIDER_ENUM[providerParam] : undefined;
   const providers = scopedProvider ? [scopedProvider] : ['LINKEDIN', 'TWITTER'];
 
+  // Record which accounts already exist so the post-connect sync can pick out
+  // the one this user is about to add (shared-key subscription has no per-user filter).
+  await snapshotUnipileAccounts(user.id, apiBase, apiKey);
+
   // api_url = the Unipile server URL (required). notify_url = our webhook (optional).
   const requestBody: Record<string, unknown> = {
     type: 'create',
-    // Required: Unipile server URL — not our webhook, the Unipile API base.
+    // Required: Unipile server URL - not our webhook, the Unipile API base.
     api_url: serverUrl,
     // Required: link expiry (ISO 8601 UTC). Unipile also expires on daily restart.
     expiresOn: new Date(Date.now() + 10 * 60 * 1000).toISOString(),
@@ -73,7 +108,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     providers,
     success_redirect_url: successRedirect,
     failure_redirect_url: failureRedirect,
-    // state is returned as payload.state in the account.connected webhook — used to identify the user.
+    // state is returned as payload.state in the account.connected webhook - used to identify the user.
     // name is a display label only; account.name in the webhook payload is the LinkedIn display name, not this value.
     name: user.id,
     state: user.id,

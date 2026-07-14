@@ -115,7 +115,7 @@ export async function refreshAccessToken(
 
 export async function getProfile(accessToken: string): Promise<ProfileResult | null> {
   try {
-    // /v2/userinfo is the OIDC endpoint — works with openid + profile scopes.
+    // /v2/userinfo is the OIDC endpoint - works with openid + profile scopes.
     // /v2/me requires r_liteprofile which is not in our scope set.
     const res = await fetch('https://api.linkedin.com/v2/userinfo', {
       headers: { Authorization: `Bearer ${accessToken}` },

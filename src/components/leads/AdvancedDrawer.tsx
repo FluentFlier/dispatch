@@ -5,6 +5,8 @@ import { X, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
 import type { DirectorySettingsRow, FollowedCompanyRow } from '@/lib/signals/types';
+import { LEAD_SOURCE_UI } from '@/lib/signals/leads/directory-defaults';
+import { normalizeMeetingLink } from '@/lib/signals/leads/meeting-link';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
 
@@ -41,6 +43,7 @@ export function AdvancedDrawer({
   const [icpDescription, setIcpDescription] = useState('');
   const [verticals, setVerticals] = useState('');
   const [keywords, setKeywords] = useState('');
+  const [meetingLink, setMeetingLink] = useState('');
   const [company, setCompany] = useState('');
   const [saving, setSaving] = useState(false);
   const [discovering, setDiscovering] = useState(false);
@@ -50,6 +53,7 @@ export function AdvancedDrawer({
       setIcpDescription(settings.icp_description ?? '');
       setVerticals((settings.icp_verticals ?? []).join(', '));
       setKeywords((settings.icp_keywords ?? []).join(', '));
+      setMeetingLink(settings.meeting_link ?? '');
     }
   }, [settings]);
 
@@ -69,7 +73,7 @@ export function AdvancedDrawer({
       if (!res.ok) throw new Error(data.error ?? 'ICP apply failed');
       onSettingsSaved(data.settings);
       const inserted = data.sync?.inserted ?? 0;
-      toast(inserted > 0 ? `ICP applied — ${inserted} new leads found.` : 'ICP applied — discovery running.');
+      toast(inserted > 0 ? `ICP applied - ${inserted} new leads found.` : 'ICP applied - discovery running.');
       onDiscoveryComplete?.();
     } catch (err) {
       console.error('ICP apply failed', err);
@@ -127,9 +131,9 @@ export function AdvancedDrawer({
       </div>
 
       <section className="space-y-3 mb-6">
-        <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">Describe your ICP</p>
+        <p className="text-xs tracking-wide text-text-tertiary">Describe your ICP</p>
         <p className="text-xs text-text-tertiary">
-          Tell us who you sell to in plain English. We parse it into filters, update your GTM playbook, and discover matching leads (YC + TinyFish).
+          Tell us who you sell to in plain English. We search the open web for matching companies, score them against your ICP, and surface them in your feed.
         </p>
         <textarea
           value={icpDescription}
@@ -144,7 +148,7 @@ export function AdvancedDrawer({
       </section>
 
       <section className="space-y-3 mb-6">
-        <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">Structured filters</p>
+        <p className="text-xs tracking-wide text-text-tertiary">Structured filters</p>
         <label className="block text-sm text-text-secondary">
           ICP verticals
           <input value={verticals} onChange={(e) => setVerticals(e.target.value)} placeholder="Fintech, AI, SaaS" className="mt-1 w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary" />
@@ -158,19 +162,59 @@ export function AdvancedDrawer({
       </section>
 
       <section className="space-y-2 mb-6">
-        <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">Lead sources</p>
-        {([
-          { key: 'yc_directory', label: 'YC directory' },
-          { key: 'yc_launches', label: 'YC launches' },
-          { key: 'product_hunt', label: 'Product Hunt' },
-        ] as const).map((s) => {
+        <p className="text-xs tracking-wide text-text-tertiary">Meeting link</p>
+        <p className="text-xs text-text-tertiary">
+          Paste Calendly / Google Calendar / Cal.com - included in reply drafts when booking a call.
+        </p>
+        <input
+          value={meetingLink}
+          onChange={(e) => setMeetingLink(e.target.value)}
+          placeholder="https://calendly.com/you/15min"
+          className="w-full rounded-md border border-border bg-bg-primary px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+        />
+        {meetingLink.trim() && (
+          <p className={`text-xs ${normalizeMeetingLink(meetingLink) ? 'text-accent-secondary' : 'text-red-600'}`}>
+            {normalizeMeetingLink(meetingLink)
+              ? `Ready: ${normalizeMeetingLink(meetingLink)!.label}`
+              : 'Invalid URL'}
+          </p>
+        )}
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={async () => {
+            const res = await fetch('/api/leads/settings', {
+              method: 'PUT',
+              headers: jsonHeaders,
+              body: JSON.stringify({ meeting_link: meetingLink.trim() || null }),
+            });
+            const data = await res.json();
+            if (!res.ok) {
+              toast(data.error ?? 'Could not save meeting link.', 'error');
+              return;
+            }
+            onSettingsSaved(data.settings);
+            toast('Meeting link saved.');
+          }}
+        >
+          Save meeting link
+        </Button>
+      </section>
+
+      <section className="space-y-2 mb-6">
+        <p className="text-xs tracking-wide text-text-tertiary">Lead sources</p>
+        <p className="text-xs text-text-tertiary">Optional add-ons. Web discovery runs from your ICP description above.</p>
+        {LEAD_SOURCE_UI.map((s) => {
+          const disabled = s.disabled?.() ?? false;
           const on = (settings?.enabled_sources ?? []).includes(s.key);
           return (
-            <label key={s.key} className="flex items-center gap-2 text-sm text-text-secondary">
+            <label key={s.key} className={`flex items-start gap-2 text-sm ${disabled ? 'text-text-tertiary' : 'text-text-secondary'}`}>
               <input
                 type="checkbox"
                 checked={on}
+                disabled={disabled}
                 onChange={async (e) => {
+                  if (disabled) return;
                   const next = e.target.checked
                     ? [...(settings?.enabled_sources ?? []), s.key]
                     : (settings?.enabled_sources ?? []).filter((x) => x !== s.key);
@@ -178,15 +222,19 @@ export function AdvancedDrawer({
                   const data = await res.json();
                   onSettingsSaved(data.settings);
                 }}
+                className="mt-0.5"
               />
-              {s.label}
+              <span>
+                {s.label}
+                {s.hint ? <span className="block text-xs text-text-tertiary">{s.hint}</span> : null}
+              </span>
             </label>
           );
         })}
       </section>
 
       <section className="space-y-3">
-        <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">Watch companies</p>
+        <p className="text-xs tracking-wide text-text-tertiary">Watch companies</p>
         <p className="text-xs text-text-tertiary">Follow companies to resurface them when they raise, hire, or launch.</p>
         <div className="flex gap-2">
           <input value={company} onChange={(e) => setCompany(e.target.value)} placeholder="Company name or domain" className="flex-1 rounded-md border border-border bg-bg-primary px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary" />

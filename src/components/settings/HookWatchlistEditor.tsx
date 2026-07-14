@@ -110,7 +110,7 @@ export default function HookWatchlistEditor() {
       {error && <p className="text-[12px] text-accent-primary">{error}</p>}
 
       {entries.length === 0 ? (
-        <p className="text-[12px] text-text-tertiary">No custom creators yet — global defaults are used for mining.</p>
+        <p className="text-[12px] text-text-tertiary">No custom creators yet - global defaults are used for mining.</p>
       ) : (
         <ul className="divide-y divide-border rounded-md border border-border">
           {entries.map((entry) => (

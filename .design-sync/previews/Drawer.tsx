@@ -18,7 +18,7 @@ export function PostEditor() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14, fontFamily: 'DM Sans, system-ui, sans-serif' }}>
           <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: '#171717' }}>Edit post</h3>
           <Textarea
-            defaultValue={'5 hooks that stopped the scroll this week — and the one pattern they share.'}
+            defaultValue={'5 hooks that stopped the scroll this week - and the one pattern they share.'}
             rows={5}
           />
           <Button size="sm">Save changes</Button>

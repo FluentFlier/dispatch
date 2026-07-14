@@ -9,7 +9,7 @@ interface Ws {
   type: 'solo' | 'client';
 }
 
-export default function WorkspaceSwitcher() {
+export default function WorkspaceSwitcher({ collapsed = false }: { collapsed?: boolean }) {
   const [workspaces, setWorkspaces] = useState<Ws[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -93,6 +93,22 @@ export default function WorkspaceSwitcher() {
 
   if (!active) return null;
 
+  // Collapsed rail: icon only (the rail expands on hover to reveal the full
+  // switcher). Kept mounted in both states so it never re-fetches / pops in.
+  if (collapsed) {
+    return (
+      <div className="mt-4 flex justify-center" title={active.name}>
+        <span className="flex h-8 w-8 items-center justify-center rounded-md border border-hair bg-white/70">
+          {active.type === 'client' ? (
+            <Building2 className="h-4 w-4 text-ink2" />
+          ) : (
+            <User className="h-4 w-4 text-ink2" />
+          )}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className="relative mt-4">
       <button
@@ -108,7 +124,7 @@ export default function WorkspaceSwitcher() {
           )}
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[10px] uppercase tracking-wide text-ink3">
+          <span className="block text-[10px] tracking-wide text-ink3">
             {active.type === 'client' ? 'Client' : 'Workspace'}
           </span>
           <span className="block truncate text-sm font-medium text-ink">{active.name}</span>

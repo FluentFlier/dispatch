@@ -1,5 +1,5 @@
 /**
- * Phase: X keyword monitoring — continuous keyword/tag search on X surfacing
+ * Phase: X keyword monitoring - continuous keyword/tag search on X surfacing
  * "author just posted about <keyword>" leads through the signal engine.
  *
  * Covers: the deterministic keyword-match builder (summary copy + weekly
@@ -309,7 +309,7 @@ describe('processIngestedPosts keyword branch', () => {
   });
 });
 
-describe('POST /api/signals/sources — topic cap and poll default', () => {
+describe('POST /api/signals/sources - topic cap and poll default', () => {
   /** Client stub for the sources route: keyword-count select + insert echo. */
   function makeSourcesClientStub(existingKeywordCount: number) {
     const inserted: Array<Record<string, unknown>> = [];

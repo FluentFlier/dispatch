@@ -11,6 +11,7 @@ import { SignalsSetup } from '@/components/leads/SignalsSetup';
 import { IcpManager } from '@/components/leads/IcpManager';
 import { LeadSourcesCard } from '@/components/leads/LeadSourcesCard';
 import { LeadDeliveryCard } from '@/components/leads/LeadDeliveryCard';
+import { LeadImportDrawer } from '@/components/leads/LeadImportDrawer';
 import {
   LeadsHeaderActions,
   LeadsEmptyState,
@@ -64,7 +65,7 @@ export function LeadsFeedBody(props: LeadsController) {
     filters, setFilters, selectedId, setSelectedId, drafts, setDrafts, signalNotices,
     loading, loadError, setupRequired, setupMessage, listLoading, scraping, scrapeProgress,
     busyActionFor, selectedIds, bulkBusy, acceptedIds, emailConfirmId, setEmailConfirmId,
-    feedLimit, setFeedLimit, view, setView,
+    feedLimit, setFeedLimit, importOpen, setImportOpen, view, setView,
     companyById, engagersById, engagerNotices, draftAll, demoData,
     loadBootstrap, refetchList, retryCompany, isFollowed, visibleCards,
     handleDraftAll, handleScrape, handleDraft, handleEditPlan, handleApprove,
@@ -96,6 +97,7 @@ export function LeadsFeedBody(props: LeadsController) {
             onDraftAll={handleDraftAll}
             onRefresh={refetchList}
             onExport={handleExport}
+            onImport={() => setImportOpen(true)}
           />
         }
       />
@@ -365,6 +367,16 @@ export function LeadsFeedBody(props: LeadsController) {
       )}
       </>
       )}
+
+      <LeadImportDrawer
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onComplete={() => {
+          void loadBootstrap();
+          void refetchList();
+        }}
+        toast={toast}
+      />
 
       <ConfirmModal
         open={emailConfirmId !== null}

@@ -3,7 +3,7 @@
 import { useMemo } from 'react';
 import type { Post } from '@/lib/types';
 import PillarDot from '@/components/PillarDot';
-import StatusBadge from '@/components/StatusBadge';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -56,7 +56,7 @@ interface CalendarScheduleViewProps {
 /* ------------------------------------------------------------------ */
 
 /**
- * Agenda/Schedule view — shows all scheduled posts as a linear list grouped by date.
+ * Agenda/Schedule view - shows all scheduled posts as a linear list grouped by date.
  * Past dates are shown with muted styling. Empty days are skipped.
  */
 export default function CalendarScheduleView({

@@ -3,8 +3,8 @@
  *
  * WHY: "when should I post?" should reflect BOTH how the platform's algorithm
  * behaves across millions of posts (the benchmark prior) AND the creator's own
- * results. With a benchmark prior we can always give a strong recommendation —
- * even for a brand-new account — and then shrink toward the creator's personal
+ * results. With a benchmark prior we can always give a strong recommendation -
+ * even for a brand-new account - and then shrink toward the creator's personal
  * data as they accumulate posts with real engagement.
  *
  * Pure module: takes posted rows + an optional platform prior and returns the

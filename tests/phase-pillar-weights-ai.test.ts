@@ -6,7 +6,7 @@ import { buildSystemPrompt } from '@/lib/ai';
  * The generation system prompt must surface per-pillar importance and lead with
  * the creator's highest-weighted topics, so the model emphasizes them.
  */
-describe('Phase: Pillar Weights — AI prompt', () => {
+describe('Phase: Pillar Weights - AI prompt', () => {
   it('renders pillars ordered by weight with importance annotations', () => {
     const prompt = buildSystemPrompt({
       display_name: 'Rudheer',

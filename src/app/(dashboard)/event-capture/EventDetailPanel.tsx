@@ -119,7 +119,7 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
             <p className="text-sm text-text-tertiary">
               Draft generation didn&apos;t save a post.
               {questions.length > 0
-                ? ' Answer (or update) at least one question below, then generate again — or reload for a fresh set of questions.'
+                ? ' Answer (or update) at least one question below, then generate again - or reload for a fresh set of questions.'
                 : ' Reload the questions to try again.'}
             </p>
             {error && <p className="text-sm text-red-600">{error}</p>}
@@ -164,7 +164,7 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
             <p className="text-sm text-text-secondary">Opening in Write… you can edit and humanize it there.</p>
             {posts.map((p) => (
               <article key={p.id} className="rounded-lg border border-border bg-bg-primary p-4 space-y-2">
-                <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">{p.platform}</p>
+                <p className="text-xs tracking-wide text-text-tertiary">{p.platform}</p>
                 <p className="text-sm text-text-primary whitespace-pre-wrap leading-relaxed">
                   {p.script ?? p.caption ?? ''}
                 </p>

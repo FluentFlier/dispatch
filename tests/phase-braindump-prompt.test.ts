@@ -3,7 +3,7 @@
  *
  * The braindump "thoughts" must always reach the prompt (and thus the LLM), the
  * topic must survive, and the whole prompt must stay within the API's 10000-char
- * limit — the braindump is truncated last rather than the whole prompt failing.
+ * limit - the braindump is truncated last rather than the whole prompt failing.
  */
 import { describe, it, expect } from 'vitest';
 import { assembleGeneratePrompt, MAX_PROMPT_LEN } from '@/lib/generate-prompt';

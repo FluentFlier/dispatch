@@ -3,6 +3,7 @@ import { assertOutreachAllowed, assertLinkedInProfileLookupAllowed } from '@/lib
 import { awaitInterCallDelay } from '@/lib/signals/safety/humanize';
 import { logSignalAudit } from '@/lib/signals/safety/audit';
 import { getDirectorySettings, getLead, logLeadEvent, updateLead } from '@/lib/signals/leads/store';
+import { insertLeadMessage } from '@/lib/signals/leads/messages';
 import {
   checkDailyUsage,
   incrementDailyUsage,
@@ -73,7 +74,7 @@ export interface SendLeadResult {
  * primitives as event outreach, keyed on lead_id. Kept separate from
  * sendSignalOutreach so the proven event path is untouched. assertOutreachAllowed
  * applies every gate (dry-run, working hours, cooldown, per-channel daily cap),
- * so both LinkedIn invites and cold emails are rate-limited and cooldown-spaced —
+ * so both LinkedIn invites and cold emails are rate-limited and cooldown-spaced -
  * a code bug cannot spam because each send must clear the cooldown + daily cap.
  */
 export async function sendLeadOutreach(
@@ -323,6 +324,16 @@ async function sendLeadLinkedInDm(
     identifier,
     externalId: sendResult.externalId,
   });
+  await insertLeadMessage(client, {
+    workspaceId,
+    leadId,
+    direction: 'outbound',
+    channel: 'linkedin_dm',
+    body: messageText,
+    externalMessageId: sendResult.externalId ?? null,
+    chatId: sendResult.externalId ?? null,
+    senderProviderId: profile.providerId,
+  }).catch(() => undefined);
   await updateLead(client, workspaceId, leadId, {
     lead_status: 'sent',
     nurture_stage: 'dm_sent',
@@ -424,7 +435,7 @@ async function sendLeadEmail(
   if (!to) return { success: false, error: 'No email address for this lead.' };
 
   if (lead.outreach?.status === 'sent') {
-    return { success: false, error: 'Already contacted — not sending a second cold email.' };
+    return { success: false, error: 'Already contacted - not sending a second cold email.' };
   }
 
   const integration = await getIntegration(client, workspaceId, 'gmail');

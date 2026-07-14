@@ -31,7 +31,7 @@ describe('Phase 7: Digest scheduling (timezone + idempotency)', () => {
     it('catches up a missed hour (deploy downtime) later the same day', () => {
       expect(shouldRunDigest({ ...base, localHour: 9, deliveredLocalDate: null })).toBe(true);
     });
-    it('is idempotent — skips when already delivered today', () => {
+    it('is idempotent - skips when already delivered today', () => {
       expect(shouldRunDigest({ ...base, localHour: 9, deliveredLocalDate: '2026-07-02' })).toBe(false);
     });
     it('runs again the next local day', () => {

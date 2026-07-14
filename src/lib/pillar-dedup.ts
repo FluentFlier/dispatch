@@ -36,7 +36,7 @@ export function canonicalPillarName(name: string): string {
 
 /**
  * True when a suggested pillar is already covered by one of the user's existing
- * pillars (exact, or via alias/synonym) — used to hide redundant suggestions.
+ * pillars (exact, or via alias/synonym) - used to hide redundant suggestions.
  */
 export function isPillarCovered(existingNames: string[], suggestionName: string): boolean {
   const s = canonicalPillarName(suggestionName);

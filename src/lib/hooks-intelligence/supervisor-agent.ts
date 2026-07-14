@@ -1,10 +1,10 @@
 /**
- * Content Intelligence Supervisor — hook context retrieval (stub).
+ * Content Intelligence Supervisor - hook context retrieval (stub).
  *
  * CURRENT STATE: This function returns hook examples from the local dataset only.
  * The RL training loop, generate node, and engagement categorization nodes are
  * NOT yet wired. Returning `status: 'hook-context-only'` so callers know exactly
- * what they are getting — previous version returned 'cycle-complete' and
+ * what they are getting - previous version returned 'cycle-complete' and
  * `usageTracked: true` even though no generation or training occurred.
  *
  * NEXT WAVE: Wire the generate node (voice pipeline call), pass real performance
@@ -41,7 +41,7 @@ export async function runContentIntelligenceSupervisor(
     vertical: vertical ?? 'general',
     researchContext: researchContext.substring(0, 400),
     intelligence: { hooks: researchContext },
-    // Not charging for a stub — the generate node that would consume quota is not running.
+    // Not charging for a stub - the generate node that would consume quota is not running.
     usageTracked: false,
   };
 }

@@ -5,7 +5,8 @@ import { buildVoiceComposeHints, type VoiceContentType } from '@/lib/voice-promp
 import { getBestHooksForGeneration } from '@/lib/hooks-intelligence/resolve-hooks';
 import { PILLAR_TO_VERTICAL, type HookVertical } from '@/lib/hooks-intelligence/types';
 import { profilePillarWeights } from '@/lib/pillars';
-import { stripMarkdownFormatting } from '@/lib/content-pipeline';
+import { stripMarkdownFormatting, buildCheckContext } from '@/lib/content-pipeline';
+import { styleRulesFromChecks } from './checks';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -32,6 +33,20 @@ export interface StreamDraftResult {
 /** Em dashes render badly on social and read as AI — normalize to hyphens. */
 function stripEmDashes(text: string): string {
   return text.replace(/—/g, ' - ').replace(/–/g, '-');
+}
+
+/**
+ * The single streamed call sometimes slips into chat mode and prefixes the
+ * post with its own meta-commentary ("Here's the revised text:", "Sure,
+ * here's your post:") instead of returning only the post. Strip a leading
+ * line like that before it ships as the literal first line of the draft.
+ */
+function stripLeadingPreamble(text: string): string {
+  const lines = text.split('\n');
+  const first = lines[0]?.trim() ?? '';
+  const isPreamble =
+    /^(here'?s?|here is|sure|okay|certainly|absolutely)\b.{0,80}:$/i.test(first) && first.length < 100;
+  return isPreamble ? lines.slice(1).join('\n').replace(/^\n+/, '') : text;
 }
 
 function topWeightedVertical(profile: CreatorProfileForPrompt | null): HookVertical | undefined {
@@ -80,7 +95,7 @@ export async function streamCreatorDraft(
           .join('\n')}`;
       }
     } catch {
-      // Hook DB may be unavailable — proceed without learned hooks.
+      // Hook DB may be unavailable - proceed without learned hooks.
     }
   }
 
@@ -91,11 +106,15 @@ export async function streamCreatorDraft(
           .join(', ')}`
       : '';
 
+  const checkCtx = buildCheckContext(input, input.contentType ?? 'post', input.contextAdditions, profile);
+  const rules = styleRulesFromChecks(checkCtx);
+
   const system = [
     buildSystemPrompt(profile, input.contextAdditions || undefined),
     composeHints,
     hookGuidance,
     mentionHint,
+    rules,
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -103,11 +122,12 @@ export async function streamCreatorDraft(
   const raw = await chatCompletionStream(
     system,
     input.userPrompt,
-    { temperature: 0.72, maxTokens: 1200 },
+    // Draft on the main generation model (LLM_GENERATE_*, e.g. GPT-5.5) when set.
+    { temperature: 0.72, maxTokens: 1200, role: 'generate' },
     onToken,
   );
 
   // Final clean pass. Streamed deltas may briefly show markdown/em-dash noise;
   // the client swaps in this cleaned text on completion.
-  return { text: stripMarkdownFormatting(stripEmDashes(raw)), usedHookIds };
+  return { text: stripLeadingPreamble(stripMarkdownFormatting(stripEmDashes(raw))), usedHookIds };
 }

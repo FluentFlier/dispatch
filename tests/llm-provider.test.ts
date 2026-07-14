@@ -11,7 +11,12 @@ vi.mock('@/lib/huggingface', () => ({
   generateContentHF: vi.fn(async () => 'HF_FALLBACK_OUTPUT'),
 }));
 
-const ENV_KEYS = ['LLM_BASE_URL', 'LLM_API_KEY', 'LLM_MODEL', 'HUGGINGFACE_API_KEY'] as const;
+const ENV_KEYS = [
+  'LLM_BASE_URL', 'LLM_API_KEY', 'LLM_MODEL', 'HUGGINGFACE_API_KEY',
+  'LLM_GENERATE_BASE_URL', 'LLM_GENERATE_API_KEY', 'LLM_GENERATE_MODEL',
+  'LLM_JUDGE_BASE_URL', 'LLM_JUDGE_API_KEY', 'LLM_JUDGE_MODEL',
+  'LLM_SMALL_BASE_URL', 'LLM_SMALL_API_KEY', 'LLM_SMALL_MODEL',
+] as const;
 
 function clearLlmEnv() {
   for (const k of ENV_KEYS) delete process.env[k];
@@ -118,7 +123,7 @@ describe('LLM provider abstraction', () => {
       expect(caught).toBeInstanceOf(LlmError);
       expect(caught.status).toBe(402);
       expect(caught.isQuota).toBe(true);
-      // 402 must NOT be retried — exactly one call.
+      // 402 must NOT be retried - exactly one call.
       expect((fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
     });
 
@@ -178,6 +183,62 @@ describe('LLM provider abstraction', () => {
       expect(e500.isQuota).toBe(false);
       expect(e500.status).toBe(500);
       expect((fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls).toHaveLength(1);
+    });
+
+    it('routes options.role to the role-specific endpoint (LLM_GENERATE_*)', async () => {
+      setLlmEnv(); // global primary = Groq
+      process.env.LLM_GENERATE_BASE_URL = 'https://api.openai.com/v1';
+      process.env.LLM_GENERATE_API_KEY = 'openai-key';
+      process.env.LLM_GENERATE_MODEL = 'gpt-5.5';
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'GEN_OUTPUT' } }] }),
+      })) as unknown as typeof fetch;
+      vi.stubGlobal('fetch', fetchMock);
+
+      const { chatCompletion } = await import('@/lib/llm');
+      const out = await chatCompletion('sys', 'user', { role: 'generate' });
+
+      expect(out).toBe('GEN_OUTPUT');
+      const [url, opts] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toBe('https://api.openai.com/v1/chat/completions');
+      const body = JSON.parse((opts as RequestInit).body as string);
+      expect(body.model).toBe('gpt-5.5');
+      expect((opts as RequestInit).headers).toMatchObject({ Authorization: 'Bearer openai-key' });
+    });
+
+    it('falls back to the global primary when the role env triplet is unset', async () => {
+      setLlmEnv(); // only global primary configured; no LLM_JUDGE_*
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'PRIMARY' } }] }),
+      })) as unknown as typeof fetch;
+      vi.stubGlobal('fetch', fetchMock);
+
+      const { chatCompletion } = await import('@/lib/llm');
+      const out = await chatCompletion('sys', 'user', { role: 'judge' });
+
+      expect(out).toBe('PRIMARY');
+      const [url, opts] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toBe('https://api.groq.com/openai/v1/chat/completions');
+      expect(JSON.parse((opts as RequestInit).body as string).model).toBe('llama-3.3-70b-versatile');
+    });
+
+    it('treats a partial role triplet (missing model) as unconfigured', async () => {
+      setLlmEnv();
+      process.env.LLM_SMALL_BASE_URL = 'https://api.cerebras.ai/v1';
+      process.env.LLM_SMALL_API_KEY = 'cere-key';
+      // LLM_SMALL_MODEL intentionally unset -> must fall back to global primary.
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'PRIMARY2' } }] }),
+      })) as unknown as typeof fetch;
+      vi.stubGlobal('fetch', fetchMock);
+
+      const { chatCompletion } = await import('@/lib/llm');
+      await chatCompletion('sys', 'user', { role: 'small' });
+      const [url] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toBe('https://api.groq.com/openai/v1/chat/completions');
     });
 
     it('strips a trailing slash from LLM_BASE_URL', async () => {

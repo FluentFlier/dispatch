@@ -4,7 +4,7 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
 import { sendWarmContactConnect } from '@/lib/social-graph/outreach';
 
 /**
- * POST /api/social-graph/warm-contacts/[id]/send — send LinkedIn connect (Signals safety gated).
+ * POST /api/social-graph/warm-contacts/[id]/send - send LinkedIn connect (Signals safety gated).
  */
 export async function POST(
   request: NextRequest,

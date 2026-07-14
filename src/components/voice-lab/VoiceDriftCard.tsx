@@ -61,7 +61,7 @@ export function VoiceDriftCard() {
             {report.drifted ? 'Voice drift detected' : 'Voice fidelity stable'}
           </p>
           <p className="mt-1 text-xs text-text-secondary">{report.message}</p>
-          <p className="mt-2 font-mono text-[11px] text-text-tertiary">
+          <p className="mt-2 text-[11px] text-text-tertiary">
             Baseline {report.baselineFidelity.toFixed(1)} → current {report.currentFidelity.toFixed(1)}
             {report.delta > 0 ? ` (−${report.delta.toFixed(1)})` : ''}
           </p>

@@ -5,7 +5,7 @@ import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { adminPage } from '@/components/admin/admin-ui';
 
 /**
- * Feature flag kill switches — flip without redeploy.
+ * Feature flag kill switches - flip without redeploy.
  */
 export default async function AdminFlagsPage() {
   await assertAdmin();

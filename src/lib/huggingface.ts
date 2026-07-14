@@ -82,7 +82,7 @@ export async function generateEmbeddingsHF(text: string): Promise<number[]> {
 
 /**
  * Transcribes audio using Whisper via Hugging Face Serverless API.
- * nvidia/canary-1b has no live Inference Provider (nemo lib, not router-servable) —
+ * nvidia/canary-1b has no live Inference Provider (nemo lib, not router-servable) -
  * that's why prod transcription failed. whisper-large-v3-turbo has a live
  * hf-inference provider on the free tier.
  */

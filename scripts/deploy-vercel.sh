@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy Content OS to Vercel production (frontend only — InsForge stays the backend).
+# Deploy Content OS to Vercel production (frontend only - InsForge stays the backend).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"

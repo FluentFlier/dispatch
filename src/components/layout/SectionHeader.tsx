@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
 
 interface SectionHeaderProps {
-  tag: string;
+  /** Optional eyebrow pill above the title. Omit to show just the headline. */
+  tag?: string;
   title: string;
   subtitle?: string;
-  /** Accent dot color — matches landing section themes (blue, teal, flame). */
+  /** Accent dot color - matches landing section themes (blue, teal, flame). */
   accent?: string;
   action?: ReactNode;
   className?: string;
@@ -22,15 +23,17 @@ export function SectionHeader({
   return (
     <div className={`flex items-start justify-between gap-4 ${className}`}>
       <div>
-        <span className="inline-flex items-center gap-2 rounded-full border border-hair bg-white/80 px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.12em] text-ink2 shadow-sm backdrop-blur-sm">
-          <span
-            className="h-1.5 w-1.5 shrink-0 rounded-full shadow-[0_0_8px_currentColor]"
-            style={{ backgroundColor: accent, color: accent }}
-            aria-hidden
-          />
-          {tag}
-        </span>
-        <h2 className="mt-4 text-[clamp(22px,2.5vw,28px)] font-semibold tracking-[-0.03em] text-ink">
+        {tag ? (
+          <span className="inline-flex items-center gap-2 rounded-badge border border-hair bg-white/80 px-3 py-1.5 text-[11.5px] font-semibold tracking-[0.01em] text-ink2 backdrop-blur-sm">
+            <span
+              className="h-1.5 w-1.5 shrink-0 rounded-full"
+              style={{ backgroundColor: accent }}
+              aria-hidden
+            />
+            {tag}
+          </span>
+        ) : null}
+        <h2 className={`${tag ? 'mt-4' : ''} text-[clamp(22px,2.5vw,28px)] font-semibold tracking-[-0.03em] text-ink`}>
           {title}
         </h2>
         {subtitle ? (

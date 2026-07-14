@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
-import { fetchUnipileAccountDetails, mapPlatform } from '@/lib/social/unipile';
+import { fetchUnipileAccountDetails, mapPlatform, pruneDuplicateUnipileAccounts } from '@/lib/social/unipile';
 import { isValidUnipileAuth, validateUnipileWebhookAuth } from '@/lib/webhooks/unipile-auth';
 import { ensureSoloWorkspace } from '@/lib/workspace';
+import { handleInboundUnipileMessage } from '@/lib/signals/leads/inbound-message';
 
 interface UnipileWebhookPayload {
   event?: string;
@@ -98,6 +99,53 @@ async function upsertSocialAccountFromUnipileAccount({
     fallbackAccount?.username ??
     null;
 
+  // Ownership guard — the shared Unipile subscription's webhooks carry accounts
+  // this user may not own, and periodic RECONNECTED events would otherwise
+  // re-bind a stranger every few minutes. Require positive proof before binding:
+  //   (a) the account isn't already owned by a different user (rotating id OR
+  //       stable public identifier), and
+  //   (b) it appeared AFTER this user's pre-connect snapshot — i.e. THIS user's
+  //       connect produced it. Snapshot absent → no proof of ownership → refuse.
+  const { data: others } = await client.database
+    .from('social_accounts')
+    .select('user_id, unipile_account_id, account_id')
+    .neq('user_id', userId);
+  const claimedByOther = (others ?? []).some(
+    (r: { unipile_account_id?: string | null; account_id?: string | null }) =>
+      r.unipile_account_id === unipileAccountId || (accountId != null && r.account_id === accountId),
+  );
+  if (claimedByOther) {
+    console.warn('[webhooks/unipile] refusing bind — account already owned by another user', {
+      userId,
+      unipileAccountId,
+      accountId,
+    });
+    return;
+  }
+
+  const { data: snap } = await client.database
+    .from('unipile_connect_snapshots')
+    .select('account_ids')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (!snap) {
+    console.warn('[webhooks/unipile] refusing bind — no pending connect snapshot for user', {
+      userId,
+      unipileAccountId,
+    });
+    return;
+  }
+  const snapshotIds = new Set(
+    ((snap as { account_ids?: string[] }).account_ids ?? []).filter(Boolean),
+  );
+  if (snapshotIds.has(unipileAccountId)) {
+    console.warn('[webhooks/unipile] refusing bind — account pre-existed the user connect (not theirs)', {
+      userId,
+      unipileAccountId,
+    });
+    return;
+  }
+
   await client.database
     .from('social_accounts')
     .upsert(
@@ -114,6 +162,20 @@ async function upsertSocialAccountFromUnipileAccount({
       },
       { onConflict: 'user_id,platform' },
     );
+
+  // One connect → one bind. Clearing the snapshot means a later RECONNECTED /
+  // duplicate event for the same connect can't silently re-bind (no proof left).
+  await client.database
+    .from('unipile_connect_snapshots')
+    .delete()
+    .eq('user_id', userId);
+
+  // Reap this person's stale duplicate boxes (dev + prod share one Unipile key,
+  // so every reconnect anywhere piles up another session on the same tenant).
+  await pruneDuplicateUnipileAccounts(
+    unipileAccountId,
+    full?.connection_params?.im?.publicIdentifier ?? null,
+  );
 }
 
 /**
@@ -283,6 +345,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         },
         { onConflict: 'workspace_id,provider_event_id', ignoreDuplicates: true },
       );
+  }
+
+  const inbound = await handleInboundUnipileMessage(client, payload as Record<string, unknown>);
+  if (inbound.handled && inbound.leadId) {
+    return NextResponse.json({ ok: true, leadId: inbound.leadId });
+  }
+  if (inbound.handled) {
+    return NextResponse.json({ ok: true, skipped: inbound.skipped ?? true });
   }
 
   return NextResponse.json({ ok: true });

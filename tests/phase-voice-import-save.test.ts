@@ -71,7 +71,7 @@ function makeClient(opts: {
         }),
       };
     }
-    // user_settings — upsert is awaited without an error check.
+    // user_settings - upsert is awaited without an error check.
     return { upsert: vi.fn().mockResolvedValue({ error: null }) };
   });
   return { database: { from } };

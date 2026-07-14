@@ -4,14 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { FileText, Grid3X3, List, Plus, Search, Trash2, ChevronDown, RefreshCw } from 'lucide-react';
 import type { Post, Series } from '@/lib/types';
 import type { Platform, Status } from '@/lib/constants';
-import { PLATFORMS, PLATFORM_LABELS, DASHBOARD_PLATFORMS, isDashboardPlatform, STATUSES, STATUS_LABELS } from '@/lib/constants';
+import { PLATFORM_LABELS, DASHBOARD_PLATFORMS, STATUSES, STATUS_LABELS } from '@/lib/constants';
 import { getInsforgeClient } from '@/lib/insforge/client';
 import { usePillars } from '@/hooks/usePillars';
 import { postPillars } from '@/lib/pillars';
 import PostGrid from '@/components/library/PostGrid';
 import PostTable from '@/components/library/PostTable';
 import PostEditorDrawer from '@/components/library/PostEditorDrawer';
-import PublishTimeline from '@/components/library/PublishTimeline';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
@@ -24,7 +23,7 @@ export default function LibraryPage() {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
-  const [importingLinkedIn, setImportingLinkedIn] = useState(false);
+  const [importing, setImporting] = useState<Platform | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const PAGE_SIZE = 50;
@@ -62,7 +61,7 @@ export default function LibraryPage() {
       }
 
       // Best-effort: user id + series are browser-RLS scoped. If the browser
-      // session isn't ready yet, skip them — posts above already rendered.
+      // session isn't ready yet, skip them - posts above already rendered.
       const client = getInsforgeClient();
       const { data: userData } = await client.auth.getCurrentUser();
       const uid = userData?.user?.id;
@@ -116,8 +115,9 @@ export default function LibraryPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading]);
 
-  // Client-side filtering
-  const filtered = useMemo(() => {
+  // Posts after every filter EXCEPT platform - the tab bar counts + filters
+  // operate on this so each tab shows how many posts it holds.
+  const nonPlatformFiltered = useMemo(() => {
     let result = posts;
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -126,11 +126,26 @@ export default function LibraryPage() {
       );
     }
     if (pillarFilter !== 'all') result = result.filter((p) => postPillars(p).includes(pillarFilter));
-    if (platformFilter !== 'all') result = result.filter((p) => p.platform === platformFilter);
     if (statusFilter !== 'all') result = result.filter((p) => p.status === statusFilter);
     if (seriesFilter !== 'all') result = result.filter((p) => p.series_id === seriesFilter);
     return result;
-  }, [posts, search, pillarFilter, platformFilter, statusFilter, seriesFilter]);
+  }, [posts, search, pillarFilter, statusFilter, seriesFilter]);
+
+  const platformCounts = useMemo(() => {
+    const counts: Record<string, number> = { all: nonPlatformFiltered.length };
+    for (const p of DASHBOARD_PLATFORMS) {
+      counts[p] = nonPlatformFiltered.filter((post) => post.platform === p).length;
+    }
+    return counts;
+  }, [nonPlatformFiltered]);
+
+  const filtered = useMemo(
+    () =>
+      platformFilter === 'all'
+        ? nonPlatformFiltered
+        : nonPlatformFiltered.filter((p) => p.platform === platformFilter),
+    [nonPlatformFiltered, platformFilter],
+  );
 
   // Selection
   const toggleSelect = (id: string) => {
@@ -149,11 +164,14 @@ export default function LibraryPage() {
 
   // Bulk actions
   const handleBulkDelete = async () => {
-    if (!userId || selected.size === 0) return;
+    // Server authenticates from the httpOnly cookie - don't gate on the browser
+    // SDK's userId (it can lag), and use fetchWithAuth so a 401 refreshes+retries
+    // instead of silently failing (the old plain fetch() left delete broken).
+    if (selected.size === 0) return;
     if (!confirm(`Delete ${selected.size} post(s)?`)) return;
     const ids = Array.from(selected);
     await Promise.all(
-      ids.map((id) => fetch(`/api/posts/${id}`, { method: 'DELETE' }))
+      ids.map((id) => fetchWithAuth(`/api/posts/${id}`, { method: 'DELETE' }))
     );
     setSelected(new Set());
     fetchData();
@@ -196,8 +214,11 @@ export default function LibraryPage() {
     }
   };
 
-  const handleLinkedInReimport = async () => {
-    setImportingLinkedIn(true);
+  // Import a platform's posts from the connected Unipile account. Works for both
+  // LinkedIn and X - the route already accepts either platform.
+  const handleReimport = async (platform: Platform) => {
+    const label = PLATFORM_LABELS[platform];
+    setImporting(platform);
     setImportMessage(null);
     setImportError(null);
 
@@ -205,34 +226,44 @@ export default function LibraryPage() {
       const res = await fetchWithAuth('/api/voice-lab/import-from-account', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform: 'linkedin' }),
+        body: JSON.stringify({ platform }),
       });
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        setImportError(data.error ?? 'Could not import LinkedIn posts.');
+        setImportError(data.error ?? `Could not import ${label} posts.`);
         return;
       }
 
       const persisted = data.persisted ?? {};
       const changed = (persisted.created ?? 0) + (persisted.repaired ?? 0);
       if (changed > 0) {
-        setImportMessage(`Imported ${changed} LinkedIn post${changed === 1 ? '' : 's'}.`);
+        setImportMessage(`Imported ${changed} ${label} post${changed === 1 ? '' : 's'}.`);
       } else if ((data.count ?? 0) > 0) {
-        setImportMessage('LinkedIn posts are already imported.');
+        setImportMessage(`${label} posts are already imported.`);
       } else {
         const fetched = data.fetchedCount ?? 0;
         if (fetched > 0) {
-          setImportMessage(`Found ${fetched} LinkedIn post${fetched === 1 ? '' : 's'}, but none were long original posts that can be restored.`);
+          setImportMessage(`Found ${fetched} ${label} post${fetched === 1 ? '' : 's'}, but none were long original posts that can be restored.`);
         } else {
-          setImportMessage('No LinkedIn posts came back. Sync your account in Settings, then try again.');
+          setImportMessage(`No ${label} posts came back. Sync your account in Settings, then try again.`);
         }
       }
       await fetchData();
     } catch {
-      setImportError('Network error while importing LinkedIn posts.');
+      setImportError(`Network error while importing ${label} posts.`);
     } finally {
-      setImportingLinkedIn(false);
+      setImporting(null);
+    }
+  };
+
+  // The header import button targets the active platform tab; on "All" it pulls both.
+  const runImport = async () => {
+    if (platformFilter === 'all') {
+      await handleReimport('linkedin');
+      await handleReimport('twitter');
+    } else {
+      await handleReimport(platformFilter);
     }
   };
 
@@ -323,12 +354,18 @@ export default function LibraryPage() {
           </button>
           {/* New Post */}
           <button
-            onClick={handleLinkedInReimport}
-            disabled={importingLinkedIn}
+            onClick={runImport}
+            disabled={importing !== null}
             className="flex items-center gap-1.5 border border-border bg-bg-secondary text-text-primary text-[13px] font-medium px-4 py-[10px] min-h-[44px] rounded-md hover:border-border-hover transition-colors disabled:opacity-60"
           >
-            <RefreshCw className={`w-4 h-4 ${importingLinkedIn ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">{importingLinkedIn ? 'Importing' : 'Import LinkedIn'}</span>
+            <RefreshCw className={`w-4 h-4 ${importing !== null ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">
+              {importing !== null
+                ? 'Importing'
+                : platformFilter === 'all'
+                  ? 'Import posts'
+                  : `Import ${PLATFORM_LABELS[platformFilter]}`}
+            </span>
             <span className="sm:hidden">Import</span>
           </button>
           <button
@@ -344,8 +381,7 @@ export default function LibraryPage() {
       />
 
       {(importMessage || importError) && (
-        <div
-          className={`rounded-md border px-3 py-2 text-[12px] ${
+        <div className={`rounded-md border px-3 py-2 text-[12px] ${
             importError
               ? 'border-red-200 bg-red-50 text-red-800'
               : 'border-border bg-sage-light text-accent-secondary'
@@ -355,40 +391,51 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {/* Filters row */}
-      <div className="flex flex-wrap gap-2">
-        <FilterDropdown
-          label="Pillar"
-          value={pillarFilter}
-          onChange={(v) => setPillarFilter(v)}
-          options={[{ value: 'all', label: 'All' }, ...pillarList.map((p) => ({ value: p.value, label: p.label }))]}
-        />
-        <FilterDropdown
-          label="Platform"
-          value={platformFilter}
-          onChange={(v) => setPlatformFilter(v as Platform | 'all')}
-          options={[{ value: 'all', label: 'All' }, ...PLATFORMS.map((p) => ({ value: p, label: PLATFORM_LABELS[p] }))]}
-        />
-        <FilterDropdown
-          label="Status"
-          value={statusFilter}
-          onChange={(v) => setStatusFilter(v as Status | 'all')}
-          options={[{ value: 'all', label: 'All' }, ...STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))]}
-        />
-        {series.length > 0 && (
+      {/* Tabs + filters on one line: All/LinkedIn/X left, select-all + filters right */}
+      <div className="flex flex-wrap items-center gap-3">
+        <PlatformTabs value={platformFilter} onChange={setPlatformFilter} counts={platformCounts} />
+        <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
+          {view === 'card' && selected.size > 0 && (
+            <button
+              type="button"
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 rounded-md border border-border bg-bg-secondary px-3 py-2 min-h-[44px] text-[13px] font-medium text-text-primary hover:border-border-hover transition-colors"
+            >
+              <input
+                type="checkbox"
+                checked={selected.size === filtered.length && filtered.length > 0}
+                ref={(el) => {
+                  if (el) el.indeterminate = selected.size > 0 && selected.size < filtered.length;
+                }}
+                readOnly
+                className="w-4 h-4 accent-accent-primary pointer-events-none"
+              />
+              {selected.size === filtered.length && filtered.length > 0
+                ? 'Deselect all'
+                : `Select all (${filtered.length})`}
+            </button>
+          )}
           <FilterDropdown
-            label="Series"
-            value={seriesFilter}
-            onChange={(v) => setSeriesFilter(v)}
-            options={[{ value: 'all', label: 'All' }, ...series.map((s) => ({ value: s.id, label: s.name }))]}
+            label="Status"
+            value={statusFilter}
+            onChange={(v) => setStatusFilter(v as Status | 'all')}
+            options={[{ value: 'all', label: 'All' }, ...STATUSES.map((s) => ({ value: s, label: STATUS_LABELS[s] }))]}
           />
-        )}
+          {series.length > 0 && (
+            <FilterDropdown
+              label="Series"
+              value={seriesFilter}
+              onChange={(v) => setSeriesFilter(v)}
+              options={[{ value: 'all', label: 'All' }, ...series.map((s) => ({ value: s.id, label: s.name }))]}
+            />
+          )}
+        </div>
       </div>
 
       {/* Bulk actions */}
       {selected.size > 0 && (
         <div className="flex items-center gap-3 bg-bg-tertiary border border-hair rounded-lg px-4 py-2">
-          <span className="font-mono text-[12px] text-ink3">{selected.size} selected</span>
+          <span className="text-[12px] text-ink3">{selected.size} selected</span>
           <button onClick={handleBulkDelete} className="flex items-center gap-1 text-[13px] text-accent-primary hover:opacity-80">
             <Trash2 className="w-3.5 h-3.5" /> Delete
           </button>
@@ -435,7 +482,7 @@ export default function LibraryPage() {
           {posts.length === 0 && (
             <FileText className="w-12 h-12 text-text-secondary mb-4" />
           )}
-          <h2 className="font-serif text-[22px] font-normal tracking-[-0.025em] text-ink mb-1">
+          <h2 className="text-[22px] font-normal tracking-[-0.025em] text-ink mb-1">
             {posts.length === 0 ? 'Nothing scripted yet' : 'No posts match your filters'}
           </h2>
           <p className="text-text-secondary text-[13px] mb-4">
@@ -445,12 +492,16 @@ export default function LibraryPage() {
             <div className="flex flex-wrap items-center justify-center gap-2">
               <button
                 type="button"
-                onClick={handleLinkedInReimport}
-                disabled={importingLinkedIn}
+                onClick={runImport}
+                disabled={importing !== null}
                 className="flex min-h-[40px] items-center gap-1.5 rounded-md border border-border bg-bg-secondary px-4 py-[10px] text-[13px] font-medium text-text-primary transition-colors hover:border-border-hover disabled:opacity-60"
               >
-                <RefreshCw className={`w-4 h-4 ${importingLinkedIn ? 'animate-spin' : ''}`} />
-                {importingLinkedIn ? 'Importing LinkedIn' : 'Import LinkedIn posts'}
+                <RefreshCw className={`w-4 h-4 ${importing !== null ? 'animate-spin' : ''}`} />
+                {importing !== null
+                  ? 'Importing'
+                  : platformFilter === 'all'
+                    ? 'Import posts'
+                    : `Import ${PLATFORM_LABELS[platformFilter]} posts`}
               </button>
               <a
                 href="/generate"
@@ -490,14 +541,6 @@ export default function LibraryPage() {
         </div>
       )}
 
-      {/* Publish timeline */}
-      <section className="bg-bg-secondary border border-hair rounded-lg p-4 mt-6 shadow-card">
-        <h2 className="section-label mb-3">
-          Publish activity
-        </h2>
-        <PublishTimeline limit={10} />
-      </section>
-
       {/* Post Editor Drawer */}
       {editorOpen && editorPost && (
         <PostEditorDrawer
@@ -508,6 +551,54 @@ export default function LibraryPage() {
           onDelete={() => { closeEditor(); fetchData(); }}
         />
       )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Platform Tabs (All / LinkedIn / X)
+// ---------------------------------------------------------------------------
+
+function PlatformTabs({
+  value,
+  onChange,
+  counts,
+}: {
+  value: Platform | 'all';
+  onChange: (v: Platform | 'all') => void;
+  counts: Record<string, number>;
+}) {
+  const tabs: { value: Platform | 'all'; label: string }[] = [
+    { value: 'all', label: 'All' },
+    { value: 'linkedin', label: PLATFORM_LABELS.linkedin },
+    { value: 'twitter', label: PLATFORM_LABELS.twitter },
+  ];
+  return (
+    <div className="flex items-center gap-1 border-b border-border">
+      {tabs.map((t) => {
+        const active = value === t.value;
+        return (
+          <button
+            key={t.value}
+            type="button"
+            onClick={() => onChange(t.value)}
+            className={`relative -mb-px flex min-h-[44px] items-center gap-1.5 border-b-2 px-4 py-2 text-[13px] font-medium transition-colors ${
+              active
+                ? 'border-accent-primary text-text-primary'
+                : 'border-transparent text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            {t.label}
+            <span
+              className={`rounded-full px-1.5 py-0.5 font-mono text-[11px] ${
+                active ? 'bg-coral-light text-accent-primary' : 'bg-bg-tertiary text-text-tertiary'
+              }`}
+            >
+              {counts[t.value] ?? 0}
+            </span>
+          </button>
+        );
+      })}
     </div>
   );
 }

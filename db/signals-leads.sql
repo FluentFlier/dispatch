@@ -1,4 +1,4 @@
--- Content OS Signals — Directory Lead Engine (Phase 0 foundations)
+-- Content OS Signals - Directory Lead Engine (Phase 0 foundations)
 -- Company-centric "Lead" flow layered onto the post-centric Signal flow.
 -- Apply after signals.sql + signals-composio.sql + signals-rls.sql, then apply signals-leads-rls.sql.
 --   npx @insforge/cli db query "$(sed '/^--/d' db/signals-leads.sql | tr '\n' ' ')"
@@ -9,7 +9,15 @@ create table if not exists signal_leads (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null,
   source text not null
-    check (source in ('yc_directory', 'yc_launches', 'product_hunt', 'manual')),
+    check (source in (
+      'web_discovery',
+      'yc_directory',
+      'yc_launches',
+      'product_hunt',
+      'linkedin',
+      'x',
+      'manual'
+    )),
   external_id text,                      -- stable per-directory id (YC slug); null for manual
   company_name text not null,
   tagline text,
@@ -77,12 +85,13 @@ create table if not exists signal_directory_settings (
   digest_channels jsonb not null default '{"today":true,"slack":false,"email":false}',
   digest_top_n int not null default 15,
   sender_identity text,                   -- optional cold-email footer identity (CAN-SPAM); blank = unsubscribe line only
+  meeting_link text,                      -- Calendly / Google Calendar URL for reply drafts
   digest_delivered_at timestamptz,        -- idempotency: last successful digest push
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
 
--- --- Lead lifecycle audit (scrape/score/rename/reactivation) — NOT the outreach audit ---
+-- --- Lead lifecycle audit (scrape/score/rename/reactivation) - NOT the outreach audit ---
 create table if not exists signal_lead_events (
   id uuid primary key default gen_random_uuid(),
   workspace_id uuid not null,
@@ -108,7 +117,7 @@ create table if not exists signal_followed_companies (
   created_at timestamptz default now()
 );
 
--- Identity anchored on domain (or name when no domain) — can't follow the same company twice.
+-- Identity anchored on domain (or name when no domain) - can't follow the same company twice.
 create unique index if not exists signal_followed_companies_unique
   on signal_followed_companies (workspace_id, lower(coalesce(domain, company_name)));
 

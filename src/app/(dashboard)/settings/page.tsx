@@ -70,7 +70,7 @@ function Section({
 
 function SubHeader({ children }: { children: React.ReactNode }) {
   return (
-    <h3 className="text-[11px] font-semibold tracking-[0.08em] uppercase text-text-secondary mb-3">
+    <h3 className="text-[11px] font-semibold tracking-[0.08em] text-text-secondary mb-3">
       {children}
     </h3>
   );
@@ -327,7 +327,7 @@ export default function SettingsPage() {
     // Unipile success redirect lands on /settings?tab=connections&connected=true.
     // Sync (local-dev webhook fallback), then auto-import the just-connected
     // account's posts as voice samples so connecting actually completes the voice
-    // profile — Settings previously only synced, leaving "voice profile
+    // profile - Settings previously only synced, leaving "voice profile
     // incomplete" lit until the user manually imported in Voice Lab.
     if (searchParams.get('connected') === 'true') {
       setActiveTab('connections');
@@ -437,7 +437,7 @@ export default function SettingsPage() {
     setProfileSaving(true);
     setProfileError("");
     const insforge = getInsforge();
-    // Surface real failures instead of always flashing "Saved!" — previously an
+    // Surface real failures instead of always flashing "Saved!" - previously an
     // upsert error (e.g. RLS) was ignored and the UI still claimed success.
     const { error } = await insforge.database
       .from("creator_profile")
@@ -478,7 +478,7 @@ export default function SettingsPage() {
   // Runs once after a Unipile connect redirect: sync the account, then import
   // recent posts as voice samples for every connected LinkedIn/X account so the
   // voice profile completes on connect (import-from-account seeds
-  // user_settings.sample_posts + voice_source='imported'). Idempotent — post
+  // user_settings.sample_posts + voice_source='imported'). Idempotent - post
   // persistence dedupes and the seed is a straight upsert.
   async function completeConnectVoiceImport() {
     try {

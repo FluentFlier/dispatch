@@ -1,6 +1,7 @@
 import type { createClient } from '@insforge/sdk';
 import { ApifyClient } from 'apify-client';
 import type { SignalLeadWithContacts } from '@/lib/signals/types';
+import { serperSearch } from '@/lib/event-capture/research';
 import { signalsDebugEnabled } from '@/lib/signals/ingest/config';
 import { fetchYcFounders, findYcCompanyByName } from '@/lib/signals/ingest/yc-algolia';
 import type { YcFounder, YcNameMatch } from '@/lib/signals/ingest/yc-algolia';
@@ -12,12 +13,12 @@ type InsforgeClient = ReturnType<typeof createClient>;
 /**
  * Founder-contact enrichment for leads the directory didn't hand a social URL.
  * Order (per product decision): for YC leads the company's YC detail page first
- * (reliable, free — it lists founders with LinkedIn), then TinyFish agent on the
- * company site, then Apify (paid). All are best-effort — any failure returns
+ * (reliable, free - it lists founders with LinkedIn), then TinyFish agent on the
+ * company site, then Apify (paid). All are best-effort - any failure returns
  * null so the lead simply stays no_contact.
  */
 
-// TinyFish Agent surface — same unified key as directory scraping. The retired
+// TinyFish Agent surface - same unified key as directory scraping. The retired
 // AgentQL endpoint (api.agentql.com) needs a separate key and 401s with ours.
 const AGENT_ENDPOINT = 'https://agent.tinyfish.ai/v1/automation/run';
 
@@ -43,7 +44,7 @@ export interface EnrichedContact {
   name?: string;
   role?: string;
   linkedinUrl?: string;
-  via: 'yc_detail' | 'tinyfish' | 'apify' | 'unipile' | 'web_search';
+  via: 'yc_detail' | 'tinyfish' | 'apify' | 'unipile' | 'web_search' | 'serper';
 }
 
 /**
@@ -67,10 +68,22 @@ export async function enrichFounderContact(
   if (viaYc) return viaYc;
   // Manual/ICP leads that are really YC companies: recover the real slug by name
   // (Algolia) and pull the founder from the YC detail page. Free (no paid API), so
-  // it runs even in the fastOnly batch path — the whole point is auto-resolving the
+  // it runs even in the fastOnly batch path - the whole point is auto-resolving the
   // ICP-finder leads that land as source:'manual' without founder data.
   const viaRecovery = await enrichViaYcRecovery(lead);
   if (viaRecovery) return viaRecovery;
+
+  // Fast batch rungs (~1-3s each): Serper snippet scan + Unipile executive search.
+  // Safe in fastOnly - unlike the TinyFish agent (~60s) or Apify actor runs.
+  const viaSerper = await enrichViaSerperFounder(lead);
+  if (viaSerper) return viaSerper;
+  const accountId =
+    opts.client && opts.workspaceId
+      ? await getWorkspaceLinkedInAccountId(opts.client, opts.workspaceId)
+      : null;
+  const viaExec = await enrichViaUnipileExecutiveSearch(lead.company_name, accountId);
+  if (viaExec) return viaExec;
+
   if (opts.fastOnly) return null;
   // Universal rung: LLM web search works for ANY company (non-YC website / X /
   // non-YC ICP leads), so it runs first among the paid rungs. Its result is always
@@ -88,10 +101,6 @@ export async function enrichFounderContact(
   // is the last, deterministic attempt to turn that name into a reachable URL
   // before the lead is marked no_contact.
   const founderName = lead.contacts?.find((c) => c.name)?.name ?? undefined;
-  const accountId =
-    opts.client && opts.workspaceId
-      ? await getWorkspaceLinkedInAccountId(opts.client, opts.workspaceId)
-      : null;
   return enrichViaUnipileSearch({ companyName: lead.company_name, founderName, accountId });
 }
 
@@ -99,7 +108,7 @@ export async function enrichFounderContact(
  * Picks the best founder contact from a YC founder list: prefer the CEO (some list
  * "Founder & CEO", others just "CEO"), then any founder, then the first with a URL.
  * A company where the CEO co-founder differs from the first-listed founder must
- * resolve to the CEO — outreach goes to the decision-maker. null when none has a
+ * resolve to the CEO - outreach goes to the decision-maker. null when none has a
  * LinkedIn URL to send a connect to.
  */
 function pickFounderContact(founders: YcFounder[]): EnrichedContact | null {
@@ -130,7 +139,7 @@ export type YcFoundersFn = (slug: string) => Promise<YcFounder[]>;
  * companies as source:'manual' with a guessed slug and no founders, so the direct
  * YC-detail rung (which keys on a real slug) skips them. Here we resolve the real
  * YC slug FROM THE COMPANY NAME via Algolia (strict name-match gate), then pull the
- * founder LinkedIn off the YC detail page — the same free path yc_directory leads
+ * founder LinkedIn off the YC detail page - the same free path yc_directory leads
  * use. Leads that already carry a real slug (source yc_directory) are handled by
  * enrichViaYcDetail and skipped here. Best-effort: any failure returns null so the
  * ladder falls through to the paid rungs.
@@ -148,7 +157,7 @@ export async function enrichViaYcRecovery(
   try {
     match = await lookup(company);
   } catch (err) {
-    // YC/Algolia unreachable — degrade to the next rung rather than throwing.
+    // YC/Algolia unreachable - degrade to the next rung rather than throwing.
     if (signalsDebugEnabled()) {
       console.warn(`[yc-recovery] lookup error: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -198,12 +207,85 @@ async function enrichViaTinyFish(
       via: 'tinyfish',
     };
   } catch (err) {
-    // Best-effort: a failed enrichment must never break the sync — log under debug.
+    // Best-effort: a failed enrichment must never break the sync - log under debug.
     if (signalsDebugEnabled()) {
       console.warn(`[tinyfish-enrich] error: ${err instanceof Error ? err.message : String(err)}`);
     }
     return null;
   }
+}
+
+/** Parses the first personal linkedin.com/in/ URL from arbitrary text. */
+export function parseLinkedInProfileUrl(text: string): string | null {
+  const match = text.match(/https?:\/\/(?:www\.)?linkedin\.com\/in\/[A-Za-z0-9\-_%]+/i);
+  return match?.[0] ?? null;
+}
+
+/**
+ * Fast founder lookup via Serper: searches "{company} founder CEO linkedin" and
+ * extracts a personal profile URL from organic snippets. No LLM required - safe
+ * for batch sync. Returns null when Serper is unconfigured or nothing matches.
+ */
+export async function enrichViaSerperFounder(
+  lead: Pick<SignalLeadWithContacts, 'company_name'>,
+  deps: { search?: typeof serperSearch } = {},
+): Promise<EnrichedContact | null> {
+  const company = lead.company_name?.trim();
+  if (!company) return null;
+  const search = deps.search ?? serperSearch;
+  const results = await search(`${company} founder CEO linkedin`, 8);
+  if (results.length === 0) return null;
+
+  for (const row of results) {
+    const blob = `${row.link ?? ''} ${row.title ?? ''} ${row.snippet ?? ''}`;
+    const linkedinUrl = parseLinkedInProfileUrl(blob);
+    if (!linkedinUrl) continue;
+    // Prefer results that mention the company in the snippet (reduces wrong-person hits).
+    const companyHit = new RegExp(company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(blob);
+    if (companyHit || row.link?.includes('linkedin.com/in/')) {
+      return { linkedinUrl, via: 'serper', role: 'Founder/CEO' };
+    }
+  }
+
+  // Last resort: any personal profile in the result set.
+  for (const row of results) {
+    const blob = `${row.link ?? ''} ${row.snippet ?? ''}`;
+    const linkedinUrl = parseLinkedInProfileUrl(blob);
+    if (linkedinUrl) return { linkedinUrl, via: 'serper', role: 'Founder/CEO' };
+  }
+  return null;
+}
+
+/**
+ * Unipile people-search by executive role + company when we have no founder name.
+ * Tries CEO then Founder keywords - fast enough for batch sync.
+ */
+export async function enrichViaUnipileExecutiveSearch(
+  companyName: string | null | undefined,
+  accountId: string | null | undefined,
+  deps: { search?: typeof searchLinkedInPerson } = {},
+): Promise<EnrichedContact | null> {
+  const company = companyName?.trim();
+  if (!company || !accountId) return null;
+  const search = deps.search ?? searchLinkedInPerson;
+
+  for (const role of ['CEO', 'Founder'] as const) {
+    const hit = await search({
+      name: role,
+      company,
+      accountId,
+      keywords: `${role} ${company}`,
+    });
+    if (!hit?.linkedinUrl) continue;
+    const headline = hit.role ?? '';
+    const looksRight =
+      /\b(ceo|founder|co-founder|cofounder|chief executive)\b/i.test(headline) ||
+      headline.toLowerCase().includes(company.toLowerCase().slice(0, 12));
+    if (looksRight) {
+      return { name: hit.name, role: hit.role, linkedinUrl: hit.linkedinUrl, via: 'unipile' };
+    }
+  }
+  return null;
 }
 
 /** Apify: run a configured LinkedIn profile/people-search actor by company + name. */
@@ -249,7 +331,7 @@ export type CompleteFn = (
 const WEB_SEARCH_SYSTEM =
   'You are a precise research assistant with web access. Given a company, find its FOUNDER ' +
   'or CEO and that person\'s LinkedIn profile URL. Only report a person you can verify is ' +
-  'actually associated with THIS specific company — never guess a name or invent a URL. ' +
+  'actually associated with THIS specific company - never guess a name or invent a URL. ' +
   'Respond with STRICT JSON and nothing else: ' +
   '{"name": string|null, "role": string|null, "linkedin_url": string|null}. ' +
   'The linkedin_url must be a personal profile (linkedin.com/in/...), not a company page. ' +
@@ -266,7 +348,7 @@ function parseWebSearchReply(raw: string): { name?: string; role?: string; linke
     return null;
   }
   const url = typeof obj.linkedin_url === 'string' ? obj.linkedin_url.trim() : '';
-  // Must be a personal profile, not a company page — company pages can't be messaged.
+  // Must be a personal profile, not a company page - company pages can't be messaged.
   if (!/linkedin\.com\/in\/[A-Za-z0-9\-_%]+/i.test(url)) return null;
   return {
     name: typeof obj.name === 'string' && obj.name.trim() ? obj.name.trim() : undefined,
@@ -277,10 +359,10 @@ function parseWebSearchReply(raw: string): { name?: string; role?: string; linke
 
 /**
  * Universal founder lookup via web-search-capable LLM. Unlike the YC / TinyFish /
- * Apify rungs it needs no directory, key, or prior founder name — just the company
- * name — so it's the fallback for any non-YC source (arbitrary website, X, non-YC
+ * Apify rungs it needs no directory, key, or prior founder name - just the company
+ * name - so it's the fallback for any non-YC source (arbitrary website, X, non-YC
  * ICP). The model is configurable via LLM_WEBSEARCH_MODEL (point it at a web-search
- * model — e.g. an ":online" / "sonar" variant, or a HuggingFace model — with no
+ * model - e.g. an ":online" / "sonar" variant, or a HuggingFace model - with no
  * code change); it falls back to the default chat model otherwise. Best-effort:
  * returns null when the LLM is unconfigured, errors, or is not confident. The
  * caller ALWAYS verifies the returned URL (Unipile) before it drives outreach, so
@@ -307,7 +389,7 @@ export async function enrichViaWebSearch(
   try {
     raw = await complete(WEB_SEARCH_SYSTEM, user, { model, temperature: 0 });
   } catch (err) {
-    // LLM unconfigured / budget-capped / provider error — degrade to the next rung.
+    // LLM unconfigured / budget-capped / provider error - degrade to the next rung.
     if (signalsDebugEnabled()) {
       console.warn(`[web-search-enrich] error: ${err instanceof Error ? err.message : String(err)}`);
     }

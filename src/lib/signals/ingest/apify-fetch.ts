@@ -18,7 +18,7 @@ function linkedInPollUrl(target: string, sourceType: SignalSourceRow['source_typ
 /**
  * Builds an X search query from a monitored keyword. Hashtags and inputs that
  * already use advanced X operators pass through raw; plain multi-word inputs
- * are quoted for exact-phrase matching. Retweets are always excluded — a
+ * are quoted for exact-phrase matching. Retweets are always excluded - a
  * retweet's author is not the lead.
  */
 export function buildSearchQuery(handleOrUrl: string): string {
@@ -36,7 +36,7 @@ export function buildSearchQuery(handleOrUrl: string): string {
  * apify/twitter-scraper actor as profile polls, pointed at the "Latest" search
  * tab (which keeps results roughly reverse-chronological, so the time-window
  * cursor is sound). `searchTerms` is passed alongside the search startUrl for
- * actor variants that prefer it — whichever the actor honors wins.
+ * actor variants that prefer it - whichever the actor honors wins.
  */
 export async function fetchKeywordPostsViaApify(
   source: SignalSourceRow,
@@ -58,7 +58,7 @@ export async function fetchKeywordPostsViaApify(
   for (const it of items ?? []) {
     // Empty fallback handle: for search results (unlike profile polls) there is
     // no tracked handle to fall back to, and an authorless post is a useless
-    // lead — apifyItemToPost's empty-handle output is dropped below.
+    // lead - apifyItemToPost's empty-handle output is dropped below.
     const post = apifyItemToPost(it as Record<string, unknown>, 'x', '');
     if (post && post.authorHandle) posts.push(post);
   }

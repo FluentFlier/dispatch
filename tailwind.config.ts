@@ -92,9 +92,16 @@ const config: Config = {
         base: ['15px', { lineHeight: '1.55' }],
       },
       borderRadius: {
-        lg: '8px',
+        // Content OS radius ladder (DESIGN.md §5): chip 8 · control 10 ·
+        // compact-card 14 · surface 18 · poster 22. Controls are squared with
+        // gentle corners - never default pills.
         md: '6px',
-        badge: '6px',
+        lg: '8px',
+        badge: '8px',
+        control: '10px',
+        card: '14px',
+        surface: '18px',
+        poster: '22px',
         pill: '999px',
       },
       boxShadow: {

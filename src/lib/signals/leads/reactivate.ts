@@ -97,7 +97,7 @@ export async function reactivateWorkspaceLeads(
       continue;
     }
 
-    // No lead yet — a followed company on HARD intent gets a manual lead created.
+    // No lead yet - a followed company on HARD intent gets a manual lead created.
     if (isFollowed && hasHardIntent(flags)) {
       const match = followed.find((f) =>
         companiesMatch({ domain: f.domain, companyName: f.company_name }, sigKey),

@@ -4,7 +4,7 @@ import { AdminPageHeader } from '@/components/admin/AdminPageHeader';
 import { adminPage, adminTableHead, adminTableRow, adminTableWrap } from '@/components/admin/admin-ui';
 
 /**
- * Admin audit log — who changed plans, flags, publish jobs, and impersonation sessions.
+ * Admin audit log - who changed plans, flags, publish jobs, and impersonation sessions.
  */
 export default async function AdminAuditPage() {
   await assertAdmin();
@@ -37,10 +37,10 @@ export default async function AdminAuditPage() {
                 <td className="px-4 py-3 text-text-primary text-xs">{e.actorEmail}</td>
                 <td className="px-4 py-3 font-mono text-xs">{e.action}</td>
                 <td className="px-4 py-3 text-xs text-text-secondary">
-                  {e.targetType ? `${e.targetType}:${e.targetId ?? '—'}` : '—'}
+                  {e.targetType ? `${e.targetType}:${e.targetId ?? '-'}` : '-'}
                 </td>
                 <td className="px-4 py-3 font-mono text-[10px] text-text-tertiary max-w-xs truncate">
-                  {Object.keys(e.details).length ? JSON.stringify(e.details) : '—'}
+                  {Object.keys(e.details).length ? JSON.stringify(e.details) : '-'}
                 </td>
               </tr>
             ))}

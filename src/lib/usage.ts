@@ -46,7 +46,7 @@ export async function incrementUsage(
     });
 
     if (!error) return;
-    // RPC exists but returned an error — log and fall through to upsert fallback.
+    // RPC exists but returned an error - log and fall through to upsert fallback.
     console.warn('[usage] increment_usage_counter RPC error, falling back:', error);
   } catch {
     // RPC not available yet (pre-migration). Fall through to upsert.

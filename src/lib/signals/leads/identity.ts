@@ -10,7 +10,7 @@ import type { LeadIntentFlags, SignalLeadContactRow } from '@/lib/signals/types'
 /**
  * Normalizes a website/URL to a bare host (the stable identity anchor). Strips
  * protocol, www, path, and lowercases so variants of one company collapse to the
- * same domain — this is what survives a rename.
+ * same domain - this is what survives a rename.
  */
 export function normalizeDomain(website?: string | null): string | null {
   if (!website) return null;
@@ -91,7 +91,7 @@ export function classifyLeadChange(
 /**
  * Strict company match (Q2 = no fuzzy): equal on external_id, OR equal
  * normalized domain, OR exact normalized name. Two different companies with
- * similar names but different domains never match — protects cold outreach.
+ * similar names but different domains never match - protects cold outreach.
  */
 export function companiesMatch(
   a: { externalId?: string | null; domain?: string | null; website?: string | null; companyName: string },
@@ -165,7 +165,7 @@ export interface ResurfaceInput {
 /**
  * Reactivation policy (Phase 8): a lead resurfaces when a real intent signal
  * arrives. A dismissed lead resurfaces only on HARD intent (raised /
- * seeking_investors), never on a soft re-scrape — and a followed company always
+ * seeking_investors), never on a soft re-scrape - and a followed company always
  * resurfaces on hard intent regardless of a prior dismiss (explicit user intent).
  */
 export function shouldResurface(input: ResurfaceInput): { resurface: boolean; reason?: string } {

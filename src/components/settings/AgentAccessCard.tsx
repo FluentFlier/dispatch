@@ -135,7 +135,7 @@ export default function AgentAccessCard() {
       )}
 
       <div className="rounded-lg border border-border bg-bg-primary p-4 space-y-3">
-        <p className="text-xs text-text-secondary font-medium uppercase tracking-wide">
+        <p className="text-xs text-text-secondary font-medium tracking-wide">
           New key
         </p>
         <input
@@ -200,7 +200,7 @@ export default function AgentAccessCard() {
 
       <div className="rounded-lg border border-border p-4 space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs text-text-secondary font-medium uppercase tracking-wide">
+          <p className="text-xs text-text-secondary font-medium tracking-wide">
             Agent skill doc
           </p>
           <button
@@ -219,7 +219,7 @@ export default function AgentAccessCard() {
       </div>
 
       <div className="space-y-2">
-        <p className="text-xs text-text-secondary font-medium uppercase tracking-wide">
+        <p className="text-xs text-text-secondary font-medium tracking-wide">
           Active keys
         </p>
         {loading ? (

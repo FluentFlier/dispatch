@@ -6,7 +6,7 @@ import { Droppable } from '@hello-pangea/dnd';
 import type { Post } from '@/lib/types';
 import { usePillars } from '@/hooks/usePillars';
 import PillarDot from '@/components/PillarDot';
-import StatusBadge from '@/components/StatusBadge';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 /* ------------------------------------------------------------------ */
 /*  Helpers                                                            */
@@ -250,7 +250,7 @@ export default function CalendarGrid({
             const isToday = isSameDay(day, today);
             const dayPosts = postsByDate[key] || [];
             const isWeekView = viewMode === 'week';
-            const overflow = !isWeekView && dayPosts.length > 3 ? dayPosts.length - 3 : 0;
+            const overflow = !isWeekView && dayPosts.length > 4 ? dayPosts.length - 4 : 0;
 
             const col = i % 7;
             const row = Math.floor(i / 7);
@@ -269,7 +269,7 @@ export default function CalendarGrid({
                     {...provided.droppableProps}
                     onClick={() => onDayCellClick(day)}
                     className={`bg-bg-secondary cursor-pointer transition-colors ${borderClasses} ${
-                      isWeekView ? 'min-h-[200px] p-2' : 'min-h-[116px] p-2'
+                      isWeekView ? 'min-h-[220px] p-2.5' : 'min-h-[120px] p-2'
                     } ${isToday && isWeekView ? 'ring-1 ring-inset ring-accent-primary' : ''} ${
                       isPickMode ? 'hover:ring-1 hover:ring-accent-primary/60' : ''
                     } ${
@@ -289,7 +289,7 @@ export default function CalendarGrid({
                       </div>
                     ) : (
                       <span
-                        className={`inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1 font-mono text-[11px] ${
+                        className={`inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1 font-mono text-[12px] ${
                           isToday
                             ? 'bg-accent-primary font-medium text-white'
                             : isCurrentMonth
@@ -301,8 +301,8 @@ export default function CalendarGrid({
                       </span>
                     )}
 
-                    <div className={isWeekView ? 'space-y-1.5' : 'mt-1.5 space-y-1'}>
-                      {(isWeekView ? dayPosts : dayPosts.slice(0, 3)).map((p) =>
+                    <div className={isWeekView ? 'space-y-1.5' : 'mt-1 space-y-1'}>
+                      {(isWeekView ? dayPosts : dayPosts.slice(0, 4)).map((p) =>
                         isWeekView ? (
                           <div
                             key={p.id}
@@ -328,7 +328,7 @@ export default function CalendarGrid({
                             }}
                             title={`${p.title} (${getLabel(p.pillar)})`}
                           >
-                            {truncateText(p.title, 15)}
+                            {truncateText(p.title, 18)}
                           </div>
                         )
                       )}

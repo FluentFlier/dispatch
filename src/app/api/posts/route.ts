@@ -30,10 +30,15 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const workspaceId = await getActiveWorkspaceId(user.id);
     const params = request.nextUrl.searchParams;
 
+    // Newest post first. Imported posts all share one import-batch created_at, so
+    // ordering by created_at alone scrambles their real chronology — sort by the
+    // actual publish date first (nulls last so drafts/scheduled fall below), then
+    // created_at as the tiebreaker for same-day posts and undated drafts.
     let query = client
       .database.from('posts')
       .select('*')
       .eq('user_id', user.id)
+      .order('posted_date', { ascending: false, nullsFirst: false })
       .order('created_at', { ascending: false });
     // Scope to the active workspace (rows are backfilled with workspace_id).
     if (workspaceId) query = query.eq('workspace_id', workspaceId);

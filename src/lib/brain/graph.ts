@@ -2,9 +2,6 @@ import type { BrainPageRecord } from './types';
 
 /**
  * Visual grouping for a brain graph node. Drives node color, size, and legend.
- * `core` = identity/voice pages, `performance` = wins, `gtm` = outreach playbook,
- * `references` = saved hooks, `pillar` = content pillar derived from profile,
- * `post` = a published post memory, `story` = a story-bank memory.
  */
 export type BrainNodeKind =
   | 'core'
@@ -19,12 +16,15 @@ export interface BrainGraphNode {
   id: string;
   label: string;
   kind: BrainNodeKind;
-  /** Original brain page slug when the node maps to a stored page. */
   slug?: string;
-  /** One-line description shown in the detail panel. */
   detail?: string;
-  /** Small key/value facts (views, likes, platform, updated) for the panel. */
   meta?: Record<string, string | number>;
+  /** Normalized performance weight in [0, 1] - drives node size for posts/pillars. */
+  weight?: number;
+  /** Top performer from the wins page. */
+  highlight?: boolean;
+  /** Brain page is still a stub / not populated. */
+  pending?: boolean;
 }
 
 export type BrainEdgeKind = 'structural' | 'pillar' | 'win';
@@ -40,7 +40,6 @@ export interface BrainGraph {
   edges: BrainGraphEdge[];
 }
 
-/** Slug -> presentation metadata for the fixed "core" brain pages. */
 const CORE_META: Record<string, { label: string; kind: BrainNodeKind }> = {
   profile: { label: 'Profile', kind: 'core' },
   voice: { label: 'Voice', kind: 'core' },
@@ -63,7 +62,6 @@ function safeParse(body: string): Record<string, unknown> | null {
   }
 }
 
-/** Normalize content_pillars (array of strings or {value,label} objects). */
 function extractPillars(profileBody: Record<string, unknown> | null): { id: string; label: string }[] {
   if (!profileBody) return [];
   const raw = profileBody.content_pillars;
@@ -90,43 +88,97 @@ function truncate(text: string, max = 140): string {
   return clean.length > max ? `${clean.slice(0, max - 1)}…` : clean;
 }
 
-/** Build a short human description for a core/gtm/references page from its body. */
+function isPagePending(page: BrainPageRecord): boolean {
+  if (!page.body?.trim()) return true;
+  if (page.body.includes('"status":"pending"') || page.body.includes('"status": "pending"')) return true;
+  const parsed = safeParse(page.body);
+  return parsed?.status === 'pending';
+}
+
+function countReferenceHooks(body: string): number {
+  if (!body.trim()) return 0;
+  const parsed = safeParse(body);
+  if (parsed && Array.isArray(parsed.entries)) return parsed.entries.length;
+  return body.split(/\n{2,}/).filter((block) => block.trim().length > 20).length;
+}
+
+function matchStoryToPillar(
+  body: Record<string, unknown> | null,
+  pillarIdByToken: Map<string, string>,
+): string | undefined {
+  if (!body) return undefined;
+  const category = typeof body.category === 'string' ? body.category.toLowerCase() : '';
+  if (category && pillarIdByToken.has(category)) return pillarIdByToken.get(category);
+
+  const tags = Array.isArray(body.tags) ? body.tags : [];
+  for (const tag of tags) {
+    if (typeof tag !== 'string') continue;
+    const token = tag.trim().toLowerCase().replace(/\s+/g, '-');
+    if (pillarIdByToken.has(token)) return pillarIdByToken.get(token);
+  }
+  return undefined;
+}
+
 function describeCorePage(page: BrainPageRecord): string | undefined {
   const parsed = safeParse(page.body);
   if (parsed) {
-    if (parsed.status === 'pending') return 'Not populated yet — sync or complete onboarding.';
+    if (parsed.status === 'pending') return 'Not populated yet - sync or complete onboarding.';
     if (typeof parsed.voice_description === 'string' && parsed.voice_description) {
       return truncate(parsed.voice_description);
     }
     if (typeof parsed.bio === 'string' && parsed.bio) return truncate(parsed.bio);
     if (typeof parsed.icp === 'string' && parsed.icp) return truncate(`ICP: ${parsed.icp}`);
+    if (typeof parsed.bioSummary === 'string' && parsed.bioSummary) return truncate(parsed.bioSummary);
+    if (typeof parsed.headline === 'string' && parsed.headline) return truncate(parsed.headline);
     return undefined;
   }
-  // Non-JSON body (e.g. saved-references is plain text).
   return page.body ? truncate(page.body) : undefined;
 }
 
+function voiceMeta(body: Record<string, unknown> | null): Record<string, string | number> | undefined {
+  if (!body || body.status === 'pending') return undefined;
+  const meta: Record<string, string | number> = {};
+  const vocab = body.vocabulary_fingerprint as { uses_often?: string[] } | undefined;
+  if (vocab?.uses_often?.length) meta['Signature terms'] = vocab.uses_often.length;
+  if (typeof body.voice_rules === 'string' && body.voice_rules.trim()) meta.Rules = 'Set';
+  return Object.keys(meta).length ? meta : undefined;
+}
+
+function gtmMeta(body: Record<string, unknown> | null): Record<string, string | number> | undefined {
+  if (!body || body.status === 'pending') return undefined;
+  const fields = ['icp', 'pitch', 'objections', 'proof_points', 'cta_style'] as const;
+  const filled = fields.filter((f) => typeof body[f] === 'string' && String(body[f]).trim().length > 8);
+  return { 'Fields filled': `${filled.length}/${fields.length}` };
+}
+
+function backgroundMeta(body: Record<string, unknown> | null): Record<string, string | number> | undefined {
+  if (!body) return undefined;
+  const meta: Record<string, string | number> = {};
+  const topics = Array.isArray(body.topics) ? body.topics : [];
+  if (topics.length) meta.Topics = topics.length;
+  const expertise = Array.isArray(body.expertise) ? body.expertise : [];
+  if (expertise.length) meta.Expertise = expertise.length;
+  return Object.keys(meta).length ? meta : undefined;
+}
+
 /**
- * Transforms a creator's brain pages into a connected node/edge graph.
- *
- * Layout is intentionally hub-and-spoke: the `profile` page is the center,
- * identity pages hang off it, content pillars branch from profile, and post
- * memories attach to the pillar they belong to (falling back to `wins`, then
- * profile). Wins additionally draw a "win" edge to their top posts. The graph
- * is always connected so orphan nodes never float away in the force layout.
+ * Transforms brain pages into a connected graph where every learning signal
+ * (voice, intel, posts, stories, GTM, references) shapes nodes, weights, and edges.
  */
 export function buildBrainGraph(pages: BrainPageRecord[]): BrainGraph {
   const nodes: BrainGraphNode[] = [];
   const edges: BrainGraphEdge[] = [];
   const nodeIds = new Set<string>();
+  const nodeById = new Map<string, BrainGraphNode>();
+  const postScores = new Map<string, number>();
 
   const addNode = (node: BrainGraphNode) => {
     if (nodeIds.has(node.id)) return;
     nodeIds.add(node.id);
+    nodeById.set(node.id, node);
     nodes.push(node);
   };
 
-  // Always guarantee a root so the graph is connected even before profile syncs.
   const profilePage = pages.find((p) => p.slug === 'profile');
   const profileBody = profilePage ? safeParse(profilePage.body) : null;
   addNode({
@@ -135,9 +187,9 @@ export function buildBrainGraph(pages: BrainPageRecord[]): BrainGraph {
     kind: 'core',
     slug: 'profile',
     detail: profilePage ? describeCorePage(profilePage) : 'The center of your Creator Brain.',
+    pending: profilePage ? isPagePending(profilePage) : true,
   });
 
-  // Content pillars branch directly off the profile hub.
   const pillars = extractPillars(profileBody);
   const pillarIdByToken = new Map<string, string>();
   for (const pillar of pillars) {
@@ -175,7 +227,8 @@ export function buildBrainGraph(pages: BrainPageRecord[]): BrainGraph {
         meta: Object.keys(meta).length ? meta : undefined,
       });
 
-      // Attach to its pillar, else to wins, else to the profile hub.
+      postScores.set(slug, Math.max(views ?? 0, (likes ?? 0) * 8));
+
       const pillarTarget = pillarToken ? pillarIdByToken.get(pillarToken) : undefined;
       if (pillarTarget) {
         edges.push({ source: pillarTarget, target: slug, kind: 'structural' });
@@ -188,41 +241,76 @@ export function buildBrainGraph(pages: BrainPageRecord[]): BrainGraph {
     }
 
     if (slug.startsWith('story/')) {
+      const body = safeParse(page.body);
+      const content =
+        typeof body?.content === 'string'
+          ? body.content
+          : typeof page.body === 'string' && !page.body.startsWith('{')
+            ? page.body
+            : '';
       addNode({
         id: slug,
         label: truncate(page.title || 'Story', 40),
         kind: 'story',
         slug,
-        detail: truncate(page.body),
+        detail: truncate(content || 'Story memory'),
+        meta: typeof body?.category === 'string' ? { Category: body.category } : undefined,
       });
-      edges.push({ source: ROOT_ID, target: slug, kind: 'structural' });
+
+      const pillarTarget = matchStoryToPillar(body, pillarIdByToken);
+      if (pillarTarget) {
+        edges.push({ source: pillarTarget, target: slug, kind: 'structural' });
+      } else {
+        edges.push({ source: ROOT_ID, target: slug, kind: 'structural' });
+      }
       continue;
     }
 
     const core = CORE_META[slug];
     if (core) {
+      const parsed = safeParse(page.body);
+      let meta: Record<string, string | number> | undefined;
+      if (slug === 'voice') meta = voiceMeta(parsed);
+      else if (slug === 'gtm') meta = gtmMeta(parsed);
+      else if (slug === 'background') meta = backgroundMeta(parsed);
+      else if (slug === 'saved-references') {
+        const count = countReferenceHooks(page.body);
+        if (count > 0) meta = { 'Saved hooks': count };
+      } else if (slug === 'linkedin' && parsed?.headline) {
+        meta = { Headline: 'Set' };
+      }
+
       addNode({
         id: slug,
         label: core.label,
         kind: core.kind,
         slug,
         detail: describeCorePage(page),
+        meta,
+        pending: isPagePending(page),
       });
       edges.push({ source: ROOT_ID, target: slug, kind: 'structural' });
       continue;
     }
 
-    // Unknown slug — still surface it rather than dropping data silently.
-    addNode({ id: slug, label: truncate(page.title || slug, 40), kind: 'core', slug, detail: describeCorePage(page) });
+    addNode({
+      id: slug,
+      label: truncate(page.title || slug, 40),
+      kind: 'core',
+      slug,
+      detail: describeCorePage(page),
+      pending: isPagePending(page),
+    });
     edges.push({ source: ROOT_ID, target: slug, kind: 'structural' });
   }
 
-  // Saved references inform the voice — draw the semantic link when both exist.
   if (nodeIds.has('saved-references') && nodeIds.has('voice')) {
     edges.push({ source: 'saved-references', target: 'voice', kind: 'structural' });
   }
+  if (nodeIds.has('background') && nodeIds.has('voice')) {
+    edges.push({ source: 'background', target: 'voice', kind: 'structural' });
+  }
 
-  // Wins -> top posts (win edges) from the wins page body.
   const winsPage = pages.find((p) => p.slug === 'wins');
   if (winsPage) {
     const body = safeParse(winsPage.body);
@@ -232,10 +320,38 @@ export function buildBrainGraph(pages: BrainPageRecord[]): BrainGraph {
       const postId = (entry as Record<string, unknown>).post_id;
       if (typeof postId !== 'string') continue;
       const target = `post/${postId}`;
-      if (nodeIds.has(target)) {
+      const targetNode = nodeById.get(target);
+      if (targetNode) {
         edges.push({ source: 'wins', target, kind: 'win' });
+        targetNode.highlight = true;
       }
     }
+  }
+
+  const maxScore = Math.max(0, ...Array.from(postScores.values()));
+  if (maxScore > 0) {
+    postScores.forEach((score, id) => {
+      const node = nodeById.get(id);
+      if (node) node.weight = Math.sqrt(score / maxScore);
+    });
+  }
+
+  const pillarScores = new Map<string, number>();
+  edges.forEach((edge) => {
+    const sourceNode = nodeById.get(edge.source);
+    const targetNode = nodeById.get(edge.target);
+    if (!sourceNode || !targetNode) return;
+    if (sourceNode.kind === 'pillar' && targetNode.kind === 'post') {
+      pillarScores.set(sourceNode.id, (pillarScores.get(sourceNode.id) ?? 0) + (postScores.get(targetNode.id) ?? 0));
+    }
+  });
+
+  const maxPillarScore = Math.max(0, ...Array.from(pillarScores.values()));
+  if (maxPillarScore > 0) {
+    pillarScores.forEach((score, id) => {
+      const node = nodeById.get(id);
+      if (node?.kind === 'pillar') node.weight = Math.sqrt(score / maxPillarScore);
+    });
   }
 
   return { nodes, edges };

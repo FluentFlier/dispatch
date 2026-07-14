@@ -7,7 +7,7 @@ import type { ClassifiedSignal, IngestedPost, SignalSourceRow } from '@/lib/sign
  * Unlike tracked-account sources, the post already matched the user's query at
  * fetch time (the X search did the matching), so there is nothing to classify:
  * the deterministic builder below turns every fetched post into a
- * 'keyword_match' signal. The GTM hybrid classifier is intentionally bypassed —
+ * 'keyword_match' signal. The GTM hybrid classifier is intentionally bypassed -
  * it is tuned for funding/launch/accelerator language and would drop arbitrary
  * topic matches.
  */
@@ -23,7 +23,7 @@ export function sourceKeyword(source: Pick<SignalSourceRow, 'label' | 'handle_or
   return (source.label ?? '').trim() || source.handle_or_url.trim();
 }
 
-/** ISO-8601 week stamp (e.g. "2026-W28") — the resurfacing window for dedupe. */
+/** ISO-8601 week stamp (e.g. "2026-W28") - the resurfacing window for dedupe. */
 export function isoWeek(date: Date): string {
   // ISO week: Thursday of the current week determines the year/week number.
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
@@ -37,7 +37,7 @@ export function isoWeek(date: Date): string {
 /**
  * Deterministic keyword-match signal. The dedupe key scopes to
  * keyword + author + ISO week, so a prolific author resurfaces at most once
- * per keyword per week instead of flooding the feed with every post — the
+ * per keyword per week instead of flooding the feed with every post - the
  * existing unique index on (workspace_id, dedupe_key) enforces it.
  */
 export function buildKeywordMatchSignal(
@@ -69,7 +69,7 @@ const RELEVANCE_SYSTEM = [
 
 /**
  * Optional stage 2: LLM relevance score of a keyword match against the
- * workspace ICP. FAILS OPEN — any provider/parse error returns null and the
+ * workspace ICP. FAILS OPEN - any provider/parse error returns null and the
  * caller keeps the lead at baseline confidence rather than dropping it (the
  * opposite of the GTM confirm, where junk must never become a lead).
  */

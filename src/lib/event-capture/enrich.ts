@@ -44,7 +44,7 @@ interface CreatorProfileRow {
  * generation, advancing status to 'questions_ready'. Shared by the event-enrich
  * cron (job-queue driven, prod) and the manual resync route (direct call, so a
  * local reload doesn't sit on 'detected' waiting for a cron that never runs on
- * localhost). Callers own job-queue bookkeeping — this function only touches
+ * localhost). Callers own job-queue bookkeeping - this function only touches
  * event_captures / event_research / creator_profile.
  *
  * `options.ignoreRecency` skips the 48h staleness guard. The hourly cron keeps
@@ -81,7 +81,7 @@ export async function enrichCapture(
     .eq('id', captureId);
 
   // From here on, any thrown error must revert status back to originalStatus
-  // (instead of leaving the row stuck at 'researching') — 'researching' isn't
+  // (instead of leaving the row stuck at 'researching') - 'researching' isn't
   // one of the statuses the inbox GET filters on, so a stuck row silently
   // vanishes from the UI with no way to retry.
   try {
@@ -144,7 +144,7 @@ export async function enrichCapture(
         };
       }
     } catch {
-      // Profile optional — questions still generated without pillars.
+      // Profile optional - questions still generated without pillars.
     }
 
     const questions = await generateEventQuestions({

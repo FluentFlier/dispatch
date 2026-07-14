@@ -156,7 +156,7 @@ function OnboardingInner() {
         return;
       }
 
-      // Backend now always completes when at least one account is connected —
+      // Backend now always completes when at least one account is connected -
       // even if posts couldn't be imported (fallback voice) or the brain only
       // partially synced. Proceed into the app rather than looping on connect.
       const nextBaseline = data.baseline as CreatorBaseline;
@@ -290,7 +290,7 @@ function OnboardingInner() {
     runIngest,
   ]);
 
-  // Baseline already built in a prior session — finish setup and enter the app.
+  // Baseline already built in a prior session - finish setup and enter the app.
   useEffect(() => {
     if (!hasBaseline || resumeAttempted.current || finishing) return;
     if (step !== 'connect') return;
@@ -377,10 +377,10 @@ function OnboardingInner() {
 
   return (
     <div className="mx-auto max-w-xl px-4 py-12">
-      <div className="mb-2 font-mono text-[11px] uppercase tracking-[0.12em] text-ink3">
+      <div className="mb-2 text-[11px] tracking-[0.12em] text-ink3">
         {PRODUCT_NAME} setup
       </div>
-      <h1 className="font-serif text-3xl font-normal tracking-[-0.03em] text-ink">
+      <h1 className="text-3xl font-normal tracking-[-0.03em] text-ink">
         {step === 'baseline'
           ? 'Your Creator Baseline'
           : step === 'ingest'
@@ -392,7 +392,7 @@ function OnboardingInner() {
       <p className="mt-2 text-sm leading-6 text-ink2">
         {step === 'connect' &&
           (autoRedirecting
-            ? 'Opening secure connect — link at least LinkedIn or X. We scrape your posts, extract voice & specs, and sync them to your creator brain.'
+            ? 'Opening secure connect - link at least LinkedIn or X. We scrape your posts, extract voice & specs, and sync them to your creator brain.'
             : 'Link at least LinkedIn or X to move forward. Both is better, but one is enough. Gmail is optional for richer 1:1 voice.')}
         {step === 'ingest' && statusLine}
         {step === 'baseline' &&
@@ -415,12 +415,12 @@ function OnboardingInner() {
       )}
 
       {/* Escape hatch: once ingest has failed at least once, never trap a user
-          with a connected account — let them into the app with a minimal profile. */}
+          with a connected account - let them into the app with a minimal profile. */}
       {ingestFailed && step === 'connect' && accounts.length > 0 && (
         <div className="mb-6 rounded-lg border border-hair bg-paper2 p-4">
           <p className="text-sm text-ink2">
             Building your voice is taking longer than expected. You can continue now and
-            we&apos;ll finish learning your voice in the background — refine it anytime in Voice Lab.
+            we&apos;ll finish learning your voice in the background - refine it anytime in Voice Lab.
           </p>
           <button
             type="button"
@@ -465,7 +465,7 @@ function OnboardingInner() {
                       {PLATFORM_LABEL[platform]}
                     </span>
                     {connected ? (
-                      <span className="flex items-center gap-1.5 text-xs text-teal">
+                      <span className="flex items-center gap-1.5 text-xs text-ink">
                         <CheckCircle2 className="h-3.5 w-3.5" />
                         {connected.account_name ?? 'Connected'}
                       </span>
@@ -483,7 +483,7 @@ function OnboardingInner() {
                 <p className="mt-0.5 text-[11px] text-ink3">Sent emails for richer voice</p>
               </div>
               {gmailConnected ? (
-                <span className="flex items-center gap-1.5 text-xs text-teal">
+                <span className="flex items-center gap-1.5 text-xs text-ink">
                   <CheckCircle2 className="h-3.5 w-3.5" />
                   Connected
                 </span>
@@ -529,10 +529,10 @@ function OnboardingInner() {
           {(hasLinkedIn || hasX) && (
             <p className="text-center text-xs text-ink3">
               {hasLinkedIn && hasX
-                ? 'Both connected — best coverage. Add Gmail for richer 1:1 voice.'
+                ? 'Both connected - best coverage. Add Gmail for richer 1:1 voice.'
                 : hasLinkedIn
-                  ? 'LinkedIn connected — add X anytime, or continue now.'
-                  : 'X connected — add LinkedIn anytime, or continue now.'}
+                  ? 'LinkedIn connected - add X anytime, or continue now.'
+                  : 'X connected - add LinkedIn anytime, or continue now.'}
             </p>
           )}
 
@@ -547,9 +547,9 @@ function OnboardingInner() {
       {step === 'ingest' && (
         <div className="flex flex-col items-center rounded-lg border border-hair bg-paper2 px-8 py-16 text-center">
           <Loader2 className="h-10 w-10 animate-spin text-accent-primary" />
-          <p className="mt-6 font-serif text-xl text-ink">{statusLine}</p>
+          <p className="mt-6 text-xl text-ink">{statusLine}</p>
           <p className="mt-2 max-w-sm text-sm text-ink2">
-            Pulling posts, voice specs, and profile — then verifying your brain pages…
+            Pulling posts, voice specs, and profile - then verifying your brain pages…
           </p>
         </div>
       )}
@@ -563,17 +563,17 @@ function OnboardingInner() {
 
           <div className={`grid gap-3 ${baseline.emailsAnalyzed > 0 ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'}`}>
             <div className="rounded-lg border border-hair bg-paper2 p-4">
-              <p className="text-[11px] font-mono uppercase tracking-wider text-ink3">Posts read</p>
-              <p className="mt-1 font-serif text-2xl text-ink">{baseline.postsAnalyzed}</p>
+              <p className="text-[11px] tracking-[0.01em] text-ink3">Posts read</p>
+              <p className="mt-1 text-2xl text-ink">{baseline.postsAnalyzed}</p>
             </div>
             {baseline.emailsAnalyzed > 0 && (
               <div className="rounded-lg border border-hair bg-paper2 p-4">
-                <p className="text-[11px] font-mono uppercase tracking-wider text-ink3">Emails read</p>
-                <p className="mt-1 font-serif text-2xl text-ink">{baseline.emailsAnalyzed}</p>
+                <p className="text-[11px] tracking-[0.01em] text-ink3">Emails read</p>
+                <p className="mt-1 text-2xl text-ink">{baseline.emailsAnalyzed}</p>
               </div>
             )}
             <div className="rounded-lg border border-hair bg-paper2 p-4">
-              <p className="text-[11px] font-mono uppercase tracking-wider text-ink3">Sources</p>
+              <p className="text-[11px] tracking-[0.01em] text-ink3">Sources</p>
               <p className="mt-1 text-sm font-medium text-ink">{baseline.platforms.join(', ')}</p>
             </div>
           </div>
@@ -597,7 +597,7 @@ function OnboardingInner() {
             <ul className="mt-3 space-y-2">
               {baseline.voiceRules.slice(0, 6).map((rule) => (
                 <li key={rule} className="flex items-start gap-2 text-sm text-ink2">
-                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-teal" />
+                  <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-ink" />
                   {rule}
                 </li>
               ))}

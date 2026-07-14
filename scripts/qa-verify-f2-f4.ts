@@ -11,7 +11,7 @@
  * none of which touch the SDK. We replicate that path 1:1, inject the REAL
  * creator profile (pulled from the DB), and apply the SAME client-side parse
  * functions the generate components use. The ONLY deviation from production is
- * the 6 RAG hook examples the pipeline injects into the system prompt — omitted
+ * the 6 RAG hook examples the pipeline injects into the system prompt - omitted
  * here because that import pulls in the broken chain. That affects flavour, not
  * the F2/F3/F4 structural contracts under test.
  *
@@ -83,7 +83,7 @@ interface Check { id: string; name: string; pass: boolean; detail: string; }
 const checks: Check[] = [];
 function record(c: Check) {
   checks.push(c);
-  console.log(`\n[${c.pass ? 'PASS' : 'FAIL'}] ${c.id} — ${c.name}\n       ${c.detail}`);
+  console.log(`\n[${c.pass ? 'PASS' : 'FAIL'}] ${c.id} - ${c.name}\n       ${c.detail}`);
 }
 
 async function main() {
@@ -142,7 +142,7 @@ PLATFORM: Instagram comment. Short, conversational. No em dashes.
 COMMENTS (reply to each, in order):
 ${commentLines.map((c, i) => `${i + 1}. ${c}`).join('\n')}
 
-Return ONLY a JSON array of strings — exactly one reply per comment, in the same order. Example: ["first reply", "second reply"]. No other text, no markdown.`;
+Return ONLY a JSON array of strings - exactly one reply per comment, in the same order. Example: ["first reply", "second reply"]. No other text, no markdown.`;
     const text = await fastGenerate(prompt, 'reply');
     const replies = parseReplies(text, commentLines);
     const empties = replies.filter((r) => r.reply === '(no reply generated)').length;

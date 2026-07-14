@@ -121,7 +121,7 @@ export function runTrainingStep(performanceSignals: PerformanceSignal[] = [], ed
 /**
  * Write EMA RL score to hook_performance DB table for a single (hook_id, vertical) pair.
  * EMA alpha=0.3: new_ema = 0.3 * new_score + 0.7 * existing. Called by intelligence-sync nightly cron.
- * Never writes to the in-memory dataset — DB is the durable source of truth for learned scores.
+ * Never writes to the in-memory dataset - DB is the durable source of truth for learned scores.
  */
 export async function updateFromPerformanceDB(
   client: InsforgeClient,
@@ -169,7 +169,7 @@ export async function updateFromPerformanceDB(
 
 /**
  * Penalizes hook IDs in hook_performance when users heavily rewrite AI output.
- * Writes to the same DB table intelligence-sync reads — closes the edit feedback loop.
+ * Writes to the same DB table intelligence-sync reads - closes the edit feedback loop.
  */
 export async function updateFromEditsDB(
   client: InsforgeClient,

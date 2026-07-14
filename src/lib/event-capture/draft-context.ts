@@ -21,7 +21,7 @@ export function sanitizeAnswer(raw: string): string {
 /**
  * Pairs each question with its answer to form the "what happened" block fed to
  * the generator. Answers are keyed by the question INDEX as a string ("0".."4")
- * — the same contract the UI writes and /answers stores. Questions with no
+ * - the same contract the UI writes and /answers stores. Questions with no
  * answer are dropped; returns '' when nothing is answered.
  *
  * This is the exact join that carries the user's answers into the written post,

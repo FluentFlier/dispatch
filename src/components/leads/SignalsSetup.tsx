@@ -37,7 +37,7 @@ interface SafetyStatus {
 
 /**
  * A used/cap meter with a fill bar that greens under 70%, ambers 70-90%, and
- * reds at/over the cap — so the workspace can see ban-risk headroom at a glance.
+ * reds at/over the cap - so the workspace can see ban-risk headroom at a glance.
  */
 function UsageMeter({ label, used, cap }: { label: string; used: number; cap: number }) {
   const pct = cap > 0 ? Math.min(100, Math.round((used / cap) * 100)) : 0;
@@ -371,7 +371,7 @@ export function SignalsSetup() {
                 key={s.id}
                 className="inline-flex items-center gap-1.5 rounded-full border border-border bg-bg-primary px-2.5 py-1 text-xs text-text-primary"
               >
-                <span className="uppercase text-[10px] text-text-tertiary">{s.platform}</span>
+                <span className="text-[10px] text-text-tertiary">{s.platform}</span>
                 {s.label || s.handle_or_url}
               </span>
             ))}
@@ -440,7 +440,7 @@ export function SignalsSetup() {
         <div className="flex flex-wrap gap-2">
           <input
             type="text"
-            placeholder={'keyword or #hashtag — e.g. "building in public"'}
+            placeholder={'keyword or #hashtag - e.g. "building in public"'}
             value={newKeyword}
             onChange={(e) => setNewKeyword(e.target.value)}
             onKeyDown={(e) => {
@@ -543,40 +543,6 @@ export function SignalsSetup() {
         </div>
       </section>
 
-      {/* --- Integrations --- */}
-      <section className="rounded-lg border border-border bg-bg-secondary p-5 space-y-4">
-        <div>
-          <h2 className="text-sm font-semibold text-text-primary">Integrations</h2>
-          <p className="mt-1 text-xs text-text-secondary">
-            Connect the channels used to notify you and to send outreach.
-          </p>
-        </div>
-        <CalendarConnectionCard />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-          <IntegrationPill label="LinkedIn" connected={Boolean(linkedIn?.connected)} />
-          <IntegrationPill
-            label="Slack"
-            connected={Boolean(slackIntegration?.connected)}
-            onConnect={slackIntegration?.connected ? undefined : () => connectComposio('slack')}
-            connecting={connectingToolkit === 'slack'}
-          />
-          <IntegrationPill
-            label="Gmail"
-            connected={Boolean(gmailIntegration?.connected)}
-            onConnect={gmailIntegration?.connected ? undefined : () => connectComposio('gmail')}
-            connecting={connectingToolkit === 'gmail'}
-          />
-        </div>
-        {slackIntegration?.connected && (
-          <p className="text-xs text-text-secondary">
-            New-signal Slack alerts: {slackIntegration.config.notify_on_new_signal ? 'on' : 'off'}
-            {slackIntegration.config.slack_channel_name
-              ? ` (#${slackIntegration.config.slack_channel_name})`
-              : ''}
-            .
-          </p>
-        )}
-      </section>
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { CURATED_PILLARS, getTrendingPillars, pillarSlug } from '@/lib/pillar-catalog';
 
 /**
- * Phase A: flexible pillars — curated catalog + data-driven trending suggestions
+ * Phase A: flexible pillars - curated catalog + data-driven trending suggestions
  * users can add on top of their voice pillars (without being locked in).
  */
 describe('pillar catalog', () => {

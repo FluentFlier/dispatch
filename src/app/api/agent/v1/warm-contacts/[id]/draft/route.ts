@@ -10,7 +10,7 @@ import { draftWarmContactOutreach } from '@/lib/social-graph/warm-contacts';
 import { guardAiRequest } from '@/lib/ai-guard';
 
 /**
- * POST /api/agent/v1/warm-contacts/[id]/draft — draft LinkedIn connect note (write + outreach).
+ * POST /api/agent/v1/warm-contacts/[id]/draft - draft LinkedIn connect note (write + outreach).
  */
 export async function POST(
   _request: NextRequest,

@@ -5,7 +5,7 @@ import type { YcFounder } from '@/lib/signals/ingest/yc-algolia';
 /**
  * Track A / A1: ICP-finder leads land as source:'manual' with no founders, but the
  * companies are real YC companies. This rung recovers their real YC slug by name
- * (Algolia) and pulls the founder LinkedIn from the YC detail page — turning an
+ * (Algolia) and pulls the founder LinkedIn from the YC detail page - turning an
  * unreachable manual lead into a resolved contact on the free, existing YC path.
  */
 describe('Phase: YC identity recovery for manual/ICP leads', () => {

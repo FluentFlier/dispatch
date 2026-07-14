@@ -4,7 +4,7 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
 import { sendWarmContactDm } from '@/lib/social-graph/outreach';
 
 /**
- * POST /api/social-graph/warm-contacts/[id]/send-dm — send a LinkedIn DM to a
+ * POST /api/social-graph/warm-contacts/[id]/send-dm - send a LinkedIn DM to a
  * warm contact (the accepted-connection follow-up in the nurture sequence),
  * gated by the same Signals safety envelope as connects.
  */

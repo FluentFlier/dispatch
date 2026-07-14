@@ -18,9 +18,9 @@ function newId(): string {
 
 function welcomeMessage(hasIcp: boolean): string {
   if (hasIcp) {
-    return 'Your ICP is saved. Tell me what to change — e.g. "focus on US only", "add healthcare", or "find leads now".';
+    return 'Your ICP is saved. Tell me what to change - e.g. "focus on US only", "add healthcare", or "find leads now".';
   }
-  return 'Who do you sell to? Describe your ideal customer — stage, industry, geography, signals like funding or YC batch. I will turn it into filters and can search for matching leads when you ask.';
+  return 'Who do you sell to? Describe your ideal customer - stage, industry, geography, signals like funding or YC batch. I will turn it into filters and can search for matching leads when you ask.';
 }
 
 interface IcpChatProps {
@@ -33,7 +33,7 @@ interface IcpChatProps {
 }
 
 /**
- * Conversational ICP setup — describe, refine, and trigger discovery in one thread.
+ * Conversational ICP setup - describe, refine, and trigger discovery in one thread.
  */
 export function IcpChat({
   settings,
@@ -62,8 +62,10 @@ export function IcpChat({
   });
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [discovering, setDiscovering] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const didMountRef = useRef(false);
 
   useEffect(() => {
     try {
@@ -74,11 +76,107 @@ export function IcpChat({
   }, [messages]);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Skip the mount run: the dashboard embeds this chat below the fold, and a
+    // scrollIntoView for the initial greeting yanked the whole page down to the
+    // outreach section on every load/logo-click. Only scroll once the user is
+    // actually chatting.
+    if (!didMountRef.current) {
+      didMountRef.current = true;
+      return;
+    }
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages, loading]);
 
-  const send = useCallback(async () => {
-    const trimmed = input.trim();
+  /**
+   * Runs the real discovery: streams /api/leads/sync (the same endpoint the
+   * Leads feed uses) and reports progress inline as an assistant message. This
+   * is what actually finds leads - the chat route only classifies intent and
+   * returns `suggestRun`; without this call "Find leads now" did nothing and the
+   * assistant looped on "Hit Find leads now below".
+   */
+  const runDiscovery = useCallback(async () => {
+    if (discovering) return;
+    setDiscovering(true);
+    const statusId = newId();
+    setMessages((prev) => [
+      ...prev,
+      { id: statusId, role: 'assistant', content: 'Searching for matching leads…' },
+    ]);
+    const patch = (content: string) =>
+      setMessages((prev) => prev.map((m) => (m.id === statusId ? { ...m, content } : m)));
+
+    try {
+      const res = await fetch('/api/leads/sync', { method: 'POST' });
+      if (!res.ok || !res.body) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(typeof data.error === 'string' ? data.error : 'Search failed.');
+      }
+
+      // Consume the NDJSON progress stream: {type:'progress',pct,label} then a
+      // terminal {type:'result'} or {type:'error'}.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      type ScrapeResult = { inserted: number; updated: number; resolved: number; warnings?: string[] };
+      let result: ScrapeResult | null = null;
+      let streamError: string | null = null;
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t) continue;
+          let msg: Record<string, unknown>;
+          try {
+            msg = JSON.parse(t);
+          } catch {
+            continue;
+          }
+          if (msg.type === 'progress') {
+            const label = typeof msg.label === 'string' ? msg.label : 'Working…';
+            const pct = typeof msg.pct === 'number' ? msg.pct : null;
+            patch(pct !== null ? `Searching… ${label} (${pct}%)` : `Searching… ${label}`);
+          } else if (msg.type === 'result') {
+            result = msg.result as ScrapeResult;
+          } else if (msg.type === 'error') {
+            streamError = typeof msg.error === 'string' ? msg.error : 'Search failed.';
+          }
+        }
+      }
+
+      if (streamError) throw new Error(streamError);
+      const inserted = result?.inserted ?? 0;
+      const warnings = result?.warnings ?? [];
+      if (inserted === 0 && warnings.length > 0) {
+        patch(`No new leads this time - ${warnings[0]}`);
+        toast?.(`0 new leads - ${warnings[0]}`, 'error');
+      } else {
+        patch(
+          inserted > 0
+            ? `Found ${inserted} new lead${inserted === 1 ? '' : 's'}. Opening your feed…`
+            : 'Search ran - no new leads matched right now.',
+        );
+        toast?.(
+          inserted > 0 ? `Found ${inserted} new leads.` : 'Search ran - no new leads matched.',
+          'success',
+        );
+      }
+      onDiscoveryComplete?.();
+    } catch (err) {
+      const m = err instanceof Error ? err.message : 'Search failed.';
+      patch(`Couldn't finish the search: ${m}`);
+      toast?.(m, 'error');
+    } finally {
+      setDiscovering(false);
+    }
+  }, [discovering, onDiscoveryComplete, toast]);
+
+  const send = useCallback(async (override?: string) => {
+    const trimmed = (override ?? input).trim();
     if (!trimmed || loading) return;
 
     const userMsg: IcpChatMessage = { id: newId(), role: 'user', content: trimmed };
@@ -96,32 +194,18 @@ export function IcpChat({
       const data = await res.json();
       if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Chat failed');
 
-      setMessages((prev) => [
-        ...prev,
-        { id: newId(), role: 'assistant', content: data.assistantMessage as string },
-      ]);
+      // When discovery is about to run, runDiscovery() posts its own status
+      // message - skip the route's CTA line so we don't stack two messages.
+      if (!data.suggestRun) {
+        setMessages((prev) => [
+          ...prev,
+          { id: newId(), role: 'assistant', content: data.assistantMessage as string },
+        ]);
+      }
 
       if (data.settings) onSettingsSaved?.(data.settings as DirectorySettingsRow);
-
-      if (data.applied) {
-        const inserted = (data.sync as { inserted?: number } | null)?.inserted ?? 0;
-        if (data.discoveryRan) {
-          toast?.(
-            inserted > 0 ? `ICP updated — ${inserted} new leads found.` : 'ICP updated — discovery ran.',
-            'success',
-          );
-          onDiscoveryComplete?.();
-        } else {
-          toast?.('ICP updated.', 'success');
-        }
-      } else if (data.discoveryRan) {
-        const inserted = (data.sync as { inserted?: number } | null)?.inserted ?? 0;
-        toast?.(
-          inserted > 0 ? `Found ${inserted} new leads.` : 'Discovery ran with your current ICP.',
-          'success',
-        );
-        onDiscoveryComplete?.();
-      }
+      if (data.applied) toast?.('ICP updated.', 'success');
+      if (data.suggestRun) void runDiscovery();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not send message.';
       toast?.(msg, 'error');
@@ -137,7 +221,7 @@ export function IcpChat({
       setLoading(false);
       inputRef.current?.focus();
     }
-  }, [input, loading, messages, onDiscoveryComplete, onSettingsSaved, toast]);
+  }, [input, loading, messages, onSettingsSaved, runDiscovery, toast]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -245,22 +329,34 @@ export function IcpChat({
           </button>
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
-          {[
-            'Seed B2B SaaS, recently raised',
-            'Narrow to US fintech only',
-            'Find leads now',
-          ].map((hint) => (
+          {['Seed B2B SaaS, recently raised', 'Narrow to US fintech only'].map((hint) => (
             <button
               key={hint}
               type="button"
-              disabled={loading}
+              disabled={loading || discovering}
               onClick={() => setInput(hint)}
               className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border border-border text-text-tertiary hover:text-text-primary hover:border-accent-primary/30 disabled:opacity-50"
             >
-              {hint.includes('Find') && <Sparkles className="h-3 w-3" />}
               {hint}
             </button>
           ))}
+          {/* Once an ICP is set this is the primary CTA: filled blue so the user
+              knows to click it, and it runs discovery directly (no chat round
+              trip). Before setup it stays a muted hint that routes through chat
+              so the assistant can ask for an ICP first. */}
+          <button
+            type="button"
+            disabled={loading || discovering}
+            onClick={() => (hasIcp ? void runDiscovery() : void send('Find leads now'))}
+            className={
+              hasIcp
+                ? 'inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full bg-accent-primary text-white hover:bg-accent-primary/90 disabled:opacity-50'
+                : 'inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border border-border text-text-tertiary hover:text-text-primary hover:border-accent-primary/30 disabled:opacity-50'
+            }
+          >
+            {discovering ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
+            {discovering ? 'Searching…' : 'Find leads now'}
+          </button>
         </div>
       </div>
     </section>

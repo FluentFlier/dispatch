@@ -43,10 +43,10 @@ export function ScheduleModal({
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-hair">
           <div>
-            <h3 className="font-serif text-[18px] font-normal tracking-[-0.025em] text-ink">
+            <h3 className="text-[18px] font-normal tracking-[-0.025em] text-ink">
               Schedule a Post
             </h3>
-            <p className="text-[12px] font-mono text-ink3 mt-0.5">
+            <p className="text-[12px] text-ink3 mt-0.5">
               {date.toLocaleDateString('en-US', {
                 weekday: 'long',
                 month: 'long',
@@ -62,7 +62,7 @@ export function ScheduleModal({
 
         {/* Time picker */}
         <div className="px-4 pt-3 pb-2 border-b border-hair">
-          <label className="flex items-center gap-2 text-[11px] font-mono uppercase tracking-[0.1em] text-ink3 mb-1.5">
+          <label className="flex items-center gap-2 text-[11px] tracking-[0.1em] text-ink3 mb-1.5">
             <Clock className="w-3.5 h-3.5" />
             Publish time (UTC)
           </label>
@@ -76,7 +76,7 @@ export function ScheduleModal({
 
         {/* Post list */}
         <div className="p-4 overflow-y-auto flex-1">
-          <p className="text-[11px] font-mono uppercase tracking-[0.1em] text-ink3 mb-3">
+          <p className="text-[11px] tracking-[0.1em] text-ink3 mb-3">
             Pick a post from backlog
           </p>
           {backlog.length === 0 ? (
@@ -98,7 +98,7 @@ export function ScheduleModal({
                       <p className="text-[13px] text-text-primary font-medium truncate group-hover:text-ink">
                         {p.title}
                       </p>
-                      <p className="text-[11px] font-mono text-ink3 uppercase tracking-[0.06em] mt-0.5">
+                      <p className="text-[11px] text-ink3 tracking-[0.06em] mt-0.5">
                         {PLATFORM_LABELS[p.platform] ?? p.platform}
                       </p>
                     </div>
@@ -133,7 +133,7 @@ interface FillWeekModalProps {
 }
 
 /**
- * AI Fill This Week modal — shows suggestions before applying.
+ * AI Fill This Week modal - shows suggestions before applying.
  */
 export function FillWeekModal({
   loading,
@@ -148,7 +148,7 @@ export function FillWeekModal({
         <div className="flex items-center justify-between p-4 border-b border-hair">
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-accent-primary" />
-            <h3 className="font-serif text-[18px] font-normal tracking-[-0.025em] text-ink">
+            <h3 className="text-[18px] font-normal tracking-[-0.025em] text-ink">
               AI Week Fill
             </h3>
           </div>
@@ -184,7 +184,7 @@ export function FillWeekModal({
                       {getLabel(s.pillar)}
                     </p>
                   </div>
-                  <span className="font-mono text-[11px] text-ink3 whitespace-nowrap">
+                  <span className="text-[11px] text-ink3 whitespace-nowrap">
                     {new Date(s.date + 'T12:00:00Z').toLocaleDateString('en-US', {
                       weekday: 'short',
                       month: 'short',

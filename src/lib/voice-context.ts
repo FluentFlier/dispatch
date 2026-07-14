@@ -1,7 +1,7 @@
 ﻿import type { createClient } from '@insforge/sdk';
 import type { CreatorProfileForPrompt } from '@/lib/ai';
 import { retrieveBrainContext } from '@/lib/brain/retrieve';
-import { searchUserContext } from '@/lib/supermemory';
+import { searchUserContext, bestChunkContent } from '@/lib/supermemory';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -55,6 +55,12 @@ export interface CreatorVoiceContext {
 interface LoadVoiceContextOptions {
   /** Topic or post idea; triggers Supermemory retrieval when set */
   memoryQuery?: string;
+  /**
+   * How many memory documents to retrieve. Defaults to 3. The prompt classifier
+   * raises this (e.g. to 10) when a prompt references a specific past event, so a
+   * single old post can surface above generic history.
+   */
+  memoryLimit?: number;
   /** Skip brain, Supermemory, story bank, and L4 metrics (faster outreach drafts) */
   lightweight?: boolean;
   /** Max few-shot samples injected into the prompt */
@@ -76,6 +82,16 @@ interface LoadVoiceContextOptions {
    * into ordinary content posts.
    */
   includeGtm?: boolean;
+  /**
+   * Outreach mode: build VOICE EXAMPLES from the SINGLE best-available source by
+   * priority (Gmail email > LinkedIn > X), up to `voiceSampleLimit`, so a drafted
+   * message matches how the sender actually writes in that medium. The chosen
+   * source is folded into VOICE EXAMPLES and the separate EMAIL VOICE block is
+   * dropped (no double-injection, no email register bleeding into public posts).
+   */
+  outreachVoicePriority?: boolean;
+  /** Max voice samples when outreachVoicePriority is set (default 15). */
+  voiceSampleLimit?: number;
 }
 
 function parseJsonSetting<T>(value: string | null | undefined): T | undefined {
@@ -166,7 +182,7 @@ export function buildVoiceContextAdditions({
       .map((s, i) => `Email ${i + 1}:\n${s.content.trim()}`)
       .join('\n\n');
     sections.push(
-      `EMAIL VOICE (how they write 1:1 — match warmth, explanation style, sign-offs):\n${examples}`,
+      `EMAIL VOICE (how they write 1:1 - match warmth, explanation style, sign-offs):\n${examples}`,
     );
   }
 
@@ -177,8 +193,20 @@ export function buildVoiceContextAdditions({
   }
 
   if (memorySnippets?.length) {
+    // Frame retrieved memory as PAST content, not a style template. Each snippet
+    // carries its own date (written into the content at memory-write time). Without
+    // this instruction the model copies an old present-tense post verbatim - e.g.
+    // re-emitting "I just got back from…" on a "remember that event" prompt.
     sections.push(
-      `SEMANTIC MEMORY:\n${memorySnippets.join('\n---\n')}`,
+      'PAST CONTENT YOU HAVE ALREADY PUBLISHED (each shown with its date):\n' +
+        `${memorySnippets.join('\n---\n')}\n\n` +
+        'These are things you posted in the past. Do NOT copy their exact wording or ' +
+        'reuse their tense verbatim. If the user asks to reflect on, remember, or ' +
+        'revisit one of these, write in the present looking back on a past event - ' +
+        'never as if it is happening now. When a snippet names specific real people, ' +
+        'companies, or details, carry ALL of them forward into the new post exactly as ' +
+        'named (never drop any, never invent a substitute) - the date shown tells you ' +
+        'how long ago it was, so frame the timing accurately.',
     );
   }
 
@@ -190,7 +218,7 @@ export function buildVoiceContextAdditions({
  * when there is no baseline yet (< 3 scored posts). Exported so generation paths
  * that draft per-platform (event capture loops over connected platforms) can
  * inject the platform-correct baseline without a full second context load.
- * Single source of truth for the "PERFORMANCE BASELINE:" block — the stable prefix
+ * Single source of truth for the "PERFORMANCE BASELINE:" block - the stable prefix
  * lets the substance allow-list pass it to the Base/Hook stage (break 24).
  */
 export async function fetchL4BaselineBlock(
@@ -215,7 +243,7 @@ export async function fetchL4BaselineBlock(
       );
     }
   } catch (err) {
-    // Metrics optional — log so a persistent read failure is visible.
+    // Metrics optional - log so a persistent read failure is visible.
     console.warn('[voice-context] L4 metrics load failed', { workspaceId, platform, err });
   }
   return '';
@@ -310,7 +338,7 @@ export async function loadCreatorVoiceContext(
     }
   } catch (err) {
     // Profile and settings optional, but a THROW here (vs. an empty result) is a
-    // real failure worth surfacing — it starves every downstream stage.
+    // real failure worth surfacing - it starves every downstream stage.
     console.warn('[voice-context] profile/settings load failed', {
       userId,
       workspaceId: options.workspaceId,
@@ -318,11 +346,29 @@ export async function loadCreatorVoiceContext(
     });
   }
 
-  if (samplePosts && samplePosts.length > maxSamples) {
-    samplePosts = samplePosts.slice(0, maxSamples);
-  }
-  if (emailSamples && emailSamples.length > 2) {
-    emailSamples = emailSamples.slice(0, 2);
+  // Outreach voice source: pick the single best-available channel by priority
+  // (Gmail email > LinkedIn > X), fold it into VOICE EXAMPLES, and cap at the
+  // outreach limit. First-available-wins (weighting can come later).
+  if (options.outreachVoicePriority) {
+    const limit = options.voiceSampleLimit ?? 15;
+    const linkedin = samplePosts?.filter((s) => s.platform === 'linkedin') ?? [];
+    const x = samplePosts?.filter((s) => s.platform === 'twitter' || s.platform === 'x') ?? [];
+    const chosen =
+      (emailSamples?.length ? emailSamples
+        : linkedin.length ? linkedin
+        : x.length ? x
+        : samplePosts) ?? [];
+    samplePosts = chosen.slice(0, limit);
+    // Chosen source already lives in VOICE EXAMPLES; drop the 1:1 EMAIL VOICE
+    // block so it is not injected twice (and email tone can't leak into a post).
+    emailSamples = undefined;
+  } else {
+    if (samplePosts && samplePosts.length > maxSamples) {
+      samplePosts = samplePosts.slice(0, maxSamples);
+    }
+    if (emailSamples && emailSamples.length > 2) {
+      emailSamples = emailSamples.slice(0, 2);
+    }
   }
 
   let brainSnippets: string[] | undefined;
@@ -341,7 +387,7 @@ export async function loadCreatorVoiceContext(
         brainSnippets = brain;
       }
     } catch (err) {
-      // Brain table may not exist until migration applied — log so a persistent
+      // Brain table may not exist until migration applied - log so a persistent
       // failure is visible instead of silently thinning the prompt.
       console.warn('[voice-context] brain retrieval failed', { userId, err });
     }
@@ -357,13 +403,24 @@ export async function loadCreatorVoiceContext(
       // Pass workspaceId so the READ tag (workspace_${ws}) matches the WRITE tag
       // used by onboarding persona + published-post storage. Without it the search
       // fell back to user_${userId} and never found workspace-scoped memories.
-      const results = await searchUserContext(userId, options.memoryQuery.trim(), 3, options.workspaceId);
-      const snippets = results.map((r) => r.content).filter((c): c is string => Boolean(c));
+      const results = await searchUserContext(
+        userId,
+        options.memoryQuery.trim(),
+        options.memoryLimit ?? 3,
+        options.workspaceId,
+      );
+      // Drop story_bank docs here: story content already reaches the prompt via
+      // the dedicated UNUSED STORY BANK ANGLES injection below, so surfacing it
+      // again as semantic memory would double-inject the same story.
+      const snippets = results
+        .filter((r) => r.metadata?.type !== 'story_bank')
+        .map((r) => bestChunkContent(r))
+        .filter((c): c is string => Boolean(c));
       if (snippets.length > 0) {
         memorySnippets = snippets;
       }
     } catch (err) {
-      // Supermemory optional enhancement — log so an auth/quota failure is visible.
+      // Supermemory optional enhancement - log so an auth/quota failure is visible.
       console.warn('[voice-context] supermemory search failed', { userId, err });
     }
   }
@@ -400,7 +457,7 @@ export async function loadCreatorVoiceContext(
           storyRows.map((s, i) => `${i + 1}. ${s.mined_angle}`).join('\n');
       }
     } catch (err) {
-      // Story bank optional — log the failure rather than dropping the angles silently.
+      // Story bank optional - log the failure rather than dropping the angles silently.
       console.warn('[voice-context] story bank load failed', {
         workspaceId: options.workspaceId,
         err,

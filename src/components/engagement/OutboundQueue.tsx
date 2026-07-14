@@ -75,7 +75,7 @@ export default function OutboundQueue() {
         toast(data.error ?? 'Could not draft comment', 'error');
         return;
       }
-      toast('Comment drafted — review and approve below', 'success');
+      toast('Comment drafted - review and approve below', 'success');
       setPostUrl('');
       setExcerpt('');
       setAuthorName('');
@@ -98,7 +98,7 @@ export default function OutboundQueue() {
       toast(data.error ?? 'Update failed', 'error');
       return;
     }
-    toast(action === 'approve' ? 'Approved — will post shortly' : 'Skipped', 'success');
+    toast(action === 'approve' ? 'Approved - will post shortly' : 'Skipped', 'success');
     await fetchTasks();
   };
 
@@ -139,7 +139,7 @@ export default function OutboundQueue() {
           <textarea
             value={excerpt}
             onChange={(e) => setExcerpt(e.target.value)}
-            placeholder="Paste the post text — the AI drafts your comment from this"
+            placeholder="Paste the post text - the AI drafts your comment from this"
             rows={3}
             className="w-full rounded-lg border border-border bg-bg-secondary px-3 py-2 text-sm"
           />
@@ -167,7 +167,7 @@ export default function OutboundQueue() {
           {pending.map((task) => (
             <div key={task.id} className="rounded-lg border border-border/60 bg-bg p-4">
               <div className="mb-2 flex items-center gap-2 text-xs text-text-tertiary">
-                <span className={`rounded px-2 py-0.5 font-mono uppercase ${STATUS_STYLES[task.status] ?? ''}`}>
+                <span className={`rounded px-2 py-0.5 ${STATUS_STYLES[task.status] ?? ''}`}>
                   {task.status}
                 </span>
                 {task.target_author_name && <span>→ {task.target_author_name}</span>}
@@ -224,7 +224,7 @@ export default function OutboundQueue() {
               <ul className="mt-2 space-y-1">
                 {done.map((task) => (
                   <li key={task.id} className="flex items-center gap-2 text-xs text-text-tertiary">
-                    <span className={`rounded px-1.5 py-0.5 font-mono uppercase ${STATUS_STYLES[task.status] ?? ''}`}>
+                    <span className={`rounded px-1.5 py-0.5 ${STATUS_STYLES[task.status] ?? ''}`}>
                       {task.status}
                     </span>
                     <span className="truncate">{task.comment_text ?? task.kind}</span>

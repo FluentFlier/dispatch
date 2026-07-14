@@ -31,7 +31,7 @@ const ACTION_LABEL: Record<string, string> = Object.fromEntries(
 
 /**
  * Trigger-rule manager: list, create, toggle, and delete workspace rules that
- * decide which signals get drafted/auto-sent. Rules act as an allowlist — with
+ * decide which signals get drafted/auto-sent. Rules act as an allowlist - with
  * any rule present, only matching signals take action (others just notify).
  */
 export function SignalRulesManager() {
@@ -158,7 +158,7 @@ export function SignalRulesManager() {
       {loading ? (
         <p className="text-xs text-text-tertiary">Loading rules…</p>
       ) : rules.length === 0 ? (
-        <p className="text-xs text-text-tertiary">No rules yet — signals notify only.</p>
+        <p className="text-xs text-text-tertiary">No rules yet - signals notify only.</p>
       ) : (
         <ul className="space-y-2">
           {rules.map((rule) => (

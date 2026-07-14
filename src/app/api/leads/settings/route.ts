@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { getDirectorySettings, updateDirectorySettings } from '@/lib/signals/leads/store';
+import { normalizeMeetingLink } from '@/lib/signals/leads/meeting-link';
 import { errorResponse } from '@/lib/api-errors';
 
 /**
@@ -29,7 +30,7 @@ const putSchema = z
   })
   .partial();
 
-/** GET /api/leads/settings — directory + digest config. */
+/** GET /api/leads/settings - directory + digest config. */
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -79,6 +80,21 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
     }
 
     const { timezone: _tz, ...patch } = body;
+    if ('meeting_link' in patch) {
+      const raw = patch.meeting_link as string | null | undefined;
+      if (raw === null || raw === '') {
+        patch.meeting_link = null;
+      } else {
+        const normalized = normalizeMeetingLink(String(raw));
+        if (!normalized) {
+          return NextResponse.json(
+            { error: 'Enter a valid scheduling URL (Calendly, Google Calendar, Cal.com, etc.).' },
+            { status: 422 },
+          );
+        }
+        patch.meeting_link = normalized.url;
+      }
+    }
     if (Object.keys(patch).length > 0) {
       await updateDirectorySettings(client, workspaceId, patch);
     }

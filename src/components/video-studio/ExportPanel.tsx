@@ -74,7 +74,7 @@ export default function ExportPanel({ videoSrc, templateId }: ExportPanelProps) 
             <button
               key={f}
               onClick={() => setFormat(f)}
-              className={`px-4 py-1.5 rounded-md font-body text-[13px] font-medium uppercase transition-all duration-100 ${
+              className={`px-4 py-1.5 rounded-md font-body text-[13px] font-medium transition-all duration-100 ${
                 format === f
                   ? 'bg-accent-primary text-white'
                   : 'bg-bg-tertiary text-text-tertiary hover:bg-bg-tertiary/80'

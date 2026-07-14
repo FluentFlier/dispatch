@@ -1,5 +1,5 @@
 /**
- * Task-tier → concrete-model resolver — the layer that lets us build for the
+ * Task-tier → concrete-model resolver - the layer that lets us build for the
  * best models while swapping free models (Groq, HuggingFace) in and out via env.
  *
  * WHY: production targets premium models, but testing runs on free tiers because
@@ -12,16 +12,16 @@
  *   'fast'  -> $LLM_MODEL_FAST   (cheap/low-latency; e.g. claude-haiku-4-5 in prod)
  *   'smart' -> $LLM_MODEL_SMART  (highest quality; e.g. claude-opus-4-8 in prod)
  *
- * When a tier's env var is unset — the default in local/CI testing — this returns
+ * When a tier's env var is unset - the default in local/CI testing - this returns
  * `undefined`, so `chatCompletion` falls back to the globally configured
  * `LLM_MODEL` (Groq/HF). Net effect: testing needs ZERO tier config and just uses
  * the free model; production lights up premium models by setting two env vars.
  * Model choice is always an env change, never a code change.
  *
  * CONSTRAINT: a tier's model id must be valid on the configured `LLM_BASE_URL`
- * provider (one OpenAI-compatible gateway that routes by model name — OpenRouter,
+ * provider (one OpenAI-compatible gateway that routes by model name - OpenRouter,
  * the InsForge AI gateway, etc.). Do NOT point a tier at a Claude id while
- * `LLM_BASE_URL` is Groq — that model name will 400 on Groq. Keep tier ids and
+ * `LLM_BASE_URL` is Groq - that model name will 400 on Groq. Keep tier ids and
  * the base URL provider in sync per environment.
  */
 

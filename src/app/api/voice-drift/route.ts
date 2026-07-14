@@ -5,7 +5,7 @@ import { detectVoiceDrift } from '@/lib/voice-drift';
 
 /**
  * GET /api/voice-drift
- * Compares current voice EMA vs onboarding baseline — suggests re-import when drifted.
+ * Compares current voice EMA vs onboarding baseline - suggests re-import when drifted.
  */
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();

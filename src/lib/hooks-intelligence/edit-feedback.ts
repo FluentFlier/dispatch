@@ -52,7 +52,7 @@ export async function logEditFeedback(payload: EditFeedbackPayload) {
     localStorage.setItem(key, JSON.stringify(existing.slice(-50))); // keep last 50
   } catch {}
 
-  // RL updates run server-side via /api/cron/intelligence-sync — avoid importing
+  // RL updates run server-side via /api/cron/intelligence-sync - avoid importing
   // rl-trainer here (pulls hook dataset + prod-mining into the client bundle).
   void fetch('/api/hooks/feedback', {
     method: 'POST',

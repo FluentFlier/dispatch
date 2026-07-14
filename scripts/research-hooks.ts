@@ -78,7 +78,7 @@ async function insertToDB(records: ExtractedHook[]) {
     const url = process.env.NEXT_PUBLIC_INSFORGE_URL || process.env.INSFORGE_URL;
     const key = process.env.NEXT_PUBLIC_INSFORGE_ANON_KEY || process.env.INSFORGE_ANON_KEY;
     if (!url || !key) {
-      console.log('No InsForge creds in env — skipping DB insert (local dataset only)');
+      console.log('No InsForge creds in env - skipping DB insert (local dataset only)');
       return 0;
     }
 
@@ -112,7 +112,7 @@ async function main() {
   const viral = args.includes('--viral');
   const target = parseInt(args.find(a => a.startsWith('--target='))?.split('=')[1] || args.find(a => a.startsWith('--count='))?.split('=')[1] || '50');
 
-  console.log('🚀 GStack Research Runner — Scaling to 1k-10k+ real posts/hooks (free)');
+  console.log('🚀 GStack Research Runner - Scaling to 1k-10k+ real posts/hooks (free)');
   console.log(`Target this run: ~${target} items. Viral mode: ${viral}`);
 
   const { DEFAULT_WATCHLIST } = await import('../src/lib/hooks-intelligence/watchlist');
@@ -145,7 +145,7 @@ async function main() {
     console.log(`Run this repeatedly (cron / agent loop) to reach 1k-10k+ over days.`);
     console.log(`GStack tip: Codify this flow as a browser-skill for 10x faster future runs.`);
   } else {
-    console.log('No new data this run (rate limits or DOM changes — retry or refine selectors).');
+    console.log('No new data this run (rate limits or DOM changes - retry or refine selectors).');
   }
 
   // Log to GStack for persistence

@@ -8,7 +8,7 @@ interface RouteParams {
 
 /**
  * POST /api/event-capture/[id]/dismiss
- * Soft-dismisses an event capture — the user has decided not to create content from it.
+ * Soft-dismisses an event capture - the user has decided not to create content from it.
  * Sets status='dismissed' and dismissed_at=now().
  * Recoverable within 7 days via GET /api/event-capture/dismissed + POST /restore.
  */

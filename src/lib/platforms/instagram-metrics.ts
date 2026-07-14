@@ -40,7 +40,7 @@ function readInsight(row: IgInsightRow | undefined): number | undefined {
 
 /**
  * Map Instagram insights + media fields onto our normalized metrics.
- * WHY: IG splits data across two calls — engagement counts live on the media
+ * WHY: IG splits data across two calls - engagement counts live on the media
  * node (like_count, comments_count) while views/reach/saved come from the
  * insights edge. `saved` maps to our "saves"; we prefer `views` for our "views"
  * figure and fall back to `reach` when views is absent.
@@ -72,7 +72,7 @@ export function mapInstagramInsights(
  * Fetch live metrics for one Instagram media object via the Graph API.
  * Requires a Business/Creator account token that owns the media. Returns {}
  * (never throws) on any failure so a single media error does not abort a batch
- * sync — the caller logs and continues.
+ * sync - the caller logs and continues.
  */
 export async function fetchInstagramMetrics(
   accessToken: string,

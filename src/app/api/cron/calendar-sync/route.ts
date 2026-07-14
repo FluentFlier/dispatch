@@ -54,7 +54,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         ? await ingestEvents(client, { workspaceId, userId }, calEvents, now, 'incremental')
         : { created: 0, updated: 0 };
 
-      // Deletion pass only when the fetch succeeded — otherwise an empty result
+      // Deletion pass only when the fetch succeeded - otherwise an empty result
       // would soft-cancel every event in the lookback window.
       let cancelled = 0;
       if (fetchResult.ok) {

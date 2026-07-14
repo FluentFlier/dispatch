@@ -1,16 +1,9 @@
-# Declarative InsForge config for Dispatch / Content OS (project dispatch / mm4nbzdu)
-# Apply: npx @insforge/cli config apply --auto-approve
-
 [auth]
+allowed_redirect_urls = ["http://localhost:3000/auth/callback", "http://localhost:3000/login", "http://localhost:3001/auth/callback", "http://localhost:3001/login", "https://contentos.us/auth/callback", "https://contentos.us/login"]
 require_email_verification = false
 verify_email_method = "code"
 reset_password_method = "code"
-allowed_redirect_urls = [
-  "http://localhost:3001/login",
-  "http://localhost:3001/auth/callback",
-  "https://contentos.us/login",
-  "https://contentos.us/auth/callback",
-]
+disable_signup = false
 
 [auth.password]
 min_length = 6
@@ -18,3 +11,21 @@ require_number = false
 require_lowercase = false
 require_uppercase = false
 require_special_char = false
+
+[auth.smtp]
+enabled = false
+host = ""
+port = 465
+username = ""
+sender_email = ""
+sender_name = ""
+min_interval_seconds = 60
+
+[storage]
+max_file_size_mb = 50
+
+[realtime]
+retention_days = 0
+
+[schedules]
+retention_days = 7

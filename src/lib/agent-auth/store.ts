@@ -8,7 +8,7 @@ export interface CreateAgentKeyResult {
   key_prefix: string;
   scopes: AgentScope[];
   created_at: string;
-  /** Shown once — not stored. */
+  /** Shown once - not stored. */
   api_key: string;
 }
 

@@ -3,7 +3,7 @@
 import { Plus, ArrowUp, ArrowDown } from 'lucide-react';
 import type { Post, Series } from '@/lib/types';
 import PillarDot from '@/components/PillarDot';
-import StatusBadge from '@/components/StatusBadge';
+import StatusBadge from '@/components/ui/StatusBadge';
 
 interface SeriesPostListProps {
   series: Series;
@@ -58,7 +58,7 @@ export default function SeriesPostList({
               className="flex items-center justify-between px-3 py-2.5 rounded-md border border-dashed border-border"
             >
               <span className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink3">
-                Part {position} — Not started
+                Part {position} - Not started
               </span>
               <button
                 onClick={() => onAddPart(position)}

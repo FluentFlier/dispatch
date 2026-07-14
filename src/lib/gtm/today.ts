@@ -15,10 +15,14 @@ export interface GtmTodaySnapshot {
     connectReady: number;
     connectSent: number;
     dmReady: number;
+    needsReply: number;
     sentToday: number;
   };
   connectsDue: Array<Pick<SignalLeadRow, 'id' | 'company_name' | 'rank_score' | 'next_action_at'>>;
   dmsDue: Array<Pick<SignalLeadRow, 'id' | 'company_name' | 'rank_score' | 'next_action_at'>>;
+  needsReplyLeads: Array<
+    Pick<SignalLeadRow, 'id' | 'company_name' | 'rank_score' | 'last_inbound_at'>
+  >;
   commentDrafts: EngagementTaskRow[];
 }
 
@@ -27,12 +31,12 @@ export async function buildGtmTodaySnapshot(
   workspaceId: string,
   userId: string,
 ): Promise<GtmTodaySnapshot> {
-  const [safety, settings, stageRows, dueRows, dmDueRows, tasksRes] = await Promise.all([
+  const [safety, settings, stageRows, dueRows, dmDueRows, replyRows, tasksRes] = await Promise.all([
     getSafetyStatus(client, workspaceId),
     getDirectorySettings(client, workspaceId),
     client.database
       .from('signal_leads')
-      .select('nurture_stage')
+      .select('nurture_stage, needs_reply')
       .eq('workspace_id', workspaceId),
     client.database
       .from('signal_leads')
@@ -51,6 +55,13 @@ export async function buildGtmTodaySnapshot(
       .order('rank_score', { ascending: false })
       .limit(8),
     client.database
+      .from('signal_leads')
+      .select('id, company_name, rank_score, last_inbound_at')
+      .eq('workspace_id', workspaceId)
+      .eq('needs_reply', true)
+      .order('last_inbound_at', { ascending: false })
+      .limit(8),
+    client.database
       .from('engagement_tasks')
       .select('*')
       .eq('user_id', userId)
@@ -59,7 +70,7 @@ export async function buildGtmTodaySnapshot(
       .limit(5),
   ]);
 
-  const stages = (stageRows.data ?? []) as Array<{ nurture_stage: string | null }>;
+  const stages = (stageRows.data ?? []) as Array<{ nurture_stage: string | null; needs_reply?: boolean }>;
   const countStage = (s: string) => stages.filter((r) => r.nurture_stage === s).length;
 
   const icpConfigured = Boolean(
@@ -77,10 +88,12 @@ export async function buildGtmTodaySnapshot(
       connectReady: countStage('connect_ready'),
       connectSent: countStage('connect_sent') + countStage('nurturing'),
       dmReady: countStage('dm_ready'),
+      needsReply: stages.filter((r) => r.needs_reply).length,
       sentToday: safety.usage.linkedin_invites_today,
     },
     connectsDue: (dueRows.data ?? []) as GtmTodaySnapshot['connectsDue'],
     dmsDue: (dmDueRows.data ?? []) as GtmTodaySnapshot['dmsDue'],
+    needsReplyLeads: (replyRows.data ?? []) as GtmTodaySnapshot['needsReplyLeads'],
     commentDrafts: (tasksRes.data ?? []) as EngagementTaskRow[],
   };
 }

@@ -64,7 +64,7 @@ const DAY_NAMES_FULL = [
 /* ------------------------------------------------------------------ */
 
 export default function CalendarPage() {
-  const { pillars, getLabel } = usePillars();
+  const { getLabel } = usePillars();
   const router = useRouter();
   const today = useMemo(() => new Date(), []);
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -91,8 +91,9 @@ export default function CalendarPage() {
   const [searchActive, setSearchActive] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Pillar filters
-  const [visiblePillars, setVisiblePillars] = useState<Set<string>>(new Set());
+  // Content filters (platform + published) - replaces the old pillar filter.
+  const [platformFilter, setPlatformFilter] = useState<Set<string>>(new Set());
+  const [publishedOnly, setPublishedOnly] = useState(false);
 
   // Modals
   const [scheduleModalDate, setScheduleModalDate] = useState<Date | null>(null);
@@ -104,13 +105,6 @@ export default function CalendarPage() {
     { postId: string; date: string; title: string; pillar: string }[]
   >([]);
   const [fillLoading, setFillLoading] = useState(false);
-
-  /* ---- Pillar init ---- */
-  useEffect(() => {
-    if (pillars.length > 0 && visiblePillars.size === 0) {
-      setVisiblePillars(new Set(pillars.map((p) => p.value)));
-    }
-  }, [pillars, visiblePillars.size]);
 
   /* ---- Data fetching ---- */
   const fetchPosts = useCallback(async () => {
@@ -151,9 +145,12 @@ export default function CalendarPage() {
   );
 
   const filteredPosts = useMemo(() => {
-    if (visiblePillars.size === 0) return posts;
-    return posts.filter((p) => postPillars(p).some((x) => visiblePillars.has(x)));
-  }, [posts, visiblePillars]);
+    return posts.filter((p) => {
+      if (platformFilter.size > 0 && !platformFilter.has(p.platform)) return false;
+      if (publishedOnly && p.status !== "posted") return false;
+      return true;
+    });
+  }, [posts, platformFilter, publishedOnly]);
 
   const postDates = useMemo(() => {
     const s = new Set<string>();
@@ -163,7 +160,7 @@ export default function CalendarPage() {
     return s;
   }, [posts]);
 
-  // Search results — filter all posts (including backlog) by query
+  // Search results - filter all posts (including backlog) by query
   const searchResults = useMemo(() => {
     if (!searchQuery.trim()) return [];
     const q = searchQuery.toLowerCase();
@@ -237,9 +234,9 @@ export default function CalendarPage() {
     return `${startStr} – ${endStr}`;
   }, [viewMode, currentMonth, currentYear, weekBase, selectedDay]);
 
-  /* ---- Pillar toggle ---- */
-  function handlePillarToggle(slug: string) {
-    setVisiblePillars((prev) => {
+  /* ---- Platform filter toggle ---- */
+  function handlePlatformToggle(slug: string) {
+    setPlatformFilter((prev) => {
       const next = new Set(prev);
       if (next.has(slug)) next.delete(slug);
       else next.add(slug);
@@ -486,15 +483,6 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
             {/* ── Toolbar ── */}
             <div className="flex items-center gap-2 px-4 py-3 border-b border-hair bg-bg-secondary shrink-0">
 
-              {/* Hamburger (toggles right sidebar) */}
-              <button
-                onClick={() => setSidebarOpen((o) => !o)}
-                className="hidden lg:flex p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
-                title="Toggle sidebar"
-              >
-                <Menu className="w-4 h-4" />
-              </button>
-
               {/* Today */}
               <button
                 onClick={goToToday}
@@ -520,7 +508,7 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
               </div>
 
               {/* Period label */}
-              <span className="font-mono text-[13px] uppercase tracking-[0.06em] text-ink font-medium hidden sm:block">
+              <span className="text-[13px] tracking-[0.06em] text-ink font-medium hidden sm:block">
                 {periodLabel}
               </span>
 
@@ -539,7 +527,7 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                   <button
                     key={v}
                     onClick={() => setViewMode(v)}
-                    className={`px-3 py-2 text-[11px] font-mono uppercase tracking-[0.08em] transition-colors ${
+                    className={`px-3 py-2 text-[11px] tracking-[0.08em] transition-colors ${
                       viewMode === v
                         ? "bg-accent-primary text-white"
                         : "text-ink3 hover:text-ink hover:bg-bg-tertiary"
@@ -549,6 +537,15 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                   </button>
                 ))}
               </div>
+
+              {/* Hamburger - opens the mini-calendar + filters panel on the right */}
+              <button
+                onClick={() => setSidebarOpen((o) => !o)}
+                className="hidden lg:flex p-2 rounded-md text-text-secondary hover:text-text-primary hover:bg-bg-tertiary transition-colors"
+                title="Toggle mini calendar & filters"
+              >
+                <Menu className="w-4 h-4" />
+              </button>
             </div>
 
             {/* ── Search bar (slides in below toolbar) ── */}
@@ -595,7 +592,8 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
             )}
 
             {/* ── Main content area ── */}
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex-1 overflow-auto p-4 flex justify-center">
+              <div className="w-full max-w-6xl min-h-full flex flex-col justify-center">
 
               {/* Search results view */}
               {searchActive && searchQuery.trim() ? (
@@ -613,7 +611,7 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                           className="w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-bg-tertiary transition-colors group"
                         >
                           <div className="w-24 shrink-0">
-                            <p className="text-[11px] font-mono text-ink3">
+                            <p className="text-[11px] text-ink3">
                               {p.scheduled_date
                                 ? new Date(p.scheduled_date + "T12:00:00Z").toLocaleDateString("en-US", {
                                     month: "short", day: "numeric", year: "numeric",
@@ -621,7 +619,7 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                                 : "Unscheduled"}
                             </p>
                             {p.scheduled_publish_at && (
-                              <p className="text-[10px] font-mono text-ink3">
+                              <p className="text-[10px] text-ink3">
                                 {new Date(p.scheduled_publish_at).toLocaleTimeString("en-US", {
                                   hour: "numeric", minute: "2-digit", timeZone: "UTC",
                                 })} UTC
@@ -632,11 +630,11 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                             <p className="text-[13px] font-medium text-text-primary truncate group-hover:text-ink">
                               {p.title}
                             </p>
-                            <p className="text-[11px] font-mono text-ink3 uppercase tracking-[0.06em]">
+                            <p className="text-[11px] text-ink3 tracking-[0.06em]">
                               {p.platform} · {postPillars(p).join(" · ")}
                             </p>
                           </div>
-                          <span className={`text-[10px] font-mono uppercase tracking-[0.08em] px-2 py-0.5 rounded ${
+                          <span className={`text-[10px] tracking-[0.08em] px-2 py-0.5 rounded ${
                             p.status === "posted" ? "bg-green-100 text-green-700" : "bg-bg-tertiary text-ink3"
                           }`}>
                             {p.status}
@@ -673,6 +671,7 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                   onPostClick={handlePostClick}
                 />
               )}
+              </div>
             </div>
           </div>
 
@@ -683,9 +682,10 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
               currentYear={currentYear}
               currentMonth={currentMonth}
               postDates={postDates}
-              pillars={pillars}
-              visiblePillars={visiblePillars}
-              onPillarToggle={handlePillarToggle}
+              platformFilter={platformFilter}
+              onPlatformToggle={handlePlatformToggle}
+              publishedOnly={publishedOnly}
+              onTogglePublished={() => setPublishedOnly((v) => !v)}
               backlog={backlog}
               selectedPostId={backlogPickPost?.id ?? null}
               onBacklogPostClick={handleBacklogClick}

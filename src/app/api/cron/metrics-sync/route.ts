@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@insforge/sdk';
 import { syncUserPostMetrics } from '@/lib/analytics/sync-user-metrics';
+import { reimportRecentPostsAllPlatforms } from '@/lib/analytics/reimport-user-posts';
 import { logError, logInfo } from '@/lib/logger';
 
 /**
@@ -49,9 +50,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   let skipped = 0;
   let failed = 0;
   let total = 0;
+  let imported = 0;
 
   for (const userId of userIds) {
     try {
+      // Pull any newly-published LinkedIn + X posts first so their metrics are
+      // included in the same run (idempotent - only new posts are added).
+      imported += await reimportRecentPostsAllPlatforms(admin, userId);
       const result = await syncUserPostMetrics(admin, userId);
       updated += result.updated;
       skipped += result.skipped;
@@ -63,6 +68,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     }
   }
 
-  logInfo('[metrics-sync] Complete', { users: userIds.length, updated, skipped, failed, total });
-  return NextResponse.json({ users: userIds.length, updated, skipped, failed, total });
+  logInfo('[metrics-sync] Complete', { users: userIds.length, imported, updated, skipped, failed, total });
+  return NextResponse.json({ users: userIds.length, imported, updated, skipped, failed, total });
 }

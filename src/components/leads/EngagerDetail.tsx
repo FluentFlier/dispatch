@@ -81,7 +81,7 @@ export function EngagerDetail({
           <Linkedin className="h-5 w-5 text-text-tertiary" aria-hidden="true" />
         </div>
         <div className="min-w-0">
-          <p className="inline-flex items-center gap-1 text-xs font-mono uppercase tracking-wide text-coral-dark">
+          <p className="inline-flex items-center gap-1 text-xs tracking-wide text-coral-dark">
             <Radio className="h-3 w-3" aria-hidden="true" /> Post engager
           </p>
           <h2 className="text-xl font-display text-text-primary truncate">
@@ -113,7 +113,7 @@ export function EngagerDetail({
       {/* Research dossier */}
       {dossier ? (
         <div className="space-y-2">
-          <p className="text-xs font-mono uppercase tracking-wide text-text-tertiary">Research</p>
+          <p className="text-xs tracking-wide text-text-tertiary">Research</p>
           <p className="text-sm text-text-secondary leading-relaxed">{dossier.summary}</p>
           {dossier.whyMatters && (
             <p className="text-sm text-text-secondary leading-relaxed">

@@ -1,35 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback, type ComponentType } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import {
-  BarChart3,
-  CalendarDays,
-  FileText,
-  Home,
-  Lightbulb,
-  Menu,
-  MessageSquare,
-  PenLine,
-  Settings,
-  SlidersHorizontal,
-  Target,
-} from 'lucide-react';
-import { primaryNav, moreNav } from '@/lib/nav-config';
-
-const navIcons: Record<string, ComponentType<{ className?: string }>> = {
-  '/dashboard': Home,
-  '/generate': PenLine,
-  '/library': FileText,
-  '/calendar': CalendarDays,
-  '/inbox': MessageSquare,
-  '/leads': Target,
-  '/ideas': Lightbulb,
-  '/voice-lab': SlidersHorizontal,
-  '/analytics': BarChart3,
-  '/settings': Settings,
-};
+import { Menu } from 'lucide-react';
+import { primaryNav, moreNav, navIcons } from '@/lib/nav-config';
 
 export default function BottomBar() {
   const pathname = usePathname();

@@ -75,7 +75,7 @@ function ContactRow({
             <p className="font-medium text-text-primary truncate">
               {contact.display_name ?? contact.public_identifier ?? 'Unknown'}
             </p>
-            <span className="text-[10px] uppercase tracking-wide text-text-muted border border-border rounded px-1.5 py-0.5">
+            <span className="text-[10px] tracking-wide text-text-muted border border-border rounded px-1.5 py-0.5">
               {contact.status}
             </span>
           </div>
@@ -335,10 +335,10 @@ export default function WarmContactsPanel() {
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-serif text-[22px] text-ink tracking-[-0.025em]">Warm contacts</h2>
+          <h2 className="text-[22px] text-ink tracking-[-0.025em]">Warm contacts</h2>
           <p className="text-sm text-text-secondary mt-1 max-w-xl">
             People who reacted to your posts. Sync reactions, triage ICPs, draft and send connection
-            notes in your voice — with Signals safety caps.
+            notes in your voice - with Signals safety caps.
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
@@ -358,7 +358,7 @@ export default function WarmContactsPanel() {
           <Shield className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
           <p>
             Outreach is{' '}
-            {safety?.settings.dry_run ? 'in dry-run mode' : 'disabled'} — drafts work, but sends
+            {safety?.settings.dry_run ? 'in dry-run mode' : 'disabled'} - drafts work, but sends
             are blocked until you enable outreach in{' '}
             <Link href="/leads?view=setup" className="text-accent-primary hover:underline">
               Leads → Setup
@@ -408,7 +408,7 @@ export default function WarmContactsPanel() {
           if (items.length === 0) return null;
           return (
             <section key={cat}>
-              <h3 className="text-xs font-medium uppercase tracking-wide text-text-muted mb-2">
+              <h3 className="text-xs font-medium tracking-wide text-text-muted mb-2">
                 {cat} ({items.length})
               </h3>
               <ul className="divide-y divide-border rounded-lg border border-border bg-bg-secondary">

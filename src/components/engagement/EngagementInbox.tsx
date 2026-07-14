@@ -34,7 +34,7 @@ function statusLabel(queue: InboxComment['queue']): string {
 
 function statusTone(queue: InboxComment['queue']): string {
   if (!queue) return 'text-ink2 bg-paper2/80';
-  if (queue.status === 'sent') return 'text-teal bg-teal/10';
+  if (queue.status === 'sent') return 'text-ink bg-lime/15';
   if (queue.status === 'draft' || queue.status === 'approved') return 'text-blue bg-blue/10';
   if (queue.status === 'failed') return 'text-flame bg-flame/10';
   return 'text-ink2 bg-paper2/80';
@@ -49,6 +49,7 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
   const { toast } = useToast();
   const [data, setData] = useState<EngagementInboxResult | null>(null);
   const [loading, setLoading] = useState(true);
+  const [connected, setConnected] = useState<boolean | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [sendingBulk, setSendingBulk] = useState(false);
@@ -94,6 +95,23 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
   useEffect(() => {
     loadInbox();
   }, [loadInbox]);
+
+  // Connection status drives the empty-state copy: a connected user must never
+  // be told to "Connect accounts" (they'd think their LinkedIn dropped).
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/social-accounts')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j) => {
+        if (!cancelled) setConnected(((j?.accounts as unknown[]) ?? []).length > 0);
+      })
+      .catch(() => {
+        if (!cancelled) setConnected(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const handleSync = async () => {
     setSyncing(true);
@@ -212,6 +230,25 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
     setDraftEdits((prev) => ({ ...prev, [queueId]: text }));
   };
 
+  // Auto-sync once per session when the inbox is empty but an account IS
+  // connected: imported/published posts have publish_jobs rows, so the very
+  // first visit should pull their comments instead of showing an empty inbox.
+  // Session-scoped guard keeps Unipile calls bounded (cost) - repeat visits with
+  // genuinely zero comments won't re-hammer the provider.
+  const isEmptyNow = (data?.groups.length ?? 0) === 0;
+  useEffect(() => {
+    if (loading || syncing || connected !== true || !isEmptyNow) return;
+    const guardKey = `engagement-autosync:${postId ?? 'all'}`;
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(guardKey)) return;
+    try {
+      sessionStorage.setItem(guardKey, '1');
+    } catch {
+      /* private mode - proceed without the guard */
+    }
+    handleSync();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, connected, isEmptyNow]);
+
   if (loading) {
     return (
       <div className={compact ? 'space-y-3' : 'space-y-6'}>
@@ -235,7 +272,7 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
   return (
     <div className={compact ? 'space-y-4' : 'space-y-6'}>
       {summary && !isEmpty && !compact && (
-        <p className="font-mono text-[12px] tracking-[0.02em] text-ink3">
+        <p className="text-[12px] tracking-[0.02em] text-ink3">
           {summary.comments} comment{summary.comments === 1 ? '' : 's'} across {summary.posts}{' '}
           post{summary.posts === 1 ? '' : 's'} · {summary.needs_reply} need
           {summary.needs_reply === 1 ? 's' : ''} a reply · {summary.drafted} drafted · {summary.sent}{' '}
@@ -281,18 +318,25 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-md bg-coral-light text-accent-primary mb-5">
             <MessageCircle className="h-7 w-7" strokeWidth={1.75} />
           </div>
-          <h2 className="font-serif font-normal tracking-[-0.025em] text-ink text-[22px]">No comments yet</h2>
+          <h2 className="font-normal tracking-[-0.025em] text-ink text-[22px]">No comments yet</h2>
           <p className="mt-2 text-sm text-text-secondary max-w-sm mx-auto leading-relaxed">
-            {postId
-              ? 'Sync comments on this post after you publish, or connect a social account in settings.'
-              : 'Publish a post and sync comments from your connected accounts. They will show up here grouped by post.'}
+            {connected === false
+              ? 'Connect your LinkedIn or X account in settings, then sync to pull comments on your posts.'
+              : postId
+                ? 'No comments on this post yet. Sync to check for new ones.'
+                : 'Sync to pull comments on your posts from your connected account. They will show up here grouped by post.'}
           </p>
           <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
-            <Button variant="secondary" size="md" loading={syncing} onClick={handleSync}>
+            <Button
+              variant={connected === false ? 'secondary' : 'primary'}
+              size="md"
+              loading={syncing}
+              onClick={handleSync}
+            >
               <RefreshCw className="h-4 w-4" />
-              Sync now
+              {syncing ? 'Syncing…' : 'Sync now'}
             </Button>
-            {!postId && (
+            {connected === false && !postId && (
               <Link
                 href="/settings"
                 className="inline-flex items-center justify-center min-h-[44px] px-5 rounded-md text-[15px] font-medium border border-border bg-bg-secondary text-text-primary hover:bg-bg-tertiary transition-colors"
@@ -342,8 +386,8 @@ function PostCommentGroup({
   return (
     <section className="rounded-lg border border-border bg-bg-secondary shadow-card overflow-hidden">
       <div className="px-4 py-3 border-b border-hair bg-bg-tertiary/60">
-        <h2 className="font-serif font-normal tracking-[-0.025em] text-ink text-[18px] leading-tight">{group.post_title}</h2>
-        <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.08em] text-ink3">
+        <h2 className="font-normal tracking-[-0.025em] text-ink text-[18px] leading-tight">{group.post_title}</h2>
+        <p className="mt-1.5 text-[11px] tracking-[0.08em] text-ink3">
           {group.post_platform} · {group.stats.total} comment
           {group.stats.total === 1 ? '' : 's'}
           {needs > 0 && ` · ${needs} waiting for you`}
@@ -392,9 +436,9 @@ function CommentRow({
     <li className="p-4 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
-          <p className="font-mono text-[13px] font-medium text-ink">{authorLabel(item)}</p>
+          <p className="text-[13px] font-medium text-ink">{authorLabel(item)}</p>
           {comment.author_headline && (
-            <p className="font-mono text-[11px] text-ink3 mt-0.5 line-clamp-1">{comment.author_headline}</p>
+            <p className="text-[11px] text-ink3 mt-0.5 line-clamp-1">{comment.author_headline}</p>
           )}
         </div>
         <span

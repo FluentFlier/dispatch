@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback, type KeyboardEvent, useMemo } from 'react';
-import { ArrowUp, Loader2, Square, Plus, AudioLines, Send, Check, History, Trash2 } from 'lucide-react';
+import { useEffect, useState, useRef, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent, useMemo } from 'react';
+import { ArrowUp, Loader2, Square, Plus, AudioLines, Send, Check, History, Trash2, Paperclip, X } from 'lucide-react';
 import { MicDictate } from './MicDictate';
 import { assembleGeneratePrompt } from '@/lib/generate-prompt';
 import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
@@ -15,74 +15,61 @@ import {
   mergeMentions,
 } from '@/lib/mentions';
 
+// Pillar briefs describe the GOAL and the beats to hit as NARRATIVE guidance,
+// never as a labeled one-line-per-beat skeleton. The old "HOOK: one sentence /
+// SETUP: 2 bullets" format forced broetry (single-sentence paragraphs) that
+// reads as generic AI slop and fights the pipeline's paragraph_shape rule. These
+// ask for flowing paragraphs instead, so the draft sounds like a person wrote it.
 const PILLAR_PROMPTS: Record<string, string> = {
-  'hot-take': `Generate a hot take Reel script.
-TOPIC (optional): [topic or "choose a strong angle based on the creator's real experience"]
-HOOK: One bold controversial sentence. Stop-scrolling.
-ARGUMENT: The actual claim, one sentence.
-EVIDENCE: Specific proof or real example from the creator's background, one sentence.
-FLIP: What they should do or think instead, one sentence.
-CTA: One direct question.
-Under 60 seconds when spoken. No em dashes. The creator's voice only.`,
+  'hot-take': `Write a hot take in the creator's voice (pick a strong angle from their real experience if no topic is given). Open with one bold, scroll-stopping line that states the controversial claim, then back it with a specific real example from the creator's background, turn to what people should think or do instead, and close with one direct question. Write it as flowing paragraphs, not labeled beats or one-line fragments. Under 60 seconds when spoken. No em dashes.`,
 
-  hackathon: `Generate a hackathon story Reel script. Draw from the creator's hackathon experience. Pick a specific, realistic, dramatic story.
-HOOK: Drop into the most intense moment. No setup.
-SETUP: 2 bullets -- challenge, stakes.
-TURN: 1 bullet -- what changed under pressure.
-LESSON: 1 bullet -- what this teaches about building.
-CTA: Ask viewers about their own experience.
-No em dashes.`,
+  hackathon: `Write a hackathon story in the creator's voice, drawn from one specific, real, dramatic moment. Drop straight into the most intense moment with no setup, give just enough of the challenge and stakes to make it land, then what changed under pressure and what it taught about building. End by asking viewers about their own experience. Flowing paragraphs, not a beat list. No em dashes.`,
 
-  founder: `Generate a founder-in-public script about building the creator's product or startup.
-HOOK: One honest vulnerable sentence. Real energy, no spin.
-REALITY: 2 bullets -- what was hard or went wrong.
-PROGRESS: 1 bullet -- one thing that moved.
-LESSON: 1 bullet -- what this is teaching about startups.
-CTA: Invite builders to share their week.
-Sound like Tuesday at 11pm, not a success story. No em dashes.`,
+  founder: `Write a founder-in-public update in the creator's voice about building their product or startup. Open with one honest, vulnerable line (real energy, no spin), be specific about what was hard or went wrong, name the one thing that actually moved, and what it is teaching about startups. Invite other builders to share their week. Sound like Tuesday at 11pm, not a polished success story. Flowing paragraphs, not a beat list. No em dashes.`,
 
-  explainer: `Generate a concept explainer based on the creator's expertise. Under 60 seconds.
-TOPIC (optional): [topic or "choose one concept from the creator's domain"]
-HOOK: A question that makes them feel dumb for not knowing.
-SIMPLE VERSION: 2 bullets, zero jargon. 16-year-old readable.
-WHY IT MATTERS: 1 bullet.
-MISCONCEPTION: 1 bullet.
-CTA: Ask what to explain next.
-No em dashes.`,
+  explainer: `Write a concept explainer in the creator's voice from their expertise (pick one concept from their domain if no topic is given). Open with a question that makes the reader feel they are missing something, explain it simply enough for a 16-year-old with zero jargon, say why it matters, correct the common misconception, and close by asking what to explain next. Flowing paragraphs, not a beat list. Under 60 seconds when spoken. No em dashes.`,
 
-  origin: `Generate an origin/arc video script based on the creator's background and journey.
-HOOK: One specific detail that makes someone lean in.
-THE PATH: 2 bullets -- the unexpected parts.
-THROUGH LINE: 1 bullet -- what actually connects it all.
-NOW: 1 bullet -- where it's heading.
-CTA: Invite non-linear paths in comments.
-No em dashes.`,
+  origin: `Write an origin/arc piece in the creator's voice from their real background and journey. Open with one specific detail that makes someone lean in, move through the unexpected parts of the path, name the through-line that actually connects them, and where it is heading now. Invite non-linear paths in the comments. Flowing paragraphs, not a beat list. No em dashes.`,
 
-  research: `Generate a research unlocked video script that makes the creator's research feel accessible and interesting.
-HOOK: One line that makes someone who hates science want to keep watching.
-THE WEIRD PART: 2 bullets -- what is genuinely surprising about the research.
-WHY IT MATTERS: 1 bullet -- real-world stakes.
-THE META LESSON: 1 bullet -- what doing research teaches you that classes do not.
-CTA: Ask if they knew this kind of research existed.
-No em dashes.`,
+  research: `Write a "research unlocked" piece in the creator's voice that makes their research feel accessible and interesting. Open with a line that hooks even someone who hates science, share what is genuinely surprising about the research and its real-world stakes, then the meta lesson about what doing research teaches that classes do not. Ask if they knew this kind of research existed. Flowing paragraphs, not a beat list. No em dashes.`,
 };
+
+type MessageCompleteness = { starved?: boolean; voiceSource?: string } | null;
 
 type ChatMessage =
   | { id: string; role: 'user'; content: string }
-  | { id: string; role: 'assistant'; content: string; voiceMetrics?: GenerateVoiceMetrics };
+  | {
+      id: string;
+      role: 'assistant';
+      content: string;
+      voiceMetrics?: GenerateVoiceMetrics;
+      completeness?: MessageCompleteness;
+    };
 
-type GenStage = 'thinking' | 'writing' | 'revising';
+type GenStage = 'thinking' | 'writing' | 'revising' | 'polishing' | 'scoring';
 
 type StreamEvent =
   | { type: 'stage'; stage: GenStage }
   | { type: 'token'; delta: string }
-  | { type: 'done'; text: string; used_hook_ids?: string[] }
+  | {
+      type: 'done';
+      text: string;
+      used_hook_ids?: string[];
+      ai_score?: number;
+      voice_match_score?: number | null;
+      humanized?: boolean;
+      starved?: boolean;
+      voice_source?: string;
+      context_id?: string | null;
+    }
   | { type: 'error'; error: string };
 
 const STAGE_LABELS: Record<GenStage, string> = {
   thinking: 'Thinking through the angle…',
   writing: 'Writing your draft…',
   revising: 'Reworking the draft…',
+  polishing: 'Polishing out the AI tells…',
+  scoring: 'Scoring voice match…',
 };
 
 function isPlatform(value: unknown): value is DashboardPlatform {
@@ -150,23 +137,18 @@ function newId(): string {
 function buildFirstDraftBase(
   pillar: string,
   pillarLabel: string,
-  platform: DashboardPlatform,
+  platform: DashboardPlatform | null,
   promptTemplate?: string,
 ): string {
   if (promptTemplate) return promptTemplate;
   if (PILLAR_PROMPTS[pillar]) return PILLAR_PROMPTS[pillar];
   if (platform === 'linkedin') {
-    return `Write a LinkedIn post. Creator's voice only. 200-350 words. No em dashes.
-Hook: One strong first line.
-Setup: 2-3 sentences of context or stakes.
-Story or data: 2-4 sentences of specific detail.
-Insight: 2-3 sentences of real takeaway.
-CTA: One direct question.`;
+    return `Write a LinkedIn post in the creator's voice only, 200-350 words, no em dashes. Open with one strong first line that earns the read, give the context or stakes, then a specific story or real detail, land a genuine takeaway, and close with one direct question. Write it as real flowing paragraphs (2-4 sentences each), never a stack of one-line fragments or labeled beats.`;
   }
-  return `Write a ${platform} post script. Creator's voice only. Under 60 seconds when spoken. No em dashes.
-HOOK: One bold first line.
-BODY: 3-4 beats, each one sentence.
-CTA: One direct question.`;
+  if (platform === null) {
+    return `Write a short post in the creator's voice only, no em dashes. Open with one bold first line, carry a single clear idea through a few sentences of real substance, and close with one direct question. Flowing sentences, not labeled one-line beats.`;
+  }
+  return `Write a ${platform} post in the creator's voice only, tight enough to say in under 60 seconds, no em dashes. Open with one bold first line, carry a single clear idea with real substance, and close with one direct question. Flowing sentences, not labeled one-line beats.`;
 }
 
 interface ScriptGeneratorProps {
@@ -177,6 +159,8 @@ interface ScriptGeneratorProps {
   initialMentions?: string[];
   autoGenerate?: boolean;
 }
+
+const PLATFORM_OPTIONS: (DashboardPlatform | null)[] = [null, ...DASHBOARD_PLATFORMS];
 
 const CHAT_KEY = 'generate:script:chat';
 const CHAT_ID_KEY = 'generate:script:chat-id';
@@ -219,7 +203,7 @@ export function ScriptGenerator({
 
   const [pillar, setPillar] = useState(initialPillar);
   const [input, setInput] = useState('');
-  const [platform, setPlatform] = useState<DashboardPlatform>(initialPlatform ?? 'linkedin');
+  const [platform, setPlatform] = useState<DashboardPlatform | null>(initialPlatform ?? 'linkedin');
   const [postLength, setPostLength] = useState<PostLength>(preferredPostLength);
   const [useVoice, setUseVoice] = useState(voiceEnabled);
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
@@ -244,10 +228,17 @@ export function ScriptGenerator({
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [stage, setStage] = useState<GenStage | null>(null);
   const [error, setError] = useState('');
+  const [attachments, setAttachments] = useState<{ id: string; name: string; text: string }[]>([]);
+  const [attaching, setAttaching] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const autoGenTriggered = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
+  // Generation-context bundle id for this thread. The server returns it on each
+  // draft; we echo it back on revises so regens reuse the cached context and the
+  // server can track the light-regen budget. Reset on new/loaded chats.
+  const contextIdRef = useRef<string | null>(null);
   // Token flushing is batched to one rAF tick so a fast stream doesn't trigger a
   // React re-render (and JSON.stringify to sessionStorage) on every single token.
   const flushRef = useRef<{ id: string; text: string } | null>(null);
@@ -310,7 +301,7 @@ export function ScriptGenerator({
             const res = await fetchWithAuth('/api/chats', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ messages: snapshot, platform, pillar }),
+              body: JSON.stringify({ messages: snapshot, ...(platform ? { platform } : {}), pillar }),
             });
             if (res.ok) {
               const data = await res.json();
@@ -359,6 +350,7 @@ export function ScriptGenerator({
       const chat = data?.chat;
       if (!chat || !Array.isArray(chat.messages)) return;
       abortRef.current?.abort();
+      contextIdRef.current = null;
       setMessages(chat.messages as ChatMessage[]);
       setConversationId(id);
       if (isPlatform(chat.platform)) setPlatform(chat.platform);
@@ -387,7 +379,43 @@ export function ScriptGenerator({
     }
   }, []);
 
-  // Scroll only the chat pane — scrollIntoView would also move ancestor
+  const handleFiles = useCallback(async (fileList: FileList | File[]) => {
+    const files = Array.from(fileList).filter((f) =>
+      /\.(txt|md|pdf)$/i.test(f.name) || f.type === 'application/pdf' || f.type.startsWith('text/'),
+    );
+    if (files.length === 0) return;
+    setAttaching(true);
+    for (const file of files) {
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        const res = await fetchWithAuth('/api/generate/parse-file', { method: 'POST', body: form });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) { setError((data as { error?: string }).error ?? `Couldn't read ${file.name}`); continue; }
+        setAttachments((prev) => [...prev, { id: newId(), name: (data.name as string) ?? file.name, text: (data.text as string) ?? '' }]);
+      } catch {
+        setError(`Couldn't read ${file.name}`);
+      }
+    }
+    setAttaching(false);
+  }, []);
+
+  function onFileInputChange(e: ChangeEvent<HTMLInputElement>) {
+    if (e.target.files?.length) void handleFiles(e.target.files);
+    e.target.value = '';
+  }
+
+  function onComposerDrop(e: DragEvent<HTMLDivElement>) {
+    if (!e.dataTransfer.files?.length) return;
+    e.preventDefault();
+    void handleFiles(e.dataTransfer.files);
+  }
+
+  function removeAttachment(id: string) {
+    setAttachments((prev) => prev.filter((a) => a.id !== id));
+  }
+
+  // Scroll only the chat pane - scrollIntoView would also move ancestor
   // containers and jump the whole page down to the latest draft.
   useEffect(() => {
     const el = scrollRef.current;
@@ -410,20 +438,40 @@ export function ScriptGenerator({
     });
   }, []);
 
-  const finalizeMessage = useCallback((id: string, text: string, hookIds: string[]) => {
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-    flushRef.current = null;
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === id && m.role === 'assistant'
-          ? { ...m, content: text, voiceMetrics: { used_hook_ids: hookIds } }
-          : m,
-      ),
-    );
-  }, []);
+  const finalizeMessage = useCallback(
+    (
+      id: string,
+      text: string,
+      hookIds: string[],
+      extra?: { ai_score?: number; voice_match_score?: number | null; starved?: boolean; voice_source?: string },
+    ) => {
+      if (rafRef.current != null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      flushRef.current = null;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === id && m.role === 'assistant'
+            ? {
+                ...m,
+                content: text,
+                voiceMetrics: {
+                  used_hook_ids: hookIds,
+                  ...(extra?.ai_score !== undefined ? { ai_score: extra.ai_score } : {}),
+                  ...(extra?.voice_match_score != null ? { voice_match_score: extra.voice_match_score } : {}),
+                },
+                completeness:
+                  extra?.starved || extra?.voice_source
+                    ? { starved: extra.starved, voiceSource: extra.voice_source }
+                    : null,
+              }
+            : m,
+        ),
+      );
+    },
+    [],
+  );
 
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
@@ -434,18 +482,22 @@ export function ScriptGenerator({
     const pillarLabel = info?.label ?? getLabel(pillar);
     const mode: 'draft' | 'revise' = priorDraft ? 'revise' : 'draft';
 
+    const attachmentBlock = attachments.length
+      ? `\n\nATTACHED FILE CONTEXT:\n${attachments.map((a) => `[${a.name}]\n${a.text}`).join('\n\n')}`
+      : '';
+
     let assembled: string;
     if (priorDraft) {
       assembled = assembleGeneratePrompt({
-        base: `Revise this ${platform} post based on the creator's latest message. Return ONLY the updated post — no commentary, no labels.`,
-        thoughts: `CURRENT DRAFT:\n${priorDraft}\n\nCREATOR SAID:\n${trimmed}`,
+        base: `Revise this${platform ? ` ${platform}` : ''} post based on the creator's latest message. Return ONLY the updated post - no commentary, no labels.`,
+        thoughts: `CURRENT DRAFT:\n${priorDraft}\n\nCREATOR SAID:\n${trimmed}${attachmentBlock}`,
         lengthHint: POST_LENGTH_CONFIG[postLength].hint,
       });
     } else {
       const base = buildFirstDraftBase(pillar, pillarLabel, platform, info?.promptTemplate);
       assembled = assembleGeneratePrompt({
         base,
-        thoughts: trimmed,
+        thoughts: `${trimmed}${attachmentBlock}`,
         lengthHint: POST_LENGTH_CONFIG[postLength].hint,
       });
     }
@@ -455,6 +507,7 @@ export function ScriptGenerator({
     const assistantId = newId();
     setMessages((prev) => [...prev, userMsg, { id: assistantId, role: 'assistant', content: '' }]);
     setInput('');
+    setAttachments([]);
     setError('');
     setLoading(true);
     setStreamingId(assistantId);
@@ -470,10 +523,11 @@ export function ScriptGenerator({
         {
           prompt: assembled,
           topic: assembled.slice(0, 200),
-          platform,
+          ...(platform ? { platform } : {}),
           useVoice,
           mode,
           ...(mentions.length > 0 ? { mentions } : {}),
+          ...(mode === 'revise' && contextIdRef.current ? { context_id: contextIdRef.current } : {}),
         },
         (ev) => {
           if (ev.type === 'stage') {
@@ -483,7 +537,13 @@ export function ScriptGenerator({
             scheduleFlush(assistantId, acc);
           } else if (ev.type === 'done') {
             finalized = true;
-            finalizeMessage(assistantId, ev.text || acc, ev.used_hook_ids ?? []);
+            if (ev.context_id) contextIdRef.current = ev.context_id;
+            finalizeMessage(assistantId, ev.text || acc, ev.used_hook_ids ?? [], {
+              ai_score: ev.ai_score,
+              voice_match_score: ev.voice_match_score,
+              starved: ev.starved,
+              voice_source: ev.voice_source,
+            });
           } else if (ev.type === 'error') {
             throw new Error(ev.error);
           }
@@ -495,7 +555,7 @@ export function ScriptGenerator({
         if (acc.trim()) {
           finalizeMessage(assistantId, acc, []);
         } else {
-          // Nothing streamed yet — drop the exchange and hand the prompt back.
+          // Nothing streamed yet - drop the exchange and hand the prompt back.
           setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
           setInput(trimmed);
         }
@@ -522,7 +582,7 @@ export function ScriptGenerator({
     }
   }, [
     loading, pillarsLoading, prefLoading, pillar, pillarList, getLabel,
-    platform, postLength, useVoice, stableInitialMentions, messages,
+    platform, postLength, useVoice, stableInitialMentions, messages, attachments,
     scheduleFlush, finalizeMessage,
   ]);
 
@@ -557,6 +617,7 @@ export function ScriptGenerator({
     setInput('');
     setError('');
     setConversationId(null);
+    contextIdRef.current = null;
     try {
       sessionStorage.removeItem(CHAT_KEY);
       sessionStorage.removeItem(CHAT_ID_KEY);
@@ -576,7 +637,7 @@ export function ScriptGenerator({
     });
   }
 
-  const platformLabel = PLATFORM_LABELS[platform];
+  const platformLabel = platform ? PLATFORM_LABELS[platform] : 'any platform';
   const isEmpty = messages.length === 0 && !loading;
 
   return (
@@ -588,7 +649,7 @@ export function ScriptGenerator({
               What are we creating today?
             </h1>
             <p className="mt-2 text-sm text-ink3">
-              Tell me the idea — I&apos;ll draft it in your voice for {platformLabel}.
+              Tell me the idea - I&apos;ll draft it in your voice for {platformLabel}.
             </p>
           </div>
         )}
@@ -631,8 +692,9 @@ export function ScriptGenerator({
                   <GenerateOutput
                     text={msg.content}
                     loading={false}
-                    sourcePlatform={platform}
+                    sourcePlatform={platform ?? undefined}
                     voiceMetrics={msg.voiceMetrics}
+                    completeness={msg.completeness}
                     onTextUpdate={updateDraft}
                     variant="simple"
                     savePillar={pillar}
@@ -654,125 +716,34 @@ export function ScriptGenerator({
         <div ref={bottomRef} />
       </div>
 
-      <div className="sticky bottom-0 rounded-2xl border border-hair bg-paper shadow-soft">
-        <div className="flex flex-wrap items-center gap-2 border-b border-hair px-3 py-2 text-[12px]">
-          <select
-            value={pillar}
-            onChange={(e) => setPillar(e.target.value)}
-            disabled={pillarsLoading}
-            aria-label="Content pillar"
-            className="rounded-full border border-hair bg-paper2 px-2.5 py-1 text-ink2 focus:outline-none disabled:opacity-50"
-          >
-            {pillarList.map((p) => (
-              <option key={p.value} value={p.value}>{p.label}</option>
-            ))}
-          </select>
-
-          <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
-            {DASHBOARD_PLATFORMS.map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPlatform(p)}
-                className={`rounded-full px-2.5 py-0.5 transition-colors ${
-                  platform === p ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
-                }`}
-              >
-                {PLATFORM_LABELS[p]}
-              </button>
+      <div
+        onDragOver={(e) => e.preventDefault()}
+        onDrop={onComposerDrop}
+        className="sticky bottom-0 rounded-2xl border border-hair bg-paper shadow-soft transition-shadow focus-within:border-accent focus-within:shadow-[0_0_0_3px_var(--accent-light)]"
+      >
+        {attachments.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 px-4 pt-3">
+            {attachments.map((a) => (
+              <span key={a.id} className="inline-flex items-center gap-1 rounded-full border border-hair bg-paper2 px-2.5 py-1 text-[12px] text-ink2">
+                {a.name}
+                <button type="button" onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`} className="text-ink3 hover:text-ink">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
             ))}
           </div>
-
-          <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
-            {(Object.keys(POST_LENGTH_CONFIG) as PostLength[]).map((len) => (
-              <button
-                key={len}
-                type="button"
-                onClick={() => changeLength(len)}
-                className={`rounded-full px-2.5 py-0.5 transition-colors ${
-                  postLength === len ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
-                }`}
-              >
-                {POST_LENGTH_CONFIG[len].label}
-              </button>
-            ))}
-          </div>
-
-          <div className="relative ml-auto flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => void openHistory()}
-              aria-label="Chat history"
-              aria-expanded={historyOpen}
-              className="flex items-center gap-1 rounded-full px-2.5 py-1 text-ink3 transition-colors hover:text-ink2"
-            >
-              <History className="h-3.5 w-3.5" />
-              History
-            </button>
-            {messages.length > 0 && (
-              <button
-                type="button"
-                onClick={newChat}
-                className="flex items-center gap-1 rounded-full px-2.5 py-1 text-ink3 transition-colors hover:text-ink2"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                New
-              </button>
-            )}
-            {historyOpen && (
-              <>
-                <div className="fixed inset-0 z-10" onClick={() => setHistoryOpen(false)} />
-                <div className="absolute bottom-8 right-0 z-20 max-h-80 w-72 overflow-y-auto rounded-xl border border-hair bg-paper py-1 shadow-soft">
-                  {historyLoading && (
-                    <div className="flex items-center gap-2 px-3 py-2 text-[13px] text-ink3">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
-                    </div>
-                  )}
-                  {!historyLoading && history.length === 0 && (
-                    <p className="px-3 py-2 text-[13px] text-ink3">No saved chats yet.</p>
-                  )}
-                  {history.map((chat) => (
-                    <div
-                      key={chat.id}
-                      className={`group flex items-center gap-2 px-3 py-2 transition-colors hover:bg-paper2 ${
-                        chat.id === conversationId ? 'bg-paper2' : ''
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => void loadConversation(chat.id)}
-                        className="min-w-0 flex-1 text-left"
-                      >
-                        <span className="block truncate text-[13px] text-ink2">{chat.title}</span>
-                        <span className="text-[11px] text-ink3">{formatChatDate(chat.updated_at)}</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void deleteConversation(chat.id)}
-                        aria-label={`Delete "${chat.title}"`}
-                        className="hidden rounded p-1 text-ink3 transition-colors hover:text-accent-primary group-hover:block"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-
+        )}
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          rows={2}
+          rows={3}
           autoFocus
-          placeholder={lastDraft ? 'Ask for changes — shorter, punchier hook, add a CTA…' : 'What do you want to post about?'}
-          className="w-full resize-none bg-transparent px-4 py-3 font-body text-[15px] leading-relaxed text-ink placeholder:text-ink3 focus:outline-none"
+          placeholder={lastDraft ? 'Ask for changes - shorter, punchier hook, add a CTA…' : 'What do you want to post about?'}
+          className="w-full resize-none bg-transparent px-4 py-3 font-body text-[15px] leading-relaxed text-ink placeholder:text-ink3 focus:outline-none focus:shadow-none focus:border-transparent"
         />
         <div className="flex items-center justify-between border-t border-hair px-3 py-2">
-          <div className="flex items-center gap-1">
+          <div className="flex flex-wrap items-center gap-2 text-[12px]">
             {/* ChatGPT-style "+" menu: per-draft voice toggle + publish. */}
             <div className="relative">
               <button
@@ -787,7 +758,7 @@ export function ScriptGenerator({
               {plusMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-10" onClick={() => setPlusMenuOpen(false)} />
-                  <div className="absolute bottom-11 left-0 z-20 w-52 overflow-hidden rounded-xl border border-hair bg-paper py-1 shadow-soft">
+                  <div className="absolute bottom-11 left-0 z-20 w-64 overflow-hidden rounded-xl border border-hair bg-paper py-1 shadow-soft">
                     <button
                       type="button"
                       onClick={() => { toggleVoice(); }}
@@ -800,14 +771,53 @@ export function ScriptGenerator({
                       </span>
                       {useVoice && <Check className="h-3.5 w-3.5 text-ink" />}
                     </button>
+
+                    <div className="px-3 py-2">
+                      <p className="mb-1.5 text-[11px] font-medium text-ink3">Platform</p>
+                      <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
+                        {PLATFORM_OPTIONS.map((p) => (
+                          <button
+                            key={p ?? 'none'}
+                            type="button"
+                            onClick={() => setPlatform(p)}
+                            className={`flex-1 rounded-full px-2 py-1 text-[12px] transition-colors ${
+                              platform === p ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
+                            }`}
+                          >
+                            {p ? PLATFORM_LABELS[p] : 'None'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="px-3 py-2">
+                      <p className="mb-1.5 text-[11px] font-medium text-ink3">Length</p>
+                      <div className="flex items-center gap-1 rounded-full border border-hair bg-paper2 p-0.5">
+                        {(Object.keys(POST_LENGTH_CONFIG) as PostLength[]).map((len) => (
+                          <button
+                            key={len}
+                            type="button"
+                            onClick={() => changeLength(len)}
+                            className={`flex-1 rounded-full px-2 py-1 text-[12px] transition-colors ${
+                              postLength === len ? 'bg-ink text-white' : 'text-ink3 hover:text-ink2'
+                            }`}
+                          >
+                            {POST_LENGTH_CONFIG[len].label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => { setPlusMenuOpen(false); setPublishOpen(true); }}
-                      disabled={!lastDraft.trim()}
+                      disabled={!lastDraft.trim() || !platform}
                       className="flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] text-ink2 transition-colors hover:bg-paper2 disabled:cursor-not-allowed disabled:opacity-40"
                     >
                       <Send className="h-4 w-4 text-ink3" />
-                      <span className="flex-1">Publish{lastDraft.trim() ? '' : ' (draft first)'}</span>
+                      <span className="flex-1">
+                        Publish{!lastDraft.trim() ? ' (draft first)' : !platform ? ' (pick a platform)' : ''}
+                      </span>
                     </button>
                   </div>
                 </>
@@ -817,6 +827,88 @@ export function ScriptGenerator({
               onText={(t) => setInput((cur) => (cur ? `${cur} ${t}` : t))}
               title="Dictate"
             />
+
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf"
+              multiple
+              hidden
+              onChange={onFileInputChange}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={attaching}
+              aria-label="Attach file"
+              title="Attach a text file or PDF"
+              className="flex h-9 w-9 items-center justify-center rounded-full text-ink3 transition-colors hover:bg-paper2 hover:text-ink2 disabled:opacity-50"
+            >
+              {attaching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
+            </button>
+
+            <div className="relative flex items-center gap-1">
+              <button
+                type="button"
+                onClick={() => void openHistory()}
+                aria-label="Chat history"
+                aria-expanded={historyOpen}
+                className="flex items-center gap-1 rounded-full px-2.5 py-1 text-ink3 transition-colors hover:text-ink2"
+              >
+                <History className="h-3.5 w-3.5" />
+                History
+              </button>
+              {messages.length > 0 && (
+                <button
+                  type="button"
+                  onClick={newChat}
+                  className="flex items-center gap-1 rounded-full px-2.5 py-1 text-ink3 transition-colors hover:text-ink2"
+                >
+                  <Plus className="h-3.5 w-3.5" />
+                  New
+                </button>
+              )}
+              {historyOpen && (
+                <>
+                  <div className="fixed inset-0 z-10" onClick={() => setHistoryOpen(false)} />
+                  <div className="absolute bottom-11 left-0 z-20 max-h-80 w-72 overflow-y-auto rounded-xl border border-hair bg-paper py-1 shadow-soft">
+                    {historyLoading && (
+                      <div className="flex items-center gap-2 px-3 py-2 text-[13px] text-ink3">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+                      </div>
+                    )}
+                    {!historyLoading && history.length === 0 && (
+                      <p className="px-3 py-2 text-[13px] text-ink3">No saved chats yet.</p>
+                    )}
+                    {history.map((chat) => (
+                      <div
+                        key={chat.id}
+                        className={`group flex items-center gap-2 px-3 py-2 transition-colors hover:bg-paper2 ${
+                          chat.id === conversationId ? 'bg-paper2' : ''
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => void loadConversation(chat.id)}
+                          className="min-w-0 flex-1 text-left"
+                        >
+                          <span className="block truncate text-[13px] text-ink2">{chat.title}</span>
+                          <span className="text-[11px] text-ink3">{formatChatDate(chat.updated_at)}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void deleteConversation(chat.id)}
+                          aria-label={`Delete "${chat.title}"`}
+                          className="hidden rounded p-1 text-ink3 transition-colors hover:text-accent-primary group-hover:block"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
           {loading ? (
             <button
@@ -845,7 +937,7 @@ export function ScriptGenerator({
         open={publishOpen}
         onClose={() => setPublishOpen(false)}
         initialText={lastDraft}
-        platform={platform}
+        platform={platform ?? 'linkedin'}
       />
     </div>
   );

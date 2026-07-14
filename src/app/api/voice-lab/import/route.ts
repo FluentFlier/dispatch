@@ -218,7 +218,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     try {
       const platform = detectPlatform(url);
       // LinkedIn gates guest access, so the generic reader only ever returns its
-      // login wall — route LinkedIn urls to a real scraper (Apify/TinyFish).
+      // login wall - route LinkedIn urls to a real scraper (Apify/TinyFish).
       // Their output is already one-post-per-item, so it skips chunkSamples.
       if (classifyUrl(url) !== 'web') {
         for (const content of await scrapeLinkedIn(url)) {

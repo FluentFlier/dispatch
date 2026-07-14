@@ -10,7 +10,7 @@ const BodySchema = z.object({
 });
 
 /**
- * POST /api/admin/impersonate — start support impersonation as target user.
+ * POST /api/admin/impersonate - start support impersonation as target user.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 }
 
 /**
- * DELETE /api/admin/impersonate — end active impersonation session.
+ * DELETE /api/admin/impersonate - end active impersonation session.
  */
 export async function DELETE(): Promise<NextResponse> {
   try {

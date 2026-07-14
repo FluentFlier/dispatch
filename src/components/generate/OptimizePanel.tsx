@@ -64,7 +64,7 @@ export function OptimizePanel({ content, sourcePlatform = 'linkedin' }: Optimize
     fetchAccounts();
   }, [fetchAccounts]);
 
-  // Repurpose targets are OTHER platforms only — never the source. Re-optimizing
+  // Repurpose targets are OTHER platforms only - never the source. Re-optimizing
   // the same platform is what the main generator already does, so offering it
   // here produced a confusing second "same platform" draft.
   const otherConnected = accounts
@@ -198,7 +198,7 @@ export function OptimizePanel({ content, sourcePlatform = 'linkedin' }: Optimize
         </p>
       </div>
 
-      {/* Repurpose buttons — other platforms only */}
+      {/* Repurpose buttons - other platforms only */}
       <div className="flex flex-wrap gap-2">
         <Button
           variant="primary"
@@ -319,8 +319,8 @@ function VariantCard({
           </span>
         </div>
         <span
-          className={`font-mono text-[12px] ${
-            isOverLimit ? 'text-flame' : 'text-teal'
+          className={`text-[12px] tabular-nums ${
+            isOverLimit ? 'text-flame' : 'text-ink'
           }`}
         >
           {variant.characterCount}/{charLimit} chars
@@ -339,14 +339,14 @@ function VariantCard({
         <div className="space-y-2">
           {variant.threadParts.map((part, i) => (
             <div key={i} className="bg-bg-secondary rounded-[8px] p-3">
-              <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-ink3 mb-1">
+              <p className="text-[11px] tracking-[0.08em] text-ink3 mb-1">
                 Part {i + 1}
               </p>
               <pre className="whitespace-pre-wrap font-body text-[13px] text-text-primary leading-[1.55]">
                 {part}
               </pre>
               <p
-                className={`font-mono text-[10px] mt-1 ${
+                className={`text-[10px] mt-1 tabular-nums ${
                   part.length > 280 ? 'text-flame' : 'text-ink3'
                 }`}
               >

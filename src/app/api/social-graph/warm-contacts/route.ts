@@ -3,7 +3,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { listWarmContacts } from '@/lib/social-graph/warm-contacts';
 
 /**
- * GET /api/social-graph/warm-contacts — people who reacted to your posts (ICP buckets).
+ * GET /api/social-graph/warm-contacts - people who reacted to your posts (ICP buckets).
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();

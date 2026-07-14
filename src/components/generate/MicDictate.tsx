@@ -66,16 +66,15 @@ export function MicDictate({ onText, title = 'Dictate' }: { onText: (text: strin
       disabled={state === 'transcribing'}
       title={title}
       aria-label={title}
-      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[12px] transition-colors ${
+      className={`flex h-9 w-9 items-center justify-center rounded-full transition-colors ${
         state === 'recording'
-          ? 'border-flame text-flame'
-          : 'border-border text-text-secondary hover:text-accent-primary hover:border-accent-primary'
+          ? 'text-flame'
+          : 'text-ink3 hover:bg-paper2 hover:text-ink2'
       }`}
     >
-      {state === 'transcribing' ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-        : state === 'recording' ? <Square className="h-3.5 w-3.5" />
-        : <Mic className="h-3.5 w-3.5" />}
-      {state === 'recording' ? 'Stop' : state === 'transcribing' ? '...' : 'Dictate'}
+      {state === 'transcribing' ? <Loader2 className="h-4 w-4 animate-spin" />
+        : state === 'recording' ? <Square className="h-4 w-4 fill-current" />
+        : <Mic className="h-4 w-4" />}
     </button>
   );
 }

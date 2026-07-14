@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 vi.mock('@/lib/llm', () => ({
   chatCompletion: vi.fn(),
+  isLlmConfigured: () => false,
 }));
 import { chatCompletion } from '@/lib/llm';
 import { confirmSignalWithLLM } from '@/lib/signals/detect/llm-confirm';
@@ -367,7 +368,7 @@ describe('Phase: Unified Leads', () => {
       contact: null, contactStatus: null, score: 0.5, status: 'new', detectedAt: '2026-07-01T00:00:00Z',
     };
 
-    it('is NOT reachable when the contact has only a name (no messaging channel) — regression: name-only contacts were shown as "Contact ready"', () => {
+    it('is NOT reachable when the contact has only a name (no messaging channel) - regression: name-only contacts were shown as "Contact ready"', () => {
       const card: UnifiedLeadCard = { ...baseCard, contact: { name: 'Jane Doe' } };
       expect(isReachable(card)).toBe(false);
       expect(contactPillLabel(card)).toBe('No contact');
@@ -473,7 +474,7 @@ describe('Phase: Unified Leads', () => {
      * (confirmed via the live table schema: the FK column lives on
      * signal_events, not on signal_raw_posts). On this PostgREST-style
      * backend, embeds on the "many" side of a FK come back as a single
-     * object, not an array — unlike `signal_lead_contacts`/`signal_outreach`,
+     * object, not an array - unlike `signal_lead_contacts`/`signal_outreach`,
      * which are one-to-many from signal_leads/signal_events and DO need the
      * `Array.isArray(...) ? arr[0] : ...` unwrap seen in listLeads/listEvents.
      * This test locks in that `raw_post` is read as an object, matching what
@@ -540,7 +541,7 @@ describe('Phase: Unified Leads', () => {
      * tests/posts-predict.test.ts) mocks `@/lib/insforge/server` +
      * `@/lib/workspace` and dynamically imports the route handler. That
      * pattern is used directly below for the 401/200/workspace-scoping cases
-     * against `GET /api/leads/feed`, so no substitution was needed — the
+     * against `GET /api/leads/feed`, so no substitution was needed - the
      * store-layer `buildUnifiedFeed` tests further down are an ADDITIONAL
      * belt-and-suspenders layer (they assert both listers are called
      * workspace-scoped without going through Next's request/response glue).
@@ -595,7 +596,7 @@ describe('Phase: Unified Leads', () => {
         // Existence probe (no workspace filter) and feed query both use limit().
         chain.limit = vi.fn().mockImplementation(() => {
           if (!ws) {
-            // isTableMissing / setup probe — empty rows with no error = table exists
+            // isTableMissing / setup probe - empty rows with no error = table exists
             return Promise.resolve({ data: [], error: null });
           }
           const rows = byWorkspace[ws]

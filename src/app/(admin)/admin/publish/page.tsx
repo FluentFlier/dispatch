@@ -93,7 +93,7 @@ function JobTable({
                 {j.attempts}/{j.maxAttempts}
               </td>
               <td className="px-4 py-3 text-xs text-red-700 max-w-xs truncate" title={j.lastError ?? ''}>
-                {j.lastError ?? '—'}
+                {j.lastError ?? '-'}
               </td>
               <td className="px-4 py-3 text-text-secondary text-xs whitespace-nowrap">
                 {new Date(j.updatedAt).toLocaleString()}

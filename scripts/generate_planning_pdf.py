@@ -1,5 +1,5 @@
 """
-Content OS — Planning Document PDF Generator
+Content OS - Planning Document PDF Generator
 Run: python scripts/generate_planning_pdf.py
 Output: docs/content-os-planning-jun2026.pdf
 """
@@ -120,7 +120,7 @@ story = []
 story += [
     gap(30),
     Paragraph("Content OS", TITLE),
-    Paragraph("Planning Document — June 2026", SUBTITLE),
+    Paragraph("Planning Document - June 2026", SUBTITLE),
     hr(),
     gap(6),
     Paragraph("Prepared after full codebase audit using graphify knowledge graph (925 nodes, 1,205 edges, 156 communities) + line-by-line senior developer review.", BODY_MUT),
@@ -140,7 +140,7 @@ summary_data = [
     ["Critical / High", "9 Critical + 11 High"],
     ["Live URL", "mm4nbzdu.insforge.site"],
     ["GitHub", "FluentFlier/dispatch"],
-    ["Status", "Beta — NOT publicly launched"],
+    ["Status", "Beta - NOT publicly launched"],
 ]
 summary_table = Table(summary_data, colWidths=[2.5*inch, 4.0*inch])
 summary_table.setStyle(TableStyle([
@@ -182,7 +182,7 @@ loop_data = [
     ["Draft",    "Claude generates in your voice via Creator Brain RAG + 5-metric evaluator", "Built"],
     ["Publish",  "Multi-platform delivery via Ayrshare (X, LinkedIn, Instagram, Threads)", "Built"],
     ["Reply",    "AI-drafted comment replies, human approval before send", "Built"],
-    ["Learn",    "RLML reinforcement from edit feedback improves scoring", "STUB — not wired"],
+    ["Learn",    "RLML reinforcement from edit feedback improves scoring", "STUB - not wired"],
 ]
 loop_table = Table(loop_data, colWidths=[1.0*inch, 3.8*inch, 1.6*inch])
 loop_table.setStyle(TableStyle([
@@ -259,7 +259,7 @@ story += [stack_table, PageBreak()]
 # ─── SECTION 2: BUGS ─────────────────────────────────────────────────────────
 story += [
     Paragraph("SECTION 2", SECTION_LABEL),
-    Paragraph("Confirmed Issues — Priority Order", H1),
+    Paragraph("Confirmed Issues - Priority Order", H1),
     hr(),
     Paragraph(
         "35 confirmed bugs across all severity levels found via graphify codebase graph analysis + "
@@ -269,7 +269,7 @@ story += [
 ]
 
 # ── CRITICAL ─────────────────────────────────────────────────────
-story.append(Paragraph("CRITICAL — Fix Before Any Users Touch Production", H2))
+story.append(Paragraph("CRITICAL - Fix Before Any Users Touch Production", H2))
 story.append(gap(4))
 
 criticals = [
@@ -291,13 +291,13 @@ criticals = [
      "Throw on refresh failure. Return token_expired error. Never fall through to publish with a known-bad token."),
     ("CRIT-E", "Undefined Session Token May Disable InsForge RLS",
      "src/lib/insforge/server.ts:39,45",
-     "If sessionToken is missing from cookies, edgeFunctionToken is undefined. Passing undefined to InsForge SDK may silently disable row filtering — potential elevated access.",
+     "If sessionToken is missing from cookies, edgeFunctionToken is undefined. Passing undefined to InsForge SDK may silently disable row filtering - potential elevated access.",
      "Return 401 before constructing the client if sessionToken is undefined on any protected route."),
-    ("BUG-01", "Race Condition on Usage Counter — Plan Limits Bypassable",
+    ("BUG-01", "Race Condition on Usage Counter - Plan Limits Bypassable",
      "src/lib/usage.ts:20-53",
      "SELECT-then-UPDATE pattern (no atomic lock). Concurrent rapid-click requests both read same count, both pass limit, both write count+1 instead of count+2. Users bypass monthly cap ~2x under burst.",
      "DB-level atomic increment via Postgres RPC. No SELECT-then-UPDATE."),
-    ("BUG-02", "Burst Store Is Per-Process Memory — Ineffective on Serverless",
+    ("BUG-02", "Burst Store Is Per-Process Memory - Ineffective on Serverless",
      "src/lib/ai-guard.ts:13",
      "burstStore is an in-memory Map. Each cold start gets a fresh Map. Any user who triggers a cold start bypasses the 15 req/60s burst guard entirely.",
      "Replace with Redis/Upstash sliding window counter, or remove and document the monthly DB cap is the only real ceiling."),
@@ -313,7 +313,7 @@ criticals = [
 for args in criticals:
     story.append(bug_row(*args, severity="critical"))
 
-story += [gap(4), Paragraph("HIGH — Fix Before Public Launch", H2), gap(4)]
+story += [gap(4), Paragraph("HIGH - Fix Before Public Launch", H2), gap(4)]
 
 highs = [
     ("BUG-05", "Double AI Usage Charge Per Generation",
@@ -322,7 +322,7 @@ highs = [
      "Remove usage.track() at route level. Use only guardAiRequest() for usage tracking."),
     ("BUG-06", "RL Supervisor Stub Returns False 'Cycle Complete'",
      "src/lib/hooks-intelligence/supervisor-agent.ts:40-51",
-     "Generate node is commented out. runTrainingStep([], []) called with empty arrays — no learning happens. Returns status: 'cycle-complete' and usageTracked: true. The intelligence engine is a facade.",
+     "Generate node is commented out. runTrainingStep([], []) called with empty arrays - no learning happens. Returns status: 'cycle-complete' and usageTracked: true. The intelligence engine is a facade.",
      "Either wire the generate node or return an honest stub status. Never charge usage for nothing."),
     ("BUG-07", "Engagement Inbox Sort Comparator Operator Precedence Bug",
      "src/lib/engagement/inbox.ts:181",
@@ -338,7 +338,7 @@ highs = [
      "Update JSDoc to reflect reality, or implement real enforcement via assertCanGenerate()."),
     ("BUG-10", "Direct-Mode Publish Jobs Stuck in processing Forever",
      "src/lib/publish-queue.ts:127-133",
-     "Direct mode returns failed object without updating DB row. Row stays processing. Next cron skips it. Job is a zombie — never retried, never resolved.",
+     "Direct mode returns failed object without updating DB row. Row stays processing. Next cron skips it. Job is a zombie - never retried, never resolved.",
      "Update DB row to 'failed' before returning in the direct-mode branch."),
     ("BUG-11", "No Dead-Letter / Stuck-Processing Timeout on Publish Jobs",
      "src/lib/publish-queue.ts:210-222",
@@ -355,7 +355,7 @@ highs = [
     ("BUG-26", "Publish Job attempts Counter Off-by-One",
      "src/lib/publish-queue.ts:136-150,194",
      "attempts incremented in two places. Job that fails once shows attempts: 2. max_attempts: 3 hit after only 2 real tries. One retry wasted per job.",
-     "Increment attempts in exactly one place — at job pickup, not at failure."),
+     "Increment attempts in exactly one place - at job pickup, not at failure."),
     ("BUG-27", "ayrshare.listAccounts() Silent Empty Return on Any API Error",
      "src/lib/social/ayrshare.ts:88-94",
      "Any Ayrshare error -> silent empty array. UI shows no connected accounts. Real cause (outage, revoked key) completely hidden. Zero logging.",
@@ -364,7 +364,7 @@ highs = [
      "src/app/api/publish/route.ts:379",
      "JSON.parse inside decryptByokCredentials has no try/catch. Corrupted BYOK in DB -> unhandled exception -> 500 with no useful message.",
      "Wrap in try/catch. Return {error: 'credential_corrupted'}."),
-    ("BUG-29", "Brain Sync JSON.parse Uncaught — Sync Silently Aborts",
+    ("BUG-29", "Brain Sync JSON.parse Uncaught - Sync Silently Aborts",
      "src/lib/brain/sync.ts:92",
      "JSON.parse(profile.content_pillars) on malformed data throws uncaught. syncBrainFromProfile() crashes mid-execution. Brain never updates. Voice context degrades silently.",
      "Wrap parse in try/catch. Use empty array default on failure. Log warning."),
@@ -380,14 +380,14 @@ highs = [
 for args in highs:
     story.append(bug_row(*args, severity="high"))
 
-story += [gap(4), Paragraph("MEDIUM — Fix in Parallel with New Features", H2), gap(4)]
+story += [gap(4), Paragraph("MEDIUM - Fix in Parallel with New Features", H2), gap(4)]
 
 mediums = [
     ("BUG-12", "undefined as any Type Bypass in Voice Pipeline",
      "src/lib/voice-pipeline.ts:53",
      "getBestHooksForContext(undefined as any, 6). The function already accepts undefined. Cast hides future API changes.",
      "Change to getBestHooksForContext(undefined, 6)."),
-    ("BUG-13", "require('fs') Inside Function Body — Serverless Incompatible",
+    ("BUG-13", "require('fs') Inside Function Body - Serverless Incompatible",
      "src/lib/hooks-intelligence/index.ts:36-44",
      "require('fs') inside function body. Edge runtime = silent failure. Try-catch swallows it. In-memory updates lost on instance restart.",
      "Move to Node.js-only module with export const runtime = 'nodejs' or remove file persistence."),
@@ -411,7 +411,7 @@ mediums = [
      "src/lib/auto-optimize.ts:52-61",
      "Source post gets variant_group_id before optimize call. If optimize fails -> orphaned source post with variant_group_id pointing to nothing.",
      "Only update variant_group_id after variants are successfully created."),
-    ("BUG-32", "syncBrainWins Runs on Every Post Sync — N+1 Query",
+    ("BUG-32", "syncBrainWins Runs on Every Post Sync - N+1 Query",
      "src/lib/brain/sync.ts:174",
      "syncBrainWins() called inside every syncBrainPublishedPost(). Publishing 10 posts triggers 10 full top-5 queries.",
      "Call syncBrainWins() once after all posts are synced, not per-post."),
@@ -440,7 +440,7 @@ lows = [
      "Use usePathname() client-side or pass as a search param instead."),
     ("BUG-33", "publish_jobs Missing Index on (user_id, status, created_at)",
      "db/schema.sql:296",
-     "Index exists on (status, scheduled_for) for cron. UI queries by user_id + status — full table scan as publish_jobs grows.",
+     "Index exists on (status, scheduled_for) for cron. UI queries by user_id + status - full table scan as publish_jobs grows.",
      "Add index on (user_id, status, created_at desc)."),
     ("BUG-34", "Workspace Members Select Non-Deterministic Sort",
      "src/lib/workspace.ts:42",
@@ -459,7 +459,7 @@ story.append(PageBreak())
 # ─── SECTION 3: WEEK PLAN ────────────────────────────────────────────────────
 story += [
     Paragraph("SECTION 3", SECTION_LABEL),
-    Paragraph("Week Plan — Sprint 1", H1),
+    Paragraph("Week Plan - Sprint 1", H1),
     hr(),
     Paragraph(
         "Approach: Mix of A (Google Calendar integration) + B (Voice input via Whisper + ElevenLabs). "
@@ -511,7 +511,7 @@ story.append(Paragraph("Day-by-Day Plan", H2))
 story.append(gap(6))
 
 story.append(day_block(
-    "Day 1 (Monday) — Bug Fixes: Critical Security Tier",
+    "Day 1 (Monday) - Bug Fixes: Critical Security Tier",
     "Close the 5 critical security gaps before touching any new code.",
     [
         "Fix CRIT-A: Remove ?expired=1 client-driven token clear from middleware.ts",
@@ -526,7 +526,7 @@ story.append(day_block(
 ))
 
 story.append(day_block(
-    "Day 2 (Tuesday) — Bug Fixes: Billing + Publish Pipeline",
+    "Day 2 (Tuesday) - Bug Fixes: Billing + Publish Pipeline",
     "Fix the broken core flows that affect every user every day.",
     [
         "Fix BUG-01: Replace SELECT-then-UPDATE with atomic DB increment in usage.ts",
@@ -542,7 +542,7 @@ story.append(day_block(
 ))
 
 story.append(day_block(
-    "Day 3 (Wednesday) — Experience Log: Backend",
+    "Day 3 (Wednesday) - Experience Log: Backend",
     "Build the 3 API routes for the experience-capture conversational loop.",
     [
         "Build POST /api/experience/research: event name -> Claude knowledge extraction -> returns {event_summary, key_people, key_announcements}",
@@ -555,7 +555,7 @@ story.append(day_block(
 ))
 
 story.append(day_block(
-    "Day 4 (Thursday) — Experience Log: UI + Whisper Voice Input",
+    "Day 4 (Thursday) - Experience Log: UI + Whisper Voice Input",
     "Build the ExperienceLogModal + wire Whisper transcription as optional alongside text.",
     [
         "Build ExperienceLogModal.tsx: Step 1 (event name input) -> Step 2 (event summary confirm) -> Step 3 (5 Q&A with mic button option) -> Step 4 (4 platform draft tabs) -> Step 5 (save/schedule/publish)",
@@ -569,7 +569,7 @@ story.append(day_block(
 ))
 
 story.append(day_block(
-    "Day 5 (Friday) — Google Calendar OAuth + ElevenLabs + Integration Polish",
+    "Day 5 (Friday) - Google Calendar OAuth + ElevenLabs + Integration Polish",
     "Wire calendar so the tool knows about events proactively. Add ElevenLabs voice layer.",
     [
         "Google Calendar OAuth: register Google Cloud app, add OAuth callback at /api/auth/google-calendar, store token in social_accounts with platform='google_calendar'",

@@ -60,7 +60,7 @@ export interface SignalActionContext {
  *   - auto_send_enabled = true → additionally auto-send (the spec's auto_send),
  *     but ONLY to tracked LinkedIn person profiles and ONLY when the safety guard
  *     (daily/weekly caps, cooldown, working hours, dry-run) allows. Company and
- *     accelerator sources never auto-send — the post author is the org, not the
+ *     accelerator sources never auto-send - the post author is the org, not the
  *     founder we want to reach, so those always stay draft-only for manual review.
  *
  * Fully defensive: every branch logs to the audit trail, and any failure is
@@ -96,7 +96,7 @@ export async function runSignalActions(
     const channel = ctx.channels?.find(Boolean) ?? channelForPlatform(platform);
 
     // Acting user: the connected account owner for this platform, else the
-    // workspace owner (draft-only — a real send requires a connected account).
+    // workspace owner (draft-only - a real send requires a connected account).
     const account = await getWorkspacePollAccount(client, workspaceId, platform);
     const userId = account?.userId ?? (await getWorkspaceOwnerUserId(client, workspaceId));
     if (!userId) {
@@ -131,7 +131,7 @@ export async function runSignalActions(
       return;
     }
 
-    // --- Auto-send (auto_send) — guarded, LinkedIn person-profiles only ---
+    // --- Auto-send (auto_send) - guarded, LinkedIn person-profiles only ---
     if (intent !== 'auto_send') return; // drafted; awaits manual approval
 
     if (!isAutoSendableChannel(platform, channel)) {

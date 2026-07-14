@@ -33,14 +33,14 @@ function verifyStripeSignature(payload: string, signature: string, secret: strin
 
 /**
  * Extracts the plan ID from Stripe event metadata.
- * Defaults to 'free' (not 'starter') when metadata is missing or unrecognised —
+ * Defaults to 'free' (not 'starter') when metadata is missing or unrecognised -
  * the old 'starter' fallback silently upgraded free users to a paid plan.
  */
 function planFromMetadata(meta: Record<string, string> | undefined): PlanId {
   const plan = meta?.plan;
   if (plan === 'starter' || plan === 'growth' || plan === 'pro') return plan;
   if (plan) {
-    console.warn(`[stripe-webhook] Unknown plan in metadata: "${plan}" — defaulting to free`);
+    console.warn(`[stripe-webhook] Unknown plan in metadata: "${plan}" - defaulting to free`);
   }
   return 'free';
 }

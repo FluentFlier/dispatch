@@ -44,9 +44,9 @@ export function trialDaysRemaining(sub: TrialSubscriptionRow): number {
   return Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
 }
 
-/** ISO timestamp for trial end, starting from now. */
-export function computeTrialEndDate(from: Date = new Date()): string {
+/** ISO timestamp for trial end, starting from now. Defaults to TRIAL_DAYS. */
+export function computeTrialEndDate(from: Date = new Date(), days: number = TRIAL_DAYS): string {
   const end = new Date(from);
-  end.setDate(end.getDate() + TRIAL_DAYS);
+  end.setDate(end.getDate() + days);
   return end.toISOString();
 }

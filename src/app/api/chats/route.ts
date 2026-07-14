@@ -13,7 +13,7 @@ const CreateChatSchema = z.object({
 });
 
 /**
- * GET /api/chats — recent Write-chat conversations for the history list
+ * GET /api/chats - recent Write-chat conversations for the history list
  * (metadata only; message bodies come from GET /api/chats/[id]).
  */
 export async function GET(): Promise<NextResponse> {
@@ -40,7 +40,7 @@ export async function GET(): Promise<NextResponse> {
 }
 
 /**
- * POST /api/chats — create a conversation (first completed exchange).
+ * POST /api/chats - create a conversation (first completed exchange).
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();

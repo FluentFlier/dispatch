@@ -1,4 +1,4 @@
--- Agent API keys — per-user tokens for headless agents (Claude, Cursor, cron scripts).
+-- Agent API keys - per-user tokens for headless agents (Claude, Cursor, cron scripts).
 -- Apply via: npx @insforge/cli db query "$(cat db/agent-api-keys.sql)"
 
 create table if not exists agent_api_keys (

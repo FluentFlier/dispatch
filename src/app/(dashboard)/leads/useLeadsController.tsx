@@ -81,7 +81,8 @@ export function useLeadsController() {
   // Load-more page size: grows the requested feed limit; mergeFeed returns the
   // top-N sorted slice, so raising N appends lower-ranked cards with no dupes.
   const [feedLimit, setFeedLimit] = useState(FEED_PAGE_SIZE);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  // Bulk lead import drawer (CSV / paste).
+  const [importOpen, setImportOpen] = useState(false);
   // Header toggle: "feed" is the unified lead list (default); "setup" is the
   // signal + directory configuration surface folded in from the retired /signals page.
   const [view, setView] = useState<'feed' | 'setup'>('feed');
@@ -1007,7 +1008,7 @@ export function useLeadsController() {
     setupMessage, setSetupMessage, listLoading, setListLoading, scraping, setScraping,
     scrapeProgress, setScrapeProgress, busy, setBusy, busyActionFor,
     selectedIds, setSelectedIds, bulkBusy, setBulkBusy, acceptedIds, setAcceptedIds,
-    emailConfirmId, setEmailConfirmId, feedLimit, setFeedLimit, drawerOpen, setDrawerOpen,
+    emailConfirmId, setEmailConfirmId, feedLimit, setFeedLimit, importOpen, setImportOpen,
     view, setView, companyById, setCompanyById, engagersById, setEngagersById,
     engagerNotices, setEngagerNotices, draftAll, setDraftAll, demoData, setDemoData,
     feedQuery, indexLeads, loadBootstrap, refetchList, mergeLead, mergeSignalStatus,

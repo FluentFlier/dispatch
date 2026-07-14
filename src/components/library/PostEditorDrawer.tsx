@@ -12,8 +12,10 @@ import PerformanceModal from '@/components/library/PerformanceModal';
 import PublishPanel from '@/components/library/PublishPanel';
 import GenerateVariantsSection from '@/components/library/GenerateVariantsSection';
 import BulkPublishPanel from '@/components/library/BulkPublishPanel';
+import { LinkedInPostPreview } from '@/components/generate/LinkedInPostPreview';
 import dynamic from 'next/dynamic';
 import { logEditFeedback } from '@/lib/hooks-intelligence/edit-feedback';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 const EngagementInbox = dynamic(() => import('@/components/engagement/EngagementInbox'), {
   ssr: false,
@@ -77,6 +79,22 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   });
   const [showPerfModal, setShowPerfModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Author identity for the LinkedIn-style preview (LinkedIn posts only).
+  const [author, setAuthor] = useState<{ name: string; headline: string | null }>({ name: 'You', headline: null });
+
+  const isLinkedIn = form.platform === 'linkedin';
+
+  useEffect(() => {
+    if (!isLinkedIn) return;
+    fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.profile?.displayName) {
+          setAuthor({ name: data.profile.displayName, headline: data.profile.headline ?? null });
+        }
+      })
+      .catch(() => {});
+  }, [isLinkedIn]);
 
   useEffect(() => {
     setForm({
@@ -110,7 +128,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
   const autoSave = useCallback(async () => {
     try {
-      const res = await fetch(`/api/posts/${post.id}`, {
+      const res = await fetchWithAuth(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -160,7 +178,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
     }
     setForm((f) => ({ ...f, status }));
     try {
-      const res = await fetch(`/api/posts/${post.id}`, {
+      const res = await fetchWithAuth(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ status, updated_at: new Date().toISOString() }),
@@ -176,7 +194,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
   const handlePerfSave = async (data: Record<string, unknown>) => {
     try {
-      const res = await fetch(`/api/posts/${post.id}`, {
+      const res = await fetchWithAuth(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
@@ -197,11 +215,21 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   };
 
   const handleDelete = async () => {
-    if (!confirm('Delete this post?')) return;
+    // Deletes ONLY the tool's post row (InsForge). Does NOT touch the live
+    // LinkedIn/X post - the DELETE route makes no provider call.
+    if (!confirm('Remove this post from the tool? (Your live LinkedIn/X post is not affected.)')) return;
     setDeleting(true);
     try {
-      await fetch(`/api/posts/${post.id}`, { method: 'DELETE' });
-      toast('Post deleted');
+      // fetchWithAuth so an expired access token refreshes+retries instead of
+      // 401ing; and check res.ok so a failed delete never falsely reports success
+      // (the old plain fetch() toasted "deleted" then the post reappeared).
+      const res = await fetchWithAuth(`/api/posts/${post.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        toast('Delete failed', 'error');
+        setDeleting(false);
+        return;
+      }
+      toast('Post removed from the tool');
       onDelete();
     } catch {
       toast('Delete failed', 'error');
@@ -214,7 +242,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
       ? `Write a social media caption for this script. Be concise, punchy, no em dashes:\n\n${form.script}`
       : `Write a strong hook (first line) for this content. No em dashes:\n\n${form.script}`;
     try {
-      const res = await fetch('/api/generate', {
+      const res = await fetchWithAuth('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt }),
@@ -250,7 +278,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   /** PATCH just the pillars (synced primary + weights) for this post. */
   async function persistPillars(pillars: string[], weights: Record<string, number>) {
     try {
-      const res = await fetch(`/api/posts/${post.id}`, {
+      const res = await fetchWithAuth(`/api/posts/${post.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -310,14 +338,17 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="block sm:col-span-3">
-                  <span className={labelClass}>Pillars (pick one or more)</span>
-                  <PillarMultiSelect
-                    pillars={form.pillars}
-                    weights={form.pillar_weights}
-                    onChange={handlePillarsChange}
-                  />
-                </div>
+                {/* Imported (historical) posts aren't authored against a pillar — hide the picker. */}
+                {!post.is_imported && (
+                  <div className="block sm:col-span-3">
+                    <span className={labelClass}>Pillars (pick one or more)</span>
+                    <PillarMultiSelect
+                      pillars={form.pillars}
+                      weights={form.pillar_weights}
+                      onChange={handlePillarsChange}
+                    />
+                  </div>
+                )}
                 <label className="block">
                   <span className={labelClass}>Platform</span>
                   <select
@@ -385,19 +416,33 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                 </div>
               )}
 
-              <label className="block">
-                <span className={labelClass}>Hook</span>
-                <textarea
-                  rows={3}
-                  value={form.hook}
-                  onChange={(e) => update('hook', e.target.value)}
-                  onBlur={autoSave}
-                  className={`${inputClass} resize-none min-h-[88px]`}
-                />
-              </label>
+              {isLinkedIn && (
+                <div>
+                  <span className={labelClass}>LinkedIn preview</span>
+                  <LinkedInPostPreview
+                    name={author.name}
+                    headline={author.headline}
+                    text={form.script || form.caption || ''}
+                    imageUrl={form.image_url || null}
+                  />
+                </div>
+              )}
+
+              {!isLinkedIn && (
+                <label className="block">
+                  <span className={labelClass}>Hook</span>
+                  <textarea
+                    rows={3}
+                    value={form.hook}
+                    onChange={(e) => update('hook', e.target.value)}
+                    onBlur={autoSave}
+                    className={`${inputClass} resize-none min-h-[88px]`}
+                  />
+                </label>
+              )}
 
               <label className="block">
-                <span className={labelClass}>Script</span>
+                <span className={labelClass}>{isLinkedIn ? 'Post body' : 'Script'}</span>
                 <textarea
                   rows={10}
                   value={form.script}
@@ -407,30 +452,34 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                 />
               </label>
 
-              <label className="block">
-                <div className="flex items-center justify-between">
-                  <span className={labelClass}>Caption</span>
-                  <CharCount text={form.caption} platform={form.platform} />
-                </div>
-                <textarea
-                  rows={5}
-                  value={form.caption}
-                  onChange={(e) => update('caption', e.target.value)}
-                  onBlur={autoSave}
-                  className={`${inputClass} resize-none`}
-                />
-              </label>
+              {!isLinkedIn && (
+                <>
+                  <label className="block">
+                    <div className="flex items-center justify-between">
+                      <span className={labelClass}>Caption</span>
+                      <CharCount text={form.caption} platform={form.platform} />
+                    </div>
+                    <textarea
+                      rows={5}
+                      value={form.caption}
+                      onChange={(e) => update('caption', e.target.value)}
+                      onBlur={autoSave}
+                      className={`${inputClass} resize-none`}
+                    />
+                  </label>
 
-              <label className="block">
-                <span className={labelClass}>Hashtags</span>
-                <textarea
-                  rows={3}
-                  value={form.hashtags}
-                  onChange={(e) => update('hashtags', e.target.value)}
-                  onBlur={autoSave}
-                  className={`${inputClass} resize-none`}
-                />
-              </label>
+                  <label className="block">
+                    <span className={labelClass}>Hashtags</span>
+                    <textarea
+                      rows={3}
+                      value={form.hashtags}
+                      onChange={(e) => update('hashtags', e.target.value)}
+                      onBlur={autoSave}
+                      className={`${inputClass} resize-none`}
+                    />
+                  </label>
+                </>
+              )}
 
               <label className="block">
                 <span className={labelClass}>Notes</span>
@@ -476,20 +525,24 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </div>
 
               <div className="grid grid-cols-2 gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => handleRegenerate('caption')}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
-                >
-                  <Wand2 size={14} /> Regenerate Caption
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRegenerate('hook')}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
-                >
-                  <Wand2 size={14} /> Regenerate Hook
-                </button>
+                {!isLinkedIn && (
+                  <button
+                    type="button"
+                    onClick={() => handleRegenerate('caption')}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
+                  >
+                    <Wand2 size={14} /> Regenerate Caption
+                  </button>
+                )}
+                {!isLinkedIn && (
+                  <button
+                    type="button"
+                    onClick={() => handleRegenerate('hook')}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
+                  >
+                    <Wand2 size={14} /> Regenerate Hook
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {
@@ -565,7 +618,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </label>
 
               <div className="pt-2">
-                <span className="text-[10px] font-medium tracking-widest uppercase text-text-tertiary">
+                <span className="text-[10px] font-medium tracking-[0.01em] text-text-tertiary">
                   Publish
                 </span>
               </div>
@@ -582,7 +635,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               />
 
               <div className="pt-2">
-                <span className="text-[10px] font-medium tracking-widest uppercase text-text-tertiary">
+                <span className="text-[10px] font-medium tracking-[0.01em] text-text-tertiary">
                   Bulk publish
                 </span>
               </div>

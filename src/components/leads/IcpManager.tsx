@@ -33,7 +33,7 @@ function settingsHasIcp(settings: DirectorySettingsRow | null): boolean {
 
 /**
  * ICP workspace: refine the working ICP in chat, save it as a named profile, and
- * manage several saved ICPs — activate one, tick a set, and run discovery across them.
+ * manage several saved ICPs - activate one, tick a set, and run discovery across them.
  */
 export function IcpManager({
   settings,
@@ -189,7 +189,7 @@ export function IcpManager({
       toast?.(
         inserted > 0
           ? `Found ${inserted} new lead${inserted === 1 ? '' : 's'} across ${count} ICP${count === 1 ? '' : 's'}.`
-          : `Discovery ran across ${count} ICP${count === 1 ? '' : 's'} — no new leads this time.`,
+          : `Discovery ran across ${count} ICP${count === 1 ? '' : 's'} - no new leads this time.`,
         'success',
       );
       onDiscoveryComplete?.();

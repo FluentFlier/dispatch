@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { waitUntil } from '@vercel/functions';
 import { logCronRun, cronStatusFromResults } from '@/lib/admin/cron-log';
 
 /**
@@ -58,13 +59,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Hourly: fires when cron hits the :00 minute mark
   if (minute === 0) {
     jobs.push(call('calendarSync', '/api/cron/calendar-sync'));
-    // Directory lead digest — self-gates per-workspace local hour + idempotency,
+    // Directory lead digest - self-gates per-workspace local hour + idempotency,
     // so an hourly call only delivers each workspace once at its configured time.
     jobs.push(call('signalsDirectory', '/api/cron/signals-directory'));
   }
 
   // Every 6 hours (00/06/12/18 UTC): refresh post metrics from X + Instagram.
-  // Spaced out to respect platform API rate limits — engagement grows slowly.
+  // Spaced out to respect platform API rate limits - engagement grows slowly.
   if (minute === 0 && hour % 6 === 0) {
     jobs.push(call('metricsSync', '/api/cron/metrics-sync'));
   }
@@ -89,17 +90,25 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const outcomes = await Promise.all(jobs);
-  const result = Object.fromEntries(outcomes);
+  // Do NOT block the HTTP response on the fan-out: sub-jobs (engagement-sync in
+  // particular) are unbounded batch jobs that run for minutes, but cron-job.org
+  // hard-kills the request at 30s → every run reported as a timeout (status=5).
+  // Each sub-job is its own Vercel invocation, so drain them via waitUntil and
+  // return immediately. The scheduler gets a fast 200; work continues server-side.
+  const dispatched = jobs.length;
+  waitUntil(
+    Promise.all(jobs).then((outcomes) => {
+      const result = Object.fromEntries(outcomes);
+      const { status, errorMessage } = cronStatusFromResults(result);
+      return logCronRun({
+        jobName: 'medium',
+        status,
+        durationMs: Date.now() - started,
+        summary: result,
+        errorMessage,
+      });
+    }),
+  );
 
-  const { status, errorMessage } = cronStatusFromResults(result);
-  void logCronRun({
-    jobName: 'medium',
-    status,
-    durationMs: Date.now() - started,
-    summary: result,
-    errorMessage,
-  });
-
-  return NextResponse.json(result);
+  return NextResponse.json({ ok: true, dispatched });
 }

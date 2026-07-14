@@ -21,9 +21,8 @@ export interface ResolveResult {
  *   4. Unipile name search          → deterministic match      [gated on Unipile account]
  *   5. no_contact
  *
- * Enrichment steps 2-4 are no-ops until their providers are wired with the
- * confirmed Apify actor id / query strings, so a lead with a scraped URL
- * resolves and one without lands in no_contact — enough to drive the UI today.
+ * Batch sync (fastOnly) also runs Serper founder lookup + Unipile executive search
+ * (~1-3s each) before marking no_contact.
  */
 export async function resolveLeadContacts(
   client: InsforgeClient,
@@ -36,7 +35,7 @@ export async function resolveLeadContacts(
   // agent); on-demand "Try to resolve" runs the full ladder.
   const enrich = opts.enrich ?? true;
   const fastOnly = opts.fastOnly ?? false;
-  // force: a user "Rescan" — re-pull fresh founder data even if the lead already
+  // force: a user "Rescan" - re-pull fresh founder data even if the lead already
   // has a resolved contact (skips the step-1 short-circuit below).
   const force = opts.force ?? false;
   // Verify the founder's LinkedIn against Unipile at resolve time, but never in
@@ -143,7 +142,7 @@ async function tryEnrichment(
  * founder; leaves it false when no account is connected or nothing is found.
  *
  * Never blocks resolution: an unverified contact is still resolved (just flagged
- * unverified so the UI and outreach path can surface it). Best-effort — any
+ * unverified so the UI and outreach path can surface it). Best-effort - any
  * failure degrades to unverified rather than throwing.
  */
 export async function verifyContactLinkedIn(
@@ -156,7 +155,7 @@ export async function verifyContactLinkedIn(
 
   const accountId = await getWorkspaceLinkedInAccountId(client, workspaceId);
   // No connected LinkedIn account to search from: cannot verify. Leave the flag
-  // untouched (default false) and do NOT block — the lead stays resolved.
+  // untouched (default false) and do NOT block - the lead stays resolved.
   if (!accountId) return false;
 
   let verified = false;

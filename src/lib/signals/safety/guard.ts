@@ -70,7 +70,7 @@ export async function assertOutreachAllowed(
   }
 
   if (settings.dry_run) {
-    return block('Dry-run mode is on. Drafts only — no messages will be sent until dry_run is disabled.');
+    return block('Dry-run mode is on. Drafts only - no messages will be sent until dry_run is disabled.');
   }
 
   if (!isWithinWorkingHours(settings, now)) {
@@ -123,7 +123,7 @@ export async function assertOutreachAllowed(
 
     if (weekly >= settings.max_linkedin_invites_per_week) {
       return block(
-        `Weekly LinkedIn invite cap reached (${settings.max_linkedin_invites_per_week}). LinkedIn limits ~200/week — we stop earlier.`,
+        `Weekly LinkedIn invite cap reached (${settings.max_linkedin_invites_per_week}). LinkedIn limits ~200/week - we stop earlier.`,
       );
     }
   }
@@ -179,7 +179,7 @@ export async function assertOutreachAllowed(
     );
     if (daily >= LINKEDIN_ACTION_CAPS.followsPerDay) {
       return block(
-        `Daily LinkedIn follow cap reached (${LINKEDIN_ACTION_CAPS.followsPerDay}). Unipile recommends spacing follows across the day — resets UTC midnight.`,
+        `Daily LinkedIn follow cap reached (${LINKEDIN_ACTION_CAPS.followsPerDay}). Unipile recommends spacing follows across the day - resets UTC midnight.`,
       );
     }
   }

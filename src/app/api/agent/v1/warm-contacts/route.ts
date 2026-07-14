@@ -14,8 +14,8 @@ import {
 import { guardAiRequest } from '@/lib/ai-guard';
 
 /**
- * GET /api/agent/v1/warm-contacts — ICP-bucketed engagers from your posts.
- * POST /api/agent/v1/warm-contacts/sync — refresh from post reactions.
+ * GET /api/agent/v1/warm-contacts - ICP-bucketed engagers from your posts.
+ * POST /api/agent/v1/warm-contacts/sync - refresh from post reactions.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const auth = await resolveAgentAuth(request);

@@ -1,12 +1,12 @@
 /**
- * Phase 3 — Data layer + code quality regression tests.
+ * Phase 3 - Data layer + code quality regression tests.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// P3-1: workspace — listWorkspaces filters at DB level (not in JS)
+// P3-1: workspace - listWorkspaces filters at DB level (not in JS)
 // ---------------------------------------------------------------------------
-describe('P3-1: listWorkspaces — DB-level filter on workspace IDs', () => {
+describe('P3-1: listWorkspaces - DB-level filter on workspace IDs', () => {
   beforeEach(() => vi.resetModules());
 
   it('calls .in() with the user workspace IDs rather than fetching all workspaces', async () => {
@@ -46,9 +46,9 @@ describe('P3-1: listWorkspaces — DB-level filter on workspace IDs', () => {
 });
 
 // ---------------------------------------------------------------------------
-// P3-2: brain/sync — JSON.parse failure is caught, not thrown
+// P3-2: brain/sync - JSON.parse failure is caught, not thrown
 // ---------------------------------------------------------------------------
-describe('P3-2: syncBrainFromProfile — malformed content_pillars does not crash', () => {
+describe('P3-2: syncBrainFromProfile - malformed content_pillars does not crash', () => {
   beforeEach(() => vi.resetModules());
 
   it('logs a warning and continues with empty array when content_pillars is malformed JSON', async () => {
@@ -102,9 +102,9 @@ describe('P3-2: syncBrainFromProfile — malformed content_pillars does not cras
 });
 
 // ---------------------------------------------------------------------------
-// P3-3: brain/sync — syncBrainWins not called inside syncBrainPublishedPost
+// P3-3: brain/sync - syncBrainWins not called inside syncBrainPublishedPost
 // ---------------------------------------------------------------------------
-describe('P3-3: syncBrainPublishedPost — syncBrainWins not called per post', () => {
+describe('P3-3: syncBrainPublishedPost - syncBrainWins not called per post', () => {
   beforeEach(() => vi.resetModules());
 
   it('does not trigger a top-5 query per post sync', async () => {
@@ -127,19 +127,21 @@ describe('P3-3: syncBrainPublishedPost — syncBrainWins not called per post', (
           limit: topFiveQueryMock,
         };
       }
-      // Default: covers creator_brain_pages, feature_flags, and any other table
+      // Default: covers creator_brain_pages, feature_flags, publish_jobs, and any
+      // other table. Fully chainable so multi-.eq() lookups (e.g. publish_jobs
+      // provider_post_id) resolve to a null row instead of throwing.
       const singleMock = vi.fn().mockResolvedValue({ data: { id: 'bp-1', enabled: false }, error: null });
-      const selectAfterUpsert = vi.fn().mockReturnValue({ single: singleMock });
-      return {
-        select: vi.fn().mockReturnValue({
-          eq: vi.fn().mockReturnValue({
-            single: singleMock,
-            maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
-          }),
-        }),
-        eq: vi.fn().mockReturnThis(),
-        upsert: vi.fn().mockReturnValue({ select: selectAfterUpsert }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const chain: any = {
+        select: vi.fn(() => chain),
+        eq: vi.fn(() => chain),
+        order: vi.fn(() => chain),
+        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
+        single: singleMock,
+        maybeSingle: vi.fn().mockResolvedValue({ data: null, error: null }),
+        upsert: vi.fn().mockReturnValue({ select: vi.fn().mockReturnValue({ single: singleMock }) }),
       };
+      return chain;
     });
 
     vi.doMock('@/lib/brain/pages', () => ({
@@ -160,9 +162,9 @@ describe('P3-3: syncBrainPublishedPost — syncBrainWins not called per post', (
 });
 
 // ---------------------------------------------------------------------------
-// P3-5: engagement inbox — sort comparator handles undefined synced_at
+// P3-5: engagement inbox - sort comparator handles undefined synced_at
 // ---------------------------------------------------------------------------
-describe('P3-5: engagement inbox sort — handles undefined synced_at', () => {
+describe('P3-5: engagement inbox sort - handles undefined synced_at', () => {
   it('sorts groups by synced_at without returning 0 for undefined values', () => {
     // Test the sort logic directly (extracted from inbox.ts for unit testing)
     type Group = { comments: Array<{ comment: { synced_at?: string } }> };
@@ -191,9 +193,9 @@ describe('P3-5: engagement inbox sort — handles undefined synced_at', () => {
 });
 
 // ---------------------------------------------------------------------------
-// P3-8: auto-optimize — runs in-process (no HTTP / cookie dependency)
+// P3-8: auto-optimize - runs in-process (no HTTP / cookie dependency)
 // ---------------------------------------------------------------------------
-describe('P3-8: auto-optimize — in-process, no session cookie HTTP round-trip', () => {
+describe('P3-8: auto-optimize - in-process, no session cookie HTTP round-trip', () => {
   beforeEach(() => vi.resetModules());
 
   it('does not call fetch; uses service client + generateOptimizeVariants', async () => {
@@ -253,9 +255,9 @@ describe('P3-8: auto-optimize — in-process, no session cookie HTTP round-trip'
 });
 
 // ---------------------------------------------------------------------------
-// P3-9: auto-optimize — variant_group_id set AFTER variants created
+// P3-9: auto-optimize - variant_group_id set AFTER variants created
 // ---------------------------------------------------------------------------
-describe('P3-9: auto-optimize — variant_group_id updated only after successful variant creation', () => {
+describe('P3-9: auto-optimize - variant_group_id updated only after successful variant creation', () => {
   beforeEach(() => vi.resetModules());
 
   it('does not update variant_group_id on source post when optimize returns no variants', async () => {

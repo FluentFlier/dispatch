@@ -13,18 +13,26 @@ const KNOWN_SECTION_HEADERS = [
   'VOICE EXAMPLES',
   'EMAIL VOICE',
   'CREATOR BRAIN',
+  // The retrieved past-posts block (voice-context.ts). Was previously unrecognized
+  // (the list carried a dead 'SEMANTIC MEMORY' header nobody emits), so the block
+  // glued onto the preceding section and got stripped for posts - that is how real
+  // names/context like "Anirudh Manjesh" were lost before reaching the model.
+  'PAST CONTENT YOU HAVE ALREADY PUBLISHED',
   'SEMANTIC MEMORY',
   'UNUSED STORY BANK',
   'PERFORMANCE BASELINE:',
   'RESEARCH NOTES',
+  'PAST CONTENT YOU HAVE ALREADY PUBLISHED',
 ] as const;
 
 // The subset the substance stages are allowed to see. EMAIL VOICE is withheld
-// (it is a 1:1 register, not for public posts).
+// (it is a 1:1 register, not for public posts). Past published content IS allowed:
+// it grounds the draft in real people/facts the user actually posted about.
 const SUBSTANCE_ALLOWED_HEADERS = [
   'USER CONTEXT:',
   'BACKGROUND FACTS',
   'CREATOR BRAIN',
+  'PAST CONTENT YOU HAVE ALREADY PUBLISHED',
   'SEMANTIC MEMORY',
   'UNUSED STORY BANK',
   'VOCABULARY FINGERPRINT:',
@@ -32,6 +40,7 @@ const SUBSTANCE_ALLOWED_HEADERS = [
   'VOICE EXAMPLES',
   'PERFORMANCE BASELINE:',
   'RESEARCH NOTES',
+  'PAST CONTENT YOU HAVE ALREADY PUBLISHED',
 ] as const;
 
 /**

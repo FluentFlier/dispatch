@@ -109,7 +109,7 @@ export function parseResearchFactsJson(raw: string): ResearchFacts | null {
  * the 'fast' tier, so it runs on the premium model in production and the free
  * model (Groq/HF) in testing with no code change (see ai-tiers.ts).
  *
- * Returns null — never throws — on empty input, LLM failure (incl. quota), or
+ * Returns null - never throws - on empty input, LLM failure (incl. quota), or
  * unparseable output, so the caller degrades to snippet summary + empty fields.
  */
 export async function extractResearchFacts(

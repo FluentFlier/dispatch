@@ -13,13 +13,13 @@ import { errorResponse } from '@/lib/api-errors';
 /**
  * Friendly, HONEST reply when the AI provider is out of credits / rate-limited.
  * Returned as a normal 200 assistant message so the user sees WHY in the chat and
- * knows it is our provider capacity — not their account or subscription.
+ * knows it is our provider capacity - not their account or subscription.
  */
 function llmBusyResponse(): NextResponse {
   return NextResponse.json(
     {
       assistantMessage:
-        "Our AI is temporarily over capacity on our end — this is a provider-credit issue on our side, not your account or subscription. Please try again in a few minutes.",
+        "Our AI is temporarily over capacity on our end - this is a provider-credit issue on our side, not your account or subscription. Please try again in a few minutes.",
       llmUnavailable: true,
     },
     { status: 200 },
@@ -38,6 +38,28 @@ const bodySchema = z.object({
     .max(40)
     .optional(),
 });
+
+/**
+ * Deterministic "find leads" intent. Fires discovery even when the LLM misreads
+ * the turn OR is over capacity - "find leads now" needs no model, just the saved
+ * ICP. Matches "find leads", "find leads now", "search for leads", "pull some
+ * leads", "get me leads", "surface leads", etc.
+ */
+const FIND_LEADS_RE = /\b(find|search|pull|get|show|fetch|surface|source|scan)\b[^.!?]*\bleads?\b/i;
+
+/**
+ * Deterministic guard: does this message read like an ICP definition rather than
+ * a greeting, a question, or a search command? Used so a weak/free classifier
+ * model that returns an empty icp_description never causes ICP setup to silently
+ * no-op - the raw message is saved as the brief instead.
+ */
+function looksLikeIcpDescription(message: string): boolean {
+  const m = message.trim();
+  if (m.split(/\s+/).length < 4) return false; // too short to be a real brief
+  if (/\?\s*$/.test(m)) return false; // a question, not a definition
+  if (/^(hi|hey|hello|thanks|thank you|ok|okay|yes|no|sure)\b/i.test(m)) return false;
+  return true;
+}
 
 interface ChatIntent {
   reply: string;
@@ -68,7 +90,7 @@ function extractJson(raw: string): ChatIntent | null {
  * POST /api/leads/icp/chat
  *
  * Conversational counterpart to POST /api/leads/icp. One LLM call classifies the
- * turn — refine the ICP, run discovery, or just answer — then reuses the same
+ * turn - refine the ICP, run discovery, or just answer - then reuses the same
  * parse/persist primitives so the chat and one-shot flows stay in sync. Discovery
  * is NOT run here (it would block the reply for tens of seconds); when the user
  * asks to search we set `suggestRun` and the UI triggers the streamed scrape.
@@ -104,7 +126,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       'Respond with ONLY a JSON object, no prose, with exactly these keys:',
       '{"reply": string, "icp_description": string, "run_discovery": boolean}',
       '- reply: 1-3 short sentences to the user, warm and concrete. If run_discovery is true, do',
-      '  NOT say you are searching or that you found leads — you cannot search from here. Instead',
+      '  NOT say you are searching or that you found leads - you cannot search from here. Instead',
       '  confirm the ICP looks ready and tell them to hit the "Find leads now" button to start.',
       '- icp_description: if the user is defining or CHANGING their ICP, return the FULL updated brief',
       '  (merge their change into the current ICP). If they are only asking to search or just chatting,',
@@ -120,27 +142,54 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .filter(Boolean)
       .join('\n\n');
 
+    const wantsDiscovery = FIND_LEADS_RE.test(parsed.data.message);
+
+    // Deterministic discovery response, used whenever the classifier can't run or
+    // can't be parsed but the user clearly asked to find leads and an ICP exists.
+    const discoveryFallback = (): NextResponse =>
+      NextResponse.json({
+        assistantMessage: 'On it - searching for matching leads now. This can take up to a minute.',
+        settings: current,
+        applied: false,
+        suggestRun: true,
+      });
+
     let intent: ChatIntent | null = null;
     try {
       const raw = await chatCompletion(system, userPrompt, { maxTokens: 600, temperature: 0.4 });
       intent = extractJson(raw);
     } catch (err) {
+      // "Find leads now" must work even when the ICP classifier LLM is down - it
+      // needs no model, only the already-saved ICP.
+      if (wantsDiscovery && currentIcp) return discoveryFallback();
       if (isLlmUnavailable(err)) return llmBusyResponse();
       return errorResponse('ICP assistant is unavailable right now.', 503, err);
     }
     if (!intent) {
+      if (wantsDiscovery && currentIcp) return discoveryFallback();
       return NextResponse.json(
-        { assistantMessage: 'I could not parse that — try rephrasing your ICP or say "find leads now".' },
+        { assistantMessage: 'I could not parse that - try rephrasing your ICP or say "find leads now".' },
         { status: 200 },
       );
     }
 
+    // Deterministic ICP-setup fallback: if the classifier returned no brief but
+    // the message clearly describes an ICP (and isn't a search command), treat the
+    // raw message as the brief, merging into any existing ICP. Without this, a weak
+    // classifier that under-returns leaves the user "chatting" with nothing saved.
+    let icpBrief = intent.icp_description;
+    if (!icpBrief && !wantsDiscovery && looksLikeIcpDescription(parsed.data.message)) {
+      icpBrief = currentIcp
+        ? `${currentIcp}\n${parsed.data.message.trim()}`
+        : parsed.data.message.trim();
+    }
+
     let applied = false;
-    // Persist ICP only when the user actually changed it (non-empty and different).
-    if (intent.icp_description && intent.icp_description !== currentIcp) {
-      const icp = await parseIcpDescription(intent.icp_description);
+    // Persist ICP only when it actually changed (non-empty and different).
+    if (icpBrief && icpBrief !== currentIcp) {
+      const icp = await parseIcpDescription(icpBrief);
       await updateDirectorySettings(client, workspaceId, {
-        icp_description: intent.icp_description,
+        icp_description: icpBrief,
         icp_verticals: icp.icp_verticals,
         icp_keywords: icp.icp_keywords,
       });
@@ -156,34 +205,49 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     // Discovery is intentionally NOT run here. The assistant's job is to define
-    // and persist the ICP — not to fire the scrape engine inside a chat request.
+    // and persist the ICP - not to fire the scrape engine inside a chat request.
     // A full sync (directory scrape + a 170s-capped agent run + per-lead resolve +
     // per-lead LLM scoring) takes tens of seconds to minutes and would block the
     // reply, which is why the assistant used to "hang for a minute". When the user
     // asks to find leads we return `suggestRun` so the UI can trigger the existing
     // streamed /api/leads/sync (progress bar, non-blocking) instead of running it
     // synchronously here.
-    const suggestRun = intent.run_discovery;
+    // Only run discovery when an ICP actually exists (saved already, or set in
+    // this same turn) - searching with an empty ICP returns noise. The regex
+    // fallback catches close phrasings the classifier missed.
+    const hasIcpNow = Boolean(currentIcp || icpBrief);
+    const suggestRun = (intent.run_discovery || wantsDiscovery) && hasIcpNow;
 
     const settings = await getDirectorySettings(client, workspaceId);
 
-    // When the user asked to search, don't trust the model's phrasing — it tends
-    // to promise "I'll pull the list, give me a moment", which reads as broken
-    // because nothing auto-runs (discovery is a button now). Force a deterministic
-    // CTA reply so the message always matches the "Find leads now" button.
+    // When discovery is about to run, the client kicks off the streamed
+    // /api/leads/sync and shows its own progress, so send a matching "on it"
+    // line. If the user asked to search but has no ICP yet, nudge them to
+    // describe one first instead of a dead-end "Done."
     const assistantMessage = suggestRun
-      ? 'Your ICP is set. Hit "Find leads now" below and I\'ll pull matching leads.'
-      : intent.reply || 'Done.';
+      ? 'On it - searching for matching leads now. This can take up to a minute.'
+      : applied
+        ? intent.reply || 'Got it - your ICP is set. Hit "Find leads now" to search.'
+        : intent.reply ||
+          (wantsDiscovery
+            ? 'Tell me who you sell to first, then I can search - e.g. "seed-stage fintech from YC".'
+            : 'Done.');
+
+    // icpUnderstood lets the client tell "we set up your ICP / one already exists"
+    // apart from "nothing was saved" (used by the local-only debug banner).
+    const icpUnderstood = applied || Boolean(currentIcp);
 
     return NextResponse.json({
       assistantMessage,
       settings,
       applied,
       suggestRun,
+      hasIcp: hasIcpNow,
+      icpUnderstood,
     });
   } catch (err) {
     // A quota/credit failure from the classify or ICP-parse LLM call is our
-    // provider being out of credits — surface it honestly instead of a generic 500.
+    // provider being out of credits - surface it honestly instead of a generic 500.
     if (isLlmUnavailable(err)) return llmBusyResponse();
     return errorResponse('Could not process ICP chat.', 500, err);
   }

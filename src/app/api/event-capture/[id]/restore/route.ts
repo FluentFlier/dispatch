@@ -11,7 +11,7 @@ interface RouteParams {
  * Un-dismisses an event capture, sending it back to the inbox.
  * Restores status='questions_ready' and clears dismissed_at.
  * Only works within 7 days of dismissal (the caller's UI should enforce this,
- * but this route does not re-check age — the dismiss tab already filters to 7d).
+ * but this route does not re-check age - the dismiss tab already filters to 7d).
  */
 export async function POST(
   request: NextRequest,

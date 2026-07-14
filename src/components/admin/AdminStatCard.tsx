@@ -30,7 +30,7 @@ export function AdminStatCard({
 }: AdminStatCardProps) {
   return (
     <div className={`rounded-lg border p-4 shadow-card ${VARIANT_STYLES[variant]}`}>
-      <p className="text-[11px] font-medium uppercase tracking-wide text-text-tertiary">{label}</p>
+      <p className="text-[11px] font-medium tracking-wide text-text-tertiary">{label}</p>
       <p className={`text-2xl font-semibold mt-1 tabular-nums ${VALUE_STYLES[variant]}`}>{value}</p>
       {sub ? <p className="text-xs text-text-secondary mt-1">{sub}</p> : null}
     </div>

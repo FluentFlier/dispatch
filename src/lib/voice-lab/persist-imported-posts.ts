@@ -1,11 +1,49 @@
 import { randomUUID } from 'crypto';
 import type { getServerClient } from '@/lib/insforge/server';
 import { buildIdempotencyKey } from '@/lib/publish-queue';
-import {
-  extractLinkedInMetrics,
-  extractLinkedInPublishedAt,
-} from '@/lib/platforms/linkedin-metrics';
 import { metricsPatchFromNormalized, hasPostMetrics } from '@/lib/analytics/post-metrics';
+import {
+  extractUnipilePostMetrics,
+  extractUnipilePublishedAt,
+} from '@/lib/platforms/linkedin-metrics';
+import { writeToMemory, buildPostMemoryCustomId, buildImageMemoryCustomId } from '@/lib/memory/write';
+import { describeImage, chatCompletion, isLlmConfigured } from '@/lib/llm';
+
+const TITLE_SYSTEM =
+  'You write short, specific titles for social posts. Given a post body, reply with ONLY a 4-8 word title that captures its main point. No quotes, no hashtags, no emojis, no em dashes, no trailing punctuation. Title Case.';
+
+/**
+ * A short human title for an imported post. LinkedIn/X posts have no native title,
+ * so raw truncation (`body.slice(0,80)`) reads as a broken sentence. Summarize the
+ * body with the small chat model (HF fallback, LLM_DAILY_HARD_CAP-aware). Falls
+ * back to the 80-char slice whenever the model is unconfigured, over budget, or
+ * returns junk - an import must NEVER fail because a title could not be generated.
+ */
+export async function generatePostTitle(body: string): Promise<string> {
+  const fallback = body.slice(0, 80);
+  const text = body.trim();
+  if (!text || !isLlmConfigured()) return fallback;
+  try {
+    const raw = await chatCompletion(TITLE_SYSTEM, text.slice(0, 600), {
+      maxTokens: 24,
+      temperature: 0.3,
+    });
+    const title = raw
+      .split('\n')[0]
+      .replace(/^["'\s]+|["'\s]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 80);
+    return title.length >= 3 ? title : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+/** Platforms whose Unipile post payloads carry engagement counters we can read. */
+function unipileMetricsSupported(platform: string): boolean {
+  return platform === 'linkedin' || platform === 'twitter';
+}
 
 // Extracted from the import-from-account route so it can be unit-tested
 // directly. Next.js route modules may only export HTTP handlers, so this
@@ -29,6 +67,16 @@ export interface UnipileItem {
   is_reply?: boolean;
   attachments?: UnipileAttachment[];
 }
+
+export interface ImportedImage {
+  url: string;
+  description: string | null;
+}
+
+/** Cap on images described per post - bounds worst-case per-item latency/cost;
+ * a post with more photos still keeps its full image list, just undescribed
+ * past this count (rare - Unipile posts are almost always 1-4 images). */
+const MAX_IMAGES_DESCRIBED = 4;
 
 export interface PersistImportedPostsResult {
   created: number;
@@ -66,6 +114,58 @@ export function firstImageUrl(item: UnipileItem): string | null {
   return img?.url ?? null;
 }
 
+/** Every image attachment URL on a Unipile post (firstImageUrl only ever kept
+ * the first, silently discarding the rest). */
+export function allImageUrls(item: UnipileItem): string[] {
+  return (item.attachments ?? [])
+    .filter((a) => a.type === 'img' && Boolean(a.url))
+    .map((a) => a.url as string);
+}
+
+/**
+ * Describes every image on a post (bounded by MAX_IMAGES_DESCRIBED, run
+ * concurrently so total latency is ~one vision call, not the sum). Best-effort:
+ * describeImage never throws, so a failed/unsupported vision call just leaves
+ * that image's description null rather than blocking the import.
+ */
+async function describeImages(urls: string[]): Promise<ImportedImage[]> {
+  const toDescribe = urls.slice(0, MAX_IMAGES_DESCRIBED);
+  const described = await Promise.all(
+    toDescribe.map(async (url) => ({ url, description: await describeImage(url) })),
+  );
+  const rest = urls.slice(MAX_IMAGES_DESCRIBED).map((url) => ({ url, description: null }));
+  return [...described, ...rest];
+}
+
+/**
+ * Writes each described image as its OWN memory document (see
+ * buildImageMemoryCustomId) rather than only appending it inside the parent
+ * post's content - gives every photo an independent shot at surfacing on an
+ * image/venue-specific query regardless of how the parent post's other chunks
+ * rank for that query.
+ */
+function pushImageMemoryWrites(
+  memoryWrites: Promise<boolean>[],
+  client: Parameters<typeof writeToMemory>[0],
+  images: ImportedImage[],
+  ctx: { userId: string; workspaceId: string | null; platform: string; postId: string; postedDate: string },
+): void {
+  images.forEach((img, i) => {
+    if (!img.description) return;
+    memoryWrites.push(
+      writeToMemory(client, {
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        kind: 'post_image',
+        content:
+          `[Photo from your ${ctx.platform} post on ${ctx.postedDate || 'unknown date'}] - this ALREADY happened; reference as past.\n\n${img.description}`,
+        customId: buildImageMemoryCustomId(ctx.postId, i),
+        metadata: { platform: ctx.platform, posted_date: ctx.postedDate },
+      }),
+    );
+  });
+}
+
 /**
  * Persists Unipile-imported posts + publish_jobs rows so the engagement-sync
  * cron can call Unipile GET /posts/{social_id}/comments for each one.
@@ -86,6 +186,13 @@ export async function persistImportedPosts({
 }): Promise<PersistImportedPostsResult> {
   const result: PersistImportedPostsResult = { created: 0, repaired: 0, skipped: 0, failed: 0 };
 
+  // Memory writes are collected and run concurrently after the loop, not awaited
+  // per-post. A bulk import can carry ~25 posts; serial awaits would sum their
+  // latency (and if the memory store hung, 25x the timeout could blow the import
+  // function's budget). Concurrent + awaited-at-end bounds total added time to ~one
+  // write. writeToMemory never rejects, so allSettled always resolves.
+  const memoryWrites: Promise<boolean>[] = [];
+
   for (const item of items) {
     if (!item.id) continue;
     const content = importedPostText(item);
@@ -105,34 +212,62 @@ export async function persistImportedPosts({
     if (existingJob?.post_id) {
       const { data: existingPost } = await client.database
         .from('posts')
-        .select('id, views, likes, saves, comments, shares')
+        .select('id, views, likes, saves, comments, shares, images')
         .eq('id', existingJob.post_id)
         .eq('user_id', userId)
         .maybeSingle();
 
       if (existingPost) {
-        if (platform === 'linkedin') {
-          const patch = metricsPatchFromNormalized(extractLinkedInMetrics(item));
+        let repaired = false;
+
+        if (unipileMetricsSupported(platform)) {
+          const patch = metricsPatchFromNormalized(extractUnipilePostMetrics(item));
           if (!hasPostMetrics(existingPost) && Object.keys(patch).length > 0) {
-            const publishedAt = extractLinkedInPublishedAt(item);
+            const publishedAt = extractUnipilePublishedAt(item);
             const postPatch: Record<string, string | number> = { ...patch };
             if (publishedAt) postPatch.posted_date = publishedAt.split('T')[0];
             await client.database.from('posts').update(postPatch).eq('id', existingJob.post_id);
-            result.repaired++;
-            continue;
+            repaired = true;
           }
+        }
+
+        // Backfill images on posts imported before multi-image capture existed
+        // (firstImageUrl() used to be the only thing kept - the rest of a
+        // post's photos were silently discarded).
+        const existingImages = (existingPost as { images?: ImportedImage[] }).images ?? [];
+        const availableUrls = allImageUrls(item);
+        if (existingImages.length === 0 && availableUrls.length > 0) {
+          const images = await describeImages(availableUrls);
+          await client.database.from('posts').update({ images }).eq('id', existingJob.post_id);
+          repaired = true;
+
+          const postedDate = extractUnipilePublishedAt(item)?.split('T')[0] ?? '';
+          pushImageMemoryWrites(memoryWrites, client, images, {
+            userId, workspaceId, platform, postId: existingJob.post_id, postedDate,
+          });
+        }
+
+        if (repaired) {
+          result.repaired++;
+          continue;
         }
         result.skipped++;
         continue;
       }
     }
 
-    // Unipile list payloads often include impression/reaction counters — seed
+    // Unipile list payloads often include impression/reaction counters - seed
     // analytics immediately instead of waiting for a later metrics sync.
-    const importedMetrics =
-      platform === 'linkedin' ? metricsPatchFromNormalized(extractLinkedInMetrics(item)) : {};
-    const importedPublishedAt =
-      platform === 'linkedin' ? extractLinkedInPublishedAt(item) : undefined;
+    const importedMetrics = unipileMetricsSupported(platform)
+      ? metricsPatchFromNormalized(extractUnipilePostMetrics(item))
+      : {};
+    const importedPublishedAt = unipileMetricsSupported(platform)
+      ? extractUnipilePublishedAt(item)
+      : undefined;
+    const images = await describeImages(allImageUrls(item));
+    // LinkedIn/X posts carry no native title - summarize the body instead of
+    // showing a truncated first sentence in the Library.
+    const title = await generatePostTitle(content);
 
     // Create a posts row for this historically-published post
     const postId = randomUUID();
@@ -140,7 +275,7 @@ export async function persistImportedPosts({
       id: postId,
       user_id: userId,
       workspace_id: workspaceId,
-      title: content.slice(0, 80),
+      title,
       script: content,
       // posts.pillar is NOT NULL with no default; imported historical posts
       // aren't authored against a pillar, so seed the codebase-wide 'general'
@@ -150,8 +285,15 @@ export async function persistImportedPosts({
       // views filter on pillars[], so an empty array makes imported posts invisible.
       pillar: 'general',
       pillars: ['general'],
+      // Historical posts pulled from a connected account, not authored in-app.
+      // The editor hides the pillar picker for these.
+      is_imported: true,
       // Carry the first image so the reconstructed post shows media, not just text.
       image_url: firstImageUrl(item),
+      // Every image (image_url only ever kept the first), each with a cached
+      // one-time vision description so generation can reference what was
+      // actually in the photo without re-analyzing it on every draft.
+      images,
       platform,
       status: 'posted',
       posted_date: importedPublishedAt?.split('T')[0] ?? new Date().toISOString().split('T')[0],
@@ -195,7 +337,32 @@ export async function persistImportedPosts({
 
     if (existingJob) result.repaired++;
     else result.created++;
+
+    // L3: write imported history into memory so generation can reference posts
+    // the user published on LinkedIn/X before they ever used the app. The dated
+    // header is what lets a "remember the Forbes event" prompt know the event is
+    // in the past instead of echoing the original present-tense post. Awaited so
+    // the write is not dropped when this cron/route lambda freezes.
+    const postedDate = importedPublishedAt?.split('T')[0] ?? '';
+    memoryWrites.push(
+      writeToMemory(client, {
+        userId,
+        workspaceId,
+        kind: 'imported_post',
+        content: `[Your ${platform} post from ${postedDate || 'unknown date'}] - this ALREADY happened; reference as past.\n\n${content}`,
+        // item.id is the platform URN - same key the publish path uses so a
+        // natively-published post and its later re-import never double-write.
+        customId: buildPostMemoryCustomId(platform, item.id, postId),
+        metadata: { platform, posted_date: postedDate },
+      }),
+    );
+    pushImageMemoryWrites(memoryWrites, client, images, { userId, workspaceId, platform, postId, postedDate });
   }
+
+  // Await all memory writes concurrently before returning so nothing is dropped
+  // when the serverless function freezes, while keeping total added latency ~= one
+  // write rather than the sum.
+  await Promise.allSettled(memoryWrites);
 
   return result;
 }

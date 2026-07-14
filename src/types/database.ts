@@ -13,7 +13,6 @@ export {
   STATUS_LABELS,
   STATUS_BADGE,
   PRIORITIES,
-  NAV_ITEMS,
 } from '@/lib/constants';
 
 export type {

@@ -3,7 +3,7 @@
  *
  * Covers three bugs reported against the event-capture inbox:
  *  1. enrichCapture left a capture stuck at status='researching' forever if
- *     question generation threw — a status the inbox GET route doesn't select,
+ *     question generation threw - a status the inbox GET route doesn't select,
  *     so the capture silently vanished with no way to retry.
  *  2. /regenerate-questions cleared stored answers BEFORE attempting
  *     enrichment, so a failed/blocked reload destroyed answers the user had
