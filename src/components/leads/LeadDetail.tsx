@@ -271,7 +271,7 @@ export function LeadDetail({
     });
 
   return (
-    <div className="space-y-4 max-h-[calc(100vh-220px)] overflow-y-auto pr-1">
+    <div className="space-y-4">
       {/* Header: logo + name + tagline + follow */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3 min-w-0">

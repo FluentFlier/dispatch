@@ -22,7 +22,22 @@ export async function GET(): Promise<NextResponse> {
   const { data, error } = await query;
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ jobs: data ?? [] });
+
+  // Publish jobs carry only post_id — pull the post titles in one extra query
+  // (InsForge embeds are unreliable here) so the timeline can name each post.
+  const jobs = data ?? [];
+  const postIds = [...new Set(jobs.map((j) => j.post_id).filter(Boolean))];
+  let titleById: Record<string, string | null> = {};
+  if (postIds.length > 0) {
+    const { data: posts } = await client.database
+      .from('posts')
+      .select('id, title')
+      .in('id', postIds);
+    titleById = Object.fromEntries((posts ?? []).map((p) => [p.id, p.title]));
+  }
+  const withTitles = jobs.map((j) => ({ ...j, title: titleById[j.post_id] ?? null }));
+
+  return NextResponse.json({ jobs: withTitles });
 }
 
 const RetrySchema = z.object({

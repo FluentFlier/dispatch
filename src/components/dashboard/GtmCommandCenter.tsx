@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Linkedin, MessageSquare, Radio, Sparkles, Target } from 'lucide-react';
-import { IcpChat } from '@/components/leads/IcpChat';
 import { useToast } from '@/components/ui/Toast';
 import type { EngagementTaskRow } from '@/lib/engagement/tasks';
 import type { SafetyStatusSnapshot } from '@/lib/signals/safety/guard';
@@ -131,10 +130,10 @@ export function GtmCommandCenter() {
             <h2 className="mt-3 text-lg font-semibold text-ink tracking-tight">
               Today&apos;s outreach
             </h2>
-            <p className="mt-1 text-sm text-ink2 max-w-xl">
+            <p className="mt-1 text-sm text-ink2">
               {icpConfigured
                 ? 'ICP leads surface daily. Plan nurture → comment → connect on autopilot or approve each step.'
-                : 'Use the ICP assistant below to describe who you sell to — then ask it to find leads.'}
+                : 'Head to Leads to describe who you sell to, then ask the ICP assistant to find leads.'}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -161,73 +160,36 @@ export function GtmCommandCenter() {
           </div>
         </div>
 
-        {!icpConfigured && (
-          <div className="mt-5">
-            <IcpChat
-              settings={settings}
-              onSettingsSaved={setSettings}
-              onDiscoveryComplete={refreshGtm}
-              toast={toast}
-            />
-          </div>
-        )}
-
-        <div className="mt-5 grid grid-cols-2 md:grid-cols-5 gap-3">
-          <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
+        <div className="mt-5 flex flex-wrap items-stretch gap-3">
+          <div className="w-[132px] rounded-2xl border border-hair bg-paper2/60 p-3">
             <p className="text-xs text-ink2">New / planned</p>
             <p className="text-2xl font-semibold text-ink tabular-nums">{pipeline.discovered}</p>
           </div>
-          <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
+          <div className="w-[132px] rounded-2xl border border-hair bg-paper2/60 p-3">
             <p className="text-xs text-ink2">Commenting</p>
             <p className="text-2xl font-semibold text-ink tabular-nums">{pipeline.engaging}</p>
           </div>
-          <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
+          <div className="w-[132px] rounded-2xl border border-hair bg-paper2/60 p-3">
             <p className="text-xs text-ink2">Connect queued</p>
             <p className="text-2xl font-semibold text-ink tabular-nums">{pipeline.connectReady}</p>
           </div>
-          <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
-            <p className="text-xs text-ink2">Connect sent</p>
-            <p className="text-2xl font-semibold text-ink tabular-nums">{pipeline.connectSent}</p>
-          </div>
-          <div className="rounded-2xl border border-hair bg-paper2/60 p-3">
+          <div className="w-[132px] rounded-2xl border border-hair bg-paper2/60 p-3">
             <p className="text-xs text-ink2">DM ready</p>
             <p className="text-2xl font-semibold text-lilac tabular-nums">{pipeline.dmReady}</p>
           </div>
-        </div>
-
-        <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="rounded-2xl border border-hair bg-paper2/60 p-3 sm:col-span-1">
+          <div className="w-[132px] rounded-2xl border border-hair bg-paper2/60 p-3">
             <p className="text-xs text-ink2">Sent today</p>
             <p className="text-2xl font-semibold text-flame tabular-nums">{pipeline.sentToday}</p>
           </div>
-          <LimitBar
-            label="LinkedIn invites today"
-            used={safety.usage.linkedin_invites_today}
-            max={safety.settings.max_linkedin_invites_per_day}
-          />
-          <LimitBar
-            label="LinkedIn invites this week"
-            used={safety.usage.linkedin_invites_this_week}
-            max={safety.settings.max_linkedin_invites_per_week}
-          />
+          <div className="w-[240px]">
+            <LimitBar
+              label="LinkedIn invites today"
+              used={safety.usage.linkedin_invites_today}
+              max={safety.settings.max_linkedin_invites_per_day}
+            />
+          </div>
         </div>
       </div>
-
-      {icpConfigured && (
-        <div className="p-5 md:p-6 border-b border-hair bg-paper2/30">
-          <h3 className="text-sm font-semibold text-ink flex items-center gap-2 mb-3">
-            <MessageSquare className="h-4 w-4 text-blue" />
-            ICP assistant
-          </h3>
-          <IcpChat
-            compact
-            settings={settings}
-            onSettingsSaved={setSettings}
-            onDiscoveryComplete={refreshGtm}
-            toast={toast}
-          />
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-hair">
         <div className="p-5 md:p-6">

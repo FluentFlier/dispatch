@@ -2,9 +2,13 @@
 
 import { useEffect, useState } from 'react';
 import { Loader2, CheckCircle2, XCircle, Clock } from 'lucide-react';
+import { PLATFORM_LABELS } from '@/lib/constants';
+import { formatDateShort } from '@/lib/utils';
 
 interface PublishJob {
   id: string;
+  post_id: string | null;
+  title: string | null;
   platform: string;
   status: string;
   last_error: string | null;
@@ -80,11 +84,11 @@ export default function PublishTimeline({ limit = 8 }: { limit?: number }) {
               size={14}
               className={`mt-0.5 shrink-0 ${color} ${job.status === 'processing' ? 'animate-spin' : ''}`}
             />
+            {/* Left: post title */}
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] text-ink capitalize">{job.platform}</span>
-                <span className="text-[10px] text-ink3 tracking-[0.08em]">{job.status}</span>
-              </div>
+              <span className="block truncate text-[13px] text-ink">
+                {job.title ?? PLATFORM_LABELS[job.platform as keyof typeof PLATFORM_LABELS] ?? job.platform}
+              </span>
               {job.last_error && (
                 <p className="text-[11px] text-[#F87171] mt-0.5 line-clamp-2">{job.last_error}</p>
               )}
@@ -99,15 +103,23 @@ export default function PublishTimeline({ limit = 8 }: { limit?: number }) {
                 </a>
               )}
             </div>
-            {(job.status === 'failed' || job.status === 'dead') && (
-              <button
-                type="button"
-                onClick={() => retry(job.id)}
-                className="text-[11px] text-accent-primary hover:text-accent-primary shrink-0"
-              >
-                Retry
-              </button>
-            )}
+            {/* Right: status → platform → date (date at the far corner) */}
+            <div className="flex shrink-0 items-center gap-3 text-[11px]">
+              <span className={`capitalize font-medium ${color}`}>{job.status}</span>
+              <span className="capitalize text-ink3">
+                {PLATFORM_LABELS[job.platform as keyof typeof PLATFORM_LABELS] ?? job.platform}
+              </span>
+              <span className="tabular-nums text-ink3">{formatDateShort(job.updated_at)}</span>
+              {(job.status === 'failed' || job.status === 'dead') && (
+                <button
+                  type="button"
+                  onClick={() => retry(job.id)}
+                  className="text-accent-primary hover:opacity-80"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
           </li>
         );
       })}

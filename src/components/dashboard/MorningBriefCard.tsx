@@ -1,28 +1,27 @@
 import Link from 'next/link';
-import { Sunrise, TrendingUp, BarChart3, Lightbulb, ArrowRight } from 'lucide-react';
+import { Sunrise, TrendingUp, BarChart3, ArrowRight } from 'lucide-react';
 import type { MorningBrief } from '@/lib/rituals/morning-brief';
 import { TrendDetectAction } from '@/components/dashboard/TrendDetectAction';
 
 /**
- * Renders the daily morning brief: today's top trend, yesterday's numbers, and
- * ready-to-draft idea seeds. Presentational only — the brief is composed
- * server-side in the dashboard page from already-persisted data, so this card
- * adds no client fetch and no AI cost.
+ * Top "signals" strip of the unified dashboard card: today's top trend +
+ * yesterday's numbers. Presentational only — composed server-side, no client
+ * fetch or AI cost. The old "Ready to draft" column was dropped: it showed the
+ * same ideas as the card's Backlog lane, so it lived on there instead. Renders
+ * with no card wrapper so it can nest inside the merged dashboard card.
  */
-export function MorningBriefCard({ brief }: { brief: MorningBrief }) {
-  if (!brief.hasContent) return null;
-
-  const { topTrend, yesterday, ideas } = brief;
+export function MorningBriefStrip({ brief }: { brief: MorningBrief }) {
+  const { topTrend, latestPost } = brief;
 
   return (
-    <div className="card-surface p-5">
-      <div className="flex items-center gap-2">
-        <Sunrise className="h-4 w-4 text-blue" />
-        <span className="text-sm font-medium text-ink">Morning brief</span>
+    <>
+      <div className="flex items-center gap-2.5">
+        <Sunrise className="h-6 w-6 text-blue" />
+        <h2 className="text-[clamp(22px,2.5vw,28px)] font-semibold tracking-[-0.03em] text-ink">Morning brief</h2>
         <span className="ml-auto text-xs text-ink3">{brief.dateLabel}</span>
       </div>
 
-      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
         {/* Today's top trend */}
         <div>
           <div className="flex items-center gap-1.5 text-xs font-medium text-ink2">
@@ -53,55 +52,44 @@ export function MorningBriefCard({ brief }: { brief: MorningBrief }) {
           )}
         </div>
 
-        {/* Yesterday's numbers */}
+        {/* Latest post analytics (falls back from yesterday to the most recent post) */}
         <div>
           <div className="flex items-center gap-1.5 text-xs font-medium text-ink2">
             <BarChart3 className="h-3.5 w-3.5" />
-            Yesterday
+            {latestPost?.isYesterday ? 'Yesterday' : 'Latest post'}
           </div>
-          {yesterday ? (
+          {latestPost ? (
             <div className="mt-2">
-              <p className="text-sm text-ink">
-                <span className="font-medium">{yesterday.postCount}</span> post
-                {yesterday.postCount === 1 ? '' : 's'} ·{' '}
-                <span className="font-medium">{yesterday.views.toLocaleString()}</span> views ·{' '}
-                <span className="font-medium">{yesterday.saves.toLocaleString()}</span> saves
+              <p className="text-sm font-medium text-ink leading-snug line-clamp-1">{latestPost.title}</p>
+              <p className="mt-1 text-xs text-ink3">
+                <span className="font-medium text-ink2">{latestPost.views.toLocaleString()}</span> views ·{' '}
+                <span className="font-medium text-ink2">{latestPost.saves.toLocaleString()}</span> saves
               </p>
-              {yesterday.topPost && (
-                <p className="mt-1 text-xs text-ink3 leading-snug line-clamp-2">
-                  Top: {yesterday.topPost.title}
-                </p>
-              )}
+              <Link
+                href="/analytics"
+                className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-blue hover:underline"
+              >
+                Show more <ArrowRight className="h-3 w-3" />
+              </Link>
             </div>
           ) : (
-            <p className="mt-2 text-xs text-ink3">Nothing posted yesterday.</p>
-          )}
-        </div>
-
-        {/* Ready-to-draft ideas */}
-        <div>
-          <div className="flex items-center gap-1.5 text-xs font-medium text-ink2">
-            <Lightbulb className="h-3.5 w-3.5" />
-            Ready to draft
-          </div>
-          {ideas.length > 0 ? (
-            <ul className="mt-2 space-y-1.5">
-              {ideas.map((idea) => (
-                <li key={idea.id}>
-                  <Link
-                    href={`/generate?tab=script&topic=${encodeURIComponent(idea.idea)}${idea.pillar ? `&pillar=${encodeURIComponent(idea.pillar)}` : ''}`}
-                    className="text-xs text-ink2 hover:text-blue leading-snug line-clamp-2"
-                  >
-                    {idea.idea}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="mt-2 text-xs text-ink3">Idea bank is empty.</p>
+            <p className="mt-2 text-xs text-ink3">No posts yet.</p>
           )}
         </div>
       </div>
-    </div>
+    </>
+  );
+}
+
+/**
+ * Standalone card wrapper. Main renamed this component to MorningBriefStrip for
+ * nesting inside a merged dashboard card; this branch still renders it as its own
+ * card, so keep the MorningBriefCard export as a thin card-surface wrapper.
+ */
+export function MorningBriefCard({ brief }: { brief: MorningBrief }) {
+  return (
+    <section className="card-surface p-5">
+      <MorningBriefStrip brief={brief} />
+    </section>
   );
 }

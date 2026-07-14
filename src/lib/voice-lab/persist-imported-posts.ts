@@ -7,11 +7,39 @@ import {
   extractUnipilePublishedAt,
 } from '@/lib/platforms/linkedin-metrics';
 import { writeToMemory, buildPostMemoryCustomId, buildImageMemoryCustomId } from '@/lib/memory/write';
-import { describeImage } from '@/lib/llm';
+import { describeImage, chatCompletion } from '@/lib/llm';
 
 /** Platforms whose Unipile post payloads carry engagement counters we can read. */
 function unipileMetricsSupported(platform: string): boolean {
   return platform === 'linkedin' || platform === 'twitter';
+}
+
+/**
+ * Imported posts have no authored title. A small LLM writes a short human title
+ * instead of dumping the post's first 80 characters as the "title". Falls back to
+ * the slice on any failure so an import never blocks on the title model. The token
+ * budget leaves headroom for reasoning models (gpt-oss/o-series) that spend tokens
+ * before emitting content — too small a cap returns empty and forces the fallback.
+ */
+async function shortTitle(content: string): Promise<string> {
+  const fallback = content.trim().replace(/\s+/g, ' ').slice(0, 80);
+  const source = content.trim().slice(0, 1200);
+  if (!source) return fallback;
+  try {
+    const out = await chatCompletion(
+      'You write short titles for social posts. Reply with ONLY a 3-6 word title in plain text: no quotes, no emoji, no hashtags, no trailing punctuation, no preamble.',
+      source,
+      { maxTokens: 256, temperature: 0.3 },
+    );
+    const first = out.split('\n').map((l) => l.trim()).find(Boolean) ?? '';
+    const cleaned = first
+      .replace(/^title\s*:\s*/i, '')
+      .replace(/^["'#\s]+|["'.\s]+$/g, '')
+      .slice(0, 80);
+    return cleaned || fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 // Extracted from the import-from-account route so it can be unit-tested
@@ -241,7 +269,7 @@ export async function persistImportedPosts({
       id: postId,
       user_id: userId,
       workspace_id: workspaceId,
-      title: content.slice(0, 80),
+      title: await shortTitle(content),
       script: content,
       // posts.pillar is NOT NULL with no default; imported historical posts
       // aren't authored against a pillar, so seed the codebase-wide 'general'
@@ -251,6 +279,9 @@ export async function persistImportedPosts({
       // views filter on pillars[], so an empty array makes imported posts invisible.
       pillar: 'general',
       pillars: ['general'],
+      // Historical posts pulled from a connected account, not authored in-app.
+      // The editor hides the pillar picker for these.
+      is_imported: true,
       // Carry the first image so the reconstructed post shows media, not just text.
       image_url: firstImageUrl(item),
       // Every image (image_url only ever kept the first), each with a cached
