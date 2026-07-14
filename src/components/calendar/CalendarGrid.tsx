@@ -234,9 +234,9 @@ export default function CalendarGrid({
       {/* Desktop grid - hidden on mobile */}
       <div className="hidden sm:block">
         {/* Day headers */}
-        <div className="grid grid-cols-7 gap-px mb-px">
+        <div className="grid grid-cols-7 mb-2">
           {DAY_HEADERS_MON.map((d) => (
-            <div key={d} className="font-mono text-center text-[10px] text-ink3 py-2 uppercase tracking-[0.12em]">
+            <div key={d} className="font-mono text-center text-[10px] text-ink3 py-2 uppercase tracking-[0.14em]">
               {d}
             </div>
           ))}
@@ -269,8 +269,8 @@ export default function CalendarGrid({
                     {...provided.droppableProps}
                     onClick={() => onDayCellClick(day)}
                     className={`bg-bg-secondary cursor-pointer transition-colors ${borderClasses} ${
-                      isWeekView ? 'min-h-[200px] p-2' : 'min-h-[80px] p-1.5'
-                    } ${isToday ? 'ring-1 ring-inset ring-accent-primary' : ''} ${
+                      isWeekView ? 'min-h-[200px] p-2' : 'min-h-[116px] p-2'
+                    } ${isToday && isWeekView ? 'ring-1 ring-inset ring-accent-primary' : ''} ${
                       isPickMode ? 'hover:ring-1 hover:ring-accent-primary/60' : ''
                     } ${
                       snapshot.isDraggingOver
@@ -288,12 +288,20 @@ export default function CalendarGrid({
                         </span>
                       </div>
                     ) : (
-                      <span className={`font-mono text-[11px] ${isCurrentMonth ? 'text-ink' : 'text-ink3'}`}>
+                      <span
+                        className={`inline-flex h-[22px] min-w-[22px] items-center justify-center rounded-full px-1 font-mono text-[11px] ${
+                          isToday
+                            ? 'bg-accent-primary font-medium text-white'
+                            : isCurrentMonth
+                              ? 'text-ink'
+                              : 'text-ink3'
+                        }`}
+                      >
                         {day.getDate()}
                       </span>
                     )}
 
-                    <div className={isWeekView ? 'space-y-1.5' : 'mt-0.5 space-y-0.5'}>
+                    <div className={isWeekView ? 'space-y-1.5' : 'mt-1.5 space-y-1'}>
                       {(isWeekView ? dayPosts : dayPosts.slice(0, 3)).map((p) =>
                         isWeekView ? (
                           <div
@@ -313,7 +321,7 @@ export default function CalendarGrid({
                           <div
                             key={p.id}
                             onClick={(e) => { e.stopPropagation(); onPostClick(p); }}
-                            className="rounded-[3px] px-1 py-0.5 text-[10px] leading-tight font-medium truncate cursor-pointer hover:opacity-80"
+                            className="rounded px-1.5 py-1 text-[11px] leading-tight font-medium truncate cursor-pointer transition-opacity hover:opacity-80"
                             style={{
                               backgroundColor: `${getColor(p.pillar)}25`,
                               color: getColor(p.pillar),
@@ -332,7 +340,7 @@ export default function CalendarGrid({
                             e.stopPropagation();
                             setMorePopover({ key, date: day });
                           }}
-                          className="text-[10px] text-accent-primary hover:underline font-medium"
+                          className="mt-0.5 text-[11px] text-accent-primary hover:underline font-medium"
                         >
                           +{overflow} more
                         </button>

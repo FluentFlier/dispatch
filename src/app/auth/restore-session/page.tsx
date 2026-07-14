@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { refreshAppSessionWithFallback } from '@/lib/auth-client-refresh';
+import { APP_HOME_PATH } from '@/lib/nav-config';
 
 const RETRY_KEY = 'token_refresh_attempts';
 const DEPLOY_KEY = 'content_os_deploy_id';
@@ -19,7 +20,7 @@ export default function RestoreSessionPage() {
     const next =
       params.get('next') && params.get('next')!.startsWith('/')
         ? params.get('next')!
-        : '/dashboard';
+        : APP_HOME_PATH;
 
     async function goLogin() {
       setMessage('Session expired. Redirecting to sign in…');

@@ -1,8 +1,18 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, type ComponentType } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpen,
+  Hash,
+  Layers,
+  MessageSquare,
+  Mic,
+  Recycle,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
 import { SkeletonLines } from "@/components/ui/Skeleton";
 import { ScriptGenerator } from "@/components/generate/ScriptGenerator";
 import { VoiceCapture } from "@/components/generate/VoiceCapture";
@@ -38,6 +48,32 @@ function isTabId(value: string | null): value is TabId {
     || value === "comments"
     || value === "series";
 }
+
+/**
+ * Secondary writing tools. Script is the hero (always shown); these are the
+ * supporting modes, surfaced as a quiet "More tools" strip beneath it so they're
+ * discoverable without competing with the primary write flow.
+ */
+const SECONDARY_TOOLS: {
+  id: Exclude<TabId, "script">;
+  label: string;
+  hint: string;
+  icon: ComponentType<{ className?: string }>;
+}[] = [
+  { id: "voice-note", label: "Voice note", hint: "Talk it out, we transcribe", icon: Mic },
+  { id: "story-mine", label: "Story mine", hint: "Turn experiences into posts", icon: BookOpen },
+  { id: "caption", label: "Caption & hashtags", hint: "Captions for a video", icon: Hash },
+  { id: "hooks", label: "Hooks", hint: "Scroll-stopping first lines", icon: Zap },
+  { id: "repurpose", label: "Repurpose", hint: "One idea, many formats", icon: Recycle },
+  { id: "trend", label: "Trends", hint: "Ride what's working now", icon: TrendingUp },
+  { id: "comments", label: "Comment replies", hint: "Reply in your voice", icon: MessageSquare },
+  { id: "series", label: "Series", hint: "Plan a multi-part arc", icon: Layers },
+];
+
+const TOOL_LABELS: Record<Exclude<TabId, "script">, string> = SECONDARY_TOOLS.reduce(
+  (acc, t) => ({ ...acc, [t.id]: t.label }),
+  {} as Record<Exclude<TabId, "script">, string>,
+);
 
 export default function GeneratePage() {
   return (
@@ -125,14 +161,18 @@ function GeneratePageInner() {
   if (activeTab !== "script") {
     return (
       <div className="page-shell-wide max-w-2xl">
-        <button
-          type="button"
-          onClick={() => setActiveTab("script")}
-          className="mb-6 inline-flex items-center gap-1.5 text-sm text-ink2 hover:text-ink"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Write
-        </button>
+        <div className="mb-6 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setActiveTab("script")}
+            className="inline-flex items-center gap-1.5 text-sm text-ink2 hover:text-ink"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to Write
+          </button>
+          <span className="text-ink3">/</span>
+          <span className="text-sm font-medium text-ink">{TOOL_LABELS[activeTab]}</span>
+        </div>
         <section className="card-surface">{renderTool()}</section>
       </div>
     );
@@ -150,6 +190,28 @@ function GeneratePageInner() {
       )}
 
       {renderTool()}
+
+      <div className="mt-10 border-t border-hair pt-6">
+        <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.14em] text-ink3">
+          More tools
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {SECONDARY_TOOLS.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setActiveTab(t.id)}
+              className="group flex items-start gap-2.5 rounded-lg border border-hair bg-paper2/50 px-3 py-2.5 text-left transition-colors hover:border-hair2 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/30"
+            >
+              <t.icon className="mt-0.5 h-4 w-4 shrink-0 text-ink3 group-hover:text-ink2" />
+              <span className="min-w-0">
+                <span className="block text-[13px] font-medium text-ink">{t.label}</span>
+                <span className="block truncate text-[11px] text-ink3">{t.hint}</span>
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

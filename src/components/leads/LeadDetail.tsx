@@ -22,11 +22,12 @@ import type { SignalLeadWithContacts, LeadPlaybook } from '@/lib/signals/types';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { leadButtonBusy, type LeadDetailAction } from '@/lib/leads/busy';
 import { linkedInBadgeState } from '@/lib/leads/verified-badge';
+import { LINKEDIN_CONNECT_NOTE_LIMIT } from '@/lib/leads/constants';
 
 export type { LeadDetailAction };
 
 /** LinkedIn connect-note character ceiling; drafts over this can't be approved. */
-export const CONNECT_LIMIT = 300;
+export const CONNECT_LIMIT = LINKEDIN_CONNECT_NOTE_LIMIT;
 
 /** Short source tag for a directory lead. */
 export function sourceTag(lead: SignalLeadWithContacts): string {
@@ -117,6 +118,9 @@ interface LeadDetailProps {
   onDraftFollowup?: () => void;
   onCheckConnection?: () => void;
   accepted?: boolean;
+  /** Advance the outreach lifecycle past "sent": mark a reply / close it out. */
+  onMarkReplied?: () => void;
+  onMarkClosed?: () => void;
 }
 
 interface LeadNote {
@@ -155,12 +159,20 @@ export function LeadDetail({
   onDraftFollowup,
   onCheckConnection,
   accepted,
+  onMarkReplied,
+  onMarkClosed,
 }: LeadDetailProps) {
   // Per-action flags: a spinner shows only on the button whose action is live.
   // `anyBusy` gates send/email/dismiss so an unrelated in-flight action can't be
   // double-submitted, without skeletoning those buttons.
-  const { draftBusy, planBusy, approveBusy, resolveBusy, followupBusy, checkBusy, anyBusy } =
+  const { draftBusy, planBusy, approveBusy, resolveBusy, followupBusy, checkBusy, stageBusy, anyBusy } =
     leadButtonBusy(busyAction);
+  // Outreach lifecycle stage persisted on the outreach row (draft → sent →
+  // accepted → replied → closed). Drives the post-send stage control below.
+  const outreachStage = lead.outreach?.status ?? null;
+  const isSent = outreachStage === 'sent' || outreachStage === 'accepted';
+  const isReplied = outreachStage === 'replied';
+  const isClosed = outreachStage === 'closed';
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [noteText, setNoteText] = useState('');
   const [notesLoading, setNotesLoading] = useState(false);
@@ -419,6 +431,31 @@ export function LeadDetail({
                 <RefreshCw className="h-4 w-4" /> Check if accepted
               </Button>
             ) : null}
+          </div>
+        )}
+
+        {/* Post-send lifecycle: once outreach is out the door, let the user record
+            a reply or close the lead out so the loop doesn't dead-end at "sent". */}
+        {(isSent || isReplied || isClosed) && (
+          <div className="mt-1 flex items-center justify-between gap-2 rounded-md border border-border bg-bg-secondary/40 px-3 py-2">
+            <span className="text-xs text-text-secondary flex items-center gap-1.5">
+              {(isReplied || isClosed) && <Check className="h-3.5 w-3.5 text-accent-secondary" />}
+              {isClosed ? 'Closed out.' : isReplied ? 'They replied — keep the conversation going.' : 'Sent. Log the outcome when they respond.'}
+            </span>
+            {!isClosed && (
+              <div className="flex items-center gap-1.5">
+                {isSent && onMarkReplied && (
+                  <Button variant="secondary" size="sm" onClick={onMarkReplied} loading={stageBusy}>
+                    <MessageSquare className="h-4 w-4" /> Mark replied
+                  </Button>
+                )}
+                {onMarkClosed && (
+                  <Button variant="ghost" size="sm" onClick={onMarkClosed} loading={stageBusy}>
+                    Close out
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </section>

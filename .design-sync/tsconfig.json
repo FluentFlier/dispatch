@@ -1,0 +1,17 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "..",
+    "paths": {
+      "@/lib/insforge/server": [".design-sync/stubs/insforge-server.ts"],
+      "@/components/video-studio": ["src/components/video-studio/index.ts"],
+      "@/components/video-studio/compositions": ["src/components/video-studio/compositions/index.ts"],
+      "@/lib/content-pipeline": ["src/lib/content-pipeline/index.ts"],
+      "@/lib/hooks-intelligence": ["src/lib/hooks-intelligence/index.ts"],
+      "@/lib/signals/safety": ["src/lib/signals/safety/index.ts"],
+      "@/lib/social": ["src/lib/social/index.ts"],
+      "@/lib/voice-prompts": ["src/lib/voice-prompts/index.ts"],
+      "@/*": ["src/*"]
+    }
+  }
+}

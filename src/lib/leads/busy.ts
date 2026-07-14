@@ -19,6 +19,8 @@ export type LeadBusyAction =
   | 'resolve'
   | 'check'
   | 'followup'
+  // Advancing the outreach lifecycle past "sent" (accepted → replied → closed).
+  | 'stage'
   | 'send'
   // Engager (post-engager) detail panel actions.
   | 'connect'
@@ -52,6 +54,7 @@ export interface LeadButtonBusy {
   resolveBusy: boolean;
   followupBusy: boolean;
   checkBusy: boolean;
+  stageBusy: boolean;
   /** True while ANY action runs; gates send/email to avoid double-submit. */
   anyBusy: boolean;
 }
@@ -65,6 +68,7 @@ export function leadButtonBusy(action: LeadDetailAction | null): LeadButtonBusy 
     resolveBusy: action === 'resolve',
     followupBusy: action === 'followup',
     checkBusy: action === 'check',
+    stageBusy: action === 'stage',
     anyBusy: action !== null,
   };
 }

@@ -3,19 +3,7 @@
 import { useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import {
-  ArrowRight,
-  CalendarDays,
-  Check,
-  ChevronRight,
-  Menu,
-  MessageCircle,
-  Radio,
-  Send,
-  Sparkles,
-  Target,
-  X,
-} from 'lucide-react';
+import { ArrowRight, Check, ChevronRight, Menu, X } from 'lucide-react';
 import { motion, useReducedMotion, useScroll, useSpring, useTransform } from 'motion/react';
 import { LinkPreview } from '@/components/ui/link-preview';
 import { SmoothCursor } from '@/components/ui/smooth-cursor';
@@ -26,14 +14,6 @@ import KineticPosterSections from './KineticPosterSections';
 const EASE = [0.16, 1, 0.3, 1] as const;
 const FOCUS =
   'focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-blue focus-visible:ring-offset-[3px] focus-visible:ring-offset-paper';
-
-const LOOP = [
-  { number: '01', label: 'Signal', detail: 'Calendar, comments, and ICP fits feed your Story Bank.', icon: Radio, color: 'bg-flame' },
-  { number: '02', label: 'Draft', detail: 'Native posts in your voice, scored before you edit.', icon: Sparkles, color: 'bg-lime' },
-  { number: '03', label: 'Publish', detail: 'One calendar for LinkedIn and X.', icon: Send, color: 'bg-blue text-paper' },
-  { number: '04', label: 'Reply', detail: 'Comments in one inbox, with replies drafted in your voice.', icon: MessageCircle, color: 'bg-lilac' },
-  { number: '05', label: 'Learn', detail: 'Wins feed Creator Brain so next week starts sharper.', icon: Target, color: 'bg-ink text-paper' },
-] as const;
 
 function QuietNav({ funnel }: { funnel: FunnelState }) {
   const [open, setOpen] = useState(false);
@@ -84,7 +64,6 @@ function QuietNav({ funnel }: { funnel: FunnelState }) {
         <div id="quiet-mobile-nav" className="mx-5 border-y border-hair bg-paper py-3 md:hidden">
           <div className="flex flex-col">
             {[
-              ['#product', 'Product'],
               ['#loop', 'The loop'],
               ['/pricing', 'Pricing'],
             ].map(([href, label]) => (
@@ -200,7 +179,7 @@ function Hero({ funnel }: { funnel: FunnelState }) {
           </div>
           <div className="mt-7 flex flex-wrap items-center justify-center gap-4">
             <Link href={cta.href} className={`quiet-button-primary ${FOCUS}`}>
-              Get started
+              {cta.label}
               <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
@@ -235,220 +214,6 @@ function Hero({ funnel }: { funnel: FunnelState }) {
         </div>
       </div>
     </header>
-  );
-}
-
-function LoopSection() {
-  const reduceMotion = useReducedMotion();
-
-  return (
-    <section id="loop" className="border-y border-ink bg-ink text-paper">
-      <div className="mx-auto max-w-[1320px] px-5 py-24 sm:px-8 sm:py-32 lg:py-36">
-        <div className="mx-auto max-w-4xl text-center">
-          <p className="m-0 text-xs font-semibold uppercase tracking-[0.12em] text-paper/55">One connected loop</p>
-          <h2 className="m-0 mt-5 text-[clamp(2.8rem,6vw,5.8rem)] font-bold leading-[0.9] tracking-[-0.06em] text-paper">
-            Signal → ship → learn.
-          </h2>
-          <p className="mx-auto mb-0 mt-6 max-w-xl text-base leading-7 text-paper/65 sm:text-lg">
-            Five steps, one compounding loop. What performs this week makes next week sharper.
-          </p>
-        </div>
-
-        <div className="relative mt-16 grid gap-3 sm:grid-cols-2 lg:mt-20 lg:grid-cols-5">
-          {LOOP.map(({ number, label, detail, icon: Icon, color }, index) => (
-            <motion.div
-              key={label}
-              initial={reduceMotion ? false : { opacity: 0, y: 32, rotate: index % 2 === 0 ? -2 : 2 }}
-              whileInView={{ opacity: 1, y: 0, rotate: 0 }}
-              whileHover={reduceMotion ? undefined : { y: -8, rotate: index % 2 === 0 ? -1 : 1 }}
-              viewport={{ once: true, margin: '-8%' }}
-              transition={{ duration: 0.55, delay: index * 0.08, ease: EASE }}
-              className="group rounded-[18px] border border-paper/20 bg-paper p-5 text-ink sm:min-h-[230px]"
-            >
-              <div className="flex items-start justify-between">
-                <span className={`grid h-12 w-12 place-items-center rounded-[14px] border-2 border-ink ${color}`}>
-                  <Icon className="h-5 w-5" strokeWidth={2} />
-                </span>
-                <span className="text-[11px] font-bold tracking-[0.12em] text-ink3">{number}</span>
-              </div>
-              <h3 className="m-0 mt-9 text-2xl font-bold tracking-[-0.04em]">{label}</h3>
-              <p className="m-0 mt-3 text-sm leading-6 text-ink2">{detail}</p>
-              <motion.div
-                className="mt-6 h-[3px] origin-left rounded-full bg-blue"
-                initial={reduceMotion ? false : { scaleX: 0 }}
-                whileInView={{ scaleX: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: 0.2 + index * 0.08, ease: EASE }}
-              />
-            </motion.div>
-          ))}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function ComposerProof() {
-  return (
-    <div className="quiet-product-panel">
-      <div className="flex items-center justify-between border-b border-hair px-4 py-3">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-flame" />
-          <span className="text-xs font-semibold text-ink">Create</span>
-        </div>
-          <span className="text-[11px] text-ink3">Voice QA passed</span>
-      </div>
-      <div className="p-5 sm:p-7">
-        <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-ink3">Founder lesson</p>
-        <p className="m-0 mt-4 max-w-lg text-lg font-medium leading-7 text-ink">
-          Most content systems optimize for output. The real advantage is remembering what your
-          audience taught you last time.
-        </p>
-        <div className="mt-6 flex flex-wrap gap-2">
-          {['Your point of view', 'LinkedIn', 'Voice scored'].map((label) => (
-            <span key={label} className="rounded-[8px] border border-hair bg-paper px-2.5 py-1.5 text-xs text-ink2">
-              {label}
-            </span>
-          ))}
-        </div>
-        <div className="mt-7 flex items-center justify-between border-t border-hair pt-4">
-          <span className="text-xs text-ink3">132 words</span>
-          <span className="rounded-[8px] bg-ink px-3 py-2 text-xs font-semibold text-paper">Save draft</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DistributionProof() {
-  return (
-    <div className="quiet-product-panel p-5 sm:p-7">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-ink3">Publish</p>
-          <h3 className="m-0 mt-2 text-2xl font-semibold tracking-[-0.035em] text-ink">One idea. Two channels.</h3>
-        </div>
-        <CalendarDays className="hidden h-5 w-5 text-blue sm:block" />
-      </div>
-      <div className="mt-8 space-y-3">
-        {[
-          ['LinkedIn', 'Founder lesson post', 'Tuesday · 9:15 AM'],
-          ['X', '7-part thread', 'Tuesday · 2:00 PM'],
-        ].map(([channel, title, time], index) => (
-          <div key={channel} className="grid grid-cols-[42px_1fr] gap-3 rounded-[12px] border border-hair bg-paper p-3.5 sm:grid-cols-[72px_1fr_auto] sm:items-center">
-            <span className={`text-xs font-semibold ${index === 0 ? 'text-blue' : 'text-ink'}`}>{channel}</span>
-            <div>
-              <p className="m-0 text-sm font-semibold text-ink">{title}</p>
-              <p className="m-0 mt-0.5 text-xs text-ink3 sm:hidden">{time}</p>
-            </div>
-            <span className="hidden text-xs text-ink3 sm:block">{time}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function LeadProof() {
-  return (
-    <div className="quiet-product-panel p-5 sm:p-7">
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-ink3">Warm conversations</p>
-          <h3 className="m-0 mt-2 text-2xl font-semibold tracking-[-0.035em] text-ink">Reach people worth talking to.</h3>
-        </div>
-        <span className="rounded-[8px] bg-sage-light px-2.5 py-1.5 text-xs font-semibold text-teal">3 ready</span>
-      </div>
-      <div className="mt-7 divide-y divide-hair">
-        {[
-          ['Maya Chen', 'Commented on 3 posts this month', '92'],
-          ['Sam Rivera', 'Saved your founder-led sales post', '84'],
-          ['Taylor Kim', 'Matches your B2B software ICP', '78'],
-        ].map(([name, reason, score]) => (
-          <div key={name} className="grid grid-cols-[36px_1fr_auto] items-center gap-3 py-3.5">
-            <div className="grid h-9 w-9 place-items-center rounded-full bg-paper2 text-xs font-semibold text-ink">
-              {name
-                .split(' ')
-                .map((part) => part[0])
-                .join('')}
-            </div>
-            <div className="min-w-0">
-              <p className="m-0 truncate text-sm font-semibold text-ink">{name}</p>
-              <p className="m-0 mt-0.5 truncate text-xs text-ink3">{reason}</p>
-            </div>
-            <span className="text-sm font-semibold text-teal">{score}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function ProductStories() {
-  const reduceMotion = useReducedMotion();
-  const stories = [
-    {
-      kicker: 'Draft in your voice',
-      title: 'Not another cold prompt.',
-      copy: 'Creator Brain learns from your posts and emails, remembers your stories, and scores every draft against your voice before you edit.',
-      visual: <ComposerProof />,
-      icon: Sparkles,
-      section: 'bg-[#fff4ef]',
-      badge: 'bg-flame',
-    },
-    {
-      kicker: 'One publishing calendar',
-      title: 'One idea. Two channels.',
-      copy: 'Repurpose once, then publish native LinkedIn posts and X threads from one calendar without losing the source idea.',
-      visual: <DistributionProof />,
-      icon: Send,
-      section: 'bg-[#eef3ff]',
-      badge: 'bg-blue text-paper',
-    },
-    {
-      kicker: 'Warm contacts and signal leads',
-      title: 'Reach people worth talking to.',
-      copy: 'Find warm contacts from your network and signal leads that match your ICP—with research, connect notes, and outreach drafts ready.',
-      visual: <LeadProof />,
-      icon: MessageCircle,
-      section: 'bg-[#f8f0ff]',
-      badge: 'bg-lilac',
-    },
-  ] as const;
-
-  return (
-    <div className="bg-paper">
-      {stories.map((story, index) => (
-        <section key={story.title} className={`border-b border-ink ${story.section}`}>
-          <div className="mx-auto grid max-w-[1240px] gap-12 px-5 py-24 sm:px-8 sm:py-32 lg:grid-cols-2 lg:items-center lg:gap-20 lg:py-40">
-            <motion.div
-              initial={reduceMotion ? false : { opacity: 0, x: index % 2 === 0 ? -28 : 28 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true, margin: '-12%' }}
-              transition={{ duration: 0.65, ease: EASE }}
-              className={index % 2 === 1 ? 'lg:order-2' : ''}
-            >
-              <span className={`grid h-14 w-14 place-items-center rounded-[16px] border-2 border-ink ${story.badge}`}>
-                <story.icon className="h-6 w-6" strokeWidth={2} />
-              </span>
-              <p className="quiet-kicker !mt-6">{story.kicker}</p>
-              <h2 className="quiet-heading mt-5 max-w-[10ch]">{story.title}</h2>
-              <p className="m-0 mt-6 max-w-md text-base leading-7 text-ink2">{story.copy}</p>
-            </motion.div>
-            <motion.div
-              initial={reduceMotion ? false : { opacity: 0, y: 36, rotate: index % 2 === 0 ? 1.5 : -1.5 }}
-              whileInView={{ opacity: 1, y: 0, rotate: 0 }}
-              whileHover={reduceMotion ? undefined : { y: -6, rotate: index % 2 === 0 ? -0.5 : 0.5 }}
-              viewport={{ once: true, margin: '-12%' }}
-              transition={{ duration: 0.7, delay: 0.08, ease: EASE }}
-              className={index % 2 === 1 ? 'lg:order-1' : ''}
-            >
-              {story.visual}
-            </motion.div>
-          </div>
-        </section>
-      ))}
-    </div>
   );
 }
 

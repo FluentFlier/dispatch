@@ -2,21 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
-import { getLead, updateLead } from '@/lib/signals/leads/store';
+import { getLead, logLeadEvent, setLeadOutreachStatus } from '@/lib/signals/leads/store';
 import { errorResponse } from '@/lib/api-errors';
 
-const patchSchema = z.object({
-  action: z.enum(['dismiss', 'snooze']).optional(),
-  status: z
-    .enum(['new', 'drafted', 'approved', 'sent', 'dismissed', 'resurfaced'])
-    .optional(),
+const postSchema = z.object({
+  stage: z.enum(['accepted', 'replied', 'closed']),
 });
 
 /**
- * PATCH /api/leads/:id
- * Lifecycle updates from the Today tab: dismiss, or snooze (push digest_date +1).
+ * POST /api/leads/:id/outreach-stage
+ *
+ * Manually advance a directory lead's outreach lifecycle past "sent" — the
+ * stages the data model already supports (accepted → replied → closed) but the
+ * UI previously couldn't reach, so outreach dead-ended at "sent". Persists on
+ * the outreach row and logs an audit event. Returns the refreshed lead.
  */
-export async function PATCH(
+export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } },
 ): Promise<NextResponse> {
@@ -26,30 +27,31 @@ export async function PATCH(
   const workspaceId = await getActiveWorkspaceId(user.id);
   if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
 
-  const parsed = patchSchema.safeParse(await request.json().catch(() => ({})));
+  const parsed = postSchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
     return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
   }
-  const body = parsed.data;
 
   try {
     const client = getServerClient();
     const lead = await getLead(client, workspaceId, params.id);
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
-    if (body.action === 'snooze') {
-      const next = new Date();
-      next.setDate(next.getDate() + 1);
-      await updateLead(client, workspaceId, params.id, { digest_date: next.toISOString().slice(0, 10) });
-    } else {
-      await updateLead(client, workspaceId, params.id, {
-        lead_status: body.status ?? 'dismissed',
-      });
+    const result = await setLeadOutreachStatus(client, workspaceId, params.id, parsed.data.stage);
+    if (result === null) {
+      return NextResponse.json(
+        { error: 'Draft and send outreach before advancing its stage.' },
+        { status: 422 },
+      );
     }
+
+    await logLeadEvent(client, workspaceId, params.id, 'rescored', {
+      action: `outreach_${parsed.data.stage}`,
+    });
 
     const updated = await getLead(client, workspaceId, params.id);
     return NextResponse.json({ lead: updated });
   } catch (err) {
-    return errorResponse('Could not update lead.', 500, err);
+    return errorResponse('Could not update outreach stage.', 500, err);
   }
 }

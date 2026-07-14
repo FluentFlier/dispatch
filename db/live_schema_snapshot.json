@@ -43,7 +43,7 @@
     "signal_directory_settings": ["workspace_id", "enabled_sources", "icp_verticals", "icp_keywords", "recency_window", "digest_run_hour_local", "digest_timezone", "digest_channels", "digest_top_n", "digest_delivered_at", "created_at", "updated_at", "sender_identity", "directory_enabled", "icp_description"],
     "signal_events": ["id", "workspace_id", "raw_post_id", "signal_type", "company_name", "person_name", "accelerator_name", "batch", "signal_summary", "confidence", "dedupe_key", "status", "created_at", "updated_at"],
     "signal_followed_companies": ["id", "workspace_id", "company_name", "domain", "external_id", "added_by_user_id", "created_at"],
-    "signal_icp_profiles": ["id", "workspace_id", "name", "description", "verticals", "keywords", "is_active", "created_at", "updated_at"],
+    "signal_icp_profiles": ["id", "workspace_id", "name", "description", "verticals", "keywords", "is_active", "goal_type", "target_personas", "pitch_angle", "tone_rules", "daily_connect_limit", "daily_comment_limit", "sources", "created_at", "updated_at"],
     "signal_integrations": ["id", "workspace_id", "toolkit", "composio_user_id", "connected_by_user_id", "enabled", "config", "created_at", "updated_at"],
     "signal_lead_contacts": ["id", "lead_id", "workspace_id", "name", "role", "linkedin_url", "x_handle", "email", "provider_id", "resolution_source", "enriched_via", "is_primary", "created_at", "linkedin_verified", "linkedin_verified_at"],
     "signal_lead_events": ["id", "workspace_id", "lead_id", "event_type", "detail", "created_at"],

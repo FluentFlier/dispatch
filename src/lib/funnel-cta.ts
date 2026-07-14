@@ -2,6 +2,7 @@ import type { PostAuthPath } from '@/lib/auth-routing';
 import { getPostAuthPath } from '@/lib/auth-routing';
 import type { TrialSubscriptionRow } from '@/lib/trial';
 import { CTA_CHOOSE_PLAN, CTA_FINISH_SETUP, CTA_OPEN_APP, CTA_START_TRIAL } from '@/lib/brand';
+import { APP_HOME_PATH } from '@/lib/nav-config';
 
 export interface FunnelState {
   loggedIn: boolean;
@@ -37,7 +38,7 @@ function pathToHref(path: PostAuthPath): string {
 
 function pathToLabel(path: PostAuthPath, onboardingComplete: boolean): string {
   if (path === '/pricing') return CTA_CHOOSE_PLAN;
-  if (path === '/dashboard' || onboardingComplete) return CTA_OPEN_APP;
+  if (path === APP_HOME_PATH || onboardingComplete) return CTA_OPEN_APP;
   if (path === '/onboarding') return CTA_FINISH_SETUP;
   return CTA_START_TRIAL;
 }

@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 import { getInsforgeClient } from '@/lib/insforge/client';
 import { PRODUCT_NAME } from '@/lib/brand';
-import { primaryNav, moreNav } from '@/lib/nav-config';
+import { primaryNav, moreNav, APP_HOME_PATH } from '@/lib/nav-config';
 import WorkspaceSwitcher from '@/components/nav/WorkspaceSwitcher';
 
 const navIcons: Record<string, ComponentType<{ className?: string }>> = {
@@ -55,7 +55,7 @@ export default function Sidebar() {
     <aside className="hidden md:flex md:flex-col fixed left-0 top-0 bottom-0 z-40 h-screen w-[264px] border-r border-hair bg-paper2/90 backdrop-blur-xl">
       <div className="px-4 pb-4 pt-5">
         <Link
-          href="/dashboard"
+          href={APP_HOME_PATH}
           className={`flex items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-white/70 ${FOCUS}`}
         >
           <span className="flex h-8 w-8 items-center justify-center rounded-lg border border-hair bg-white text-[15px] font-semibold text-ink shadow-sm">

@@ -17,9 +17,17 @@ export interface NavItem {
   section: 'primary' | 'more';
 }
 
+/**
+ * Where the app lands a fully-onboarded user (open-app CTA, post-auth, logo click).
+ * UI experiment (Jul 2026): Write is the home surface; the dashboard is hidden from
+ * chrome but still reachable at /dashboard. Set back to '/dashboard' to restore.
+ */
+export const APP_HOME_PATH = '/generate';
+
 export const navItems: NavItem[] = [
   // --- Primary: daily loop ---
-  { name: 'Home', href: '/dashboard', short: 'Home', section: 'primary' },
+  // Home/dashboard hidden while experimenting with a Write-first IA (still reachable by URL).
+  { name: 'Home', href: '/dashboard', short: 'Home', section: 'primary', hidden: true },
   { name: 'Write', href: '/generate', short: 'Write', section: 'primary' },
   { name: 'Posts', href: '/library', short: 'Posts', section: 'primary' },
   { name: 'Schedule', href: '/calendar', short: 'Plan', section: 'primary' },
