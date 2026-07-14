@@ -256,6 +256,13 @@ const CAMEL_WHITELIST = new Set([
   'phd', 'iphone', 'ipad', 'macos', 'ios', 'ipados', 'youtube', 'linkedin',
 ]);
 
+// Real domains a model legitimately references (platform names, not invented
+// links) — exempt from the invented-URL scan so they don't read as fabrications.
+const DOMAIN_WHITELIST = new Set([
+  'linkedin.com', 'twitter.com', 'x.com', 'github.com', 'youtube.com',
+  'google.com', 'gmail.com', 'medium.com', 'substack.com',
+]);
+
 const fabricatedSpecifics: Check = {
   id: 'fabricated_specifics', severity: 'hard',
   appliesTo: isProse,
@@ -320,6 +327,18 @@ const fabricatedSpecifics: Check = {
       if (allowed.includes(token.toLowerCase())) continue;
       return fail('fabricated_specifics', 'hard', token,
         `Remove "${token}" - this name does not appear in the request or provided context. Never invent people, products, or companies.`);
+    }
+
+    // Invented bare domains ("greenloop.io", "acme-labs.com"). A CamelCase domain
+    // trips the scan above, but the common lowercase form does not, and
+    // mention_integrity only checks @handles. Grounded domains (in the prompt or
+    // retrieved context) and platform names (DOMAIN_WHITELIST) pass.
+    for (const m of Array.from(text.matchAll(/\b([a-z0-9][a-z0-9-]+\.(?:io|com|ai|co|dev|app|net|org|xyz))\b/gi))) {
+      const domain = m[1].toLowerCase();
+      if (DOMAIN_WHITELIST.has(domain)) continue;
+      if (allowed.includes(domain)) continue;
+      return fail('fabricated_specifics', 'hard', m[1],
+        `Remove "${m[1]}" - this link/domain does not appear in the request or provided context. Never invent URLs.`);
     }
     return pass('fabricated_specifics', 'hard');
   },

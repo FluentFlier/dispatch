@@ -16,7 +16,7 @@ describe('buildSystemPrompt voice evidence split', () => {
     // The examples live inside the authoritative block, after its header:
     expect(out.indexOf('We shipped it.')).toBeGreaterThan(voiceIdx);
     // The reference-only block still exists for non-voice sections:
-    const refIdx = out.indexOf('ADDITIONAL CONTEXT (reference only');
+    const refIdx = out.indexOf('ADDITIONAL CONTEXT (real facts you may draw on');
     expect(refIdx).toBeGreaterThan(-1);
     expect(out.indexOf('brain snippet')).toBeGreaterThan(refIdx);
     // And the examples do NOT appear inside the reference block:
@@ -25,7 +25,9 @@ describe('buildSystemPrompt voice evidence split', () => {
 
   it('keeps plain reference block when no voice sections exist', () => {
     const out = buildSystemPrompt(PROFILE, 'CREATOR BRAIN (x):\nonly brain');
-    expect(out).not.toContain('VOICE EVIDENCE');
-    expect(out).toContain('ADDITIONAL CONTEXT (reference only');
+    // No authoritative voice-evidence block (the reference label may still mention
+    // "VOICE EVIDENCE" in prose, so check the block header specifically).
+    expect(out).not.toContain('VOICE EVIDENCE (authoritative');
+    expect(out).toContain('ADDITIONAL CONTEXT (real facts you may draw on');
   });
 });

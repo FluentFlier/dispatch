@@ -22,6 +22,43 @@ const SYSTEM = [
   '- topics: 1-4 short topic keywords.',
 ].join('\n');
 
+// Deterministic signals that a prompt references a SPECIFIC past event/moment
+// (the class the LLM classifier must not misjudge, e.g. "remember the Forbes
+// event", "reflect on that talk last year"). Used as a floor so retrieval steers
+// to specific-scope (limit 10 + entity query) even when the model hiccups.
+const SPECIFIC_SIGNALS =
+  /\b(remember|recap|reflect(?:ing)? on|revisit(?:ing)?|looking back|think back|back (?:in|at|when)|last (?:year|month|week|summer|fall|autumn|spring|winter|night|time)|that (?:event|talk|trip|conference|summit|meetup|dinner|panel|call|moment|day)|when i (?:met|went|spoke|attended|was at|got))\b/i;
+
+// Words that are capitalized for grammar/imperative reasons, not entities.
+const ENTITY_STOP = new Set([
+  'write', 'post', 'create', 'draft', 'make', 'tweet', 'a', 'an', 'the', 'i',
+  'my', 'me', 'about', 'on', 'for', 'remember', 'recap', 'reflect', 'and', 'to',
+]);
+
+/** Proper-noun-ish tokens from a prompt, for an entity-rich memory query. */
+function extractEntities(prompt: string): string {
+  const toks: string[] = [];
+  for (const m of Array.from(prompt.matchAll(/\b[A-Z][a-zA-Z0-9]+\b/g))) {
+    if (!ENTITY_STOP.has(m[0].toLowerCase())) toks.push(m[0]);
+  }
+  return Array.from(new Set(toks)).slice(0, 12).join(' ');
+}
+
+/** Union of two space-separated queries, deduped, length-capped. */
+function mergeQueries(a: string, b: string): string {
+  return Array.from(new Set(`${a} ${b}`.split(/\s+/).filter(Boolean))).slice(0, 20).join(' ');
+}
+
+/** Pure, no-LLM plan from surface signals — the deterministic floor. */
+function heuristicPlan(prompt: string): PromptMemoryPlan {
+  const entities = extractEntities(prompt);
+  return {
+    topics: [],
+    time_scope: SPECIFIC_SIGNALS.test(prompt) ? 'specific' : 'any',
+    search_query: entities || prompt.slice(0, 200),
+  };
+}
+
 function fallbackPlan(prompt: string): PromptMemoryPlan {
   return { topics: [], time_scope: 'any', search_query: prompt.slice(0, 200) };
 }
@@ -53,11 +90,25 @@ function parsePlan(raw: string, prompt: string): PromptMemoryPlan {
  * so a classifier hiccup can't block generation.
  */
 export async function classifyPromptForMemory(prompt: string): Promise<PromptMemoryPlan> {
+  const heuristic = heuristicPlan(prompt);
   try {
     const raw = await generateContent(prompt, undefined, SYSTEM, null, resolveModel('fast'));
-    return parsePlan(raw, prompt);
+    const plan = parsePlan(raw, prompt);
+    // Deterministic floor: only when surface signals say SPECIFIC but the model
+    // did NOT — upgrade scope and enrich the query with the proper nouns it
+    // dropped. When the model already returned specific, trust its query as-is
+    // (merging would dedupe/mangle a good query like "Forbes 30 Under 30").
+    // Only upgrades retrieval; never downgrades.
+    if (heuristic.time_scope === 'specific' && plan.time_scope !== 'specific') {
+      return {
+        ...plan,
+        time_scope: 'specific',
+        search_query: mergeQueries(plan.search_query, heuristic.search_query),
+      };
+    }
+    return plan;
   } catch (err) {
-    console.warn('[memory] prompt classifier failed, using naive query', err);
-    return fallbackPlan(prompt);
+    console.warn('[memory] prompt classifier failed, using deterministic plan', err);
+    return heuristic;
   }
 }

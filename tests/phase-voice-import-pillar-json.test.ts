@@ -105,7 +105,13 @@ describe('Phase: Voice Import — persistImportedPosts', () => {
 // /api/voice-lab/analyze — malformed-JSON resilience
 // ---------------------------------------------------------------------------
 
-vi.mock('@/lib/llm', () => ({ chatCompletion: vi.fn() }));
+// isLlmConfigured() false → generatePostTitle (import path) uses the deterministic
+// slice fallback instead of an LLM call; describeImage covered for image-carrying items.
+vi.mock('@/lib/llm', () => ({
+  chatCompletion: vi.fn(),
+  isLlmConfigured: vi.fn(() => false),
+  describeImage: vi.fn(),
+}));
 vi.mock('@/lib/ai-guard', () => ({ guardAiRequest: vi.fn().mockResolvedValue({ ok: true }) }));
 
 import { getAuthenticatedUser } from '@/lib/insforge/server';
