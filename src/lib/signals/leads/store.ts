@@ -406,6 +406,51 @@ export async function updateLead(
   if (error) throw error;
 }
 
+/** Outreach lifecycle order for directory leads; higher = further along. */
+const OUTREACH_STAGE_ORDER: Record<string, number> = {
+  draft: 0,
+  sent: 1,
+  accepted: 2,
+  replied: 3,
+  closed: 4,
+};
+
+/**
+ * Advance a directory lead's outreach status so the outreach lifecycle
+ * (draft → sent → accepted → replied → closed) is durable and survives reload.
+ * Filters by workspace_id AND lead_id for defense-in-depth.
+ *
+ * `onlyForward` (used by the automated connection re-check) refuses to move the
+ * status backward, so a manual "replied"/"closed" is never clobbered by a later
+ * accept re-check. Returns the row's resulting status, or null when the lead has
+ * no outreach row yet (nothing has been drafted/sent).
+ */
+export async function setLeadOutreachStatus(
+  client: InsforgeClient,
+  workspaceId: string,
+  leadId: string,
+  status: string,
+  onlyForward = false,
+): Promise<string | null> {
+  const { data: existing } = await client.database
+    .from('signal_outreach')
+    .select('id, status')
+    .eq('workspace_id', workspaceId)
+    .eq('lead_id', leadId)
+    .maybeSingle();
+  if (!existing || !(existing as { id?: string }).id) return null;
+  const current = (existing as { status?: string }).status ?? 'draft';
+  if (onlyForward && (OUTREACH_STAGE_ORDER[status] ?? 0) <= (OUTREACH_STAGE_ORDER[current] ?? 0)) {
+    return current;
+  }
+  const { error } = await client.database
+    .from('signal_outreach')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', (existing as { id: string }).id);
+  if (error) throw error;
+  return status;
+}
+
 // --- Lead events (audit) ---
 
 /** Appends a lead lifecycle event (scrape/score/rename/reactivation). */

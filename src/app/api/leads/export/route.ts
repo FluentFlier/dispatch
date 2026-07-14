@@ -2,14 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { listLeads, parseLeadListStatusParam } from '@/lib/signals/leads/store';
+import { errorResponse } from '@/lib/api-errors';
 
-/** Quote a CSV cell, escaping embedded quotes; join arrays with "; ". */
+/**
+ * Quote a CSV cell, escaping embedded quotes; join arrays with "; ".
+ * Neutralizes spreadsheet formula injection: Excel/Sheets execute a cell that
+ * begins with =, +, -, @ (or a leading control char) as a formula. Several
+ * columns here (company_name, tagline, tags, ...) carry scraped,
+ * attacker-influenced text, so prefix those with a single quote to force the
+ * cell to render as literal text.
+ */
 function cell(value: unknown): string {
   let s: string;
   if (value === null || value === undefined) s = '';
   else if (Array.isArray(value)) s = value.join('; ');
   else if (typeof value === 'object') s = JSON.stringify(value);
   else s = String(value);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return `"${s.replace(/"/g, '""')}"`;
 }
 
@@ -23,6 +32,7 @@ const COLUMNS: string[] = [
 
 type LeadRow = Awaited<ReturnType<typeof listLeads>>[number];
 
+/** Serialize leads to a downloadable CSV attachment response. */
 function csvResponse(leads: LeadRow[]): NextResponse {
   const rows = leads.map((lead) => {
     const intent = (lead.intent_flags ?? {}) as Record<string, boolean>;
@@ -65,9 +75,13 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const statusParam = request.nextUrl.searchParams.get('status');
   const listFilter = parseLeadListStatusParam(statusParam);
 
-  const client = getServerClient();
-  const leads = await listLeads(client, workspaceId, { ...listFilter, limit: 200 });
-  return csvResponse(leads);
+  try {
+    const client = getServerClient();
+    const leads = await listLeads(client, workspaceId, { ...listFilter, limit: 200 });
+    return csvResponse(leads);
+  } catch (err) {
+    return errorResponse('Could not export leads.', 500, err);
+  }
 }
 
 /**
@@ -88,10 +102,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const statusParam = typeof body.status === 'string' ? body.status : null;
   const listFilter = parseLeadListStatusParam(statusParam);
 
-  const client = getServerClient();
-  // Pull the full page (feed cap), then narrow to the selected ids. Selected ids
-  // may sit below the default 200 window, so widen to the feed max first.
-  const leads = await listLeads(client, workspaceId, { ...listFilter, limit: 300 });
-  const filtered = ids.length ? leads.filter((l) => ids.includes(l.id)) : leads;
-  return csvResponse(filtered);
+  try {
+    const client = getServerClient();
+    // Pull the full page (feed cap), then narrow to the selected ids. Selected ids
+    // may sit below the default 200 window, so widen to the feed max first.
+    const leads = await listLeads(client, workspaceId, { ...listFilter, limit: 300 });
+    const filtered = ids.length ? leads.filter((l) => ids.includes(l.id)) : leads;
+    return csvResponse(filtered);
+  } catch (err) {
+    return errorResponse('Could not export leads.', 500, err);
+  }
 }

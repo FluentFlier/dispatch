@@ -100,7 +100,12 @@ export function UnifiedFeed({
           onSelect={() => onSelect(card.id)}
           onKeyDown={handleKeyDown(i)}
           checked={selectedIds?.has(card.id)}
-          onToggleSelect={onToggleSelect ? () => onToggleSelect(card.id) : undefined}
+          // Bulk actions only operate on directory leads, so only those rows get
+          // a checkbox — signal/engager rows no longer offer a select they can't
+          // act on.
+          onToggleSelect={
+            onToggleSelect && card.kind === 'directory' ? () => onToggleSelect(card.id) : undefined
+          }
         />
       ))}
     </div>

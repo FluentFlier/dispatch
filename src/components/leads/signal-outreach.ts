@@ -11,9 +11,10 @@
 
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import { linkedInIdentifierFromSignal } from '@/lib/signals/linkedin-identifier';
+import { LINKEDIN_CONNECT_NOTE_LIMIT } from '@/lib/leads/constants';
 
 /** LinkedIn connect-note character ceiling; drafts over this can't be sent. */
-export const SIGNAL_CONNECT_LIMIT = 300;
+export const SIGNAL_CONNECT_LIMIT = LINKEDIN_CONNECT_NOTE_LIMIT;
 
 /**
  * The channel a signal draft/send should use. `copy` means "no reachable
@@ -89,12 +90,16 @@ function extractAuthorHandle(sourceUrl: string | null): string | null {
 }
 
 /**
- * Maps a send failure into the inline notice the UI shows. The signals send
- * endpoint returns HTTP 422 with an `error` reason when the safety guard blocks
- * (dry-run mode, daily cap, working-hours window). That is expected behavior,
- * not a crash, so the caller surfaces it as a neutral notice; any other status
- * is treated as a real error.
+ * Maps a send failure into the inline notice the UI shows when the safety guard
+ * blocks a send (dry-run mode, daily cap, working-hours window). That is
+ * expected behavior, not a crash, so the caller surfaces it as a neutral notice;
+ * any other status is treated as a real error.
+ *
+ * The two send backends diverge on the code they return for the same block: the
+ * signals endpoint uses HTTP 422, the warm-contact (engager) send/send-dm
+ * endpoints use 429. Accept both here so every send flow behaves identically —
+ * this is the single source of truth for guard-block detection.
  */
 export function isGuardBlock(status: number): boolean {
-  return status === 422;
+  return status === 422 || status === 429;
 }

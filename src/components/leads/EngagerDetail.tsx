@@ -14,8 +14,9 @@ import { Button } from '@/components/ui/Button';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import type { WarmContactRow } from '@/lib/social-graph/types';
 import { nurtureStageLabel } from './feed-format';
+import { LINKEDIN_CONNECT_NOTE_LIMIT } from '@/lib/leads/constants';
 
-const CONNECT_LIMIT = 280;
+const CONNECT_LIMIT = LINKEDIN_CONNECT_NOTE_LIMIT;
 
 export type EngagerDetailAction = 'plan' | 'draft' | 'connect' | 'dm' | 'dismiss';
 
