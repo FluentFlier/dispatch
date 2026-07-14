@@ -38,13 +38,29 @@ function getApiKey(): string | null {
  * Non-numeric ids (Unipile's own post ids) are returned as-is.
  */
 export function buildPostIdCandidates(socialId: string): string[] {
-  if (!/^\d+$/.test(socialId)) return [socialId];
-  return [
-    `urn:li:activity:${socialId}`,
-    socialId,
-    `urn:li:share:${socialId}`,
-    `urn:li:ugcPost:${socialId}`,
-  ];
+  if (/^\d+$/.test(socialId)) {
+    return [
+      `urn:li:activity:${socialId}`,
+      socialId,
+      `urn:li:share:${socialId}`,
+      `urn:li:ugcPost:${socialId}`,
+    ];
+  }
+  // URN-form id (e.g. "urn:li:activity:123..."): try it verbatim first, then the
+  // numeric core wrapped in the other URN flavors Unipile may have indexed it
+  // under. Without this, an imported post stored as one URN flavor 404s forever
+  // when comments live under a sibling flavor.
+  const numeric = socialId.match(/(\d{5,})/)?.[1];
+  if (numeric) {
+    return [
+      socialId,
+      `urn:li:activity:${numeric}`,
+      `urn:li:share:${numeric}`,
+      `urn:li:ugcPost:${numeric}`,
+      numeric,
+    ].filter((v, i, a) => a.indexOf(v) === i);
+  }
+  return [socialId];
 }
 
 /**

@@ -250,7 +250,7 @@ export default function CalendarGrid({
             const isToday = isSameDay(day, today);
             const dayPosts = postsByDate[key] || [];
             const isWeekView = viewMode === 'week';
-            const overflow = !isWeekView && dayPosts.length > 3 ? dayPosts.length - 3 : 0;
+            const overflow = !isWeekView && dayPosts.length > 4 ? dayPosts.length - 4 : 0;
 
             const col = i % 7;
             const row = Math.floor(i / 7);
@@ -269,7 +269,7 @@ export default function CalendarGrid({
                     {...provided.droppableProps}
                     onClick={() => onDayCellClick(day)}
                     className={`bg-bg-secondary cursor-pointer transition-colors ${borderClasses} ${
-                      isWeekView ? 'min-h-[200px] p-2' : 'min-h-[80px] p-1.5'
+                      isWeekView ? 'min-h-[220px] p-2.5' : 'min-h-[120px] p-2'
                     } ${isToday ? 'ring-1 ring-inset ring-accent-primary' : ''} ${
                       isPickMode ? 'hover:ring-1 hover:ring-accent-primary/60' : ''
                     } ${
@@ -288,13 +288,13 @@ export default function CalendarGrid({
                         </span>
                       </div>
                     ) : (
-                      <span className={`font-mono text-[11px] ${isCurrentMonth ? 'text-ink' : 'text-ink3'}`}>
+                      <span className={`font-mono text-[13px] ${isCurrentMonth ? 'text-ink' : 'text-ink3'}`}>
                         {day.getDate()}
                       </span>
                     )}
 
                     <div className={isWeekView ? 'space-y-1.5' : 'mt-0.5 space-y-0.5'}>
-                      {(isWeekView ? dayPosts : dayPosts.slice(0, 3)).map((p) =>
+                      {(isWeekView ? dayPosts : dayPosts.slice(0, 4)).map((p) =>
                         isWeekView ? (
                           <div
                             key={p.id}
@@ -313,14 +313,14 @@ export default function CalendarGrid({
                           <div
                             key={p.id}
                             onClick={(e) => { e.stopPropagation(); onPostClick(p); }}
-                            className="rounded-[3px] px-1 py-0.5 text-[10px] leading-tight font-medium truncate cursor-pointer hover:opacity-80"
+                            className="rounded-[3px] px-1.5 py-1 text-[11px] leading-tight font-medium truncate cursor-pointer hover:opacity-80"
                             style={{
                               backgroundColor: `${getColor(p.pillar)}25`,
                               color: getColor(p.pillar),
                             }}
                             title={`${p.title} (${getLabel(p.pillar)})`}
                           >
-                            {truncateText(p.title, 15)}
+                            {truncateText(p.title, 18)}
                           </div>
                         )
                       )}
