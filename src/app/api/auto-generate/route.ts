@@ -43,7 +43,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const workspaceId = await getActiveWorkspaceId(user.id);
 
   // Full context (workspace + platform) so trend/reply/scheduled posts get the
-  // same story bank, L4 baseline, and signals as manual drafts — not a thinned,
+  // same story bank, L4 baseline, and signals as manual drafts - not a thinned,
   // user-only lookup.
   const { profile, contextAdditions } = await loadCreatorVoiceContext(client, user.id, {
     memoryQuery: topic ?? context,

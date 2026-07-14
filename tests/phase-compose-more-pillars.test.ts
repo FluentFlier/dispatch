@@ -1,5 +1,5 @@
 /**
- * Phase: Compose — more pillar options
+ * Phase: Compose - more pillar options
  *
  * The Compose pillar picker now surfaces the shared suggestion catalog so users
  * can write from more than their saved profile pillars. These guard the catalog
@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { CURATED_PILLARS, pillarSlug } from '@/lib/pillar-catalog';
 
-describe('Phase: Compose — more pillar options', () => {
+describe('Phase: Compose - more pillar options', () => {
   it('offers a rich curated catalog (well beyond the default 3)', () => {
     expect(CURATED_PILLARS.length).toBeGreaterThanOrEqual(20);
   });

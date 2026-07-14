@@ -1,5 +1,6 @@
 import { getServerClient } from '@/lib/insforge/server';
 import { buildPostIdCandidates } from '@/lib/engagement/unipile-reactions';
+import { resolveUnipileTarget, type OnboardingPlatform } from '@/lib/onboarding/import-posts';
 import { HttpStatusError, retryWithBackoff, throwIfNotOk } from '@/lib/social/reliability';
 
 /**
@@ -89,25 +90,52 @@ function extractComments(json: unknown, fallbackPlatform: string): UnipileFetche
 }
 
 /**
- * Resolves the Unipile account_id for a user+platform from the social_accounts table.
+ * Resolves the Unipile account_id for a user+platform, SELF-HEALING a rotated id.
+ *
+ * WHY: Unipile re-issues account.id on every LinkedIn re-auth, so the id cached in
+ * social_accounts goes stale. Comments/reactions used to return the raw stored id
+ * blindly - a dead account_id made every GET /posts/{id}/comments 404, so every
+ * imported post showed zero comments. Import/metrics/outreach already self-heal via
+ * resolveUnipileTarget (matches on the stable identity in account_id); this brings
+ * comments + reactions to parity. On Unipile being unreachable we fall back to the
+ * stored id rather than blocking the sync entirely.
  */
 export async function getUnipileAccountId(userId: string, platform: string): Promise<string | null> {
   const client = getServerClient();
   const { data } = await client.database
     .from('social_accounts')
-    .select('unipile_account_id')
+    .select('unipile_account_id, account_id')
     .eq('user_id', userId)
     .eq('platform', platform)
-    .not('unipile_account_id', 'is', null)
     .limit(1)
     .maybeSingle();
-  return (data as { unipile_account_id: string } | null)?.unipile_account_id ?? null;
+
+  const row = data as { unipile_account_id: string | null; account_id: string | null } | null;
+  if (!row?.unipile_account_id && !row?.account_id) return null;
+
+  const op: OnboardingPlatform = normalizePlatform(platform) === 'twitter' ? 'twitter' : 'linkedin';
+  const storedId = row.unipile_account_id ?? 'stale';
+  try {
+    const target = await resolveUnipileTarget(storedId, row.account_id, op);
+    if (!target?.unipileAccountId) return row.unipile_account_id ?? null;
+    if (target.refreshed) {
+      // Persist the recovered live id so the next sync skips the round-trip.
+      await client.database
+        .from('social_accounts')
+        .update({ unipile_account_id: target.unipileAccountId })
+        .eq('user_id', userId)
+        .eq('platform', platform);
+    }
+    return target.unipileAccountId;
+  } catch {
+    return row.unipile_account_id ?? null;
+  }
 }
 
 /**
  * Fetches comments for a post via Unipile GET /posts/{social_id}/comments.
  * social_id is stored in publish_jobs.provider_post_id after a successful publish.
- * Tries the same URN/id candidates as reaction sync — numeric LinkedIn activity
+ * Tries the same URN/id candidates as reaction sync - numeric LinkedIn activity
  * ids only work when wrapped as urn:li:activity:… for many Unipile endpoints.
  */
 export async function fetchUnipilePostComments(

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Production readiness gate — run before deploy.
+# Production readiness gate - run before deploy.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -14,7 +14,7 @@ echo "=== Dispatch prod-ready check ==="
 # Disk space (build needs headroom)
 AVAIL=$(df -g . 2>/dev/null | awk 'NR==2 {print $4}' || echo "?")
 if [ "$AVAIL" != "?" ] && [ "$AVAIL" -lt 2 ] 2>/dev/null; then
-  fail "Disk space low (${AVAIL}GB free) — free space before npm run build"
+  fail "Disk space low (${AVAIL}GB free) - free space before npm run build"
 else
   pass "Disk space OK (${AVAIL}GB free)"
 fi
@@ -55,7 +55,7 @@ echo "--- build ---"
 if npm run build >/tmp/dispatch-build.log 2>&1; then
   pass "npm run build"
 else
-  fail "npm run build — see /tmp/dispatch-build.log"
+  fail "npm run build - see /tmp/dispatch-build.log"
   tail -5 /tmp/dispatch-build.log 2>/dev/null || true
 fi
 
@@ -71,10 +71,10 @@ if [ -n "$HEALTH" ] && echo "$HEALTH" | grep -q '"service":"content-os"'; then
   if echo "$HEALTH" | grep -q '"schema":"ok"'; then
     pass "schema check ok"
   else
-    warn "schema check not ok — apply db/APPLY_ORDER.md"
+    warn "schema check not ok - apply db/APPLY_ORDER.md"
   fi
 else
-  warn "no local server at ${BASE_HEALTH} — start with npm run dev to smoke health"
+  warn "no local server at ${BASE_HEALTH} - start with npm run dev to smoke health"
 fi
 
 BASE="${SMOKE_BASE:-http://localhost:3002}"
@@ -86,7 +86,7 @@ if curl -sS -m 5 "${BASE}/api/health" 2>/dev/null | grep -q '"status":"ok"'; the
     fail "signals API smoke"
   fi
 else
-  warn "dev server not on $BASE — skip API smoke (start: npm run dev)"
+  warn "dev server not on $BASE - skip API smoke (start: npm run dev)"
 fi
 
 echo ""
@@ -116,12 +116,12 @@ echo ""
 echo "=== Demo user ==="
 echo "  1. Sign in at /login (Google/GitHub)"
 echo "  2. npx tsx scripts/seed-demo-user.ts --user-id=<your-uuid>"
-echo "  3. Open /signals — 3 sample signals ready to draft"
+echo "  3. Open /signals - 3 sample signals ready to draft"
 echo ""
 
 if [ "$FAIL" -eq 0 ]; then
   echo "READY (with warnings above if any)"
 else
-  echo "NOT READY — fix FAIL items"
+  echo "NOT READY - fix FAIL items"
 fi
 exit $FAIL

@@ -1,5 +1,5 @@
 /**
- * Phase 1 — Publish Queue reliability regression tests.
+ * Phase 1 - Publish Queue reliability regression tests.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -32,7 +32,7 @@ function makeDbMock(overrides: Record<string, unknown> = {}) {
 // ---------------------------------------------------------------------------
 // P1-1: Direct-mode publish jobs update DB to 'failed' before returning
 // ---------------------------------------------------------------------------
-describe('P1-1: processPublishJob — direct mode updates DB before returning', () => {
+describe('P1-1: processPublishJob - direct mode updates DB before returning', () => {
   beforeEach(() => vi.resetModules());
 
   it('writes status=failed to DB when provider is not unipile', async () => {
@@ -76,9 +76,9 @@ describe('P1-1: processPublishJob — direct mode updates DB before returning', 
 });
 
 // ---------------------------------------------------------------------------
-// P1-2: resetStuckProcessingJobs — resets old processing jobs to failed
+// P1-2: resetStuckProcessingJobs - resets old processing jobs to failed
 // ---------------------------------------------------------------------------
-describe('P1-2: resetStuckProcessingJobs — watchdog resets stuck jobs', () => {
+describe('P1-2: resetStuckProcessingJobs - watchdog resets stuck jobs', () => {
   beforeEach(() => vi.resetModules());
 
   it('queries jobs in processing state older than threshold and sets them to failed', async () => {
@@ -128,9 +128,9 @@ describe('P1-2: resetStuckProcessingJobs — watchdog resets stuck jobs', () => 
 });
 
 // ---------------------------------------------------------------------------
-// P1-5: attempts counter — incremented exactly once per job execution
+// P1-5: attempts counter - incremented exactly once per job execution
 // ---------------------------------------------------------------------------
-describe('P1-5: processPublishJob — attempts counter off-by-one fix', () => {
+describe('P1-5: processPublishJob - attempts counter off-by-one fix', () => {
   beforeEach(() => vi.resetModules());
 
   it('sets attempts to job.attempts+1 exactly once when publish fails', async () => {

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { classifyPromptForMemory } from '@/lib/memory/classify-prompt';
 import { z } from 'zod';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { LlmError } from '@/lib/llm';
@@ -88,10 +89,23 @@ export async function POST(request: NextRequest): Promise<Response> {
     signalBlock = formatSignalTopicsBlock(topics);
   }
 
+  // Steer memory retrieval the same way the non-stream /api/generate route does.
+  // Without classification the composer searched memory with the raw prompt prefix
+  // and only the top 3 docs, so a "remember the people I met at <event>" prompt
+  // failed to surface the specific past post and the model invented/dropped real
+  // names. Classify → entity-rich query + limit 10 for a specific event. Skipped
+  // on the cached regen fast-path. Never throws (degrades to the naive query).
+  const memoryPlan =
+    !cached && useVoice
+      ? await classifyPromptForMemory(parsed.data.prompt)
+      : { topics: [] as string[], time_scope: 'any' as const, search_query: '' };
+  const memoryLimit = memoryPlan.time_scope === 'specific' ? 10 : 3;
+
   const voiceContext =
     !cached && useVoice
       ? await loadCreatorVoiceContext(client, user.id, {
-          memoryQuery: parsed.data.topic ?? parsed.data.prompt.slice(0, 200),
+          memoryQuery: memoryPlan.search_query || parsed.data.topic || parsed.data.prompt.slice(0, 200),
+          memoryLimit,
           workspaceId: workspaceId ?? undefined,
           platform: parsed.data.platform,
         })
@@ -113,7 +127,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         try {
           controller.enqueue(encoder.encode(sse(payload)));
         } catch {
-          // Client disconnected — nothing to flush to.
+          // Client disconnected - nothing to flush to.
         }
       };
 
@@ -213,7 +227,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
         // Auto-humanize: the streamed draft is one fast LLM pass, so it still
         // carries AI tells. Run the anti-slop pipeline (clean + audit) as a
-        // "polishing" stage — voice is already applied in the streamed system
+        // "polishing" stage - voice is already applied in the streamed system
         // prompt, so skipVoice avoids a redundant rewrite. This is what makes
         // the default Write flow ship human-sounding drafts without a manual
         // Polish tap.
@@ -231,7 +245,7 @@ export async function POST(request: NextRequest): Promise<Response> {
             finalText = polished.text;
             humanized = true;
           } catch (humanizeErr) {
-            // Never fail the whole generation on a polish hiccup — keep the draft.
+            // Never fail the whole generation on a polish hiccup - keep the draft.
             console.error('[generate/stream] auto-humanize failed (non-fatal):', humanizeErr);
           }
         }

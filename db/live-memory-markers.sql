@@ -6,7 +6,7 @@
 -- and unchanged content is never re-embedded on every pass.
 --
 -- Live writes (publish / import / edit / event answers / story capture) key on
--- customId and upsert, so they do not need this column — it exists only to bound
+-- customId and upsert, so they do not need this column - it exists only to bound
 -- the one-time historical backfill.
 --
 -- Safe to run multiple times.

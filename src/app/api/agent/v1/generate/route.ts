@@ -27,7 +27,7 @@ const RequestSchema = z.object({
 });
 
 /**
- * POST /api/agent/v1/generate — AI content generation in the creator's voice.
+ * POST /api/agent/v1/generate - AI content generation in the creator's voice.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const auth = await resolveAgentAuth(request);

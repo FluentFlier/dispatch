@@ -222,7 +222,7 @@ afterEach(() => {
 // DRAFT PATH
 // ---------------------------------------------------------------------------
 
-describe('Phase: GTM Outreach — draft path', () => {
+describe('Phase: GTM Outreach - draft path', () => {
   describe('draftOutreachForEvent: persistence + return shape', () => {
     it('persists the LLM draft text to signal_outreach.draft_text', async () => {
       // No existing signal_outreach row -> insert path in saveOutreachDraft.
@@ -284,7 +284,7 @@ describe('Phase: GTM Outreach — draft path', () => {
      * generateWithVoicePipeline.
      *
      * ACTUAL BEHAVIOR (BUG): draft.ts calls loadCreatorVoiceContext WITHOUT includeGtm,
-     * AND with lightweight:true — which skips brain retrieval entirely. So the GTM
+     * AND with lightweight:true - which skips brain retrieval entirely. So the GTM
      * playbook never reaches the prompt. These assertions encode the CORRECT contract
      * and therefore FAIL against current code, documenting the defect.
      *
@@ -328,10 +328,10 @@ describe('Phase: GTM Outreach — draft path', () => {
 });
 
 // ---------------------------------------------------------------------------
-// SEND PATH — safety gating
+// SEND PATH - safety gating
 // ---------------------------------------------------------------------------
 
-describe('Phase: GTM Outreach — send safety gates', () => {
+describe('Phase: GTM Outreach - send safety gates', () => {
   it('BLOCKS when outreach_enabled=false and records an outreach_blocked audit row', async () => {
     const { client, calls } = makeClient({
       selectSingle: {
@@ -419,10 +419,10 @@ describe('Phase: GTM Outreach — send safety gates', () => {
 });
 
 // ---------------------------------------------------------------------------
-// SEND PATH — allowed sends (transport dispatch)
+// SEND PATH - allowed sends (transport dispatch)
 // ---------------------------------------------------------------------------
 
-describe('Phase: GTM Outreach — allowed send dispatch', () => {
+describe('Phase: GTM Outreach - allowed send dispatch', () => {
   /** Settings that let a send through the guard cleanly. */
   function allowSettings(): Record<string, unknown> {
     return makeSettings({

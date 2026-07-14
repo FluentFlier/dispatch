@@ -10,7 +10,7 @@ const WARM = {
   name: 'Maya Chen',
   role: 'Head of Growth · Relay',
   reason: 'Commented on your posts 3× this month',
-  note: 'Maya — loved your thread on founder-led sales. Would be great to swap notes on GTM.',
+  note: 'Maya - loved your thread on founder-led sales. Would be great to swap notes on GTM.',
 };
 
 const SIGNAL = {
@@ -28,7 +28,7 @@ export default function Leads() {
         <LandingSectionHeader
           tag={theme.tag}
           title="Reach people worth talking to."
-          subtitle="Warm contacts from your network and signal leads that match your ICP — with drafts ready to send."
+          subtitle="Warm contacts from your network and signal leads that match your ICP - with drafts ready to send."
           accent={theme.accent}
         />
 

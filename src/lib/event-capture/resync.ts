@@ -50,11 +50,11 @@ async function runBatched<T, R>(
  * overwrite, id-stable), soft-cancels window events deleted in Google, then runs
  * Stage 2 enrichment inline for every newly-touched capture. The inline enrich
  * step exists because a manual reload is a synchronous user action expecting to
- * see results immediately — the production event-enrich cron would otherwise be
+ * see results immediately - the production event-enrich cron would otherwise be
  * the only thing that advances 'detected' -> 'questions_ready', and it doesn't
  * run on localhost, leaving reloaded events invisible in the inbox (which only
  * shows questions_ready/drafting/drafted).
- * Never throws — provider failures are collected into `errors` so the endpoint
+ * Never throws - provider failures are collected into `errors` so the endpoint
  * can surface an actionable reason to the user.
  */
 export async function resyncCalendar(
@@ -66,20 +66,20 @@ export async function resyncCalendar(
   const errors: string[] = [];
   const userId = integration.connected_by_user_id;
   if (!userId) {
-    return { created: 0, updated: 0, cancelled: 0, enriched: 0, errors: ['Calendar has no connected user — reconnect.'] };
+    return { created: 0, updated: 0, cancelled: 0, enriched: 0, errors: ['Calendar has no connected user - reconnect.'] };
   }
 
   const calendarId = integration.config.calendar_id ?? 'primary';
   const fetchResult = await findCalendarEvents(integration.composio_user_id, window.timeMin, window.timeMax, calendarId);
   if (!fetchResult.ok) {
-    // Fetch failed — do NOT run the deletion pass (an empty set would soft-cancel the
+    // Fetch failed - do NOT run the deletion pass (an empty set would soft-cancel the
     // user's whole window). Surface the reason so the endpoint can tell the user.
     return {
       created: 0,
       updated: 0,
       cancelled: 0,
       enriched: 0,
-      errors: [fetchResult.error ?? 'Calendar fetch failed — reconnect and try again.'],
+      errors: [fetchResult.error ?? 'Calendar fetch failed - reconnect and try again.'],
     };
   }
   const events = fetchResult.events;
@@ -108,7 +108,7 @@ export async function resyncCalendar(
  * Runs enrichCapture inline for each just-ingested capture, then marks its
  * enrich_event job 'done' so the cron doesn't redo the work (and overwrite
  * questions the user may already be answering) when it eventually runs.
- * Enrichment failures are swallowed per-capture — the capture stays 'detected'
+ * Enrichment failures are swallowed per-capture - the capture stays 'detected'
  * and the cron will pick it up later; a reload should never fail on this.
  *
  * Passes ignoreRecency so a manual reload enriches past events too: the user
@@ -126,7 +126,7 @@ async function enrichNow(
   const outcomes = await runBatched(captureIds, ENRICH_CONCURRENCY, (id) => enrichCapture(client, id, now, { ignoreRecency: true }));
   // outcomes[i] aligns with captureIds[i] (runBatched preserves order). Only the
   // captures that actually reached 'questions_ready' should have their job marked
-  // done — a failed/blocked capture must stay pending so the cron retries it,
+  // done - a failed/blocked capture must stay pending so the cron retries it,
   // otherwise it reverts to 'detected' and vanishes from the inbox forever.
   const succeededIds = new Set(
     captureIds.filter(

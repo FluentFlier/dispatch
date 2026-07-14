@@ -15,7 +15,7 @@ import { parseLlmJson, extractJsonObject } from '@/lib/llm-json';
 // parseLlmJson / extractJsonObject
 // ---------------------------------------------------------------------------
 
-describe('Phase: Voice Import — parseLlmJson', () => {
+describe('Phase: Voice Import - parseLlmJson', () => {
   it('parses a bare JSON object', () => {
     expect(parseLlmJson('{"a":1}')).toEqual({ a: 1 });
   });
@@ -32,8 +32,8 @@ describe('Phase: Voice Import — parseLlmJson', () => {
     expect(parseLlmJson('{"note":"use {curly} braces"}')).toEqual({ note: 'use {curly} braces' });
   });
 
-  it('returns null (never throws) on malformed JSON — the analyze failure mode', () => {
-    // Missing comma between array elements — the exact defect from production.
+  it('returns null (never throws) on malformed JSON - the analyze failure mode', () => {
+    // Missing comma between array elements - the exact defect from production.
     expect(parseLlmJson('{"rules":["a" "b"]}')).toBeNull();
   });
 
@@ -47,7 +47,7 @@ describe('Phase: Voice Import — parseLlmJson', () => {
 });
 
 // ---------------------------------------------------------------------------
-// persistImportedPosts — pillar bug
+// persistImportedPosts - pillar bug
 // ---------------------------------------------------------------------------
 
 vi.mock('@/lib/insforge/server', () => ({
@@ -77,7 +77,7 @@ function makePersistClient(postsInsertCalls: unknown[][]) {
   return { database: { from } };
 }
 
-describe('Phase: Voice Import — persistImportedPosts', () => {
+describe('Phase: Voice Import - persistImportedPosts', () => {
   it('inserts imported posts with pillar seeded so the row is not rejected', async () => {
     const postsInsertCalls: unknown[][] = [];
     const { persistImportedPosts } = await import('@/lib/voice-lab/persist-imported-posts');
@@ -102,10 +102,16 @@ describe('Phase: Voice Import — persistImportedPosts', () => {
 });
 
 // ---------------------------------------------------------------------------
-// /api/voice-lab/analyze — malformed-JSON resilience
+// /api/voice-lab/analyze - malformed-JSON resilience
 // ---------------------------------------------------------------------------
 
-vi.mock('@/lib/llm', () => ({ chatCompletion: vi.fn() }));
+// isLlmConfigured() false → generatePostTitle (import path) uses the deterministic
+// slice fallback instead of an LLM call; describeImage covered for image-carrying items.
+vi.mock('@/lib/llm', () => ({
+  chatCompletion: vi.fn(),
+  isLlmConfigured: vi.fn(() => false),
+  describeImage: vi.fn(),
+}));
 vi.mock('@/lib/ai-guard', () => ({ guardAiRequest: vi.fn().mockResolvedValue({ ok: true }) }));
 
 import { getAuthenticatedUser } from '@/lib/insforge/server';
@@ -123,7 +129,7 @@ function analyzeRequest() {
   });
 }
 
-describe('Phase: Voice Import — analyze route', () => {
+describe('Phase: Voice Import - analyze route', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue({ id: 'user_1', email: 'a@b.co' });

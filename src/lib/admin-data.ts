@@ -1,5 +1,6 @@
 import { getServiceClient } from '@/lib/insforge/server';
 import { getSocialProviderMode } from '@/lib/env';
+import { normalizeCode, type TrialCode } from '@/lib/trial-codes';
 
 // --- Types ---
 
@@ -424,5 +425,102 @@ export async function adminSetOnboarding(userId: string, complete: boolean): Pro
     .update({ onboarding_complete: complete, updated_at: new Date().toISOString() })
     .eq('user_id', userId);
 
+  return !error;
+}
+
+// --- Trial codes ---
+
+interface TrialCodeDbRow {
+  code: string;
+  plan: string;
+  trial_days: number;
+  active: boolean;
+  max_redemptions: number | null;
+  redemption_count: number;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+function mapTrialCode(r: TrialCodeDbRow): TrialCode {
+  return {
+    code: r.code,
+    plan: r.plan,
+    trialDays: r.trial_days,
+    active: r.active,
+    maxRedemptions: r.max_redemptions,
+    redemptionCount: r.redemption_count,
+    note: r.note,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+/** Lists all trial access codes, newest first. */
+export async function getTrialCodes(): Promise<TrialCode[]> {
+  const client = getServiceClient();
+  const { data } = await client.database
+    .from('trial_codes')
+    .select('code, plan, trial_days, active, max_redemptions, redemption_count, note, created_at, updated_at')
+    .order('created_at', { ascending: false })
+    .limit(500);
+
+  return (data ?? []).map((r) => mapTrialCode(r as TrialCodeDbRow));
+}
+
+export interface CreateTrialCodeInput {
+  code: string;
+  plan: string;
+  trialDays: number;
+  maxRedemptions: number | null;
+  note: string | null;
+}
+
+/** Creates a trial code. Returns an error string on failure (e.g. duplicate). */
+export async function adminCreateTrialCode(
+  input: CreateTrialCodeInput,
+): Promise<{ ok: true; code: string } | { ok: false; error: string }> {
+  const code = normalizeCode(input.code);
+  if (!code) return { ok: false, error: 'Code is required.' };
+
+  const client = getServiceClient();
+  const { error } = await client.database.from('trial_codes').insert([
+    {
+      code,
+      plan: input.plan,
+      trial_days: input.trialDays,
+      active: true,
+      max_redemptions: input.maxRedemptions,
+      note: input.note,
+    },
+  ]);
+
+  if (error) {
+    const message = String(error.message ?? '');
+    if (/duplicate|unique/i.test(message)) {
+      return { ok: false, error: 'A code with that name already exists.' };
+    }
+    return { ok: false, error: 'Could not create code.' };
+  }
+  return { ok: true, code };
+}
+
+/** Enables or disables a trial code without deleting its redemption history. */
+export async function adminSetTrialCodeActive(code: string, active: boolean): Promise<boolean> {
+  const client = getServiceClient();
+  const { error } = await client.database
+    .from('trial_codes')
+    .update({ active, updated_at: new Date().toISOString() })
+    .eq('code', normalizeCode(code));
+  return !error;
+}
+
+/** Permanently removes a trial code (redemption rows cascade). */
+export async function adminDeleteTrialCode(code: string): Promise<boolean> {
+  const client = getServiceClient();
+  const { error } = await client.database
+    .from('trial_codes')
+    .delete()
+    .eq('code', normalizeCode(code));
   return !error;
 }

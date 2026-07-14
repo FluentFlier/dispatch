@@ -61,7 +61,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   let profileError: unknown = null;
 
   if (existingProfile) {
-    // Row exists — only touch the voice fields so we never clobber display_name.
+    // Row exists - only touch the voice fields so we never clobber display_name.
     const { error } = await client.database
       .from('creator_profile')
       .update({
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .eq('user_id', user.id);
     profileError = error;
   } else {
-    // No row yet (import-before-onboarding) — insert with a seeded display_name.
+    // No row yet (import-before-onboarding) - insert with a seeded display_name.
     // Attach the active workspace_id when available so later workspace-scoped
     // reads (voice-context, brain sync) can find the row.
     const { data: membership } = await client.database
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .upsert({
         user_id: user.id,
         // voice-context reads these keys with a workspace_id filter when a
-        // workspace is active — write the same workspace_id onboarding/ingest
+        // workspace is active - write the same workspace_id onboarding/ingest
         // uses so a manually-completed Voice Lab profile isn't invisible to
         // generation (would leave the "voice profile incomplete" banner lit).
         workspace_id: workspaceId ?? null,

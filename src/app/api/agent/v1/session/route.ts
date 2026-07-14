@@ -8,7 +8,7 @@ import {
 } from '@/lib/agent-auth/context';
 
 /**
- * GET /api/agent/v1/session — bootstrap context for headless agents.
+ * GET /api/agent/v1/session - bootstrap context for headless agents.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const auth = await resolveAgentAuth(request);

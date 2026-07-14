@@ -65,7 +65,7 @@ export async function planLeadNurture(
       targetPosts,
     );
     // Draft the connect note UP FRONT so a manual warm-up (comment, then connect)
-    // is never blocked waiting on the comment to auto-send — dry-run / manual mode
+    // is never blocked waiting on the comment to auto-send - dry-run / manual mode
     // never fires that send, which previously stranded the lead at `engaging` with
     // no draft (approve then 422s). Drafting is not sending: assertOutreachAllowed
     // still gates the actual connect send.
@@ -98,7 +98,7 @@ export async function planLeadNurture(
         ? { ...s, status: 'skipped' as const }
         : s,
     ),
-    hookContext: `${playbook.hookContext ?? ''} No recent post found — connect directly.`,
+    hookContext: `${playbook.hookContext ?? ''} No recent post found - connect directly.`,
   };
 
   const due = opts?.connectDueOverride ?? connectDueAt(skippedCommentPlaybook);

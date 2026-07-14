@@ -1,9 +1,9 @@
 /**
- * Navigation IA — ordered by the creator daily loop (gstack review Jul 2026):
+ * Navigation IA - ordered by the creator daily loop (gstack review Jul 2026):
  * Home → Write → Posts → Schedule → Inbox (engage) → Leads (convert).
  *
  * Hidden routes stay reachable by URL but are omitted from chrome when `hidden: true`
- * (e.g. Video studio — API stubs until pipeline ships).
+ * (e.g. Video studio - API stubs until pipeline ships).
  */
 
 import {

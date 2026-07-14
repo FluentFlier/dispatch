@@ -1,6 +1,6 @@
 -- ============================================================
 -- GLOBAL LLM SPEND BACKSTOP (deployment-wide daily provider-call cap)
--- Backs src/lib/llm-budget.ts. Additive + idempotent — safe to re-run.
+-- Backs src/lib/llm-budget.ts. Additive + idempotent - safe to re-run.
 --
 -- Bounds TOTAL provider chat-completion calls per UTC day across all tenants,
 -- independent of per-account (usage_counters) and per-workspace (daily_ai_usage)

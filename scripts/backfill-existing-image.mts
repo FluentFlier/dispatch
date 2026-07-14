@@ -52,7 +52,7 @@ async function main(): Promise<void> {
       const providerPostId = (job as { provider_post_id: string | null } | null)?.provider_post_id ?? null;
       await addMemory({
         content:
-          `[Your ${r.platform ?? 'social'} post from ${posted || 'unknown date'}] — this ALREADY happened; reference as past.\n\n` +
+          `[Your ${r.platform ?? 'social'} post from ${posted || 'unknown date'}] - this ALREADY happened; reference as past.\n\n` +
           `${body}\n\nPhoto: ${description}`,
         containerTags: [memoryScopeTag(r.user_id, r.workspace_id), 'imported_post'],
         customId: buildPostMemoryCustomId(r.platform, providerPostId, r.id),

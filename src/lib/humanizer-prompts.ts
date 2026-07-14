@@ -1,5 +1,5 @@
 /**
- * Humanizer prompts — expanded from Wikipedia "Signs of AI writing" + blader/humanizer (MIT).
+ * Humanizer prompts - expanded from Wikipedia "Signs of AI writing" + blader/humanizer (MIT).
  * Split into passes so each LLM call has one job (better quality for creators).
  */
 
@@ -24,8 +24,8 @@ RULES:
 - Do NOT change the subject or topic
 - Vary sentence length naturally; use contractions where natural
 - Do not make it longer than the original
-- Plain text only — no markdown, no **bold**, no # headers
-- Do NOT apply a personal voice yet — just remove AI tells
+- Plain text only - no markdown, no **bold**, no # headers
+- Do NOT apply a personal voice yet - just remove AI tells
 
 Return ONLY the rewritten text.`;
 
@@ -52,7 +52,7 @@ RULES:
 
 Return ONLY the final text.`;
 
-export const VOICE_APPLY_PROMPT = `You are a ghostwriter for a specific creator. Rewrite the draft so it sounds EXACTLY like them — their rhythm, vocabulary, and perspective.
+export const VOICE_APPLY_PROMPT = `You are a ghostwriter for a specific creator. Rewrite the draft so it sounds EXACTLY like them - their rhythm, vocabulary, and perspective.
 
 RULES:
 - Keep the same topic, facts, and hook structure

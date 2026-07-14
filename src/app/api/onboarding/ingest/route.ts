@@ -25,7 +25,7 @@ import { storePersona } from '@/lib/supermemory';
 import { captureVoiceDriftBaseline } from '@/lib/voice-drift';
 import { resolveNicheForProfile } from '@/lib/hooks-intelligence/niche-resolver';
 
-/** Vercel: ingest runs Unipile + Gmail + 2 LLM calls — allow up to 5 min. */
+/** Vercel: ingest runs Unipile + Gmail + 2 LLM calls - allow up to 5 min. */
 export const maxDuration = 300;
 
 const MIN_SAMPLES = 1;
@@ -184,7 +184,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
 
     // Best-effort: profile/web enrichment is a heavy scrape + LLM step. It must
     // never throw the whole ingest into a 500 (which bounces the user back to the
-    // connect step and loops) — degrade to the name/posts we already have.
+    // connect step and loops) - degrade to the name/posts we already have.
     try {
       creatorIntel = await gatherCreatorIntel(
         accountRows.map((account) => ({
@@ -202,7 +202,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
         });
       }
     } catch (err) {
-      console.warn('[onboarding/ingest] creator intel failed — continuing:', err);
+      console.warn('[onboarding/ingest] creator intel failed - continuing:', err);
     }
   }
 
@@ -222,11 +222,11 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
     let baseline: CreatorBaseline;
 
     if (degraded) {
-      // A connected account returned no importable posts/emails — common when X
+      // A connected account returned no importable posts/emails - common when X
       // exposes no public timeline via the provider. Never trap the user in a
       // loop: build a safe default voice from their name + profile intel so
       // onboarding completes. They can enrich it later in Voice Lab.
-      console.warn('[onboarding/ingest] no importable samples — completing with fallback voice', {
+      console.warn('[onboarding/ingest] no importable samples - completing with fallback voice', {
         platforms: connectedPlatforms,
       });
       ({ persona, baseline } = buildFallbackVoice(displayName, creatorIntel.bioFacts, connectedPlatforms));
@@ -261,7 +261,7 @@ export async function POST(_request: NextRequest): Promise<NextResponse> {
     );
 
     // One connected account must always get the user into the app. If the brain
-    // did not fully sync we log it but still complete — the essentials (voice,
+    // did not fully sync we log it but still complete - the essentials (voice,
     // profile, specs) are persisted and can be re-synced from the dashboard.
     if (!brainCheck.ok) {
       console.warn('[onboarding/ingest] brain incomplete, completing anyway:', brainCheck.missing);

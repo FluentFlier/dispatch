@@ -3,7 +3,7 @@
 import { useReducedMotion } from 'motion/react';
 import { LOOP_STEPS } from './editorial/data';
 
-/** Five-node loop diagram — visual thread for the product story. */
+/** Five-node loop diagram - visual thread for the product story. */
 export default function LandingLoopDiagram({ className = '' }: { className?: string }) {
   const reduce = useReducedMotion();
 

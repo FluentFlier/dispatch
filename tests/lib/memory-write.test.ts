@@ -124,7 +124,7 @@ describe('deleteFromMemory', () => {
     listMemoriesMock.mockResolvedValue({ memories: [{ id: 'x', customId: 'nope' }] });
     await deleteFromMemory('u1', null, 'post_missing');
     expect(deleteMemoryMock).not.toHaveBeenCalled();
-    // A short (<100) page means the last one — must not keep paging to the cap.
+    // A short (<100) page means the last one - must not keep paging to the cap.
     expect(listMemoriesMock).toHaveBeenCalledTimes(1);
   });
 

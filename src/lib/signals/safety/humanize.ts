@@ -31,7 +31,7 @@ export const INTER_CALL_DELAY_MS = {
 /**
  * When true (test runner, or explicitly opted out), real timer sleeps are
  * skipped so suites don't hang on human-pacing delays. Pacing logic (schedule
- * math, cooldown computation) is still exercised — only wall-clock waits are no-ops.
+ * math, cooldown computation) is still exercised - only wall-clock waits are no-ops.
  */
 const HUMANIZE_DELAYS_DISABLED =
   process.env.NODE_ENV === 'test' ||

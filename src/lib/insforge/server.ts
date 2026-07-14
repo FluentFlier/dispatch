@@ -56,7 +56,7 @@ export function getServerClient(): ReturnType<typeof createClient> {
  * Decode a JWT payload without signature verification.
  * Safe for server-side auth because the token was obtained via InsForge's
  * official OAuth flow and stored in an httpOnly cookie we control.
- * We only need user identity and expiry — signature validation happens at
+ * We only need user identity and expiry - signature validation happens at
  * InsForge's auth endpoint during login (validateAccessToken in auth.ts).
  */
 function decodeJwtPayload(token: string): {
@@ -132,7 +132,7 @@ export async function getSessionUser(): Promise<{ id: string; email: string; nam
 }
 
 /**
- * Returns the effective user for app routes — target user when admin impersonation is active.
+ * Returns the effective user for app routes - target user when admin impersonation is active.
  */
 export async function getAuthenticatedUser(): Promise<EffectiveUser | null> {
   const sessionUser = await getSessionUser();

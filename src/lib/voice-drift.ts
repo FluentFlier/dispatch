@@ -12,7 +12,7 @@ export interface VoiceDriftReport {
 
 /**
  * Compares current workspace voice EMA against onboarding baseline.
- * Alerts when persona fidelity drops meaningfully — triggers re-import suggestion.
+ * Alerts when persona fidelity drops meaningfully - triggers re-import suggestion.
  */
 export async function detectVoiceDrift(
   client: InsforgeClient,

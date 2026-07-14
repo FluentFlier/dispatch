@@ -13,7 +13,7 @@ import { normalizeMeetingLink } from '@/lib/signals/leads/meeting-link';
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 /**
- * Lead settings: persistent config that isn't touched every session — digest
+ * Lead settings: persistent config that isn't touched every session - digest
  * timing, timezone, delivery channels. ICP filters, source toggles, and the
  * watchlist live in the /leads Advanced drawer (no duplication).
  */
@@ -153,7 +153,7 @@ export default function LeadSettingsPage() {
               const value = e.target.value;
               patch({ meeting_link: value || null });
               const link = normalizeMeetingLink(value);
-              setMeetingPreview(link ? `${link.label} · ${link.url}` : value.trim() ? 'Invalid URL — use https://…' : null);
+              setMeetingPreview(link ? `${link.label} · ${link.url}` : value.trim() ? 'Invalid URL - use https://…' : null);
             }}
             placeholder="https://calendly.com/you/15min"
             className="mt-1 block w-full max-w-md rounded-md border border-border bg-bg-primary px-3 py-2 text-sm"

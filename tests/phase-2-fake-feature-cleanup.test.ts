@@ -1,13 +1,13 @@
 /**
- * Phase 2 — Fake feature cleanup regression tests.
+ * Phase 2 - Fake feature cleanup regression tests.
  * Verifies stubs are honest and don't return misleading success signals.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// P2-1: supervisor-agent — returns honest status, doesn't claim RL ran
+// P2-1: supervisor-agent - returns honest status, doesn't claim RL ran
 // ---------------------------------------------------------------------------
-describe('P2-1: supervisor agent — honest stub', () => {
+describe('P2-1: supervisor agent - honest stub', () => {
   beforeEach(() => vi.resetModules());
 
   it('returns hook-context-only status (not cycle-complete)', async () => {
@@ -55,9 +55,9 @@ describe('P2-1: supervisor agent — honest stub', () => {
 });
 
 // ---------------------------------------------------------------------------
-// P2-2: video auto-edit — non-caption requests return 501, not fake processing
+// P2-2: video auto-edit - non-caption requests return 501, not fake processing
 // ---------------------------------------------------------------------------
-describe('P2-2: video auto-edit route — non-caption returns 501', () => {
+describe('P2-2: video auto-edit route - non-caption returns 501', () => {
   beforeEach(() => vi.resetModules());
 
   it('returns 501 for silence removal request (non-caption option)', async () => {
@@ -128,9 +128,9 @@ describe('P2-2: video auto-edit route — non-caption returns 501', () => {
 });
 
 // ---------------------------------------------------------------------------
-// P2-3: usage-tracker JSDoc — no longer claims to enforce limits
+// P2-3: usage-tracker JSDoc - no longer claims to enforce limits
 // ---------------------------------------------------------------------------
-describe('P2-3: usage-tracker — always returns allowed:true (logging only)', () => {
+describe('P2-3: usage-tracker - always returns allowed:true (logging only)', () => {
   it('returns allowed:true even when increment fails', async () => {
     vi.resetModules();
     vi.doMock('@/lib/usage', () => ({

@@ -12,13 +12,13 @@ import {
 
 /**
  * Sync access + refresh tokens into httpOnly cookies via /api/auth.
- * Requires a refresh token — sessions without one expire when the JWT does.
+ * Requires a refresh token - sessions without one expire when the JWT does.
  */
 async function syncTokenToCookie(): Promise<boolean> {
   for (let attempt = 0; attempt < 3; attempt++) {
     const client = getInsforgeClient();
 
-    // Path 1: read tokens directly from SDK after OAuth — most reliable for refresh token.
+    // Path 1: read tokens directly from SDK after OAuth - most reliable for refresh token.
     const fromSdk = getClientTokens(client);
     if (fromSdk.accessToken && fromSdk.refreshToken) {
       try {
@@ -37,7 +37,7 @@ async function syncTokenToCookie(): Promise<boolean> {
       }
     }
 
-    // Path 2: refreshSession() — may return rotated tokens when SDK is ready.
+    // Path 2: refreshSession() - may return rotated tokens when SDK is ready.
     try {
       const { data, error } = await client.auth.refreshSession();
       const refreshToken = (data as { refreshToken?: string } | undefined)?.refreshToken;
@@ -110,7 +110,7 @@ async function completeOAuthSignIn(code: string, codeVerifier: string): Promise<
 
   // Verify the session even when the exchange call above failed: with
   // duplicated effects (React StrictMode) or a double navigation, two
-  // exchanges race on the same single-use code — the loser gets a 4xx while
+  // exchanges race on the same single-use code - the loser gets a 4xx while
   // the winner has already set the auth cookies.
   const verify = await fetch("/api/auth/session", {
     cache: "no-store",
@@ -145,7 +145,7 @@ export default function LoginPage() {
     const params = new URLSearchParams(window.location.search);
     const hasOAuthCode = params.has("insforge_code");
 
-    // Preview/deploy origins can't be allow-listed (random hostnames) — bounce to
+    // Preview/deploy origins can't be allow-listed (random hostnames) - bounce to
     // the canonical login so OAuth + PKCE run on an allow-listed same-origin domain.
     // Skip when returning with a code (the callback already landed on this origin).
     if (!hasOAuthCode && !isAuthCapableOrigin(window.location.origin)) {
@@ -268,10 +268,10 @@ export default function LoginPage() {
             Content OS
           </p>
           <h1 className="text-3xl font-semibold text-text-primary leading-tight tracking-tight">
-            Sign in. Trial starts automatically.
+            Sign in and enter your access code.
           </h1>
           <p className="text-[15px] text-text-secondary mt-4 max-w-sm leading-relaxed">
-            7 days of Starter access — no card. Quick profile setup, then you&apos;re in.
+            Redeem your code for a free trial - no card. Quick profile setup, then you&apos;re in.
           </p>
         </div>
         <blockquote className="border-l-2 border-accent-primary/40 pl-4">
@@ -299,7 +299,7 @@ export default function LoginPage() {
                   Sign in
                 </h2>
                 <p className="text-[15px] text-text-secondary mt-2">
-                  Google or GitHub. Your 7-day trial begins right after sign-in.
+                  Google or GitHub. You&apos;ll enter your access code next.
                 </p>
               </div>
 

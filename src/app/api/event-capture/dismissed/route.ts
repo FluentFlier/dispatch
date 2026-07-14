@@ -5,7 +5,7 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
 /**
  * GET /api/event-capture/dismissed
  * Returns all soft-dismissed captures within the last 7 days.
- * Dismissed events are recoverable — they appear in a separate "Dismissed" tab.
+ * Dismissed events are recoverable - they appear in a separate "Dismissed" tab.
  * After 7 days the row remains in the DB but is no longer surfaced (no hard delete).
  */
 export async function GET(): Promise<NextResponse> {

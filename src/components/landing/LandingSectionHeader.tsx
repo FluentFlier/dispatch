@@ -14,7 +14,7 @@ interface Props {
 
 const EASE = [0.16, 1, 0.3, 1] as const;
 
-/** Themed section opener — pill tag + headline + optional lede. */
+/** Themed section opener - pill tag + headline + optional lede. */
 export default function LandingSectionHeader({
   tag,
   title,

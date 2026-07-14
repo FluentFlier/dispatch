@@ -1,5 +1,5 @@
 /**
- * Phase: Layer 5 — Engagement Loop (Reply → Content)
+ * Phase: Layer 5 - Engagement Loop (Reply → Content)
  *
  * Tests for:
  * - Comment signal detection pre-filter (length + generic phrases)
@@ -23,7 +23,7 @@ const POST_TITLE = 'How I got my first 10 customers';
 const AUTHOR_HANDLE = 'sarah_chen';
 
 // ---------------------------------------------------------------------------
-// Helpers — build mock InsforgeClient rows
+// Helpers - build mock InsforgeClient rows
 // ---------------------------------------------------------------------------
 
 function makeComment(overrides: Partial<{
@@ -177,7 +177,7 @@ describe('Layer 5: Engagement Loop', () => {
         source: 'from_comment',
         source_comment_id: commentId,
         status: 'suggested',
-        notes: `From reply to "${POST_TITLE}" — @${AUTHOR_HANDLE}`,
+        notes: `From reply to "${POST_TITLE}" - @${AUTHOR_HANDLE}`,
         converted: false,
       };
     }
@@ -287,7 +287,7 @@ describe('Layer 5: Engagement Loop', () => {
     });
 
     it('returns 404 for idea in different workspace', () => {
-      // Simulate workspace scoping — the PATCH query adds .eq('workspace_id', workspaceId).
+      // Simulate workspace scoping - the PATCH query adds .eq('workspace_id', workspaceId).
       // If no row is found (different workspace), select().single() returns null data.
       const differentWorkspaceResult = { data: null, error: { message: 'No rows found' } };
       expect(differentWorkspaceResult.data).toBeNull();
@@ -295,13 +295,13 @@ describe('Layer 5: Engagement Loop', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // describe: engagement/sync.ts — runTrainingStep removed
+  // describe: engagement/sync.ts - runTrainingStep removed
   // ---------------------------------------------------------------------------
 
   describe('engagement/sync.ts', () => {
     it('does NOT import or call runTrainingStep', async () => {
       // Read the sync module source and assert runTrainingStep is gone.
-      // This is a static analysis test — no runtime import needed.
+      // This is a static analysis test - no runtime import needed.
       const fs = await import('fs');
       const path = await import('path');
 

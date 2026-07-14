@@ -53,7 +53,7 @@ const PLATFORM_LIMITS: Record<string, number> = {
 /**
  * POST /api/event-capture/[id]/process
  * Internal route (protected by x-internal-secret header = CRON_SECRET).
- * Triggered by fire-and-forget from /answers or /auto-draft — never called directly by users.
+ * Triggered by fire-and-forget from /answers or /auto-draft - never called directly by users.
  *
  * Orchestrates background draft generation:
  *   1. Loads which platforms the user has connected via Unipile.
@@ -67,7 +67,7 @@ export async function POST(
   request: NextRequest,
   { params }: RouteParams,
 ): Promise<NextResponse> {
-  // Internal route auth — must match CRON_SECRET.
+  // Internal route auth - must match CRON_SECRET.
   const internalSecret = request.headers.get('x-internal-secret');
   const cronSecret = process.env.CRON_SECRET;
   if (!cronSecret || internalSecret !== cronSecret) {
@@ -106,7 +106,7 @@ export async function POST(
   const capture = captureData as EventCaptureForProcess;
 
   // --- Load connected social platforms via Unipile ---
-  // Generate drafts ONLY for platforms the user has connected — never create X drafts
+  // Generate drafts ONLY for platforms the user has connected - never create X drafts
   // if the user hasn't connected X (spec constraint #7).
   const { data: socialAccounts } = await client.database
     .from('social_accounts')
@@ -120,7 +120,7 @@ export async function POST(
     .map((a) => a.platform.toLowerCase())
     .filter((p) => ['linkedin', 'twitter', 'x'].includes(p));
 
-  // Fall back to LinkedIn only if no platforms connected — better 1 draft than 0.
+  // Fall back to LinkedIn only if no platforms connected - better 1 draft than 0.
   const platforms = connectedPlatforms.length > 0 ? connectedPlatforms : ['linkedin'];
 
   // --- Load event research ---
@@ -148,7 +148,7 @@ export async function POST(
 
   // When structured extraction failed (no speakers/topics/announcements), the
   // raw_text is just noisy SERP filler and the summary silently degraded to the
-  // title. Label it as unverified so the model does not present it as fact —
+  // title. Label it as unverified so the model does not present it as fact -
   // instead of thin research looking identical to a rich, successful enrichment.
   const researchIsThin =
     !!research &&
@@ -240,7 +240,7 @@ Rules for ${platformLabel}:
 Return ONLY the post text.`;
 
       // Context is loaded once (no platform), so append this platform's L4 quality
-      // baseline per draft (break 25) — cheap single-row fetch, not a full reload.
+      // baseline per draft (break 25) - cheap single-row fetch, not a full reload.
       const l4Block = await fetchL4BaselineBlock(client, capture.workspace_id, platformEnum);
       const draftContext = l4Block ? `${contextAdditions}${l4Block}` : contextAdditions;
 
@@ -273,7 +273,7 @@ Return ONLY the post text.`;
       user_id: capture.user_id,
       event_capture_id: params.id,
       platform,
-      // posts.pillar is NOT NULL — use the creator's first content pillar, else
+      // posts.pillar is NOT NULL - use the creator's first content pillar, else
       // 'general'. Without this the insert 23502-fails and no draft ever reaches
       // the Write section.
       pillar: resolvePostPillar(profile),
@@ -331,7 +331,7 @@ Return ONLY the post text.`;
     });
 
   // No draft was produced (every platform generation failed or was budget-blocked).
-  // Do NOT mark 'drafted' with zero posts — that leaves the inbox showing a done
+  // Do NOT mark 'drafted' with zero posts - that leaves the inbox showing a done
   // capture with nothing in it. Revert so the capture stays actionable + retryable.
   if (insertedPosts.length === 0) {
     await client.database
@@ -356,7 +356,7 @@ Return ONLY the post text.`;
 
   if (statusError) {
     // Drafts DO exist but the status flip failed, so the 3s poll would spin on
-    // 'drafting'. Log loudly (the row is recoverable — primaryPostId is returned).
+    // 'drafting'. Log loudly (the row is recoverable - primaryPostId is returned).
     console.error('[event-capture/process] Failed to mark capture drafted (drafts exist)', {
       id: params.id,
       statusError,

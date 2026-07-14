@@ -93,7 +93,7 @@ export async function parseIcpDescription(description: string): Promise<ParsedIc
       pitch: '',
       objections: '',
       proof_points: '',
-      cta_style: 'Soft ask tied to their recent news — never generic.',
+      cta_style: 'Soft ask tied to their recent news - never generic.',
     },
     discovery_goal: `Find startups matching: ${prose.slice(0, 280)}`,
   };

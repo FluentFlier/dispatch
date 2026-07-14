@@ -5,7 +5,7 @@
  * final pass) and the cross-platform repurpose panel (/api/optimize) need the
  * exact same platform rules. Keeping one source of truth means the humaner
  * output users liked from the repurpose path is now what the main generator
- * produces too — no divergence, no duplicate maintenance.
+ * produces too - no divergence, no duplicate maintenance.
  */
 
 export type OptimizePlatform = 'twitter' | 'linkedin' | 'instagram' | 'threads';

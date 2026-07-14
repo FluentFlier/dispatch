@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// dns lookup is used by assertPublicUrl — default to a public IP for real hosts.
+// dns lookup is used by assertPublicUrl - default to a public IP for real hosts.
 vi.mock('dns/promises', () => ({
   lookup: vi.fn().mockResolvedValue([{ address: '93.184.216.34', family: 4 }]),
 }));
@@ -77,7 +77,7 @@ describe('Phase: Event research', () => {
             ],
           });
         }
-        // Jina reader — only the public URL should ever reach here.
+        // Jina reader - only the public URL should ever reach here.
         return textRes('This is a sufficiently long page of readable event content about the conference.');
       });
       vi.stubGlobal('fetch', fetchSpy as unknown as typeof fetch);
@@ -96,7 +96,7 @@ describe('Phase: Event research', () => {
       expect(out?.key_topics).toEqual(['LLMs', 'agents']);
       expect(out?.key_announcements).toEqual(['new product']);
       expect(out?.speakers).toEqual([{ name: 'Jane Doe' }]);
-      // SSRF: the 127.0.0.1 link was filtered — only the public source remains.
+      // SSRF: the 127.0.0.1 link was filtered - only the public source remains.
       expect(out?.sources).toEqual(['https://example.com/event']);
     });
 

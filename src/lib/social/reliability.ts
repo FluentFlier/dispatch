@@ -53,7 +53,7 @@ const defaultSleep = (ms: number): Promise<void> => new Promise((r) => setTimeou
 
 /**
  * Retries only transient failures: rate limits (429) and server errors (5xx).
- * Permanent client errors (400/401/404...) fail fast — retrying them just
+ * Permanent client errors (400/401/404...) fail fast - retrying them just
  * burns quota against providers that count every request.
  */
 export function isTransientError(error: unknown): boolean {
@@ -122,7 +122,7 @@ interface UsageEntry {
 
 /**
  * In-memory per-account daily counters. Resets at midnight UTC (date-keyed)
- * and on server restart — acceptable because this is a safety guard against
+ * and on server restart - acceptable because this is a safety guard against
  * runaway loops, not a billing-grade quota.
  */
 const usageByAccount = new Map<string, UsageEntry>();
@@ -142,7 +142,7 @@ export interface DailyUsageCheck {
 
 /**
  * Checks whether an account can spend `requestedActions` more API actions
- * today without crossing the daily cap. Does NOT increment — call
+ * today without crossing the daily cap. Does NOT increment - call
  * incrementDailyUsage after the actions actually happen.
  */
 export function checkDailyUsage(
@@ -183,7 +183,7 @@ export function clearDailyUsage(): void {
 // --- Deterministic daily random scheduling ---
 
 /**
- * FNV-1a 32-bit hash. Tiny deterministic string hash — enough entropy for
+ * FNV-1a 32-bit hash. Tiny deterministic string hash - enough entropy for
  * picking a pseudo-random minute without pulling in a PRNG dependency.
  */
 function fnv1a(input: string): number {
@@ -197,7 +197,7 @@ function fnv1a(input: string): number {
 
 /**
  * Picks a deterministic pseudo-random minute of the day (0-1439) for a given
- * seed + date. Every cron tick asks "is it my minute yet?" — the job then runs
+ * seed + date. Every cron tick asks "is it my minute yet?" - the job then runs
  * exactly once per day at a time that varies day-to-day, so automated LinkedIn
  * activity doesn't fire at a robotically fixed time.
  */

@@ -30,7 +30,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Scope to the active workspace (rows are backfilled with workspace_id).
   if (workspaceId) query = query.eq('workspace_id', workspaceId);
 
-  // Apply status filter — default to 'active' when no param provided so the
+  // Apply status filter - default to 'active' when no param provided so the
   // Ideas page doesn't surface suggested/dismissed rows in the main list.
   if (statusFilter) {
     query = query.eq('status', statusFilter);

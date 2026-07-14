@@ -33,7 +33,7 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://contentos.us'),
   title: {
     default: SITE_TITLE,
-    template: `%s — ${PRODUCT_NAME}`,
+    template: `%s - ${PRODUCT_NAME}`,
   },
   description: SITE_DESC,
   applicationName: PRODUCT_NAME,

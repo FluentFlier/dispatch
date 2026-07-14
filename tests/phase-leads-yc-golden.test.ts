@@ -5,8 +5,8 @@ import type { YcFounder, YcNameMatch } from '@/lib/signals/ingest/yc-algolia';
 /**
  * Golden accuracy set for YC-identity recovery (Track A / A1).
  *
- * GROUND TRUTH was established INDEPENDENTLY of our tool via web research — the
- * real decision-maker (CEO) of each ICP company and their LinkedIn — then we assert
+ * GROUND TRUTH was established INDEPENDENTLY of our tool via web research - the
+ * real decision-maker (CEO) of each ICP company and their LinkedIn - then we assert
  * the recovery pipeline returns the SAME person. This is the "did we find the same
  * lead a human researcher would" check, not just "did some URL come back".
  *

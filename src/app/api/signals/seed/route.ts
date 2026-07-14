@@ -12,7 +12,7 @@ const SeedSchema = z.object({
   author_name: z.string().max(120).optional(),
 }).strict();
 
-/** POST /api/signals/seed — dev/demo ingest without Apify */
+/** POST /api/signals/seed - dev/demo ingest without Apify */
 export async function POST(request: NextRequest): Promise<NextResponse> {
   if (process.env.NODE_ENV === 'production' && process.env.SIGNALS_ALLOW_SEED !== 'true') {
     return NextResponse.json({ error: 'Seed disabled in production' }, { status: 403 });

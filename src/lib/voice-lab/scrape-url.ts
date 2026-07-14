@@ -5,7 +5,7 @@ import { createApifyClient } from '@/lib/signals/ingest/apify-fetch';
  *
  * Public-link voice import used to send EVERY url through r.jina.ai (see the
  * import route). That returns LinkedIn's "Agree & Join / Sign in" login wall for
- * any linkedin.com/in/ profile — which passed the >=80-char check and became a
+ * any linkedin.com/in/ profile - which passed the >=80-char check and became a
  * bogus "voice sample." LinkedIn actively gates guest access, so an unauthenticated
  * reader can never read a profile's posts.
  *
@@ -61,7 +61,7 @@ function apifyItemText(item: Record<string, unknown>): string {
 
 /**
  * Scrapes a public LinkedIn profile's recent posts via Apify. Returns each post
- * as its own voice sample (no chunking — one post is one authentic voice unit).
+ * as its own voice sample (no chunking - one post is one authentic voice unit).
  * Throws when APIFY_TOKEN is unset or the actor returns nothing usable.
  */
 export async function scrapeLinkedInViaApify(url: string, maxPosts = MAX_SAMPLES): Promise<string[]> {
@@ -172,6 +172,6 @@ export async function scrapeLinkedIn(url: string): Promise<string[]> {
   }
 
   throw new Error(
-    `Could not read LinkedIn url (a public scraper is required — connect Apify or TinyFish): ${errors.join('; ')}`,
+    `Could not read LinkedIn url (a public scraper is required - connect Apify or TinyFish): ${errors.join('; ')}`,
   );
 }

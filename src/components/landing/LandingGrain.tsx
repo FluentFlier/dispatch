@@ -1,4 +1,4 @@
-/** Subtle film grain — ties sections into one tactile surface. */
+/** Subtle film grain - ties sections into one tactile surface. */
 export default function LandingGrain() {
   return (
     <div

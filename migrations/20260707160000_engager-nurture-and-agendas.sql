@@ -1,7 +1,7 @@
 -- Engager nurture + agenda layer.
 --
 -- WHY: post engagers (people who liked/commented on YOUR posts, stored in
--- warm_contacts) only ever got a connect draft — no research, no comment-first
+-- warm_contacts) only ever got a connect draft - no research, no comment-first
 -- warmup, no DM follow-up, and they never flowed through the same nurture state
 -- machine directory leads use. This migration promotes warm_contacts to a
 -- first-class nurtured "person" that runs the full research -> comment ->

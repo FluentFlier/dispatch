@@ -8,7 +8,7 @@ interface Props {
   variant?: 'landing' | 'dashboard';
 }
 
-/** Fixed silk fabric background — hero-bg, mesh, sheen sweep, drift orbs. */
+/** Fixed silk fabric background - hero-bg, mesh, sheen sweep, drift orbs. */
 export default function SilkAmbient({ variant = 'landing' }: Props) {
   const reduce = useReducedMotion();
   const dashboard = variant === 'dashboard';
@@ -45,7 +45,7 @@ export default function SilkAmbient({ variant = 'landing' }: Props) {
         }`}
       />
 
-      {/* Living motion (orbs, specular sweep, glow) is landing-only — a work
+      {/* Living motion (orbs, specular sweep, glow) is landing-only - a work
           surface must defer to content, so the dashboard wash stays static. */}
       {!reduce && !dashboard && (
         <>

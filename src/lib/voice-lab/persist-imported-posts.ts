@@ -7,39 +7,42 @@ import {
   extractUnipilePublishedAt,
 } from '@/lib/platforms/linkedin-metrics';
 import { writeToMemory, buildPostMemoryCustomId, buildImageMemoryCustomId } from '@/lib/memory/write';
-import { describeImage, chatCompletion } from '@/lib/llm';
+import { describeImage, chatCompletion, isLlmConfigured } from '@/lib/llm';
+
+const TITLE_SYSTEM =
+  'You write short, specific titles for social posts. Given a post body, reply with ONLY a 4-8 word title that captures its main point. No quotes, no hashtags, no emojis, no em dashes, no trailing punctuation. Title Case.';
+
+/**
+ * A short human title for an imported post. LinkedIn/X posts have no native title,
+ * so raw truncation (`body.slice(0,80)`) reads as a broken sentence. Summarize the
+ * body with the small chat model (HF fallback, LLM_DAILY_HARD_CAP-aware). Falls
+ * back to the 80-char slice whenever the model is unconfigured, over budget, or
+ * returns junk - an import must NEVER fail because a title could not be generated.
+ */
+export async function generatePostTitle(body: string): Promise<string> {
+  const fallback = body.slice(0, 80);
+  const text = body.trim();
+  if (!text || !isLlmConfigured()) return fallback;
+  try {
+    const raw = await chatCompletion(TITLE_SYSTEM, text.slice(0, 600), {
+      maxTokens: 24,
+      temperature: 0.3,
+    });
+    const title = raw
+      .split('\n')[0]
+      .replace(/^["'\s]+|["'\s]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 80);
+    return title.length >= 3 ? title : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 /** Platforms whose Unipile post payloads carry engagement counters we can read. */
 function unipileMetricsSupported(platform: string): boolean {
   return platform === 'linkedin' || platform === 'twitter';
-}
-
-/**
- * Imported posts have no authored title. A small LLM writes a short human title
- * instead of dumping the post's first 80 characters as the "title". Falls back to
- * the slice on any failure so an import never blocks on the title model. The token
- * budget leaves headroom for reasoning models (gpt-oss/o-series) that spend tokens
- * before emitting content — too small a cap returns empty and forces the fallback.
- */
-async function shortTitle(content: string): Promise<string> {
-  const fallback = content.trim().replace(/\s+/g, ' ').slice(0, 80);
-  const source = content.trim().slice(0, 1200);
-  if (!source) return fallback;
-  try {
-    const out = await chatCompletion(
-      'You write short titles for social posts. Reply with ONLY a 3-6 word title in plain text: no quotes, no emoji, no hashtags, no trailing punctuation, no preamble.',
-      source,
-      { maxTokens: 256, temperature: 0.3 },
-    );
-    const first = out.split('\n').map((l) => l.trim()).find(Boolean) ?? '';
-    const cleaned = first
-      .replace(/^title\s*:\s*/i, '')
-      .replace(/^["'#\s]+|["'.\s]+$/g, '')
-      .slice(0, 80);
-    return cleaned || fallback;
-  } catch {
-    return fallback;
-  }
 }
 
 // Extracted from the import-from-account route so it can be unit-tested
@@ -155,7 +158,7 @@ function pushImageMemoryWrites(
         workspaceId: ctx.workspaceId,
         kind: 'post_image',
         content:
-          `[Photo from your ${ctx.platform} post on ${ctx.postedDate || 'unknown date'}] — this ALREADY happened; reference as past.\n\n${img.description}`,
+          `[Photo from your ${ctx.platform} post on ${ctx.postedDate || 'unknown date'}] - this ALREADY happened; reference as past.\n\n${img.description}`,
         customId: buildImageMemoryCustomId(ctx.postId, i),
         metadata: { platform: ctx.platform, posted_date: ctx.postedDate },
       }),
@@ -253,7 +256,7 @@ export async function persistImportedPosts({
       }
     }
 
-    // Unipile list payloads often include impression/reaction counters — seed
+    // Unipile list payloads often include impression/reaction counters - seed
     // analytics immediately instead of waiting for a later metrics sync.
     const importedMetrics = unipileMetricsSupported(platform)
       ? metricsPatchFromNormalized(extractUnipilePostMetrics(item))
@@ -262,6 +265,9 @@ export async function persistImportedPosts({
       ? extractUnipilePublishedAt(item)
       : undefined;
     const images = await describeImages(allImageUrls(item));
+    // LinkedIn/X posts carry no native title - summarize the body instead of
+    // showing a truncated first sentence in the Library.
+    const title = await generatePostTitle(content);
 
     // Create a posts row for this historically-published post
     const postId = randomUUID();
@@ -269,7 +275,7 @@ export async function persistImportedPosts({
       id: postId,
       user_id: userId,
       workspace_id: workspaceId,
-      title: await shortTitle(content),
+      title,
       script: content,
       // posts.pillar is NOT NULL with no default; imported historical posts
       // aren't authored against a pillar, so seed the codebase-wide 'general'
@@ -343,8 +349,8 @@ export async function persistImportedPosts({
         userId,
         workspaceId,
         kind: 'imported_post',
-        content: `[Your ${platform} post from ${postedDate || 'unknown date'}] — this ALREADY happened; reference as past.\n\n${content}`,
-        // item.id is the platform URN — same key the publish path uses so a
+        content: `[Your ${platform} post from ${postedDate || 'unknown date'}] - this ALREADY happened; reference as past.\n\n${content}`,
+        // item.id is the platform URN - same key the publish path uses so a
         // natively-published post and its later re-import never double-write.
         customId: buildPostMemoryCustomId(platform, item.id, postId),
         metadata: { platform, posted_date: postedDate },

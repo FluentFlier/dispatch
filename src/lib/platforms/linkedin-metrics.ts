@@ -12,7 +12,7 @@ import { buildPostIdCandidates } from '@/lib/engagement/unipile-reactions';
 
 /**
  * Read the first usable count. LinkedIn/Unipile often return `0` for
- * impressions/followers when the metric is hidden — treat bare zeros as
+ * impressions/followers when the metric is hidden - treat bare zeros as
  * "missing" so we never overwrite real engagement with a fake zero view count.
  */
 function readCount(...values: unknown[]): number | undefined {
@@ -51,7 +51,7 @@ export interface LinkedInPostDetails {
 /**
  * Maps a Unipile post payload onto NormalizedMetrics, preferring the
  * `analytics` object and falling back to flat counter fields. Fields Unipile
- * didn't return stay undefined so callers never zero-out stored values —
+ * didn't return stay undefined so callers never zero-out stored values -
  * same contract as the X/Instagram fetchers.
  */
 export function extractLinkedInMetrics(payload: unknown): NormalizedMetrics {

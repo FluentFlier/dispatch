@@ -45,7 +45,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: 'Window start must be before end.' }, { status: 400 });
   }
   if (timeMax.getTime() - timeMin.getTime() > MAX_SPAN_MS) {
-    return NextResponse.json({ error: 'Window too large — pick a range under 2 years.' }, { status: 400 });
+    return NextResponse.json({ error: 'Window too large - pick a range under 2 years.' }, { status: 400 });
   }
 
   try {
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const now = new Date();
     const last = integration.config.last_manual_resync_at;
     if (last && now.getTime() - new Date(last).getTime() < RATE_LIMIT_MS) {
-      return NextResponse.json({ error: 'Reload was just run — wait a minute before retrying.' }, { status: 429 });
+      return NextResponse.json({ error: 'Reload was just run - wait a minute before retrying.' }, { status: 429 });
     }
     await patchIntegrationConfig(client, workspaceId, 'googlecalendar', {
       last_manual_resync_at: now.toISOString(),

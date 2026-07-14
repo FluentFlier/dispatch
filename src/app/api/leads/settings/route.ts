@@ -6,7 +6,7 @@ import { normalizeMeetingLink } from '@/lib/signals/leads/meeting-link';
 import { errorResponse } from '@/lib/api-errors';
 import type { DirectorySettingsRow } from '@/lib/signals/types';
 
-/** GET /api/leads/settings — directory + digest config. */
+/** GET /api/leads/settings - directory + digest config. */
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

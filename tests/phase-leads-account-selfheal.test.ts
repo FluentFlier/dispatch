@@ -6,10 +6,10 @@
  * verification call fails with a spurious "Account not found" until the user
  * reconnects. getLinkedInUnipileAccountId / getWorkspaceLinkedInAccountId now
  * re-resolve the live id by the stable identity (mirroring publish/metrics-sync)
- * and persist it — while falling back to the stored id when Unipile is unreachable
+ * and persist it - while falling back to the stored id when Unipile is unreachable
  * so unconfigured environments behave exactly as before.
  *
- * resolveUnipileTarget is stubbed at the module boundary — no live Unipile spend.
+ * resolveUnipileTarget is stubbed at the module boundary - no live Unipile spend.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 

@@ -30,7 +30,7 @@ export async function GET(
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
     // Fallback built from what we already store, used for non-YC leads or if the
-    // YC fetch fails — the card never renders empty.
+    // YC fetch fails - the card never renders empty.
     const fallback: YcCompanyDetail = {
       name: lead.company_name,
       slug: lead.external_id ?? '',

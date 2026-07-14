@@ -74,7 +74,7 @@ export function buildEngagerPlaybook(
   return {
     whyThem:
       dossier?.whyMatters ||
-      `${who} engaged with "${contact.source_post_title ?? 'your post'}" — a warm entry point.`,
+      `${who} engaged with "${contact.source_post_title ?? 'your post'}" - a warm entry point.`,
     angle: dossier?.angle || agenda.pitchAngle,
     steps: [
       { type: 'research', label: 'Review their profile + recent activity', dueInDays: 0, status: 'pending' },
@@ -486,7 +486,7 @@ export async function prepareDueEngagerDms(
       contact.provider_profile_id,
     );
     if (!connected) {
-      // Not accepted yet — check again in a couple days.
+      // Not accepted yet - check again in a couple days.
       const retry = new Date(now);
       retry.setUTCDate(retry.getUTCDate() + 2);
       await updateWarmContact(client, userId, contactId, { next_action_at: retry.toISOString() });

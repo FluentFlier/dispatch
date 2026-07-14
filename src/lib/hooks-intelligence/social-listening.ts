@@ -1,7 +1,7 @@
 import { DEFAULT_WATCHLIST } from './watchlist';
 
 /**
- * Social Listening — mines watchlist accounts when Apify is configured,
+ * Social Listening - mines watchlist accounts when Apify is configured,
  * otherwise returns targets for gstack dev scripts (npm run hooks:listen).
  */
 export async function runSocialListening(refreshAccounts = 20) {

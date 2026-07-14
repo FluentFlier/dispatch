@@ -1,8 +1,8 @@
 -- Break 21: scope creator_brain_pages uniqueness by workspace.
 --
--- Before: UNIQUE (user_id, slug) — a user in two workspaces sharing a slug had
+-- Before: UNIQUE (user_id, slug) - a user in two workspaces sharing a slug had
 -- the second workspace's putBrainPage upsert overwrite the first workspace's page.
--- After:  UNIQUE NULLS NOT DISTINCT (user_id, workspace_id, slug) — each workspace
+-- After:  UNIQUE NULLS NOT DISTINCT (user_id, workspace_id, slug) - each workspace
 -- keeps its own page per slug, and the code upsert onConflict target matches.
 --
 -- Applied to the live InsForge backend 2026-07-09 (PG 15.18). Idempotent; safe to

@@ -48,7 +48,7 @@ const COMPANY_STOPWORDS = new Set([
 
 /**
  * Extracts a company name from a post. Only accepts a capture that looks like a
- * proper noun or an @handle — never an article/adjective ("Building the future"
+ * proper noun or an @handle - never an article/adjective ("Building the future"
  * must NOT yield "the"). Returns undefined when no real company is found, so the
  * caller can fall back to the (always-present, trustworthy) author name.
  */

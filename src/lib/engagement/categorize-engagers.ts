@@ -1,6 +1,6 @@
 /**
  * Turns synced engagement (post_comments + post_reactions) into persisted
- * lead_categories rows — the audience breakdown the analytics page already
+ * lead_categories rows - the audience breakdown the analytics page already
  * reads but nothing populated until now.
  *
  * Dedupes every person who commented or reacted, buckets them by
@@ -53,7 +53,7 @@ export function collectEngagers(
     if (!key) continue;
     const existing = byKey.get(key);
     // Later comments overwrite earlier ones (queries order newest-first, so
-    // first hit wins) — only insert when unseen.
+    // first hit wins) - only insert when unseen.
     if (existing?.engagementType === 'comment') continue;
     byKey.set(key, {
       name: c.author_name ?? undefined,
@@ -82,7 +82,7 @@ export function collectEngagers(
 /**
  * Loads the user's content pillar names to use as ICP keywords, so "ICP"
  * matches people talking about what the creator actually posts about.
- * Missing profile is fine — the categorizer's built-in heuristics still apply.
+ * Missing profile is fine - the categorizer's built-in heuristics still apply.
  */
 async function loadTargetKeywords(client: InsforgeClient, userId: string): Promise<string[]> {
   try {

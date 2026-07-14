@@ -2,7 +2,7 @@
  * Phase: Event research extraction (provider-agnostic)
  *
  * Verifies the LLM extraction layer works WITHOUT provider-specific structured
- * output — it must parse the messier JSON that free models (Groq/HF) emit, so the
+ * output - it must parse the messier JSON that free models (Groq/HF) emit, so the
  * same code runs on the premium model in prod and free models in testing.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';

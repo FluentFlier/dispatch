@@ -25,7 +25,7 @@ export async function getSignalTopicsForGeneration(
     return events.map((e) => {
       const row = e as { title?: string; summary?: string; category?: string };
       const parts = [row.title, row.summary].filter(Boolean);
-      return parts.join(' — ').slice(0, 200);
+      return parts.join(' - ').slice(0, 200);
     });
   } catch {
     return [];
@@ -34,5 +34,5 @@ export async function getSignalTopicsForGeneration(
 
 export function formatSignalTopicsBlock(topics: string[]): string {
   if (topics.length === 0) return '';
-  return `\n\nRECENT SIGNALS (timely topics from your listening feed — use if relevant):\n${topics.map((t, i) => `${i + 1}. ${t}`).join('\n')}`;
+  return `\n\nRECENT SIGNALS (timely topics from your listening feed - use if relevant):\n${topics.map((t, i) => `${i + 1}. ${t}`).join('\n')}`;
 }

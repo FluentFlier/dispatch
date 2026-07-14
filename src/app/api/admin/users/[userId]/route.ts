@@ -15,7 +15,7 @@ const BodySchema = z
   });
 
 /**
- * PATCH /api/admin/users/[userId] — manual subscription or onboarding override.
+ * PATCH /api/admin/users/[userId] - manual subscription or onboarding override.
  */
 export async function PATCH(
   request: NextRequest,

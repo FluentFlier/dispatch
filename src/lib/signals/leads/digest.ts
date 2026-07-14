@@ -124,7 +124,7 @@ async function getWorkspaceTimezone(client: InsforgeClient, workspaceId: string)
 
 function digestSummary(payload: DigestPayload): string {
   return payload.top
-    .map((l, i) => `${i + 1}. ${l.company_name}${l.batch ? ` (${l.batch})` : ''} — ${l.tagline ?? ''}`.trim())
+    .map((l, i) => `${i + 1}. ${l.company_name}${l.batch ? ` (${l.batch})` : ''} - ${l.tagline ?? ''}`.trim())
     .join('\n');
 }
 

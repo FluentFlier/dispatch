@@ -7,7 +7,7 @@ import { errorResponse } from '@/lib/api-errors';
 
 export const maxDuration = 60;
 
-/** POST /api/signals/sync — manual sync for authenticated workspace */
+/** POST /api/signals/sync - manual sync for authenticated workspace */
 export async function POST(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

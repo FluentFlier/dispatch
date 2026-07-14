@@ -18,7 +18,7 @@ export type EventType =
   | 'internal'
   | 'other';
 
-/** Event types that have a public footprint — eligible for Serper/Jina research in Stage 2. */
+/** Event types that have a public footprint - eligible for Serper/Jina research in Stage 2. */
 export const PUBLIC_EVENT_TYPES: EventType[] = [
   'conference',
   'meetup',
@@ -111,7 +111,7 @@ const MAX_AGE_MS = 48 * 60 * 60 * 1000;
  * audience (students, creators, enterprises) whose calendars are not limited to
  * conference/meetup-style events, so we no longer require an allow-list keyword.
  * The allow-list still drives event-type classification (see classifyEventType).
- * Designed to run in the Stage 1 cron — must be fast, no I/O.
+ * Designed to run in the Stage 1 cron - must be fast, no I/O.
  *
  * @param event - Minimal event shape (title, start, end)
  * @param now - Reference timestamp (injected for testability)
@@ -126,11 +126,11 @@ export function shouldCaptureEvent(
 ): boolean {
   const duration = event.endTime.getTime() - event.startTime.getTime();
 
-  // Duration guard — skip short and all-day-or-longer events.
+  // Duration guard - skip short and all-day-or-longer events.
   if (duration < MIN_DURATION_MS) return false;
   if (duration > MAX_DURATION_MS) return false;
 
-  // Recency guard — skipped for manual reloads over an explicit user window,
+  // Recency guard - skipped for manual reloads over an explicit user window,
   // where the user has deliberately asked to (re)import past/future events.
   if (!options?.ignoreRecency) {
     const age = now.getTime() - event.endTime.getTime();
@@ -140,12 +140,12 @@ export function shouldCaptureEvent(
 
   const titleLower = event.title.toLowerCase();
 
-  // Block list — obvious personal/low-content events never get captured.
+  // Block list - obvious personal/low-content events never get captured.
   for (const blocked of BLOCK_LIST_KEYWORDS) {
     if (titleLower.includes(blocked)) return false;
   }
 
-  // Capture everything else — no allow-list keyword required.
+  // Capture everything else - no allow-list keyword required.
   return true;
 }
 
@@ -167,7 +167,7 @@ export function classifyEventType(title: string): EventType {
 /**
  * Returns true for event types that have a public online presence (conferences,
  * meetups, panels, etc.) and are therefore eligible for Serper/Jina research in Stage 2.
- * Private professional events (calls, interviews) return false — no web footprint to search.
+ * Private professional events (calls, interviews) return false - no web footprint to search.
  */
 export function isPublicEvent(type: EventType): boolean {
   return PUBLIC_EVENT_TYPES.includes(type);

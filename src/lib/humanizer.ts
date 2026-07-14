@@ -76,7 +76,23 @@ function buildVoiceContextBlock(profile?: CreatorProfileForPrompt | null): strin
 function preserveBlock(preserve: string[]): string {
   const items = preserve.map((w) => w.trim()).filter(Boolean);
   if (items.length === 0) return '';
-  return `\n\nPRESERVE THESE CREATOR WORDS/PHRASES (their real voice - never remove, replace, or rephrase them): ${items.join(', ')}`;
+  return `\n\nPRESERVE THESE EXACTLY (the creator's real words, names, and specifics - never remove, replace, rephrase, or genericize them): ${items.join(', ')}`;
+}
+
+/**
+ * Proper nouns already present in a draft - real names/brands the base stage
+ * grounded in (e.g. "Anirudh Manjesh", "GreenLoop"). The humanize passes run
+ * blind to the prompt/context and are told to fix "name-dropping" / "vague
+ * attributions", so without protection they genericize real names out. Feed the
+ * draft's own proper nouns into the PRESERVE list. Multi-word Capitalized runs +
+ * interior-caps single tokens only; plain single-cap words (Phoenix, Monday) stay
+ * editable to avoid over-preserving ordinary words.
+ */
+export function extractGroundedNames(text: string): string[] {
+  const found = new Set<string>();
+  for (const m of Array.from(text.matchAll(/\b[A-Z][a-z]+(?:[A-Z][a-z]+)*(?: [A-Z][a-z]+(?:[A-Z][a-z]+)*)+\b/g))) found.add(m[0]);
+  for (const m of Array.from(text.matchAll(/\b[A-Z][a-z]+[A-Z][A-Za-z]*\b/g))) found.add(m[0]);
+  return Array.from(found).slice(0, 40);
 }
 
 /**
@@ -155,6 +171,8 @@ export async function humanizePipeline(
   const preserve = [
     ...(options.vocabulary?.uses_often ?? []),
     ...(options.vocabulary?.signature_phrases ?? []),
+    // Protect real names/brands in the draft from being genericized as "name-dropping".
+    ...extractGroundedNames(text),
   ];
 
   let working = deterministicPreClean(text, preserve);

@@ -47,7 +47,7 @@ beforeEach(() => {
 });
 
 describe('Phase: Voice Note -> Post', () => {
-  describe('POST /api/audio/transcribe — auth + guard', () => {
+  describe('POST /api/audio/transcribe - auth + guard', () => {
     it('returns 401 when unauthenticated', async () => {
       (getAuthenticatedUser as ReturnType<typeof vi.fn>).mockResolvedValue(null);
       const res = await POST(makeRequest(new Blob(['x'], { type: 'audio/webm' })) as never);
@@ -67,7 +67,7 @@ describe('Phase: Voice Note -> Post', () => {
     });
   });
 
-  describe('POST /api/audio/transcribe — input validation', () => {
+  describe('POST /api/audio/transcribe - input validation', () => {
     it('returns 400 when no audio field is present', async () => {
       const res = await POST(makeRequest() as never);
       expect(res.status).toBe(400);
@@ -88,7 +88,7 @@ describe('Phase: Voice Note -> Post', () => {
     });
   });
 
-  describe('POST /api/audio/transcribe — happy path + errors', () => {
+  describe('POST /api/audio/transcribe - happy path + errors', () => {
     it('returns the transcript on a valid audio blob', async () => {
       const res = await POST(makeRequest(new Blob(['audio-bytes'], { type: 'audio/webm' })) as never);
       expect(res.status).toBe(200);

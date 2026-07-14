@@ -30,8 +30,8 @@ const CreatePostSchema = z
   });
 
 /**
- * GET /api/agent/v1/posts — list library posts.
- * POST /api/agent/v1/posts — create a draft post.
+ * GET /api/agent/v1/posts - list library posts.
+ * POST /api/agent/v1/posts - create a draft post.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const auth = await resolveAgentAuth(request);

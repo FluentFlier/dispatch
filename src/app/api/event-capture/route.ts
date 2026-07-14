@@ -29,11 +29,11 @@ export async function GET(): Promise<NextResponse> {
   const composioOk = isComposioConfigured();
   const setup = await checkEventCaptureSetup(client, composioOk);
 
-  // Hard-block only when the table is missing — otherwise soft-fail with a setup
+  // Hard-block only when the table is missing - otherwise soft-fail with a setup
   // banner so existing captures remain visible if Composio is temporarily unset.
   if (setup.missing.includes('event_captures')) {
     return setupRequiredResponse(['event_captures'], {
-      error: 'Event capture is not ready yet — contact support',
+      error: 'Event capture is not ready yet - contact support',
       detail: 'Apply the event_captures migration on InsForge',
     });
   }
@@ -50,7 +50,7 @@ export async function GET(): Promise<NextResponse> {
   if (error) {
     if (isMissingRelationError(error)) {
       return setupRequiredResponse(['event_captures'], {
-        error: 'Event capture is not ready yet — contact support',
+        error: 'Event capture is not ready yet - contact support',
         detail: 'Apply the event_captures migration on InsForge',
       });
     }

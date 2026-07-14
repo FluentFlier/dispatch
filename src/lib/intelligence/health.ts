@@ -79,7 +79,7 @@ export function checkHooksStack(): SubsystemHealth {
   if (hookCount < 100) {
     return {
       status: 'missing',
-      message: 'Hook dataset not loaded — generation hooks will be empty.',
+      message: 'Hook dataset not loaded - generation hooks will be empty.',
       details: { hook_count: hookCount },
     };
   }
@@ -119,7 +119,7 @@ export function checkSocialListeningStack(): SubsystemHealth {
   if (!hasIngest) {
     return {
       status: 'missing',
-      message: 'No social ingest path — connect Unipile or set SIGNALS_USE_APIFY + APIFY_TOKEN.',
+      message: 'No social ingest path - connect Unipile or set SIGNALS_USE_APIFY + APIFY_TOKEN.',
       details: { ingest_mode: mode, provider: getSocialProviderMode() },
     };
   }

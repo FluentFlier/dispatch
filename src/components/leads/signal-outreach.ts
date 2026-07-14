@@ -17,7 +17,7 @@ export const SIGNAL_CONNECT_LIMIT = 300;
 
 /**
  * The channel a signal draft/send should use. `copy` means "no reachable
- * messaging channel" — the draft can still be generated and copied by hand,
+ * messaging channel" - the draft can still be generated and copied by hand,
  * but the Send action is disabled because nothing can be delivered via API.
  */
 export type SignalSendChannel = 'linkedin_connect' | 'x_dm' | 'gmail' | 'copy';
@@ -50,7 +50,7 @@ export function resolveSignalOutreach(card: UnifiedLeadCard): SignalOutreachPlan
 
   // 1. LinkedIn: an explicit contact URL, else a real author handle parsed from
   //    a LinkedIn post URL. We deliberately do NOT guess a profile from a bare
-  //    person name — a guessed slug is not a real, reachable channel (same rule
+  //    person name - a guessed slug is not a real, reachable channel (same rule
   //    isReachable enforces), so a name-only contact must fall through to copy.
   const authorHandle = card.source === 'linkedin' ? extractAuthorHandle(card.sourceUrl) : null;
   const linkedinIdentifier =

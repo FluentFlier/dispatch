@@ -19,7 +19,7 @@ function hasOAuthStateSecret(): boolean {
 }
 
 /**
- * Static config probe — safe for /api/health without live Composio calls.
+ * Static config probe - safe for /api/health without live Composio calls.
  */
 export function checkComposioConfig(): {
   status: ComposioHealthStatus;
@@ -70,7 +70,7 @@ export function checkComposioConfig(): {
 }
 
 /**
- * Live API ping — validates COMPOSIO_API_KEY against Composio backend.
+ * Live API ping - validates COMPOSIO_API_KEY against Composio backend.
  */
 export async function pingComposioApi(): Promise<'ok' | 'error' | 'skipped'> {
   const composio = getComposioClient();

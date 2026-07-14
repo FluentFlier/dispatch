@@ -8,7 +8,7 @@ export const metadata = {
 /**
  * Public, login-free draft view opened from an SMS magic link. The signed token
  * carries the draft id + owner + expiry, so we can render the draft without a
- * session. Editing/posting still happens in the authenticated app — this page
+ * session. Editing/posting still happens in the authenticated app - this page
  * confirms the draft and links into it.
  */
 export default async function DraftLinkPage({

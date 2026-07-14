@@ -24,7 +24,7 @@ describe('auth-cookies', () => {
   });
 });
 
-describe('middleware — expired JWT refresh redirect', () => {
+describe('middleware - expired JWT refresh redirect', () => {
   it('redirects protected routes with expired JWT + refresh cookie to /api/auth/refresh', async () => {
     const { middleware } = await import('@/middleware');
     const { NextRequest } = await import('next/server');
@@ -85,7 +85,7 @@ describe('POST /api/auth/refresh', () => {
 
   it('does not clear session cookies when refresh is unauthorized', async () => {
     // A prior test already imported the route, so the module is cached and
-    // vi.doMock would not apply — reset the registry first so the fresh dynamic
+    // vi.doMock would not apply - reset the registry first so the fresh dynamic
     // import below actually picks up the mocked refreshSessionWithToken. Without
     // this the real one runs and returns 503 (no backend), not the 401 under test.
     vi.resetModules();

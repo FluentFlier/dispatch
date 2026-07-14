@@ -5,7 +5,7 @@ import { TrendDetectAction } from '@/components/dashboard/TrendDetectAction';
 
 /**
  * Top "signals" strip of the unified dashboard card: today's top trend +
- * yesterday's numbers. Presentational only — composed server-side, no client
+ * latest-post analytics. Presentational only - composed server-side, no client
  * fetch or AI cost. The old "Ready to draft" column was dropped: it showed the
  * same ideas as the card's Backlog lane, so it lived on there instead. Renders
  * with no card wrapper so it can nest inside the merged dashboard card.
@@ -78,18 +78,5 @@ export function MorningBriefStrip({ brief }: { brief: MorningBrief }) {
         </div>
       </div>
     </>
-  );
-}
-
-/**
- * Standalone card wrapper. Main renamed this component to MorningBriefStrip for
- * nesting inside a merged dashboard card; this branch still renders it as its own
- * card, so keep the MorningBriefCard export as a thin card-surface wrapper.
- */
-export function MorningBriefCard({ brief }: { brief: MorningBrief }) {
-  return (
-    <section className="card-surface p-5">
-      <MorningBriefStrip brief={brief} />
-    </section>
   );
 }

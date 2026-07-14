@@ -3,7 +3,7 @@ import { getAuthenticatedUser } from '@/lib/insforge/server';
 import { revokeAgentKey } from '@/lib/agent-auth/store';
 
 /**
- * DELETE /api/agent/keys/[id] — revoke an agent API key (session auth only).
+ * DELETE /api/agent/keys/[id] - revoke an agent API key (session auth only).
  */
 export async function DELETE(
   _request: NextRequest,

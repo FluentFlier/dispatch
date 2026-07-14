@@ -36,7 +36,7 @@ export function detectRoleChange(
   current: ProfileState,
 ): ClassifiedSignal | null {
   const newHeadline = (current.headline ?? '').trim();
-  if (!newHeadline) return null; // no data — don't invent a change
+  if (!newHeadline) return null; // no data - don't invent a change
   if (!previous) return null; // baseline only on first sight
   if (normalizeHeadline(previous.headline) === normalizeHeadline(newHeadline)) return null;
 
@@ -51,8 +51,8 @@ export function detectRoleChange(
     acceleratorName: undefined,
     batch: undefined,
     signalSummary: prevHeadline
-      ? `Role change: ${person} — "${prevHeadline}" -> "${newHeadline}"`
-      : `Role change: ${person} — now "${newHeadline}"`,
+      ? `Role change: ${person} - "${prevHeadline}" -> "${newHeadline}"`
+      : `Role change: ${person} - now "${newHeadline}"`,
     confidence: 0.8,
     // Dedupe on the NEW headline so the same change fires once, but a later,
     // different change produces a fresh signal.

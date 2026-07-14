@@ -82,7 +82,7 @@ const PCT = {
 
 /**
  * One directory sync for a workspace: run each enabled discovery adapter
- * (web, directories, social — failures isolated per-source), upsert with rename
+ * (web, directories, social - failures isolated per-source), upsert with rename
  * detection, resolve contacts, then re-score every lead.
  */
 export async function syncWorkspaceDirectory(

@@ -57,7 +57,7 @@ const SLEEP_MS = 200;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const dateOnly = (s: string | null | undefined): string => (s ? s.split('T')[0] : '');
 const pastHeader = (label: string, body: string): string =>
-  `${label} — this ALREADY happened; reference as past.\n\n${body}`;
+  `${label} - this ALREADY happened; reference as past.\n\n${body}`;
 
 let written = 0;
 let failed = 0;
@@ -219,7 +219,7 @@ async function backfillStories(): Promise<void> {
 
 async function main(): Promise<void> {
   if (!(await ensureFlagOn())) {
-    console.error('layer3_memory_writes is OFF — enable it before backfilling. Aborting.');
+    console.error('layer3_memory_writes is OFF - enable it before backfilling. Aborting.');
     process.exit(1);
   }
   console.log(`[backfill] starting (max ${MAX})`);

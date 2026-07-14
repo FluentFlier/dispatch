@@ -4,7 +4,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 /**
  * POST /api/posts/[id]/unschedule
  * Clears all scheduling fields on the post and cancels any pending publish_job.
- * Idempotent — safe to call even if the post was never scheduled.
+ * Idempotent - safe to call even if the post was never scheduled.
  */
 export async function POST(
   _request: NextRequest,
@@ -28,7 +28,7 @@ export async function POST(
     return NextResponse.json({ error: 'Post not found' }, { status: 404 });
   }
 
-  // Cancel any pending publish job (queued or failed only — don't touch processing/published)
+  // Cancel any pending publish job (queued or failed only - don't touch processing/published)
   const jobId = post.publish_job_id as string | null;
   if (jobId) {
     await client.database

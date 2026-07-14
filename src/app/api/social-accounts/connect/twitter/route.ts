@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser } from '@/lib/insforge/server';
 
-// GET: Legacy Twitter OAuth entrypoint — redirect to Unipile hosted connect.
+// GET: Legacy Twitter OAuth entrypoint - redirect to Unipile hosted connect.
 export async function GET(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) {

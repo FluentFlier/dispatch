@@ -6,9 +6,9 @@ export const BRAIN_SLUG = {
   twitter: 'twitter',
   background: 'background',
   wins: 'wins',
-  /** GTM playbook: ICP, pitch, objections — used by Content OS Signals outreach drafts */
+  /** GTM playbook: ICP, pitch, objections - used by Content OS Signals outreach drafts */
   gtm: 'gtm',
-  /** Hooks and references saved from Analytics — informs future drafts */
+  /** Hooks and references saved from Analytics - informs future drafts */
   savedReferences: 'saved-references',
   post: (postId: string) => `post/${postId}`,
   story: (storyId: string) => `story/${storyId}`,

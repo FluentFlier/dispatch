@@ -78,7 +78,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         continue;
       }
 
-      // Enforce per-user quota before generating — previously this cron used the
+      // Enforce per-user quota before generating - previously this cron used the
       // admin client with no limit check, giving free-plan users unlimited AI daily.
       const quota = await assertCanGenerate(userId);
       if (!quota.ok) {

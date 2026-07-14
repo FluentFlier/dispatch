@@ -48,13 +48,13 @@ for dir in admin analytics billing dashboard engagement generate leads library v
   fi
 done
 
-# Admin shell layout styling (production auth layout — do not overwrite)
+# Admin shell layout styling (production auth layout - do not overwrite)
 # cp "$UI/src/app/(admin)/layout.tsx" "$ROOT/src/app/(admin)/"
 
 # Brand copy refresh
 cp "$UI/src/lib/brand.ts" "$ROOT/src/lib/"
 
-# NOTE: Dashboard route pages are NOT copied — they contain production auth/API wiring.
+# NOTE: Dashboard route pages are NOT copied - they contain production auth/API wiring.
 # Visual updates flow through shared components above.
 
 echo "Done. Run: npm install && npm run build && npm test"

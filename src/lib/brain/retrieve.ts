@@ -12,7 +12,7 @@ function pageToSnippet(slug: string, body: string): string {
     const parsed = JSON.parse(body) as Record<string, unknown>;
     if (slug === BRAIN_SLUG.voice) {
       // syncBrainVoiceLab writes vocabulary_fingerprint + structural_patterns into
-      // this page but they were never read back — dead storage. Read them so the
+      // this page but they were never read back - dead storage. Read them so the
       // brain voice page is a real fingerprint source (fallback/reinforcement for
       // the user_settings copy), not just voice_description + voice_rules.
       const vocab = parsed.vocabulary_fingerprint as
@@ -121,7 +121,7 @@ function scorePageRelevance(body: string, query: string): number {
  * When workspaceId is provided, all page lookups are scoped to that workspace
  * so agency clients only see their own brain content.
  *
- * The GTM playbook (ICP/pitch/objections/CTA) is OUTREACH context — it is only
+ * The GTM playbook (ICP/pitch/objections/CTA) is OUTREACH context - it is only
  * included when `includeGtm` is true (outreach/reply generation). Injecting it
  * into ordinary content posts caused sales-pitch bleed into unrelated topics.
  */

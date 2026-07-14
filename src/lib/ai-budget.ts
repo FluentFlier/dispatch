@@ -2,7 +2,7 @@ import type { createClient } from '@insforge/sdk';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
-// Per-workspace per-day caps. Starter-tier defaults — adjust per plan via workspace_limits when needed.
+// Per-workspace per-day caps. Starter-tier defaults - adjust per plan via workspace_limits when needed.
 const DAILY_LIMITS: Record<string, { warn: number; hard: number }> = {
   haiku:  { warn: 80, hard: 100 },
   sonnet: { warn: 20, hard: 25  },
@@ -13,8 +13,8 @@ export type BudgetStatus = 'ok' | 'warn' | 'blocked';
 /**
  * Checks and increments daily AI usage for a workspace.
  * Call before every Claude Haiku or Sonnet invocation in cron/background code.
- * Returns 'blocked' when the hard cap is hit — skip the AI call for that workspace today.
- * Returns 'warn' at 80% — log it and continue.
+ * Returns 'blocked' when the hard cap is hit - skip the AI call for that workspace today.
+ * Returns 'warn' at 80% - log it and continue.
  * Returns 'ok' below warn threshold.
  *
  * Uses the `check_and_increment_ai_usage` Postgres RPC (see db/schema.sql) which
@@ -51,7 +51,7 @@ export async function checkAndIncrementUsage(
     }
     console.warn('[ai-budget] RPC returned no row, falling back to racy path', { workspaceId, model, error });
   } catch {
-    // RPC not available yet (pre-migration) — fall through to the racy fallback.
+    // RPC not available yet (pre-migration) - fall through to the racy fallback.
   }
 
   const today = new Date().toISOString().split('T')[0];

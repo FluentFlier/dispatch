@@ -18,7 +18,7 @@ const SUPPORTED = new Set(['twitter', 'instagram', 'linkedin']);
 const MAX_JOBS = 80;
 /**
  * Per-post LinkedIn GETs are slower than list backfill, but older posts fall
- * off the Unipile list window — keep enough budget to fill a typical analytics page.
+ * off the Unipile list window - keep enough budget to fill a typical analytics page.
  */
 const MAX_LINKEDIN_DETAIL_FETCHES = 30;
 
@@ -41,7 +41,7 @@ export interface SyncUserMetricsResult {
  * posts and writes them onto `posts`.
  *
  * LinkedIn strategy (order matters for serverless timeouts):
- * 1. Bulk list backfill from GET /users/{id}/posts — counters are on the list payload
+ * 1. Bulk list backfill from GET /users/{id}/posts - counters are on the list payload
  * 2. Per-post GET only for remaining zero-metric jobs (capped)
  */
 export async function syncUserPostMetrics(
@@ -50,7 +50,7 @@ export async function syncUserPostMetrics(
 ): Promise<SyncUserMetricsResult> {
   if (!process.env.UNIPILE_API_KEY?.trim() || !process.env.UNIPILE_DSN?.trim()) {
     const hasNonLinkedIn = true; // still try X/IG below; LinkedIn will no-op
-    logInfo('[analytics-sync] Unipile env missing — LinkedIn sync will skip', { userId });
+    logInfo('[analytics-sync] Unipile env missing - LinkedIn sync will skip', { userId });
     void hasNonLinkedIn;
   }
 
@@ -109,7 +109,7 @@ export async function syncUserPostMetrics(
   let failed = 0;
   let reason: string | undefined;
 
-  // 1) LinkedIn list backfill first — one request covers many posts.
+  // 1) LinkedIn list backfill first - one request covers many posts.
   if (linkedInJobs.length > 0) {
     if (!linkedInTarget) {
       skipped += linkedInJobs.length;
@@ -192,7 +192,7 @@ export async function syncUserPostMetrics(
 
   // 2b) X/Twitter via the SAME Unipile list backfill as LinkedIn. The old
   // token path (fetchTweetMetrics) is dead under Unipile because access_token
-  // is stored empty, so X metrics never synced — this fixes that.
+  // is stored empty, so X metrics never synced - this fixes that.
   if (twitterJobs.length > 0) {
     if (!process.env.UNIPILE_API_KEY?.trim() || !process.env.UNIPILE_DSN?.trim()) {
       skipped += twitterJobs.length;

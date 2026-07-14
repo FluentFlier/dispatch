@@ -45,7 +45,7 @@ function isPrivateIp(address: string): boolean {
 }
 
 /**
- * Validates that a URL is safe to fetch — public host, http(s) only, no private IPs.
+ * Validates that a URL is safe to fetch - public host, http(s) only, no private IPs.
  * Must be called before EVERY external HTTP request in research flows.
  * Resolves the hostname via DNS and rejects if any resolved address is private.
  * Throws on any violation so the caller can catch and skip without crashing the cron.
@@ -80,10 +80,10 @@ export async function assertPublicUrl(url: string): Promise<URL> {
     return parsed;
   }
 
-  // DNS resolution — check all A/AAAA records to prevent DNS rebinding attacks.
+  // DNS resolution - check all A/AAAA records to prevent DNS rebinding attacks.
   const records = await lookup(hostname, { all: true, verbatim: true });
   if (records.some((record) => isPrivateIp(record.address))) {
-    throw new Error('URL resolves to a private IP address — blocked for SSRF protection');
+    throw new Error('URL resolves to a private IP address - blocked for SSRF protection');
   }
 
   return parsed;
@@ -110,7 +110,7 @@ interface SerperResponse {
 export async function serperSearch(query: string, num = 5): Promise<SerperResult[]> {
   const apiKey = process.env.SERPER_API_KEY;
   if (!apiKey) {
-    console.warn('[research] SERPER_API_KEY not configured — skipping web search');
+    console.warn('[research] SERPER_API_KEY not configured - skipping web search');
     return [];
   }
 
@@ -196,7 +196,7 @@ function approximateTokens(text: string): number {
  * Orchestrates web research for a public event: Serper search → Jina read → structured extraction.
  * Limited to top 2 URLs to keep cron latency predictable.
  * Truncates raw_text to 2000 tokens before returning (spec requirement for Claude call safety).
- * Returns null if no useful content is found — caller generates generic questions instead.
+ * Returns null if no useful content is found - caller generates generic questions instead.
  */
 export async function researchPublicEvent(
   title: string,
@@ -221,7 +221,7 @@ export async function researchPublicEvent(
 
   if (results.length === 0) return null;
 
-  // Read the top results in parallel (jinaRead never throws — it returns null on
+  // Read the top results in parallel (jinaRead never throws - it returns null on
   // any failure, including SSRF rejection). Preserve URL order for source attribution.
   const topUrls = results.slice(0, MAX_READ_URLS).map((r) => r.link);
   const reads = await Promise.allSettled(topUrls.map((url) => jinaRead(url)));
@@ -245,7 +245,7 @@ export async function researchPublicEvent(
   }
 
   // Extract structured facts via the configured LLM (premium in prod, free in
-  // testing — see ai-tiers.ts). Degrades to the SERP snippet + empty structure
+  // testing - see ai-tiers.ts). Degrades to the SERP snippet + empty structure
   // when extraction is unavailable, matching the pre-LLM fallback behavior.
   const facts = await extractResearchFacts(rawText, title);
 
@@ -264,7 +264,7 @@ export async function researchPublicEvent(
 /**
  * Builds the normalized cache key for an event: lower(title) | date | lower(location).
  * Same public event across workspaces maps to one key, so research is paid for once.
- * Pure and deterministic — safe to unit test without a DB.
+ * Pure and deterministic - safe to unit test without a DB.
  */
 export function researchCacheKey(
   title: string,
@@ -289,7 +289,7 @@ interface ResearchCacheRow {
 /**
  * Reads a fresh (< 30 day) cached research row by normalized key.
  * Returns null on miss, staleness, or any DB error (logged) so the caller falls
- * back to a live research run — the cache is an optimization, never load-bearing.
+ * back to a live research run - the cache is an optimization, never load-bearing.
  */
 export async function getCachedResearch(
   client: InsforgeClient,
@@ -323,7 +323,7 @@ export async function getCachedResearch(
 
 /**
  * Upserts a research result into the cross-workspace cache, refreshing updated_at.
- * Failures are logged and swallowed — a cache write failure must never break the
+ * Failures are logged and swallowed - a cache write failure must never break the
  * enrich job that produced valid research.
  */
 export async function putCachedResearch(

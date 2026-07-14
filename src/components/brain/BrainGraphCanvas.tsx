@@ -1,6 +1,20 @@
 'use client';
 
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  forceCenter,
+  forceCollide,
+  forceLink,
+  forceManyBody,
+  forceSimulation,
+  forceX,
+  forceY,
+  type Simulation,
+  type SimulationLinkDatum,
+  type SimulationNodeDatum,
+} from 'd3-force';
+import { select } from 'd3-selection';
+import { zoom, type ZoomBehavior } from 'd3-zoom';
 import type { BrainGraph, BrainGraphNode, BrainNodeKind } from '@/lib/brain/graph';
 
 interface BrainGraphCanvasProps {
@@ -9,6 +23,8 @@ interface BrainGraphCanvasProps {
   onSelect: (node: BrainGraphNode | null) => void;
   /** Externally highlight a node (e.g. from a decision card). */
   focusId?: string | null;
+  /** Highlight a set of nodes (e.g. from a learning) - dims everything else. */
+  highlightIds?: string[];
 }
 
 const KIND_STYLE: Record<BrainNodeKind, { fill: string; radius: number }> = {
@@ -16,7 +32,7 @@ const KIND_STYLE: Record<BrainNodeKind, { fill: string; radius: number }> = {
   performance: { fill: '#0F766E', radius: 14 },
   gtm: { fill: '#E8543A', radius: 13 },
   references: { fill: '#8B7BB8', radius: 12 },
-  pillar: { fill: '#171717', radius: 12 },
+  pillar: { fill: '#1F1B16', radius: 12 },
   post: { fill: '#5B8FA8', radius: 7 },
   story: { fill: '#E07A5F', radius: 8 },
 };
@@ -47,117 +63,41 @@ function nodeRadius(node: BrainGraphNode): number {
   return KIND_STYLE[node.kind].radius;
 }
 
-interface Pt {
-  x: number;
-  y: number;
+type SimNode = SimulationNodeDatum & BrainGraphNode;
+type SimLink = SimulationLinkDatum<SimNode> & { kind: BrainGraph['edges'][number]['kind'] };
+
+/** Ideal edge length (px) - pillars hug their posts/stories, core spreads out. */
+function linkDistance(link: SimLink): number {
+  const a = link.source as SimNode;
+  const b = link.target as SimNode;
+  const kinds = new Set([a.kind, b.kind]);
+  const involvesLeaf = kinds.has('post') || kinds.has('story');
+  if (kinds.has('pillar') && involvesLeaf) return 46;
+  if (involvesLeaf) return 66;
+  if (kinds.has('pillar')) return 128;
+  return 104;
 }
 
-function forceLayout(graph: BrainGraph): Map<string, Pt> {
-  const pos = new Map<string, Pt>();
-  const nodes = graph.nodes;
-  const n = nodes.length;
-
-  nodes.forEach((node, i) => {
-    if (node.id === 'profile') {
-      pos.set(node.id, { x: 0, y: 0 });
-      return;
-    }
-    const angle = i * GOLDEN_ANGLE;
-    const radius = 0.12 + 0.62 * Math.sqrt(i / Math.max(1, n));
-    pos.set(node.id, { x: Math.cos(angle) * radius, y: Math.sin(angle) * radius });
-  });
-
-  if (n <= 1) return pos;
-
-  const k = Math.max(0.26, 0.85 * Math.sqrt(4 / n));
-  const idealLength = (a: BrainGraphNode, b: BrainGraphNode): number => {
-    const kinds = new Set([a.kind, b.kind]);
-    const involvesLeaf = kinds.has('post') || kinds.has('story');
-    if (kinds.has('pillar') && involvesLeaf) return k * 0.55;
-    if (involvesLeaf) return k * 0.7;
-    if (kinds.has('pillar')) return k * 1.15;
-    return k;
-  };
-
-  const nodeById = new Map(nodes.map((node) => [node.id, node]));
-  const edges = graph.edges
-    .map((e) => {
-      const source = nodeById.get(e.source);
-      const target = nodeById.get(e.target);
-      return source && target ? { source, target } : null;
-    })
-    .filter((e): e is { source: BrainGraphNode; target: BrainGraphNode } => e !== null);
-
-  const ITERATIONS = 260;
-  let temp = 0.32;
-  const disp = new Map<string, Pt>();
-
-  for (let iter = 0; iter < ITERATIONS; iter++) {
-    for (const node of nodes) disp.set(node.id, { x: 0, y: 0 });
-
-    for (let i = 0; i < n; i++) {
-      const a = nodes[i];
-      const pa = pos.get(a.id)!;
-      for (let j = i + 1; j < n; j++) {
-        const b = nodes[j];
-        const pb = pos.get(b.id)!;
-        let dx = pa.x - pb.x;
-        let dy = pa.y - pb.y;
-        let dist = Math.hypot(dx, dy);
-        if (dist < 1e-4) {
-          dx = (Math.random() - 0.5) * 1e-3;
-          dy = (Math.random() - 0.5) * 1e-3;
-          dist = Math.hypot(dx, dy);
-        }
-        const force = (k * k) / dist;
-        const da = disp.get(a.id)!;
-        const db = disp.get(b.id)!;
-        da.x += (dx / dist) * force;
-        da.y += (dy / dist) * force;
-        db.x -= (dx / dist) * force;
-        db.y -= (dy / dist) * force;
-      }
-    }
-
-    for (const { source, target } of edges) {
-      const ps = pos.get(source.id)!;
-      const pt = pos.get(target.id)!;
-      const dx = ps.x - pt.x;
-      const dy = ps.y - pt.y;
-      const dist = Math.hypot(dx, dy) || 1e-4;
-      const L = idealLength(source, target);
-      const force = (dist * dist) / k / L;
-      const ux = dx / dist;
-      const uy = dy / dist;
-      const ds = disp.get(source.id)!;
-      const dt = disp.get(target.id)!;
-      ds.x -= ux * force;
-      ds.y -= uy * force;
-      dt.x += ux * force;
-      dt.y += uy * force;
-    }
-
-    for (const node of nodes) {
-      if (node.id === 'profile') continue;
-      const d = disp.get(node.id)!;
-      const p = pos.get(node.id)!;
-      const len = Math.hypot(d.x, d.y) || 1e-4;
-      p.x += (d.x / len) * Math.min(len, temp);
-      p.y += (d.y / len) * Math.min(len, temp);
-    }
-
-    temp *= 0.965;
-  }
-
-  return pos;
-}
-
-export function BrainGraphCanvas({ graph, selectedId, onSelect, focusId }: BrainGraphCanvasProps) {
+export function BrainGraphCanvas({ graph, selectedId, onSelect, focusId, highlightIds }: BrainGraphCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState({ w: 800, h: 560 });
   const [hoverId, setHoverId] = useState<string | null>(null);
+  const [transform, setTransform] = useState({ k: 1, x: 0, y: 0 });
+  // Bumped on every simulation tick to re-render node/edge positions.
+  const [, setFrame] = useState(0);
 
-  useLayoutEffect(() => {
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+  const transformRef = useRef(transform);
+  transformRef.current = transform;
+
+  const simNodesRef = useRef<SimNode[]>([]);
+  const simRef = useRef<Simulation<SimNode, SimLink> | null>(null);
+  const dragRef = useRef<{ id: string; startX: number; startY: number; moved: boolean } | null>(null);
+
+  // --- Track container size ---
+  useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
     const update = () => setSize({ w: el.clientWidth, h: el.clientHeight });
@@ -167,38 +107,79 @@ export function BrainGraphCanvas({ graph, selectedId, onSelect, focusId }: Brain
     return () => ro.disconnect();
   }, []);
 
-  const layout = useMemo(() => forceLayout(graph), [graph]);
+  // --- Build / rebuild the force simulation when the graph changes ---
+  useEffect(() => {
+    const prev = new Map(simNodesRef.current.map((n) => [n.id, n]));
+    const { w, h } = sizeRef.current;
+    const cx = w / 2;
+    const cy = h / 2;
 
-  const positions = useMemo(() => {
-    const pad = 56;
-    const out = new Map<string, Pt>();
-    if (layout.size === 0) return out;
-
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    layout.forEach((p) => {
-      minX = Math.min(minX, p.x);
-      minY = Math.min(minY, p.y);
-      maxX = Math.max(maxX, p.x);
-      maxY = Math.max(maxY, p.y);
+    const nodes: SimNode[] = graph.nodes.map((node, i) => {
+      const carried = prev.get(node.id);
+      if (carried && carried.x != null && carried.y != null) {
+        return { ...node, x: carried.x, y: carried.y, vx: 0, vy: 0 };
+      }
+      if (node.id === 'profile') return { ...node, x: cx, y: cy };
+      // Deterministic phyllotaxis seed around the center so nodes fan out on settle.
+      const angle = i * GOLDEN_ANGLE;
+      const r = 30 + 12 * Math.sqrt(i);
+      return { ...node, x: cx + Math.cos(angle) * r, y: cy + Math.sin(angle) * r };
     });
 
-    const spanX = maxX - minX || 1;
-    const spanY = maxY - minY || 1;
-    const scale = Math.min((size.w - pad * 2) / spanX, (size.h - pad * 2) / spanY);
-    const offsetX = (size.w - spanX * scale) / 2;
-    const offsetY = (size.h - spanY * scale) / 2;
+    const nodeById = new Map(nodes.map((n) => [n.id, n]));
+    const links: SimLink[] = graph.edges
+      .filter((e) => nodeById.has(e.source) && nodeById.has(e.target))
+      .map((e) => ({ source: e.source, target: e.target, kind: e.kind }));
 
-    layout.forEach((p, id) => {
-      out.set(id, {
-        x: offsetX + (p.x - minX) * scale,
-        y: offsetY + (p.y - minY) * scale,
+    const sim = forceSimulation<SimNode>(nodes)
+      .force('link', forceLink<SimNode, SimLink>(links).id((d) => d.id).distance(linkDistance).strength(0.7))
+      .force('charge', forceManyBody<SimNode>().strength((d) => -26 * nodeRadius(d)))
+      .force('collide', forceCollide<SimNode>().radius((d) => nodeRadius(d) + 7).strength(0.9))
+      .force('center', forceCenter(cx, cy).strength(0.05))
+      .force('x', forceX<SimNode>(cx).strength(0.045))
+      .force('y', forceY<SimNode>(cy).strength(0.045))
+      .alpha(1)
+      .alphaDecay(0.028);
+
+    sim.on('tick', () => {
+      // Keep the profile node pinned at the current center (follows resizes).
+      const profile = nodeById.get('profile');
+      if (profile) {
+        profile.x = sizeRef.current.w / 2;
+        profile.y = sizeRef.current.h / 2;
+      }
+      setFrame((f) => (f + 1) % 1_000_000);
+    });
+
+    simNodesRef.current = nodes;
+    simRef.current = sim;
+    return () => {
+      sim.stop();
+    };
+  }, [graph]);
+
+  // --- Zoom / pan (background only; node drags are handled separately) ---
+  useEffect(() => {
+    const svgEl = svgRef.current;
+    if (!svgEl) return;
+    const behavior: ZoomBehavior<SVGSVGElement, unknown> = zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.4, 4])
+      .filter((event: Event) => {
+        if (event.type === 'wheel') return true;
+        const target = event.target as Element | null;
+        return !target?.closest?.('[data-node="true"]');
+      })
+      .on('zoom', (event) => {
+        const t = event.transform;
+        setTransform({ k: t.k, x: t.x, y: t.y });
       });
-    });
-    return out;
-  }, [layout, size.w, size.h]);
+    const sel = select(svgEl);
+    sel.call(behavior);
+    sel.on('dblclick.zoom', null);
+    return () => {
+      sel.on('.zoom', null);
+    };
+  }, []);
 
   const neighbors = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -210,120 +191,205 @@ export function BrainGraphCanvas({ graph, selectedId, onSelect, focusId }: Brain
     return map;
   }, [graph]);
 
-  const activeId = hoverId ?? selectedId ?? focusId;
+  const highlightSet = useMemo(() => new Set(highlightIds ?? []), [highlightIds]);
+  const activeId = hoverId ?? selectedId ?? focusId ?? null;
   const activeNeighbors = activeId ? neighbors.get(activeId) : null;
 
   const isDimmed = (id: string): boolean => {
+    if (highlightSet.size > 0) return !highlightSet.has(id);
     if (!activeId || id === activeId) return false;
     return !(activeNeighbors?.has(id) ?? false);
   };
 
+  const toGraphPoint = (clientX: number, clientY: number) => {
+    const rect = svgRef.current?.getBoundingClientRect();
+    const t = transformRef.current;
+    const px = clientX - (rect?.left ?? 0);
+    const py = clientY - (rect?.top ?? 0);
+    return { x: (px - t.x) / t.k, y: (py - t.y) / t.k };
+  };
+
+  const nodePos = new Map(simNodesRef.current.map((n) => [n.id, n]));
+
   return (
     <div
       ref={containerRef}
-      className="relative h-full w-full overflow-hidden rounded-surface border border-hair bg-[radial-gradient(120%_120%_at_50%_0%,#FFFFFF_0%,#F7F5EF_60%,#F1EEE6_100%)]"
+      className="relative h-full w-full overflow-hidden rounded-surface border border-hair bg-[radial-gradient(130%_130%_at_50%_-10%,#FFFFFF_0%,#F8F6F0_55%,#EFEBE1_100%)]"
     >
       <svg
+        ref={svgRef}
         width={size.w}
         height={size.h}
-        className="block select-none"
-        onClick={() => onSelect(null)}
+        className="block touch-none select-none"
+        style={{ cursor: dragRef.current ? 'grabbing' : 'grab' }}
       >
-        {graph.edges.map((e, i) => {
-          const s = positions.get(e.source);
-          const t = positions.get(e.target);
-          if (!s || !t) return null;
-          const dim = isDimmed(e.source) && isDimmed(e.target);
-          const isWin = e.kind === 'win';
-          const mx = (s.x + t.x) / 2;
-          const my = (s.y + t.y) / 2;
-          const dx = t.x - s.x;
-          const dy = t.y - s.y;
-          const nx = -dy;
-          const ny = dx;
-          const nlen = Math.hypot(nx, ny) || 1;
-          const bend = Math.min(28, Math.hypot(dx, dy) * 0.12);
-          const cx = mx + (nx / nlen) * bend;
-          const cy = my + (ny / nlen) * bend;
-          return (
-            <path
-              key={`${e.source}->${e.target}-${i}`}
-              d={`M ${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`}
-              fill="none"
-              stroke={isWin ? '#0F766E' : '#171717'}
-              strokeOpacity={dim ? 0.05 : isWin ? 0.5 : 0.12}
-              strokeWidth={isWin ? 1.75 : 1}
-              strokeDasharray={e.kind === 'pillar' ? '4 5' : undefined}
-              strokeLinecap="round"
-            />
-          );
-        })}
+        <defs>
+          <filter id="brain-node-shadow" x="-50%" y="-50%" width="200%" height="200%">
+            <feDropShadow dx="0" dy="1.5" stdDeviation="2.5" floodColor="#2B2417" floodOpacity="0.18" />
+          </filter>
+          <filter id="brain-win-glow" x="-80%" y="-80%" width="260%" height="260%">
+            <feGaussianBlur stdDeviation="2.2" result="b" />
+            <feMerge>
+              <feMergeNode in="b" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
 
-        {graph.nodes.map((node) => {
-          const p = positions.get(node.id);
-          if (!p) return null;
-          const style = KIND_STYLE[node.kind];
-          const r = nodeRadius(node);
-          const dim = isDimmed(node.id);
-          const selected = selectedId === node.id;
-          const focused = focusId === node.id;
-          const alwaysLabel =
-            node.id === 'profile' ||
-            node.kind === 'core' ||
-            node.kind === 'pillar' ||
-            node.kind === 'performance' ||
-            node.kind === 'gtm' ||
-            node.kind === 'references';
-          const showLabel =
-            alwaysLabel || activeId === node.id || selected || (node.kind === 'post' && (node.weight ?? 0) >= 0.72);
-          const pending = node.pending === true;
+        {/* Background hit target - click empty space to deselect. */}
+        <rect
+          x={0}
+          y={0}
+          width={size.w}
+          height={size.h}
+          fill="transparent"
+          onClick={() => onSelect(null)}
+        />
 
-          return (
-            <g
-              key={node.id}
-              transform={`translate(${p.x},${p.y})`}
-              style={{ opacity: dim ? 0.3 : pending ? 0.55 : 1, cursor: 'pointer', transition: 'opacity 0.15s ease' }}
-              onPointerEnter={() => setHoverId(node.id)}
-              onPointerLeave={() => setHoverId(null)}
-              onClick={(e) => {
-                e.stopPropagation();
-                onSelect(node);
-              }}
-            >
-              {node.highlight && !selected && (
-                <circle r={r + 3.5} fill="none" stroke="#0F766E" strokeWidth={1.5} strokeOpacity={0.55} />
-              )}
-              {(selected || focused) && (
-                <circle r={r + 6} fill="none" stroke={style.fill} strokeWidth={2} strokeOpacity={0.55} />
-              )}
-              <circle
-                r={r}
-                fill={style.fill}
-                fillOpacity={pending ? 0.35 : 1}
-                stroke="#FBFAF7"
-                strokeWidth={node.id === 'profile' ? 3 : 2}
-                strokeDasharray={pending ? '3 3' : undefined}
+        <g transform={`translate(${transform.x},${transform.y}) scale(${transform.k})`}>
+          {graph.edges.map((e, i) => {
+            const s = nodePos.get(e.source);
+            const t = nodePos.get(e.target);
+            if (!s || s.x == null || !t || t.x == null) return null;
+            const dim =
+              highlightSet.size > 0
+                ? !(highlightSet.has(e.source) && highlightSet.has(e.target))
+                : isDimmed(e.source) && isDimmed(e.target);
+            const isWin = e.kind === 'win';
+            const mx = (s.x! + t.x!) / 2;
+            const my = (s.y! + t.y!) / 2;
+            const dx = t.x! - s.x!;
+            const dy = t.y! - s.y!;
+            const nlen = Math.hypot(-dy, dx) || 1;
+            const bend = Math.min(26, Math.hypot(dx, dy) * 0.11);
+            const cx = mx + (-dy / nlen) * bend;
+            const cy = my + (dx / nlen) * bend;
+            return (
+              <path
+                key={`${e.source}->${e.target}-${i}`}
+                d={`M ${s.x} ${s.y} Q ${cx} ${cy} ${t.x} ${t.y}`}
+                fill="none"
+                stroke={isWin ? '#0F766E' : '#2B2417'}
+                strokeOpacity={dim ? 0.04 : isWin ? 0.55 : 0.11}
+                strokeWidth={isWin ? 1.9 : 1}
+                strokeDasharray={e.kind === 'pillar' ? '4 5' : undefined}
+                strokeLinecap="round"
+                filter={isWin && !dim ? 'url(#brain-win-glow)' : undefined}
+                style={{ transition: 'stroke-opacity 0.15s ease' }}
               />
-              {showLabel && (
-                <text
-                  x={0}
-                  y={r + 13}
-                  textAnchor="middle"
-                  className="fill-ink"
-                  style={{
-                    fontSize: node.id === 'profile' ? 13 : node.kind === 'post' || node.kind === 'story' ? 10.5 : 11.5,
-                    fontWeight: node.id === 'profile' ? 700 : alwaysLabel ? 600 : 500,
-                    paintOrder: 'stroke',
-                    stroke: '#FBFAF7',
-                    strokeWidth: 3.5,
-                  }}
-                >
-                  {node.label}
-                </text>
-              )}
-            </g>
-          );
-        })}
+            );
+          })}
+
+          {graph.nodes.map((node) => {
+            const p = nodePos.get(node.id);
+            if (!p || p.x == null || p.y == null) return null;
+            const style = KIND_STYLE[node.kind];
+            const r = nodeRadius(node);
+            const dim = isDimmed(node.id);
+            const selected = selectedId === node.id;
+            const focused = focusId === node.id || highlightSet.has(node.id);
+            const hovered = hoverId === node.id;
+            const alwaysLabel =
+              node.id === 'profile' ||
+              node.kind === 'core' ||
+              node.kind === 'pillar' ||
+              node.kind === 'performance' ||
+              node.kind === 'gtm' ||
+              node.kind === 'references';
+            const showLabel =
+              alwaysLabel || activeId === node.id || selected || (node.kind === 'post' && (node.weight ?? 0) >= 0.72);
+            const pending = node.pending === true;
+            const scale = hovered ? 1.14 : 1;
+
+            return (
+              <g
+                key={node.id}
+                data-node="true"
+                transform={`translate(${p.x},${p.y})`}
+                style={{
+                  opacity: dim ? 0.28 : pending ? 0.55 : 1,
+                  cursor: 'pointer',
+                  transition: 'opacity 0.15s ease',
+                }}
+                onPointerEnter={() => setHoverId(node.id)}
+                onPointerLeave={() => setHoverId(null)}
+                onPointerDown={(e) => {
+                  if (node.id === 'profile') return; // profile stays pinned
+                  e.stopPropagation();
+                  (e.target as Element).setPointerCapture?.(e.pointerId);
+                  dragRef.current = { id: node.id, startX: e.clientX, startY: e.clientY, moved: false };
+                  const sim = simRef.current;
+                  const sn = simNodesRef.current.find((n) => n.id === node.id);
+                  if (sn) {
+                    sn.fx = sn.x;
+                    sn.fy = sn.y;
+                  }
+                  sim?.alphaTarget(0.3).restart();
+                }}
+                onPointerMove={(e) => {
+                  const d = dragRef.current;
+                  if (!d || d.id !== node.id) return;
+                  if (!d.moved && Math.hypot(e.clientX - d.startX, e.clientY - d.startY) > 3) d.moved = true;
+                  const gp = toGraphPoint(e.clientX, e.clientY);
+                  const sn = simNodesRef.current.find((n) => n.id === node.id);
+                  if (sn) {
+                    sn.fx = gp.x;
+                    sn.fy = gp.y;
+                  }
+                }}
+                onPointerUp={() => {
+                  const d = dragRef.current;
+                  const sim = simRef.current;
+                  sim?.alphaTarget(0);
+                  const sn = simNodesRef.current.find((n) => n.id === node.id);
+                  if (sn) {
+                    sn.fx = null;
+                    sn.fy = null;
+                  }
+                  if (d && !d.moved) onSelect(node);
+                  dragRef.current = null;
+                }}
+              >
+                <g style={{ transform: `scale(${scale})`, transition: 'transform 0.16s cubic-bezier(0.34,1.56,0.64,1)' }}>
+                  {node.highlight && !selected && (
+                    <circle r={r + 3.5} fill="none" stroke="#0F766E" strokeWidth={1.5} strokeOpacity={0.55} />
+                  )}
+                  {(selected || focused) && (
+                    <circle r={r + 6} fill="none" stroke={style.fill} strokeWidth={2} strokeOpacity={0.6} />
+                  )}
+                  <circle
+                    r={r}
+                    fill={style.fill}
+                    fillOpacity={pending ? 0.35 : 1}
+                    stroke="#FBFAF7"
+                    strokeWidth={node.id === 'profile' ? 3 : 2}
+                    strokeDasharray={pending ? '3 3' : undefined}
+                    filter={pending ? undefined : 'url(#brain-node-shadow)'}
+                  />
+                </g>
+                {showLabel && (
+                  <text
+                    x={0}
+                    y={r + 13}
+                    textAnchor="middle"
+                    className="fill-ink"
+                    style={{
+                      fontSize: node.id === 'profile' ? 13 : node.kind === 'post' || node.kind === 'story' ? 10.5 : 11.5,
+                      fontWeight: node.id === 'profile' ? 700 : alwaysLabel ? 600 : 500,
+                      paintOrder: 'stroke',
+                      stroke: '#FBFAF7',
+                      strokeWidth: 3.5,
+                      opacity: dim ? 0.3 : 1,
+                      transition: 'opacity 0.15s ease',
+                    }}
+                  >
+                    {node.label}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+        </g>
       </svg>
     </div>
   );

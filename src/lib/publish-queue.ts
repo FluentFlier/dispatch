@@ -119,7 +119,7 @@ export async function processPublishJob(
   };
 
   // Track the incremented attempt count in one place so the failure path
-  // uses the same value — previously it recomputed job.attempts+1 a second
+  // uses the same value - previously it recomputed job.attempts+1 a second
   // time, causing an off-by-one that burned retries too fast.
   const incrementedAttempts = job.attempts + 1;
 
@@ -131,7 +131,7 @@ export async function processPublishJob(
       result = await provider.publish(job.user_id, payload);
     } else {
       // Direct-mode jobs must go through /api/publish. Update DB to 'failed'
-      // before returning — previously we returned without updating, leaving the
+      // before returning - previously we returned without updating, leaving the
       // job permanently stuck in 'processing' (zombie job).
       const errorMsg = 'Direct publish must run via /api/publish or cron';
       await client.database
@@ -245,7 +245,7 @@ export async function resetStuckProcessingJobs(stuckAfterMinutes = 10): Promise<
     .from('publish_jobs')
     .update({
       status: 'failed',
-      last_error: `Job stuck in processing for >${stuckAfterMinutes}m — reset by watchdog`,
+      last_error: `Job stuck in processing for >${stuckAfterMinutes}m - reset by watchdog`,
       updated_at: new Date().toISOString(),
     })
     .eq('status', 'processing')

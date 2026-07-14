@@ -227,7 +227,7 @@ function minedAtFor(idx: number): string {
 }
 
 // ----------------------------------------------------------------------------
-// Synthesis banks — expand far beyond the curated pool while staying grounded
+// Synthesis banks - expand far beyond the curated pool while staying grounded
 // in the same proven patterns. Everything is deterministic so re-runs are
 // byte-stable.
 // ----------------------------------------------------------------------------
@@ -393,7 +393,7 @@ function addHook(s: Seed & { source?: string }): boolean {
   if (hooks.length >= TARGET) return false;
   const id = hashId(s.text + '|' + s.author);
   const textKey = s.text.trim().toLowerCase().replace(/\s+/g, ' ');
-  // Dedupe by BOTH id and text content — no two hooks share the same wording,
+  // Dedupe by BOTH id and text content - no two hooks share the same wording,
   // regardless of attributed author.
   if (seenIds.has(id) || seenTexts.has(textKey)) return false;
   seenIds.add(id);

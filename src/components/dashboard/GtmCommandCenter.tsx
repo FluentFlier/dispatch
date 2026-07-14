@@ -64,7 +64,7 @@ function LimitBar({
 }
 
 /**
- * GTM command center — ICP pipeline, LinkedIn limits, and today's outreach queue.
+ * GTM command center - ICP pipeline, LinkedIn limits, and today's outreach queue.
  */
 export function GtmCommandCenter() {
   const { toast } = useToast();

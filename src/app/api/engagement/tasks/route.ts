@@ -8,10 +8,10 @@ import { z } from 'zod';
 /**
  * Outbound engagement queue API.
  *
- * GET   — list the user's queued/sent outbound tasks (newest first).
- * POST  — create a task: AI-drafts a comment in the creator's voice for a
+ * GET   - list the user's queued/sent outbound tasks (newest first).
+ * POST  - create a task: AI-drafts a comment in the creator's voice for a
  *         target post; the task waits in 'draft' until the user approves it.
- * PATCH — approve / skip / edit a draft. Only approved tasks are ever posted,
+ * PATCH - approve / skip / edit a draft. Only approved tasks are ever posted,
  *         and posting happens in the cron worker, never inline here.
  */
 
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   try {
     let commentText: string | null = null;
     if (input.kind === 'comment') {
-      // Drafting burns AI budget — apply the same guard as inbox drafting.
+      // Drafting burns AI budget - apply the same guard as inbox drafting.
       const guard = await guardAiRequest(user.id);
       if (!guard.ok) return NextResponse.json({ error: guard.error }, { status: guard.status });
 

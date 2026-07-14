@@ -9,10 +9,10 @@ interface RouteParams {
 /**
  * GET /api/event-capture/[id]
  * Returns a single event capture with its research and generated posts (if drafted).
- * This is the polling target — the UI polls every 3 seconds while status='drafting'
+ * This is the polling target - the UI polls every 3 seconds while status='drafting'
  * to detect when drafts are ready and render them.
  *
- * Validates workspace ownership before returning — prevents cross-workspace data leaks.
+ * Validates workspace ownership before returning - prevents cross-workspace data leaks.
  */
 export async function GET(
   request: NextRequest,

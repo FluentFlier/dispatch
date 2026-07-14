@@ -119,7 +119,7 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
             <p className="text-sm text-text-tertiary">
               Draft generation didn&apos;t save a post.
               {questions.length > 0
-                ? ' Answer (or update) at least one question below, then generate again — or reload for a fresh set of questions.'
+                ? ' Answer (or update) at least one question below, then generate again - or reload for a fresh set of questions.'
                 : ' Reload the questions to try again.'}
             </p>
             {error && <p className="text-sm text-red-600">{error}</p>}

@@ -1,5 +1,5 @@
 /**
- * Phase: Layer 1 — Event Capture
+ * Phase: Layer 1 - Event Capture
  * Tests filter logic, SSRF guard, answers API, and cron auth/flag behavior.
  */
 import { describe, it, expect, vi, beforeEach, afterAll } from 'vitest';
@@ -117,7 +117,7 @@ describe('Layer 1: Event Capture', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // research.ts — SSRF guard
+  // research.ts - SSRF guard
   // ---------------------------------------------------------------------------
   describe('research.ts', () => {
     it('assertPublicUrl: throws on private IP ranges (10.x, 192.168.x, localhost)', async () => {
@@ -138,7 +138,7 @@ describe('Layer 1: Event Capture', () => {
     });
 
     it('assertPublicUrl: passes valid public URLs', async () => {
-      // These will attempt a real DNS lookup in tests — mock if needed,
+      // These will attempt a real DNS lookup in tests - mock if needed,
       // but since they're real public domains the lookup should succeed.
       // We test that the function does NOT throw for valid URLs.
       await expect(assertPublicUrl('https://example.com/page')).resolves.toBeDefined();
@@ -174,9 +174,9 @@ describe('Layer 1: Event Capture', () => {
       expect(body.error).toMatch(/at least one answer/i);
     });
 
-    it('sanitizes answer text — strips control chars, enforces 500 char limit', () => {
+    it('sanitizes answer text - strips control chars, enforces 500 char limit', () => {
       // Test the sanitizeAnswer function logic directly without invoking the route.
-      // The route is a thin wrapper — the sanitization regex is what matters.
+      // The route is a thin wrapper - the sanitization regex is what matters.
       const sanitize = (raw: string) =>
         raw
           .trim()
@@ -191,7 +191,7 @@ describe('Layer 1: Event Capture', () => {
       expect(cleaned).not.toContain('\x00');
       expect(cleaned).not.toContain('\x01');
       expect(cleaned).not.toContain('\x02');
-      // \n (0x0A) and \t (0x09) are preserved — they are in the allowed range.
+      // \n (0x0A) and \t (0x09) are preserved - they are in the allowed range.
       expect(cleaned).toContain('\n');
       expect(cleaned).toContain('\t');
 

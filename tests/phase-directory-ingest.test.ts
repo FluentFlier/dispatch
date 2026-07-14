@@ -92,7 +92,7 @@ describe('Phase: Directory ingest (no key, demo flag OFF)', () => {
   };
 
   // Core bug fix: YC directory is a keyless public Algolia index, so a workspace
-  // with NO TinyFish key must still get real YC leads — not an empty feed.
+  // with NO TinyFish key must still get real YC leads - not an empty feed.
   it('fetches real YC leads via keyless Algolia even without a TinyFish key', async () => {
     expect(isTinyFishConfigured()).toBe(false);
     const spy = vi
@@ -169,7 +169,7 @@ describe('Phase: Directory ingest (live TinyFish Agent path)', () => {
   });
 
   // Reliability regression: a single agent run is nondeterministic (0-10 rows).
-  // An empty run must NOT end the scrape — the next attempt should recover.
+  // An empty run must NOT end the scrape - the next attempt should recover.
   it('retries past an empty run and accumulates unique companies', async () => {
     const spy = vi
       .spyOn(global, 'fetch')

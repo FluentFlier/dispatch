@@ -233,7 +233,7 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
   // Auto-sync once per session when the inbox is empty but an account IS
   // connected: imported/published posts have publish_jobs rows, so the very
   // first visit should pull their comments instead of showing an empty inbox.
-  // Session-scoped guard keeps Unipile calls bounded (cost) — repeat visits with
+  // Session-scoped guard keeps Unipile calls bounded (cost) - repeat visits with
   // genuinely zero comments won't re-hammer the provider.
   const isEmptyNow = (data?.groups.length ?? 0) === 0;
   useEffect(() => {
@@ -243,7 +243,7 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
     try {
       sessionStorage.setItem(guardKey, '1');
     } catch {
-      /* private mode — proceed without the guard */
+      /* private mode - proceed without the guard */
     }
     handleSync();
     // eslint-disable-next-line react-hooks/exhaustive-deps

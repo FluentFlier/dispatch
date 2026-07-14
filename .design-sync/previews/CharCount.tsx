@@ -17,7 +17,7 @@ function Row({ caption, children }: { caption: string; children: React.ReactNode
   );
 }
 
-// Well under the limit — neutral gray count.
+// Well under the limit - neutral gray count.
 export function UnderLimit() {
   const text = 'Shipped a new feature today. Quietly proud.';
   return (
@@ -27,7 +27,7 @@ export function UnderLimit() {
   );
 }
 
-// Approaching the limit (~80%) — turns amber.
+// Approaching the limit (~80%) - turns amber.
 export function NearLimit() {
   const text =
     'Most founders think growth is a marketing problem. It is not. It is a retention problem dressed up as one, and once you really see that, everything about how you choose to spend your critical first 90 days completely changes for the better.';
@@ -38,7 +38,7 @@ export function NearLimit() {
   );
 }
 
-// Over the limit — red count.
+// Over the limit - red count.
 export function OverLimit() {
   const text =
     'Hot take: your content calendar is killing your reach. Posting daily for the algorithm trains you to ship mediocre work on a schedule instead of one undeniable post a week that people actually remember, share, and quote back to you in DMs months later when it finally clicks for them too.';

@@ -51,7 +51,7 @@ function parseHooks(text: string): string[] {
     .map(trimFirstSentence);
   if (lines.length > 1) return lines;
 
-  // Fallback 2: one blob — split into sentences so the user still gets options.
+  // Fallback 2: one blob - split into sentences so the user still gets options.
   const sentences = text
     .split(/(?<=[.!?])\s+/)
     .map((s) => s.trim())

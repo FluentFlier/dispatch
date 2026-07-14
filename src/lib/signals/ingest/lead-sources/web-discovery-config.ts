@@ -1,6 +1,6 @@
 import { isTinyFishConfigured } from '@/lib/signals/ingest/tinyfish-fetch';
 
-/** Env-only LLM check — safe for client bundles (no @/lib/llm import). */
+/** Env-only LLM check - safe for client bundles (no @/lib/llm import). */
 export function isLlmConfiguredForDiscovery(): boolean {
   const hfKey = process.env.HUGGINGFACE_API_KEY?.trim();
   const url = process.env.LLM_BASE_URL?.trim();

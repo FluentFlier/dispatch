@@ -8,7 +8,7 @@ interface Props {
   children: ReactNode;
 }
 
-/** Editorial app chrome — silk background, film grain. */
+/** Editorial app chrome - silk background, film grain. */
 export default function DashboardShell({ children }: Props) {
   return (
     <div className="editorial relative flex h-screen min-h-screen bg-paper text-ink">

@@ -31,7 +31,7 @@ describe('parseReplies', () => {
     expect(out.map((p) => p.reply)).toEqual(['alpha', 'beta', 'gamma']);
   });
 
-  it('never drops comments — pads missing replies', () => {
+  it('never drops comments - pads missing replies', () => {
     const out = parseReplies('["only one"]', comments);
     expect(out).toHaveLength(3);
     expect(out[0].reply).toBe('only one');

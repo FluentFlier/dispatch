@@ -15,7 +15,7 @@ const CreateSourceSchema = z.object({
   enabled: z.boolean().optional(),
 }).strict();
 
-/** Per-workspace ceiling on monitored keywords — each one costs an X search per poll. */
+/** Per-workspace ceiling on monitored keywords - each one costs an X search per poll. */
 const MAX_KEYWORD_SOURCES = 5;
 
 /** Keyword searches poll hourly by default (profiles default to 30 min). */

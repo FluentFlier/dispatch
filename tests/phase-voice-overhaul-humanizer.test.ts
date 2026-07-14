@@ -49,7 +49,7 @@ describe('humanizePipeline preserve list', () => {
     // humanizeClean now calls chatCompletion directly with role 'small'; the
     // preserve block rides in the system prompt (arg 0).
     const cleanSystem = chatCompletion.mock.calls[0][0] as string;
-    expect(cleanSystem).toContain('PRESERVE THESE CREATOR WORDS');
+    expect(cleanSystem).toContain('PRESERVE THESE EXACTLY');
     expect(cleanSystem).toContain('robust');
     expect(cleanSystem).toContain('ship it');
     expect(chatCompletion.mock.calls[0][2]).toMatchObject({ role: 'small' });

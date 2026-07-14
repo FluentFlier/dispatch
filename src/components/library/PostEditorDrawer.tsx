@@ -12,6 +12,7 @@ import PerformanceModal from '@/components/library/PerformanceModal';
 import PublishPanel from '@/components/library/PublishPanel';
 import GenerateVariantsSection from '@/components/library/GenerateVariantsSection';
 import BulkPublishPanel from '@/components/library/BulkPublishPanel';
+import { LinkedInPostPreview } from '@/components/generate/LinkedInPostPreview';
 import dynamic from 'next/dynamic';
 import { logEditFeedback } from '@/lib/hooks-intelligence/edit-feedback';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
@@ -78,6 +79,22 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   });
   const [showPerfModal, setShowPerfModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // Author identity for the LinkedIn-style preview (LinkedIn posts only).
+  const [author, setAuthor] = useState<{ name: string; headline: string | null }>({ name: 'You', headline: null });
+
+  const isLinkedIn = form.platform === 'linkedin';
+
+  useEffect(() => {
+    if (!isLinkedIn) return;
+    fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.profile?.displayName) {
+          setAuthor({ name: data.profile.displayName, headline: data.profile.headline ?? null });
+        }
+      })
+      .catch(() => {});
+  }, [isLinkedIn]);
 
   useEffect(() => {
     setForm({
@@ -199,7 +216,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
   const handleDelete = async () => {
     // Deletes ONLY the tool's post row (InsForge). Does NOT touch the live
-    // LinkedIn/X post — the DELETE route makes no provider call.
+    // LinkedIn/X post - the DELETE route makes no provider call.
     if (!confirm('Remove this post from the tool? (Your live LinkedIn/X post is not affected.)')) return;
     setDeleting(true);
     try {
@@ -399,19 +416,33 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                 </div>
               )}
 
-              <label className="block">
-                <span className={labelClass}>Hook</span>
-                <textarea
-                  rows={3}
-                  value={form.hook}
-                  onChange={(e) => update('hook', e.target.value)}
-                  onBlur={autoSave}
-                  className={`${inputClass} resize-none min-h-[88px]`}
-                />
-              </label>
+              {isLinkedIn && (
+                <div>
+                  <span className={labelClass}>LinkedIn preview</span>
+                  <LinkedInPostPreview
+                    name={author.name}
+                    headline={author.headline}
+                    text={form.script || form.caption || ''}
+                    imageUrl={form.image_url || null}
+                  />
+                </div>
+              )}
+
+              {!isLinkedIn && (
+                <label className="block">
+                  <span className={labelClass}>Hook</span>
+                  <textarea
+                    rows={3}
+                    value={form.hook}
+                    onChange={(e) => update('hook', e.target.value)}
+                    onBlur={autoSave}
+                    className={`${inputClass} resize-none min-h-[88px]`}
+                  />
+                </label>
+              )}
 
               <label className="block">
-                <span className={labelClass}>Script</span>
+                <span className={labelClass}>{isLinkedIn ? 'Post body' : 'Script'}</span>
                 <textarea
                   rows={10}
                   value={form.script}
@@ -421,30 +452,34 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                 />
               </label>
 
-              <label className="block">
-                <div className="flex items-center justify-between">
-                  <span className={labelClass}>Caption</span>
-                  <CharCount text={form.caption} platform={form.platform} />
-                </div>
-                <textarea
-                  rows={5}
-                  value={form.caption}
-                  onChange={(e) => update('caption', e.target.value)}
-                  onBlur={autoSave}
-                  className={`${inputClass} resize-none`}
-                />
-              </label>
+              {!isLinkedIn && (
+                <>
+                  <label className="block">
+                    <div className="flex items-center justify-between">
+                      <span className={labelClass}>Caption</span>
+                      <CharCount text={form.caption} platform={form.platform} />
+                    </div>
+                    <textarea
+                      rows={5}
+                      value={form.caption}
+                      onChange={(e) => update('caption', e.target.value)}
+                      onBlur={autoSave}
+                      className={`${inputClass} resize-none`}
+                    />
+                  </label>
 
-              <label className="block">
-                <span className={labelClass}>Hashtags</span>
-                <textarea
-                  rows={3}
-                  value={form.hashtags}
-                  onChange={(e) => update('hashtags', e.target.value)}
-                  onBlur={autoSave}
-                  className={`${inputClass} resize-none`}
-                />
-              </label>
+                  <label className="block">
+                    <span className={labelClass}>Hashtags</span>
+                    <textarea
+                      rows={3}
+                      value={form.hashtags}
+                      onChange={(e) => update('hashtags', e.target.value)}
+                      onBlur={autoSave}
+                      className={`${inputClass} resize-none`}
+                    />
+                  </label>
+                </>
+              )}
 
               <label className="block">
                 <span className={labelClass}>Notes</span>
@@ -490,20 +525,24 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </div>
 
               <div className="grid grid-cols-2 gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => handleRegenerate('caption')}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
-                >
-                  <Wand2 size={14} /> Regenerate Caption
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleRegenerate('hook')}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
-                >
-                  <Wand2 size={14} /> Regenerate Hook
-                </button>
+                {!isLinkedIn && (
+                  <button
+                    type="button"
+                    onClick={() => handleRegenerate('caption')}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
+                  >
+                    <Wand2 size={14} /> Regenerate Caption
+                  </button>
+                )}
+                {!isLinkedIn && (
+                  <button
+                    type="button"
+                    onClick={() => handleRegenerate('hook')}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
+                  >
+                    <Wand2 size={14} /> Regenerate Hook
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => {

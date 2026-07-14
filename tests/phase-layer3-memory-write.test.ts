@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
-// Top-level vi.mock for supermemory — hoisted by vitest so it always wins.
+// Top-level vi.mock for supermemory - hoisted by vitest so it always wins.
 // We control behaviour per-test by mutating addMemoryImpl.
 // ---------------------------------------------------------------------------
 
@@ -17,7 +17,7 @@ vi.mock('../src/lib/supermemory', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Helper — builds a minimal InsForge client stub for brain/sync tests
+// Helper - builds a minimal InsForge client stub for brain/sync tests
 // ---------------------------------------------------------------------------
 
 function makeClient(options: {
@@ -118,7 +118,7 @@ describe('Layer 3: Memory Write Path', () => {
       await listBrainPages(client as any, 'user-1');
 
       const eqCalls = eqSpy.mock.calls as Array<[string, string]>;
-      // Must NOT have called .eq('workspace_id', ...) — no workspace filter
+      // Must NOT have called .eq('workspace_id', ...) - no workspace filter
       const hasWorkspaceEq = eqCalls.some(([col]) => col === 'workspace_id');
       expect(hasWorkspaceEq).toBe(false);
       // Must still have filtered by user_id
@@ -244,7 +244,7 @@ describe('Layer 3: Memory Write Path', () => {
       expect(call.containerTags.some((t: string) => t.startsWith('workspace_'))).toBe(false);
     });
 
-    it('does not throw if addMemory fails — logs error', async () => {
+    it('does not throw if addMemory fails - logs error', async () => {
       addMemoryImpl = vi.fn().mockRejectedValue(new Error('Supermemory down'));
       const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
@@ -274,7 +274,7 @@ describe('Layer 3: Memory Write Path', () => {
         hook: 'Hook text', views: 100, likes: 5, posted_date: '2026-01-02',
       };
       const { syncBrainPublishedPost } = await import('../src/lib/brain/sync');
-      // Flag returns false — memory writes disabled
+      // Flag returns false - memory writes disabled
       const client = makeClient({ postRow: postRow4, flagEnabled: false });
 
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -347,7 +347,8 @@ describe('Layer 3: Memory Write Path', () => {
       const fetchCalls: Array<RequestInit> = [];
       vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
         fetchCalls.push(init);
-        return { ok: true, status: 200, json: async () => ({ results: [] }) };
+        // Non-empty so the legacy-tag recovery does not fire.
+        return { ok: true, status: 200, json: async () => ({ results: [{ id: 'm1' }] }) };
       }));
 
       const { searchUserContext } = await vi.importActual<typeof import('../src/lib/supermemory')>(
@@ -359,6 +360,26 @@ describe('Layer 3: Memory Write Path', () => {
       const body = JSON.parse(fetchCalls[0].body as string) as { containerTags: string[] };
       expect(body.containerTags).toContain('workspace_ws-xyz');
       expect(body.containerTags).not.toContain('user_user-3');
+    });
+
+    it('searchUserContext falls back to the user_ tag when the workspace search is empty', async () => {
+      const fetchCalls: Array<RequestInit> = [];
+      vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+        fetchCalls.push(init);
+        return { ok: true, status: 200, json: async () => ({ results: [] }) };
+      }));
+
+      const { searchUserContext } = await vi.importActual<typeof import('../src/lib/supermemory')>(
+        '../src/lib/supermemory',
+      );
+      await searchUserContext('user-3', 'some query', 5, 'ws-xyz');
+
+      // First tries the workspace tag, then recovers via the legacy user_ tag.
+      expect(fetchCalls).toHaveLength(2);
+      const first = JSON.parse(fetchCalls[0].body as string) as { containerTags: string[] };
+      const second = JSON.parse(fetchCalls[1].body as string) as { containerTags: string[] };
+      expect(first.containerTags).toContain('workspace_ws-xyz');
+      expect(second.containerTags).toContain('user_user-3');
     });
   });
 });

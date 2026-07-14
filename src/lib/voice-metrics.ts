@@ -4,7 +4,7 @@ import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
-// EMA smoothing factor — matches Layer 2 (rl-intelligence). Keeps single
+// EMA smoothing factor - matches Layer 2 (rl-intelligence). Keeps single
 // outlier posts from distorting the running average.
 const alpha = 0.3;
 
@@ -21,7 +21,7 @@ const alpha = 0.3;
  * Fire-and-forget semantics: this function never throws. All errors are logged
  * and swallowed so the publish path is never blocked.
  *
- * Gated by the 'layer4_voice_metrics' feature flag — returns early if the flag
+ * Gated by the 'layer4_voice_metrics' feature flag - returns early if the flag
  * is disabled, leaving existing EMA values frozen until re-enabled.
  *
  * @param client       - Authenticated InsForge client from the request context
@@ -45,7 +45,7 @@ export async function updateVoiceMetrics(
 ): Promise<void> {
   // --- Feature flag guard ---
   if (!await isEnabled(client, 'layer4_voice_metrics')) {
-    // Flag disabled — leave EMA frozen. Publish already succeeded.
+    // Flag disabled - leave EMA frozen. Publish already succeeded.
     return;
   }
 
@@ -59,7 +59,7 @@ export async function updateVoiceMetrics(
       .maybeSingle();
 
     if (!existing) {
-      // First publish for this workspace+platform combo — insert raw scores.
+      // First publish for this workspace+platform combo - insert raw scores.
       // Evaluator dimensions are 0-10; we store them on a 0-100 scale.
       await client.database.from('workspace_voice_metrics').insert({
         workspace_id: workspaceId,
@@ -76,7 +76,7 @@ export async function updateVoiceMetrics(
         last_post_id: postId,
       });
     } else {
-      // EMA update — blend new scores with existing running averages.
+      // EMA update - blend new scores with existing running averages.
       await client.database
         .from('workspace_voice_metrics')
         .update({

@@ -41,7 +41,7 @@ export async function listWorkspaces(userId: string): Promise<Workspace[]> {
   const ids = new Set(memberList.map((m) => m.workspace_id));
   const roleById = new Map(memberList.map((m) => [m.workspace_id, m.role]));
 
-  // Filter by id IN the user's workspace set at the DB level — the previous
+  // Filter by id IN the user's workspace set at the DB level - the previous
   // version fetched ALL workspaces from all users and filtered in JS, which
   // was both a performance issue and a data privacy concern as the platform grows.
   const { data: ws } = await client.database
@@ -112,7 +112,7 @@ export async function backfillNullWorkspaceSocialAccounts(
 export async function ensureSoloWorkspace(userId: string): Promise<Workspace> {
   // Must use service client for BOTH the read and the insert.
   // This runs before the session cookie is written, so getServerClient() returns
-  // an anon connection — RLS blocks the membership read and returns 0 rows,
+  // an anon connection - RLS blocks the membership read and returns 0 rows,
   // causing duplicate workspaces on every login attempt.
   const adminClient = getServiceClient();
 

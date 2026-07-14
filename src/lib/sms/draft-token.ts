@@ -6,7 +6,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
  * WHY stateless HMAC (no DB row): the token itself carries the draft id, owner,
  * and expiry, signed with a server secret. A recipient can open the link
  * without logging in, but cannot forge or tamper with it, and it expires on its
- * own — no `draft_tokens` table to maintain or clean up.
+ * own - no `draft_tokens` table to maintain or clean up.
  *
  * Format: base64url(JSON payload) + "." + base64url(HMAC-SHA256).
  */
@@ -14,7 +14,7 @@ import { createHmac, timingSafeEqual } from 'crypto';
 export interface DraftTokenPayload {
   /** The post/draft this link edits. */
   postId: string;
-  /** Owner user id — inbound replies must match this. */
+  /** Owner user id - inbound replies must match this. */
   userId: string;
   /** Unix seconds expiry. */
   exp: number;

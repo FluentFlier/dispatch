@@ -66,7 +66,7 @@ function buildReplyPrompt(
     'THE REPLY MUST:',
     '1. Acknowledge what they said specifically (not generic thanks).',
     '2. Move toward a low-friction next step (quick call, async swap, or clear question).',
-    '3. Stay peer-to-peer — never salesy or templated.',
+    '3. Stay peer-to-peer - never salesy or templated.',
     meetingLinkLine ? '' : null,
     meetingLinkLine,
     '',

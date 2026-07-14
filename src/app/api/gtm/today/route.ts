@@ -4,7 +4,7 @@ import { getActiveWorkspaceId } from '@/lib/workspace';
 import { buildGtmTodaySnapshot } from '@/lib/gtm/today';
 import { errorResponse } from '@/lib/api-errors';
 
-/** GET /api/gtm/today — GTM command center snapshot (limits, queue, pipeline). */
+/** GET /api/gtm/today - GTM command center snapshot (limits, queue, pipeline). */
 export async function GET(): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

@@ -1,4 +1,4 @@
-/** Content OS Signals — shared types */
+/** Content OS Signals - shared types */
 
 export type ConversionStage = 'interested' | 'meeting_booked' | 'not_now' | 'won' | 'lost';
 
@@ -329,7 +329,7 @@ export type AgendaGoalType =
 export type AgendaSource = 'engagers' | 'directory' | 'signals';
 
 /**
- * A named, saved ICP — now a full "agenda": a goal (goal_type) with its own
+ * A named, saved ICP - now a full "agenda": a goal (goal_type) with its own
  * pitch angle, tone rules, daily caps, and sources. A workspace can keep
  * several; the active one is mirrored into `signal_directory_settings` so the
  * existing discovery/scoring pipeline reads it unchanged.

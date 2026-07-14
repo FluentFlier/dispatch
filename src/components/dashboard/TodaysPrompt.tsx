@@ -49,7 +49,7 @@ export default function TodaysPrompt({ postsSummary }: TodaysPromptProps) {
     setLoading(true);
     try {
       const prompt = `Here is the creator's content schedule for this week: ${postsSummary}. What single content idea is most missing? Give one specific idea. Pillar name, then one sentence. No em dashes.`;
-      // This is a throwaway dashboard hint, not published content — skip the heavy
+      // This is a throwaway dashboard hint, not published content - skip the heavy
       // voice pipeline (fast + no voice matching). One LLM call instead of the full
       // 4-stage pipeline: far less latency and no timeout risk in production.
       const res = await fetch('/api/generate', {

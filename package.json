@@ -22,6 +22,7 @@
     "db:intelligence": "bash scripts/apply-all-intelligence.sh",
     "db:agent": "bash scripts/apply-agent-integration.sh",
     "db:admin-ops": "npx @insforge/cli db import db/admin-ops.sql -y",
+    "db:trial-codes": "npx @insforge/cli db import migrations/20260714120000_trial-codes.sql -y",
     "brain:backfill": "npx @insforge/cli db import db/backfill-creator-brain.sql -y",
     "deploy:vercel": "bash scripts/deploy-vercel.sh",
     "eval:smoke": "promptfoo eval --env-file .env.local -c evals/promptfooconfig.smoke.ts -o evals/out/smoke.json",
@@ -46,6 +47,9 @@
     "@vercel/functions": "3.7.5",
     "apify-client": "^2.23.3",
     "clsx": "^2.1.1",
+    "d3-force": "^3.0.0",
+    "d3-selection": "^3.0.0",
+    "d3-zoom": "^3.0.0",
     "date-fns": "^4.1.0",
     "lenis": "^1.3.23",
     "lucide-react": "^0.468.0",
@@ -67,6 +71,9 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@types/d3-force": "^3.0.10",
+    "@types/d3-selection": "^3.0.11",
+    "@types/d3-zoom": "^3.0.8",
     "@types/js-yaml": "4.0.9",
     "@types/node": "^22.10.0",
     "@types/pdf-parse": "^1.1.5",

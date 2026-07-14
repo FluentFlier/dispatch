@@ -535,7 +535,7 @@ function LogPerformanceSection({
     if (parsed.comments !== undefined) setComments(parsed.comments);
     if (parsed.shares !== undefined) setShares(parsed.shares);
     if (Object.keys(parsed).length > 0) {
-      setMessage("Pasted stats applied — review the numbers, then save.");
+      setMessage("Pasted stats applied - review the numbers, then save.");
       setSaveError(false);
     } else {
       setSaveError(true);
@@ -580,7 +580,7 @@ function LogPerformanceSection({
             </label>
             <textarea
               className="w-full bg-bg-tertiary border border-border rounded-md px-3 py-2 text-sm text-text-primary min-h-[72px]"
-              placeholder="Paste impressions, reactions, comments, etc. from LinkedIn — we&apos;ll fill the fields below."
+              placeholder="Paste impressions, reactions, comments, etc. from LinkedIn - we&apos;ll fill the fields below."
               value={pasteText}
               onChange={(e) => setPasteText(e.target.value)}
             />

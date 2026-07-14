@@ -45,7 +45,7 @@ export function extractJsonObject(text: string): string | null {
  * Parses the first balanced JSON object out of raw model output. Tolerant of
  * fences and trailing prose; returns null (never throws) when extraction or
  * JSON.parse fails, so the caller can decide whether to retry the model or fail
- * gracefully. The generic is a caller convenience only — no runtime validation
+ * gracefully. The generic is a caller convenience only - no runtime validation
  * is performed, so validate the shape before trusting it.
  */
 export function parseLlmJson<T = unknown>(raw: string): T | null {

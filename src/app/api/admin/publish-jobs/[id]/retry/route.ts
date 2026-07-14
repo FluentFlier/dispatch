@@ -4,7 +4,7 @@ import { adminRetryPublishJob } from '@/lib/admin-data';
 import { logAdminAction } from '@/lib/admin/audit';
 
 /**
- * POST /api/admin/publish-jobs/[id]/retry — re-queue a failed/dead job.
+ * POST /api/admin/publish-jobs/[id]/retry - re-queue a failed/dead job.
  */
 export async function POST(
   _request: Request,

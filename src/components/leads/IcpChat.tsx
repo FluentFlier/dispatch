@@ -18,9 +18,9 @@ function newId(): string {
 
 function welcomeMessage(hasIcp: boolean): string {
   if (hasIcp) {
-    return 'Your ICP is saved. Tell me what to change — e.g. "focus on US only", "add healthcare", or "find leads now".';
+    return 'Your ICP is saved. Tell me what to change - e.g. "focus on US only", "add healthcare", or "find leads now".';
   }
-  return 'Who do you sell to? Describe your ideal customer — stage, industry, geography, signals like funding or YC batch. I will turn it into filters and can search for matching leads when you ask.';
+  return 'Who do you sell to? Describe your ideal customer - stage, industry, geography, signals like funding or YC batch. I will turn it into filters and can search for matching leads when you ask.';
 }
 
 interface IcpChatProps {
@@ -33,7 +33,7 @@ interface IcpChatProps {
 }
 
 /**
- * Conversational ICP setup — describe, refine, and trigger discovery in one thread.
+ * Conversational ICP setup - describe, refine, and trigger discovery in one thread.
  */
 export function IcpChat({
   settings,
@@ -90,7 +90,7 @@ export function IcpChat({
   /**
    * Runs the real discovery: streams /api/leads/sync (the same endpoint the
    * Leads feed uses) and reports progress inline as an assistant message. This
-   * is what actually finds leads — the chat route only classifies intent and
+   * is what actually finds leads - the chat route only classifies intent and
    * returns `suggestRun`; without this call "Find leads now" did nothing and the
    * assistant looped on "Hit Find leads now below".
    */
@@ -152,16 +152,16 @@ export function IcpChat({
       const inserted = result?.inserted ?? 0;
       const warnings = result?.warnings ?? [];
       if (inserted === 0 && warnings.length > 0) {
-        patch(`No new leads this time — ${warnings[0]}`);
-        toast?.(`0 new leads — ${warnings[0]}`, 'error');
+        patch(`No new leads this time - ${warnings[0]}`);
+        toast?.(`0 new leads - ${warnings[0]}`, 'error');
       } else {
         patch(
           inserted > 0
             ? `Found ${inserted} new lead${inserted === 1 ? '' : 's'}. Opening your feed…`
-            : 'Search ran — no new leads matched right now.',
+            : 'Search ran - no new leads matched right now.',
         );
         toast?.(
-          inserted > 0 ? `Found ${inserted} new leads.` : 'Search ran — no new leads matched.',
+          inserted > 0 ? `Found ${inserted} new leads.` : 'Search ran - no new leads matched.',
           'success',
         );
       }
@@ -195,7 +195,7 @@ export function IcpChat({
       if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Chat failed');
 
       // When discovery is about to run, runDiscovery() posts its own status
-      // message — skip the route's CTA line so we don't stack two messages.
+      // message - skip the route's CTA line so we don't stack two messages.
       if (!data.suggestRun) {
         setMessages((prev) => [
           ...prev,

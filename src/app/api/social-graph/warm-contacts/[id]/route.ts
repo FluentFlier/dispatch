@@ -3,7 +3,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getWarmContact, updateWarmContactDraft } from '@/lib/social-graph/warm-contacts';
 
 /**
- * GET /api/social-graph/warm-contacts/[id] — full engager record (dossier,
+ * GET /api/social-graph/warm-contacts/[id] - full engager record (dossier,
  * draft, nurture stage) for the leads detail pane.
  */
 export async function GET(
@@ -21,7 +21,7 @@ export async function GET(
 }
 
 /**
- * PATCH /api/social-graph/warm-contacts/[id] — save edited connect note.
+ * PATCH /api/social-graph/warm-contacts/[id] - save edited connect note.
  */
 export async function PATCH(
   request: NextRequest,

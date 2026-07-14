@@ -95,7 +95,7 @@ export async function streamCreatorDraft(
           .join('\n')}`;
       }
     } catch {
-      // Hook DB may be unavailable — proceed without learned hooks.
+      // Hook DB may be unavailable - proceed without learned hooks.
     }
   }
 

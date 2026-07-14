@@ -8,7 +8,7 @@ import { selectBalancedVoiceSamples } from '@/lib/voice-lab/select-voice-samples
 describe('Phase: Posts + email voice', () => {
   describe('cleanEmailBodyForVoice', () => {
     it('should strip HTML and quoted reply blocks', () => {
-      const raw = `<p>Hey team — quick update on the launch.</p>
+      const raw = `<p>Hey team - quick update on the launch.</p>
 > On Mon, Alex wrote:
 > old thread stuff
 From: someone@example.com`;

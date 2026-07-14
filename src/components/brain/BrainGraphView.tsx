@@ -6,6 +6,7 @@ import { ArrowRight, Brain, RefreshCw, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import type { BrainGraph, BrainGraphNode, BrainNodeKind } from '@/lib/brain/graph';
 import type { BrainDecision, BrainInsightsSummary } from '@/lib/brain/insights';
+import type { ContentLearning, LearningSentiment } from '@/lib/brain/learnings';
 import { BrainGraphCanvas, KIND_LABELS } from './BrainGraphCanvas';
 
 interface GraphResponse extends BrainGraph {
@@ -13,9 +14,17 @@ interface GraphResponse extends BrainGraph {
   page_count: number;
   last_updated: string | null;
   insights?: BrainInsightsSummary;
+  learnings?: ContentLearning[];
+  pipeline_learnings?: ContentLearning[];
   migration_required?: boolean;
   error?: string;
 }
+
+const LEARNING_STYLE: Record<LearningSentiment, { badge: string; accent: string }> = {
+  positive: { badge: 'border-lime/30 bg-lime/15 text-ink', accent: 'border-lime/25' },
+  watch: { badge: 'border-coral/30 bg-coral/10 text-ink', accent: 'border-coral/25' },
+  neutral: { badge: 'border-hair bg-paper2 text-ink2', accent: 'border-hair' },
+};
 
 const LEGEND_ORDER: BrainNodeKind[] = [
   'core',
@@ -50,6 +59,7 @@ export function BrainGraphView() {
   const [message, setMessage] = useState('');
   const [selected, setSelected] = useState<BrainGraphNode | null>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
+  const [highlight, setHighlight] = useState<{ id: string; nodeIds: string[] } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,6 +107,17 @@ export function BrainGraphView() {
   );
 
   const insights = data?.insights;
+  const learnings = data?.learnings ?? [];
+  const pipelineLearnings = data?.pipeline_learnings ?? [];
+
+  const handleLearningClick = useCallback((learning: ContentLearning) => {
+    setSelected(null);
+    setFocusId(null);
+    setHighlight((cur) => {
+      if (learning.nodeIds.length === 0) return null; // nothing to trace (e.g. a content gap)
+      return cur?.id === learning.id ? null : { id: learning.id, nodeIds: learning.nodeIds };
+    });
+  }, []);
 
   const counts = useMemo(() => {
     const map = new Map<BrainNodeKind, number>();
@@ -110,6 +131,7 @@ export function BrainGraphView() {
         const node = graph.nodes.find((n) => n.id === decision.nodeId) ?? null;
         setSelected(node);
         setFocusId(decision.nodeId);
+        setHighlight(null);
       }
     },
     [graph.nodes],
@@ -193,7 +215,7 @@ export function BrainGraphView() {
           <InsightCard label="Story memories" value={String(insights.storyCount)} />
           <InsightCard
             label="Top pillar"
-            value={insights.topPillarByPerformance?.label ?? '—'}
+            value={insights.topPillarByPerformance?.label ?? '-'}
             hint={
               insights.topPillarByPerformance?.views
                 ? `${insights.topPillarByPerformance.views.toLocaleString()} views`
@@ -202,7 +224,7 @@ export function BrainGraphView() {
           />
           <InsightCard
             label="Best performer"
-            value={insights.bestPost?.label ?? '—'}
+            value={insights.bestPost?.label ?? '-'}
             hint={
               insights.bestPost?.views
                 ? `${insights.bestPost.views.toLocaleString()} views`
@@ -212,12 +234,32 @@ export function BrainGraphView() {
         </div>
       )}
 
-      {/* Actionable decisions */}
-      {insights && insights.decisions.length > 0 && (
+      {/* What's working - mined content-performance learnings */}
+      <LearningSection
+        title="What's working"
+        subtitle="Learned from your published performance. Click a learning to trace it on the graph."
+        learnings={learnings}
+        activeId={highlight?.id ?? null}
+        onPick={handleLearningClick}
+        onClear={() => setHighlight(null)}
+      />
+
+      {/* From your pipeline - content ↔ lead fit */}
+      <LearningSection
+        title="From your pipeline"
+        subtitle="How your content lines up with the themes and intent of your actual leads."
+        learnings={pipelineLearnings}
+        activeId={highlight?.id ?? null}
+        onPick={handleLearningClick}
+        onClear={() => setHighlight(null)}
+      />
+
+      {/* Setup nudges - shown only when there isn't enough data for real learnings */}
+      {insights && learnings.length === 0 && pipelineLearnings.length === 0 && insights.decisions.length > 0 && (
         <section className="card-surface p-4">
           <h2 className="text-[13px] font-semibold tracking-[0.01em] text-ink">What to do next</h2>
           <p className="mt-0.5 text-[12px] text-ink3">
-            Based on what your brain has learned — and what&apos;s still missing.
+            Based on what your brain has learned - and what&apos;s still missing.
           </p>
           <ul className="mt-3 space-y-2">
             {insights.decisions.map((decision) => (
@@ -255,9 +297,11 @@ export function BrainGraphView() {
             graph={graph}
             selectedId={selected?.id ?? null}
             focusId={focusId}
+            highlightIds={highlight?.nodeIds}
             onSelect={(node) => {
               setSelected(node);
               setFocusId(node?.id ?? null);
+              setHighlight(null);
             }}
           />
         </div>
@@ -299,6 +343,93 @@ export function BrainGraphView() {
         )}
       </div>
     </div>
+  );
+}
+
+function LearningSection({
+  title,
+  subtitle,
+  learnings,
+  activeId,
+  onPick,
+  onClear,
+}: {
+  title: string;
+  subtitle: string;
+  learnings: ContentLearning[];
+  activeId: string | null;
+  onPick: (learning: ContentLearning) => void;
+  onClear: () => void;
+}) {
+  if (learnings.length === 0) return null;
+  const anyActive = learnings.some((l) => l.id === activeId);
+  return (
+    <section className="card-surface p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-[13px] font-semibold tracking-[0.01em] text-ink">{title}</h2>
+          <p className="mt-0.5 text-[12px] text-ink3">{subtitle}</p>
+        </div>
+        {anyActive && (
+          <button type="button" onClick={onClear} className="shrink-0 text-[12px] font-semibold text-ink3 hover:text-ink">
+            Clear
+          </button>
+        )}
+      </div>
+      <ul className="mt-3 space-y-2">
+        {learnings.map((learning) => {
+          const style = LEARNING_STYLE[learning.sentiment];
+          const active = activeId === learning.id;
+          const traceable = learning.nodeIds.length > 0;
+          const body = (
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[13px] font-semibold text-ink">{learning.headline}</p>
+                {learning.confidence === 'low' && (
+                  <span className="rounded-badge border border-hair bg-paper2 px-1.5 py-0.5 text-[10px] font-medium text-ink3">
+                    low confidence · {learning.sampleSize}
+                  </span>
+                )}
+              </div>
+              <p className="mt-0.5 text-[12px] leading-relaxed text-ink2">{learning.detail}</p>
+            </div>
+          );
+          return (
+            <li key={learning.id}>
+              <div
+                className={`flex items-start justify-between gap-3 rounded-card border p-3 transition-colors ${
+                  active ? 'border-ink/30 bg-paper2/80' : `${style.accent} bg-white/70`
+                }`}
+              >
+                {traceable ? (
+                  <button type="button" onClick={() => onPick(learning)} className="min-w-0 flex-1 text-left" title="Trace on the graph">
+                    {body}
+                  </button>
+                ) : (
+                  body
+                )}
+                <div className="flex shrink-0 items-center gap-2">
+                  {learning.metric && (
+                    <span className={`rounded-badge border px-2 py-0.5 text-[12px] font-semibold tabular-nums ${style.badge}`}>
+                      {learning.metric}
+                    </span>
+                  )}
+                  {learning.action && (
+                    <Link
+                      href={learning.action.href}
+                      className="inline-flex items-center gap-1 text-[12px] font-semibold text-blue hover:underline"
+                    >
+                      {learning.action.label}
+                      <ArrowRight className="h-3 w-3" />
+                    </Link>
+                  )}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

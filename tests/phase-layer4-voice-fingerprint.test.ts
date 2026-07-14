@@ -1,5 +1,5 @@
 /**
- * Phase: Layer 4 — Voice Fingerprint
+ * Phase: Layer 4 - Voice Fingerprint
  *
  * Tests for updateVoiceMetrics (EMA updater) and GET /api/voice-metrics.
  */
@@ -69,7 +69,7 @@ describe('Layer 4: Voice Fingerprint', () => {
         POST_ID,
       );
 
-      // Flag is disabled — no DB writes should occur
+      // Flag is disabled - no DB writes should occur
       expect(insertMock).not.toHaveBeenCalled();
       expect(updateMock).not.toHaveBeenCalled();
     });
