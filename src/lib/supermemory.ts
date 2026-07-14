@@ -153,5 +153,14 @@ export async function searchUserContext(
   // user-scoped for personal/legacy accounts.
   const scopeTag = workspaceId ? `workspace_${workspaceId}` : `user_${userId}`;
   const { results } = await searchMemories(query, [scopeTag], limit);
+  // Recovery: a workspace-scoped search came back empty, but the user may have
+  // posts written under the legacy `user_` tag from before the workspace
+  // migration. Retry that tag so grounding isn't silently lost (this is the
+  // "empty retrieval → model invents/drops names" failure). Only on empty, so
+  // agency workspace isolation is preserved in the normal (non-empty) case.
+  if (results.length === 0 && workspaceId) {
+    const { results: legacy } = await searchMemories(query, [`user_${userId}`], limit);
+    return legacy;
+  }
   return results;
 }

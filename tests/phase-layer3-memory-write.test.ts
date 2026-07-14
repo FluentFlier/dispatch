@@ -347,7 +347,8 @@ describe('Layer 3: Memory Write Path', () => {
       const fetchCalls: Array<RequestInit> = [];
       vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
         fetchCalls.push(init);
-        return { ok: true, status: 200, json: async () => ({ results: [] }) };
+        // Non-empty so the legacy-tag recovery does not fire.
+        return { ok: true, status: 200, json: async () => ({ results: [{ id: 'm1' }] }) };
       }));
 
       const { searchUserContext } = await vi.importActual<typeof import('../src/lib/supermemory')>(
@@ -359,6 +360,26 @@ describe('Layer 3: Memory Write Path', () => {
       const body = JSON.parse(fetchCalls[0].body as string) as { containerTags: string[] };
       expect(body.containerTags).toContain('workspace_ws-xyz');
       expect(body.containerTags).not.toContain('user_user-3');
+    });
+
+    it('searchUserContext falls back to the user_ tag when the workspace search is empty', async () => {
+      const fetchCalls: Array<RequestInit> = [];
+      vi.stubGlobal('fetch', vi.fn(async (_url: string, init: RequestInit) => {
+        fetchCalls.push(init);
+        return { ok: true, status: 200, json: async () => ({ results: [] }) };
+      }));
+
+      const { searchUserContext } = await vi.importActual<typeof import('../src/lib/supermemory')>(
+        '../src/lib/supermemory',
+      );
+      await searchUserContext('user-3', 'some query', 5, 'ws-xyz');
+
+      // First tries the workspace tag, then recovers via the legacy user_ tag.
+      expect(fetchCalls).toHaveLength(2);
+      const first = JSON.parse(fetchCalls[0].body as string) as { containerTags: string[] };
+      const second = JSON.parse(fetchCalls[1].body as string) as { containerTags: string[] };
+      expect(first.containerTags).toContain('workspace_ws-xyz');
+      expect(second.containerTags).toContain('user_user-3');
     });
   });
 });
