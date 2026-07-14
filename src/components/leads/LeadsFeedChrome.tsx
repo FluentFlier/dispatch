@@ -6,7 +6,6 @@ import {
   Download,
   FileDown,
   RefreshCw,
-  Settings,
   SlidersHorizontal,
   Sparkles,
   TrendingUp,
@@ -99,9 +98,9 @@ export function HeaderBtn({
 
 /**
  * Header action cluster for the leads page. In the Feed view it exposes the
- * scrape / draft-all / refresh / advanced / settings controls; in the Setup view
- * it collapses to a single "Directory config" button that opens the same drawer.
- * Kept out of the page so the page file stays under the 500-line limit.
+ * scrape / draft-all / refresh / export controls; in the Setup view there are no
+ * header actions — all configuration lives on the Setup surface itself. Kept out
+ * of the page so the page file stays under the 500-line limit.
  */
 export function LeadsHeaderActions({
   view,
@@ -111,7 +110,6 @@ export function LeadsHeaderActions({
   onScrape,
   onDraftAll,
   onRefresh,
-  onOpenDrawer,
   onExport,
   onImport,
 }: {
@@ -122,17 +120,10 @@ export function LeadsHeaderActions({
   onScrape: () => void;
   onDraftAll: () => void;
   onRefresh: () => void;
-  onOpenDrawer: () => void;
   onExport: () => void;
   onImport: () => void;
 }) {
-  if (view !== 'feed') {
-    return (
-      <HeaderBtn onClick={onOpenDrawer} icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
-        Directory config
-      </HeaderBtn>
-    );
-  }
+  if (view !== 'feed') return null;
   return (
     <div className="flex items-center gap-2">
       <HeaderBtn onClick={onScrape} disabled={scraping} icon={<Download className={`h-3.5 w-3.5 ${scraping ? 'animate-pulse' : ''}`} />}>
@@ -150,12 +141,6 @@ export function LeadsHeaderActions({
       <HeaderBtn onClick={onImport} icon={<Upload className="h-3.5 w-3.5" />}>
         Import
       </HeaderBtn>
-      <HeaderBtn onClick={onOpenDrawer} icon={<SlidersHorizontal className="h-3.5 w-3.5" />}>
-        Advanced
-      </HeaderBtn>
-      <Link href="/leads/settings" className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-md border border-border bg-bg-secondary hover:bg-bg-primary text-text-secondary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary">
-        <Settings className="h-3.5 w-3.5" /> Settings
-      </Link>
     </div>
   );
 }
@@ -210,15 +195,15 @@ export function LeadsEmptyState({ onScrape, scraping }: { onScrape: () => void; 
       <h2 className="text-[20px] text-text-primary">No leads yet today</h2>
       <p className="text-sm text-text-secondary max-w-sm">
         Scrape the directories now, or your next batch lands at your configured digest hour. Tune
-        sources and ICP in Advanced.
+        sources and ICP in Setup.
       </p>
       <div className="flex gap-2 mt-1">
         <Button variant="primary" size="sm" onClick={onScrape} loading={scraping}>
           Scrape now
         </Button>
-        <Link href="/leads/settings">
+        <Link href="/leads?view=setup">
           <Button variant="secondary" size="sm">
-            Open settings
+            Open Setup
           </Button>
         </Link>
       </div>

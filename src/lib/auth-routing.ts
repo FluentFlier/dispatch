@@ -1,7 +1,8 @@
 import type { TrialSubscriptionRow } from '@/lib/trial';
 import { hasPaidSubscription, isAppTrialActive, mustSubscribe } from '@/lib/trial';
+import { APP_HOME_PATH } from '@/lib/nav-config';
 
-export type PostAuthPath = '/get-started' | '/onboarding' | '/dashboard' | '/pricing';
+export type PostAuthPath = '/get-started' | '/onboarding' | typeof APP_HOME_PATH | '/pricing';
 
 export interface AuthRoutingProfile {
   onboarding_complete?: boolean | null;
@@ -25,7 +26,7 @@ export function getPostAuthPath(
   }
 
   if (profile?.onboarding_complete) {
-    return '/dashboard';
+    return APP_HOME_PATH;
   }
 
   return '/onboarding';

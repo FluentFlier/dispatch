@@ -1,9 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { getLead, updateLead } from '@/lib/signals/leads/store';
 import { errorResponse } from '@/lib/api-errors';
-import type { ConversionStage, LeadStatus } from '@/lib/signals/types';
+
+const patchSchema = z.object({
+  action: z.enum(['dismiss', 'snooze']).optional(),
+  status: z
+    .enum(['new', 'drafted', 'approved', 'sent', 'dismissed', 'resurfaced'])
+    .optional(),
+  conversion_stage: z
+    .enum(['interested', 'meeting_booked', 'not_now', 'won', 'lost'])
+    .nullable()
+    .optional(),
+  needs_reply: z.boolean().optional(),
+});
 
 /**
  * PATCH /api/leads/:id
@@ -19,12 +31,11 @@ export async function PATCH(
   const workspaceId = await getActiveWorkspaceId(user.id);
   if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
 
-  const body = (await request.json().catch(() => ({}))) as {
-    action?: 'dismiss' | 'snooze';
-    status?: LeadStatus;
-    conversion_stage?: ConversionStage | null;
-    needs_reply?: boolean;
-  };
+  const parsed = patchSchema.safeParse(await request.json().catch(() => ({})));
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+  }
+  const body = parsed.data;
 
   try {
     const client = getServerClient();

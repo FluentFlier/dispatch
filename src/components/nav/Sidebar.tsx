@@ -7,7 +7,7 @@ import { LogOut, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { motion } from 'motion/react';
 import { getInsforgeClient } from '@/lib/insforge/client';
 import { PRODUCT_NAME } from '@/lib/brand';
-import { primaryNav, moreNav, navIcons } from '@/lib/nav-config';
+import { primaryNav, moreNav, navIcons, APP_HOME_PATH } from '@/lib/nav-config';
 import WorkspaceSwitcher from '@/components/nav/WorkspaceSwitcher';
 
 const FOCUS =
@@ -85,7 +85,7 @@ export default function Sidebar() {
         }`}
       >
         <Link
-          href="/dashboard"
+          href={APP_HOME_PATH}
           title={PRODUCT_NAME}
           className={`flex flex-col rounded-xl px-2 py-1.5 transition-colors hover:bg-white/70 ${FOCUS} ${
             expanded ? '' : 'items-center'

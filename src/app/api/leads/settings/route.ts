@@ -1,10 +1,34 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { z } from 'zod';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { getDirectorySettings, updateDirectorySettings } from '@/lib/signals/leads/store';
 import { normalizeMeetingLink } from '@/lib/signals/leads/meeting-link';
 import { errorResponse } from '@/lib/api-errors';
-import type { DirectorySettingsRow } from '@/lib/signals/types';
+
+/**
+ * Whitelist of settings the client may write. Zod strips any other key, so an
+ * arbitrary field can never reach the underlying `.update()`. `timezone` is
+ * handled separately (mirrored onto the workspace row, not the settings row).
+ */
+const putSchema = z
+  .object({
+    timezone: z.string().max(64),
+    enabled_sources: z.array(
+      z.enum(['yc_directory', 'yc_launches', 'product_hunt', 'manual']),
+    ),
+    icp_description: z.string().max(4000).nullable(),
+    icp_verticals: z.array(z.string()),
+    icp_keywords: z.array(z.string()),
+    recency_window: z.string().max(32),
+    digest_run_hour_local: z.number().int().min(0).max(23),
+    digest_timezone: z.string().max(64).nullable(),
+    digest_channels: z.object({ today: z.boolean(), slack: z.boolean(), email: z.boolean() }),
+    digest_top_n: z.number().int().min(0).max(100),
+    sender_identity: z.string().max(200).nullable(),
+    digest_delivered_at: z.string().nullable(),
+  })
+  .partial();
 
 /** GET /api/leads/settings - directory + digest config. */
 export async function GET(): Promise<NextResponse> {
@@ -33,9 +57,11 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
   const workspaceId = await getActiveWorkspaceId(user.id);
   if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
 
-  const body = (await request.json().catch(() => ({}))) as Partial<DirectorySettingsRow> & {
-    timezone?: string;
-  };
+  const parsed = putSchema.safeParse(await request.json().catch(() => ({})));
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+  }
+  const body = parsed.data;
 
   try {
     const client = getServerClient();
@@ -53,7 +79,7 @@ export async function PUT(request: NextRequest): Promise<NextResponse> {
       }
     }
 
-    const { timezone: _tz, workspace_id: _wid, created_at: _c, updated_at: _u, ...patch } = body;
+    const { timezone: _tz, ...patch } = body;
     if ('meeting_link' in patch) {
       const raw = patch.meeting_link as string | null | undefined;
       if (raw === null || raw === '') {

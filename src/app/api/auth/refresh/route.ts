@@ -5,6 +5,7 @@ import {
   refreshSessionWithToken,
   setAuthCookiesOnResponse,
 } from '@/lib/auth-refresh';
+import { APP_HOME_PATH } from '@/lib/nav-config';
 
 /**
  * POST: JSON session refresh for client keep-alive (SessionKeepAlive, fetchWithAuth).
@@ -44,7 +45,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const nextPath =
     nextParam && nextParam.startsWith('/') && !nextParam.startsWith('//')
       ? nextParam
-      : '/dashboard';
+      : APP_HOME_PATH;
 
   if (!refreshToken) {
     const restore = new URL('/auth/restore-session', request.url);

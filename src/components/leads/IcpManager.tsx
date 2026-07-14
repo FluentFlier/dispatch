@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Check, Download, Loader2, Pencil, Search, Star, Trash2, X } from 'lucide-react';
 import { IcpChat } from '@/components/leads/IcpChat';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import type { DirectorySettingsRow, IcpProfileRow } from '@/lib/signals/types';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
@@ -56,6 +57,7 @@ export function IcpManager({
   // Inline rename.
   const [renameId, setRenameId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
 
   const activeId = useMemo(() => profiles.find((p) => p.is_active)?.id ?? null, [profiles]);
 
@@ -146,8 +148,7 @@ export function IcpManager({
     }
   };
 
-  const remove = async (id: string, name: string) => {
-    if (!window.confirm(`Delete the ICP “${name}”? This can't be undone.`)) return;
+  const remove = async (id: string) => {
     setBusyId(id);
     try {
       const res = await fetch(`/api/leads/icp/profiles/${id}`, { method: 'DELETE' });
@@ -164,6 +165,7 @@ export function IcpManager({
       toast?.('Could not delete ICP.', 'error');
     } finally {
       setBusyId(null);
+      setConfirmDelete(null);
     }
   };
 
@@ -375,7 +377,7 @@ export function IcpManager({
                     </button>
                     <button
                       type="button"
-                      onClick={() => void remove(p.id, p.name)}
+                      onClick={() => setConfirmDelete({ id: p.id, name: p.name })}
                       disabled={busyId === p.id}
                       aria-label={`Delete ${p.name}`}
                       className="rounded-md p-1.5 text-text-tertiary hover:text-red-600 hover:bg-bg-tertiary disabled:opacity-40"
@@ -389,6 +391,23 @@ export function IcpManager({
           </ul>
         )}
       </section>
+
+      <ConfirmModal
+        open={confirmDelete !== null}
+        title="Delete ICP"
+        message={
+          confirmDelete
+            ? `Delete the ICP “${confirmDelete.name}”? This can't be undone.`
+            : ''
+        }
+        confirmLabel="Delete"
+        tone="danger"
+        loading={confirmDelete !== null && busyId === confirmDelete.id}
+        onConfirm={() => {
+          if (confirmDelete) void remove(confirmDelete.id);
+        }}
+        onClose={() => setConfirmDelete(null)}
+      />
     </div>
   );
 }

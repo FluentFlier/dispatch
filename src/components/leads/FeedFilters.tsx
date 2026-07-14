@@ -1,6 +1,7 @@
 'use client';
 
-import { Search, ArrowUpDown } from 'lucide-react';
+import { useState } from 'react';
+import { Search, ArrowUpDown, SlidersHorizontal } from 'lucide-react';
 import type { LeadStatus, SignalType } from '@/lib/signals/types';
 
 /** Sort orders the feed list supports. */
@@ -67,64 +68,38 @@ const selectCls =
 export function FeedFilters({ state, onChange, verticals }: FeedFiltersProps) {
   const set = (patch: Partial<FeedFilterState>) => onChange({ ...state, ...patch });
 
+  // Advanced filters start hidden so the feed reads as "status + search" by
+  // default. A count keeps any active-but-hidden filter visible at a glance.
+  const advancedCount =
+    (state.source !== 'all' ? 1 : 0) +
+    (state.signalType !== 'all' ? 1 : 0) +
+    (state.vertical !== 'all' ? 1 : 0) +
+    (state.sort !== 'score' ? 1 : 0);
+  const [showAdvanced, setShowAdvanced] = useState(advancedCount > 0);
+
   return (
     <div className="space-y-3">
-      {/* Selects + search + sort */}
+      {/* Status segmented row */}
+      <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by status">
+        {STATUS_OPTIONS.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            aria-pressed={state.status === s.key}
+            onClick={() => set({ status: s.key })}
+            className={`px-3 py-1.5 rounded-md text-sm font-medium cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary ${
+              state.status === s.key
+                ? 'bg-accent-primary text-text-inverse'
+                : 'bg-bg-secondary text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            {s.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Search + "Filters" disclosure — the two controls people reach for most. */}
       <div className="flex flex-wrap items-center gap-2">
-        <label className="sr-only" htmlFor="feed-status">Status</label>
-        <select
-          id="feed-status"
-          value={state.status}
-          onChange={(e) => set({ status: e.target.value as FeedFilterState['status'] })}
-          className={selectCls}
-        >
-          {STATUS_OPTIONS.map((o) => (
-            <option key={o.key} value={o.key}>{o.label}</option>
-          ))}
-        </select>
-
-        <label className="sr-only" htmlFor="feed-source">Source</label>
-        <select
-          id="feed-source"
-          value={state.source}
-          onChange={(e) => set({ source: e.target.value })}
-          className={selectCls}
-        >
-          {SOURCE_OPTIONS.map((o) => (
-            <option key={o.key} value={o.key}>{o.label}</option>
-          ))}
-        </select>
-
-        <label className="sr-only" htmlFor="feed-signal">Signal type</label>
-        <select
-          id="feed-signal"
-          value={state.signalType}
-          onChange={(e) => set({ signalType: e.target.value as SignalType | 'all' })}
-          className={selectCls}
-        >
-          {SIGNAL_OPTIONS.map((o) => (
-            <option key={o.key} value={o.key}>{o.label}</option>
-          ))}
-        </select>
-
-        {verticals.length > 0 && (
-          <>
-            <label className="sr-only" htmlFor="feed-vertical">ICP vertical</label>
-            <select
-              id="feed-vertical"
-              value={state.vertical}
-              onChange={(e) => set({ vertical: e.target.value })}
-              className={selectCls}
-            >
-              <option value="all">All verticals</option>
-              {verticals.map((v) => (
-                <option key={v} value={v}>{v}</option>
-              ))}
-            </select>
-          </>
-        )}
-
-        {/* Search box (client-side on company / tagline) */}
         <div className="relative flex-1 min-w-[160px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-tertiary" aria-hidden="true" />
           <label className="sr-only" htmlFor="feed-search">Search companies</label>
@@ -138,21 +113,82 @@ export function FeedFilters({ state, onChange, verticals }: FeedFiltersProps) {
           />
         </div>
 
-        {/* Sort toggle: score → warm → recency */}
         <button
           type="button"
-          onClick={() =>
-            set({
-              sort: state.sort === 'score' ? 'warm' : state.sort === 'warm' ? 'recency' : 'score',
-            })
-          }
-          aria-label={`Sort by ${state.sort}, click to change`}
+          onClick={() => setShowAdvanced((v) => !v)}
+          aria-expanded={showAdvanced}
           className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-secondary px-2.5 py-1.5 text-xs text-text-secondary cursor-pointer hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
         >
-          <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
-          {state.sort === 'score' ? 'Score' : state.sort === 'warm' ? 'Warm' : 'Recent'}
+          <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+          Filters
+          {advancedCount > 0 && (
+            <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-accent-primary px-1 text-[10px] font-medium text-text-inverse">
+              {advancedCount}
+            </span>
+          )}
         </button>
       </div>
+
+      {/* Advanced filters — source / signal / vertical / sort, hidden by default. */}
+      {showAdvanced && (
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="sr-only" htmlFor="feed-source">Source</label>
+          <select
+            id="feed-source"
+            value={state.source}
+            onChange={(e) => set({ source: e.target.value })}
+            className={selectCls}
+          >
+            {SOURCE_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+          </select>
+
+          <label className="sr-only" htmlFor="feed-signal">Signal type</label>
+          <select
+            id="feed-signal"
+            value={state.signalType}
+            onChange={(e) => set({ signalType: e.target.value as SignalType | 'all' })}
+            className={selectCls}
+          >
+            {SIGNAL_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>{o.label}</option>
+            ))}
+          </select>
+
+          {verticals.length > 0 && (
+            <>
+              <label className="sr-only" htmlFor="feed-vertical">ICP vertical</label>
+              <select
+                id="feed-vertical"
+                value={state.vertical}
+                onChange={(e) => set({ vertical: e.target.value })}
+                className={selectCls}
+              >
+                <option value="all">All verticals</option>
+                {verticals.map((v) => (
+                  <option key={v} value={v}>{v}</option>
+                ))}
+              </select>
+            </>
+          )}
+
+          {/* Sort toggle: score → warm → recency */}
+          <button
+            type="button"
+            onClick={() =>
+              set({
+                sort: state.sort === 'score' ? 'warm' : state.sort === 'warm' ? 'recency' : 'score',
+              })
+            }
+            aria-label={`Sort by ${state.sort}, click to change`}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-secondary px-2.5 py-1.5 text-xs text-text-secondary cursor-pointer hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+          >
+            <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
+            {state.sort === 'score' ? 'Score' : state.sort === 'warm' ? 'Warm' : 'Recent'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

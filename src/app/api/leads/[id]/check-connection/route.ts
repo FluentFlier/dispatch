@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
-import { getLead, logLeadEvent } from '@/lib/signals/leads/store';
+import { getLead, logLeadEvent, setLeadOutreachStatus } from '@/lib/signals/leads/store';
 import { isLinkedInFirstDegree } from '@/lib/gtm/nurture/connection-check';
 import { errorResponse } from '@/lib/api-errors';
 
@@ -44,6 +44,9 @@ export async function POST(
 
     if (connected) {
       await logLeadEvent(client, workspaceId, params.id, 'rescored', { action: 'connect_accepted' });
+      // Persist acceptance on the outreach row so the follow-up DM step survives
+      // a reload (onlyForward: never downgrade a manual replied/closed).
+      await setLeadOutreachStatus(client, workspaceId, params.id, 'accepted', true);
     }
 
     return NextResponse.json({ connected });

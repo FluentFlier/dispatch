@@ -2,14 +2,23 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { listLeads, parseLeadListStatusParam } from '@/lib/signals/leads/store';
+import { errorResponse } from '@/lib/api-errors';
 
-/** Quote a CSV cell, escaping embedded quotes; join arrays with "; ". */
+/**
+ * Quote a CSV cell, escaping embedded quotes; join arrays with "; ".
+ * Neutralizes spreadsheet formula injection: Excel/Sheets execute a cell that
+ * begins with =, +, -, @ (or a leading control char) as a formula. Several
+ * columns here (company_name, tagline, tags, ...) carry scraped,
+ * attacker-influenced text, so prefix those with a single quote to force the
+ * cell to render as literal text.
+ */
 function cell(value: unknown): string {
   let s: string;
   if (value === null || value === undefined) s = '';
   else if (Array.isArray(value)) s = value.join('; ');
   else if (typeof value === 'object') s = JSON.stringify(value);
   else s = String(value);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return `"${s.replace(/"/g, '""')}"`;
 }
 
@@ -37,30 +46,34 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const statusParam = request.nextUrl.searchParams.get('status');
   const listFilter = parseLeadListStatusParam(statusParam);
 
-  const client = getServerClient();
-  const leads = await listLeads(client, workspaceId, { ...listFilter, limit: 200 });
+  try {
+    const client = getServerClient();
+    const leads = await listLeads(client, workspaceId, { ...listFilter, limit: 200 });
 
-  const rows = leads.map((lead) => {
-    const intent = (lead.intent_flags ?? {}) as Record<string, boolean>;
-    const c = lead.primary_contact;
-    return [
-      lead.company_name, lead.domain, lead.website, lead.batch, lead.source, lead.tags,
-      intent.hiring, intent.raised, intent.seeking_investors, intent.seeking_tools,
-      lead.fit_score, lead.rank_score, lead.contact_status, lead.lead_status,
-      c?.name, c?.role, c?.linkedin_url, c?.email, c?.resolution_source,
-      lead.first_seen_at, lead.last_seen_at,
-    ].map(cell).join(',');
-  });
+    const rows = leads.map((lead) => {
+      const intent = (lead.intent_flags ?? {}) as Record<string, boolean>;
+      const c = lead.primary_contact;
+      return [
+        lead.company_name, lead.domain, lead.website, lead.batch, lead.source, lead.tags,
+        intent.hiring, intent.raised, intent.seeking_investors, intent.seeking_tools,
+        lead.fit_score, lead.rank_score, lead.contact_status, lead.lead_status,
+        c?.name, c?.role, c?.linkedin_url, c?.email, c?.resolution_source,
+        lead.first_seen_at, lead.last_seen_at,
+      ].map(cell).join(',');
+    });
 
-  const csv = [COLUMNS.join(','), ...rows].join('\r\n');
-  const stamp = new Date().toISOString().slice(0, 10);
+    const csv = [COLUMNS.join(','), ...rows].join('\r\n');
+    const stamp = new Date().toISOString().slice(0, 10);
 
-  return new NextResponse(csv, {
-    status: 200,
-    headers: {
-      'Content-Type': 'text/csv; charset=utf-8',
-      'Content-Disposition': `attachment; filename="leads-${stamp}.csv"`,
-      'Cache-Control': 'no-store',
-    },
-  });
+    return new NextResponse(csv, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="leads-${stamp}.csv"`,
+        'Cache-Control': 'no-store',
+      },
+    });
+  } catch (err) {
+    return errorResponse('Could not export leads.', 500, err);
+  }
 }

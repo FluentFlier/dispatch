@@ -12,6 +12,7 @@ import TokenRefreshGate from '@/components/auth/TokenRefreshGate';
 import SessionKeepAlive from '@/components/auth/SessionKeepAlive';
 import { getOrCreateSubscription } from '@/lib/entitlements';
 import { getPostAuthPath } from '@/lib/auth-routing';
+import { APP_HOME_PATH } from '@/lib/nav-config';
 import { mustSubscribe } from '@/lib/trial';
 import TrialBanner from '@/components/billing/TrialBanner';
 import DashboardShell from '@/components/layout/DashboardShell';
@@ -91,10 +92,10 @@ export default async function DashboardLayout({
 
       if (isOnboarding) {
         if (nextPath === '/get-started') redirect('/auth/continue');
-        if (nextPath === '/dashboard') redirect('/dashboard');
+        if (nextPath === APP_HOME_PATH) redirect(APP_HOME_PATH);
       } else if (!isGetStarted) {
         const destination = nextPath === '/get-started' ? '/auth/continue' : nextPath;
-        if (destination !== '/dashboard') redirect(destination);
+        if (destination !== APP_HOME_PATH) redirect(destination);
       }
     } catch (err) {
       if (isMissingRelationError(err) || isSchemaMismatchError(err)) {
