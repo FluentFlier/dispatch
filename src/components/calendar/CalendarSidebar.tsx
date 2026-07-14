@@ -4,9 +4,9 @@ import { useMemo, useState } from 'react';
 import { ChevronLeft, ChevronRight, Plus, Sparkles, CalendarDays } from 'lucide-react';
 import { Droppable, Draggable } from '@hello-pangea/dnd';
 import type { Post } from '@/lib/types';
-import type { PillarInfo } from '@/hooks/usePillars';
 import PillarDot from '@/components/PillarDot';
 import { postPillars } from '@/lib/pillars';
+import { PLATFORM_LABELS } from '@/lib/constants';
 import StatusBadge from '@/components/ui/StatusBadge';
 
 /* ------------------------------------------------------------------ */
@@ -18,6 +18,9 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December',
 ];
 const DAY_MINI = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+/** Platforms offered in the schedule filter. */
+const FILTER_PLATFORMS = ['linkedin', 'twitter', 'instagram'] as const;
 
 function toDateKey(d: Date): string {
   const y = d.getFullYear();
@@ -143,9 +146,10 @@ interface CalendarSidebarProps {
   currentYear: number;
   currentMonth: number;
   postDates: Set<string>;
-  pillars: PillarInfo[];
-  visiblePillars: Set<string>;
-  onPillarToggle: (slug: string) => void;
+  platformFilter: Set<string>;
+  onPlatformToggle: (slug: string) => void;
+  publishedOnly: boolean;
+  onTogglePublished: () => void;
   backlog: Post[];
   selectedPostId: string | null;
   onBacklogPostClick: (post: Post) => void;
@@ -168,9 +172,10 @@ export default function CalendarSidebar({
   currentYear,
   currentMonth,
   postDates,
-  pillars,
-  visiblePillars,
-  onPillarToggle,
+  platformFilter,
+  onPlatformToggle,
+  publishedOnly,
+  onTogglePublished,
   backlog,
   selectedPostId,
   onBacklogPostClick,
@@ -179,7 +184,7 @@ export default function CalendarSidebar({
   onFillWeek,
   fillDisabled,
 }: CalendarSidebarProps) {
-  const [pillarsOpen, setPillarsOpen] = useState(true);
+  const [filtersOpen, setFiltersOpen] = useState(true);
   const [backlogOpen, setBacklogOpen] = useState(true);
 
   return (
@@ -204,47 +209,63 @@ export default function CalendarSidebar({
           onDateSelect={onDateSelect}
         />
 
-        {/* ── My Pillars ── */}
-        {pillars.length > 0 && (
-          <div>
-            <button
-              onClick={() => setPillarsOpen(o => !o)}
-              className="flex items-center justify-between w-full mb-2 group"
-            >
-              <span className="text-[11px] font-mono uppercase tracking-[0.1em] text-ink3 group-hover:text-ink transition-colors">
-                My Pillars
-              </span>
-              <ChevronRight
-                className={`w-3.5 h-3.5 text-ink3 transition-transform ${pillarsOpen ? 'rotate-90' : ''}`}
-              />
-            </button>
-            {pillarsOpen && (
+        {/* ── Filters ── */}
+        <div>
+          <button
+            onClick={() => setFiltersOpen(o => !o)}
+            className="flex items-center justify-between w-full mb-2 group"
+          >
+            <span className="text-[11px] font-mono uppercase tracking-[0.1em] text-ink3 group-hover:text-ink transition-colors">
+              Filters
+            </span>
+            <ChevronRight
+              className={`w-3.5 h-3.5 text-ink3 transition-transform ${filtersOpen ? 'rotate-90' : ''}`}
+            />
+          </button>
+          {filtersOpen && (
+            <div className="space-y-3">
+              {/* Platform */}
               <div className="space-y-1">
-                {pillars.map((p) => {
-                  const visible = visiblePillars.has(p.value);
+                <span className="text-[10px] font-mono uppercase tracking-[0.08em] text-ink3">Platform</span>
+                {FILTER_PLATFORMS.map((p) => {
+                  const active = platformFilter.has(p);
                   return (
                     <button
-                      key={p.value}
-                      onClick={() => onPillarToggle(p.value)}
+                      key={p}
+                      onClick={() => onPlatformToggle(p)}
                       className="flex items-center gap-2.5 w-full px-1 py-1 rounded-md hover:bg-bg-tertiary transition-colors text-left"
                     >
                       <span
-                        className="w-3.5 h-3.5 rounded-[3px] border-2 shrink-0 transition-colors"
-                        style={{
-                          backgroundColor: visible ? p.color : 'transparent',
-                          borderColor: p.color,
-                        }}
+                        className={`w-3.5 h-3.5 rounded-[3px] border-2 shrink-0 transition-colors ${
+                          active ? 'bg-accent-primary border-accent-primary' : 'border-border'
+                        }`}
                       />
-                      <span className={`text-[13px] truncate ${visible ? 'text-ink' : 'text-ink3'}`}>
-                        {p.label}
+                      <span className={`text-[13px] ${active ? 'text-ink' : 'text-ink3'}`}>
+                        {PLATFORM_LABELS[p] ?? p}
                       </span>
                     </button>
                   );
                 })}
+                <p className="text-[10px] text-ink3 pl-1">No selection shows all platforms.</p>
               </div>
-            )}
-          </div>
-        )}
+
+              {/* Published */}
+              <button
+                onClick={onTogglePublished}
+                className="flex items-center gap-2.5 w-full px-1 py-1 rounded-md hover:bg-bg-tertiary transition-colors text-left"
+              >
+                <span
+                  className={`w-3.5 h-3.5 rounded-[3px] border-2 shrink-0 transition-colors ${
+                    publishedOnly ? 'bg-accent-primary border-accent-primary' : 'border-border'
+                  }`}
+                />
+                <span className={`text-[13px] ${publishedOnly ? 'text-ink' : 'text-ink3'}`}>
+                  Published only
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* ── Backlog ── */}
         <div>

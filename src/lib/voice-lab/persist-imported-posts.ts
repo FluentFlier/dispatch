@@ -7,7 +7,38 @@ import {
   extractUnipilePublishedAt,
 } from '@/lib/platforms/linkedin-metrics';
 import { writeToMemory, buildPostMemoryCustomId, buildImageMemoryCustomId } from '@/lib/memory/write';
-import { describeImage } from '@/lib/llm';
+import { describeImage, chatCompletion, isLlmConfigured } from '@/lib/llm';
+
+const TITLE_SYSTEM =
+  'You write short, specific titles for social posts. Given a post body, reply with ONLY a 4-8 word title that captures its main point. No quotes, no hashtags, no emojis, no em dashes, no trailing punctuation. Title Case.';
+
+/**
+ * A short human title for an imported post. LinkedIn/X posts have no native title,
+ * so raw truncation (`body.slice(0,80)`) reads as a broken sentence. Summarize the
+ * body with the small chat model (HF fallback, LLM_DAILY_HARD_CAP-aware). Falls
+ * back to the 80-char slice whenever the model is unconfigured, over budget, or
+ * returns junk — an import must NEVER fail because a title could not be generated.
+ */
+export async function generatePostTitle(body: string): Promise<string> {
+  const fallback = body.slice(0, 80);
+  const text = body.trim();
+  if (!text || !isLlmConfigured()) return fallback;
+  try {
+    const raw = await chatCompletion(TITLE_SYSTEM, text.slice(0, 600), {
+      maxTokens: 24,
+      temperature: 0.3,
+    });
+    const title = raw
+      .split('\n')[0]
+      .replace(/^["'\s]+|["'\s]+$/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 80);
+    return title.length >= 3 ? title : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 /** Platforms whose Unipile post payloads carry engagement counters we can read. */
 function unipileMetricsSupported(platform: string): boolean {
@@ -234,6 +265,9 @@ export async function persistImportedPosts({
       ? extractUnipilePublishedAt(item)
       : undefined;
     const images = await describeImages(allImageUrls(item));
+    // LinkedIn/X posts carry no native title — summarize the body instead of
+    // showing a truncated first sentence in the Library.
+    const title = await generatePostTitle(content);
 
     // Create a posts row for this historically-published post
     const postId = randomUUID();
@@ -241,7 +275,7 @@ export async function persistImportedPosts({
       id: postId,
       user_id: userId,
       workspace_id: workspaceId,
-      title: content.slice(0, 80),
+      title,
       script: content,
       // posts.pillar is NOT NULL with no default; imported historical posts
       // aren't authored against a pillar, so seed the codebase-wide 'general'
