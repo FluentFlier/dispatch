@@ -7,6 +7,7 @@ import { guardAiRequest } from '@/lib/ai-guard';
 import { LlmError } from '@/lib/llm';
 import { streamCreatorDraft } from '@/lib/content-pipeline/stream';
 import { humanizePipeline, heuristicAiScore } from '@/lib/humanizer';
+import { evaluateDraft } from '@/lib/voice-evaluator';
 import { formatSignalTopicsBlock, getSignalTopicsForGeneration } from '@/lib/signals/content-bridge';
 import { trackEvent } from '@/lib/analytics';
 
@@ -145,11 +146,27 @@ export async function POST(request: NextRequest): Promise<Response> {
         // an extra network/quota hit. Lower is better (fewer AI tells).
         const aiSlop = heuristicAiScore(finalText);
 
+        // Real voice-match score (persona_fidelity from the judge model), not a
+        // guess: without this, downstream scoring (/api/posts/predict) always
+        // fell back to a fixed 60 default for the streamed path, capping every
+        // predicted score in the low-80s regardless of actual draft quality.
+        // evaluateDraft never throws (it returns a neutral skip result on
+        // failure), so no try/catch needed here.
+        let voiceMatchScore: number | null = null;
+        if (useVoice) {
+          send({ type: 'stage', stage: 'scoring' });
+          const evalResult = await evaluateDraft(finalText, profile, contextAdditions || undefined, 'post');
+          if (!evalResult.parse_error) {
+            voiceMatchScore = Math.round((evalResult.persona_fidelity / 10) * 100);
+          }
+        }
+
         send({
           type: 'done',
           text: finalText,
           used_hook_ids: result.usedHookIds,
           ai_score: aiSlop,
+          voice_match_score: voiceMatchScore,
           humanized,
           starved: completeness?.starved ?? false,
           voice_source: completeness?.voiceSource,

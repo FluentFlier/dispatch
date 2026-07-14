@@ -133,7 +133,7 @@ function formatHookExamples(hooks: Array<{ id: string; text: string; author: str
  * gates (Task 3+). Single construction site so all three always agree on
  * platform/contentType/mentions for a given request.
  */
-function buildCheckContext(
+export function buildCheckContext(
   input: ContentPipelineInput,
   contentType: string,
   sourceContext: string | undefined,

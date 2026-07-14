@@ -17,15 +17,21 @@
  *   - NEXT_PUBLIC_INSFORGE_URL, INSFORGE_SERVICE_ROLE_KEY, SUPERMEMORY_API_KEY set.
  *
  * Usage:
- *   npx tsx scripts/backfill-memory.ts
- *   MEMORY_BACKFILL_MAX=500 npx tsx scripts/backfill-memory.ts   # cap total writes
+ *   npx tsx scripts/backfill-memory.mts
+ *   MEMORY_BACKFILL_MAX=500 npx tsx scripts/backfill-memory.mts   # cap total writes
  *
  * Uses relative imports (not the @/ alias) so it runs under tsx unchanged.
+ * .mts extension (not .ts): this project has no "type": "module" in
+ * package.json, so tsx runs plain .ts files as CommonJS by default, which
+ * makes @insforge/sdk resolve its CJS build - and that build's require() of
+ * @insforge/shared-schemas (an ESM-only package, no "require" export
+ * condition) crashes with ERR_PACKAGE_PATH_NOT_EXPORTED. .mts forces
+ * unambiguous ESM regardless of package.json, sidestepping the whole mess.
  */
 
 import { createClient } from '@insforge/sdk';
 import { addMemory } from '../src/lib/supermemory';
-import { memoryScopeTag, buildPostMemoryCustomId } from '../src/lib/memory/write';
+import { memoryScopeTag, buildPostMemoryCustomId, buildImageMemoryCustomId } from '../src/lib/memory/write';
 import { buildQuestionsAndAnswers } from '../src/lib/event-capture/draft-context';
 
 const url = process.env.NEXT_PUBLIC_INSFORGE_URL;
@@ -40,7 +46,10 @@ if (!process.env.SUPERMEMORY_API_KEY) {
   process.exit(1);
 }
 
-const client = createClient({ baseUrl: url, anonKey: serviceKey, isServerMode: true });
+// Strip trailing slash: an env value ending in "/" doubles up with the SDK's
+// leading-slash paths ("//api/database/...") and 404s. Matches the same
+// normalization src/lib/insforge/server.ts applies for the app's own clients.
+const client = createClient({ baseUrl: url.replace(/\/+$/, ''), anonKey: serviceKey, isServerMode: true });
 const MAX = Number(process.env.MEMORY_BACKFILL_MAX ?? 100000);
 const PAGE = 25;
 const SLEEP_MS = 200;
@@ -73,7 +82,7 @@ async function backfillPosts(): Promise<void> {
     if (written >= MAX) return;
     const { data: rows } = await client.database
       .from('posts')
-      .select('id, user_id, workspace_id, platform, hook, script, caption, posted_date')
+      .select('id, user_id, workspace_id, platform, hook, script, caption, posted_date, images')
       .eq('status', 'posted')
       .is('memory_synced_at', null)
       .order('posted_date', { ascending: true })
@@ -83,6 +92,7 @@ async function backfillPosts(): Promise<void> {
     for (const r of rows as Array<{
       id: string; user_id: string; workspace_id: string | null; platform: string | null;
       hook: string | null; script: string | null; caption: string | null; posted_date: string | null;
+      images: Array<{ url: string; description: string | null }> | null;
     }>) {
       if (written >= MAX) return;
       const body = [r.hook, r.script, r.caption].filter(Boolean).join('\n\n').trim();
@@ -104,6 +114,19 @@ async function backfillPosts(): Promise<void> {
           customId: buildPostMemoryCustomId(r.platform, providerPostId, r.id),
           metadata: { type: 'imported_post', platform: r.platform ?? '', posted_date: posted },
         });
+        // Each described image gets its own standalone memory document (not
+        // appended into the post's content) - a description tacked onto a long
+        // post competes with the post's other chunks for search ranking; a
+        // standalone doc gets an independent shot at surfacing.
+        for (const [i, img] of (r.images ?? []).entries()) {
+          if (!img.description) continue;
+          await addMemory({
+            content: pastHeader(`[Photo from your ${r.platform ?? 'social'} post on ${posted || 'unknown date'}]`, img.description),
+            containerTags: [memoryScopeTag(r.user_id, r.workspace_id), 'post_image'],
+            customId: buildImageMemoryCustomId(r.id, i),
+            metadata: { type: 'post_image', platform: r.platform ?? '', posted_date: posted },
+          });
+        }
         await mark('posts', r.id);
         written++;
       } catch (err) {

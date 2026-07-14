@@ -466,7 +466,7 @@ const FIXED_STYLE_LINES = {
  * model would otherwise ignore the cue or when memory retrieval is empty.
  */
 const RETROSPECTIVE_RE =
-  /\b(remember(ing|ed)?|looking back|reflect(ing|ion)?|recap|throwback|nostalg|revisit|that (time|day|event|trip|night)|back (when|then|in \d{4})|last (year|month|week|summer|winter|spring|fall|night)|(years?|months?|weeks?|days?) ago|a while ago|used to|earlier this (year|month|week))\b/i;
+  /\b(remember(ing|ed)?|looking back|reflect(ing|ion)?|recap|throwback|nostalg|revisit|that (time|day|event|trip|night)|back (when|then|in \d{4})|long (ago|back)|a long time (ago|back)|last (year|month|week|summer|winter|spring|fall|night)|(years?|months?|weeks?|days?) ago|a while ago|used to|earlier this (year|month|week))\b/i;
 
 function temporalFramingRule(userPrompt: string): string | undefined {
   if (!RETROSPECTIVE_RE.test(userPrompt)) return undefined;

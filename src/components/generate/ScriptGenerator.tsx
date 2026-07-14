@@ -79,7 +79,7 @@ type ChatMessage =
       completeness?: MessageCompleteness;
     };
 
-type GenStage = 'thinking' | 'writing' | 'revising' | 'polishing';
+type GenStage = 'thinking' | 'writing' | 'revising' | 'polishing' | 'scoring';
 
 type StreamEvent =
   | { type: 'stage'; stage: GenStage }
@@ -89,6 +89,7 @@ type StreamEvent =
       text: string;
       used_hook_ids?: string[];
       ai_score?: number;
+      voice_match_score?: number | null;
       humanized?: boolean;
       starved?: boolean;
       voice_source?: string;
@@ -100,6 +101,7 @@ const STAGE_LABELS: Record<GenStage, string> = {
   writing: 'Writing your draft…',
   revising: 'Reworking the draft…',
   polishing: 'Polishing out the AI tells…',
+  scoring: 'Scoring voice match…',
 };
 
 function isPlatform(value: unknown): value is DashboardPlatform {
@@ -479,7 +481,7 @@ export function ScriptGenerator({
       id: string,
       text: string,
       hookIds: string[],
-      extra?: { ai_score?: number; starved?: boolean; voice_source?: string },
+      extra?: { ai_score?: number; voice_match_score?: number | null; starved?: boolean; voice_source?: string },
     ) => {
       if (rafRef.current != null) {
         cancelAnimationFrame(rafRef.current);
@@ -495,6 +497,7 @@ export function ScriptGenerator({
                 voiceMetrics: {
                   used_hook_ids: hookIds,
                   ...(extra?.ai_score !== undefined ? { ai_score: extra.ai_score } : {}),
+                  ...(extra?.voice_match_score != null ? { voice_match_score: extra.voice_match_score } : {}),
                 },
                 completeness:
                   extra?.starved || extra?.voice_source
@@ -573,6 +576,7 @@ export function ScriptGenerator({
             finalized = true;
             finalizeMessage(assistantId, ev.text || acc, ev.used_hook_ids ?? [], {
               ai_score: ev.ai_score,
+              voice_match_score: ev.voice_match_score,
               starved: ev.starved,
               voice_source: ev.voice_source,
             });

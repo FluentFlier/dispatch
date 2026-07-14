@@ -6,7 +6,8 @@ import {
   extractUnipilePostMetrics,
   extractUnipilePublishedAt,
 } from '@/lib/platforms/linkedin-metrics';
-import { writeToMemory, buildPostMemoryCustomId } from '@/lib/memory/write';
+import { writeToMemory, buildPostMemoryCustomId, buildImageMemoryCustomId } from '@/lib/memory/write';
+import { describeImage } from '@/lib/llm';
 
 /** Platforms whose Unipile post payloads carry engagement counters we can read. */
 function unipileMetricsSupported(platform: string): boolean {
@@ -35,6 +36,16 @@ export interface UnipileItem {
   is_reply?: boolean;
   attachments?: UnipileAttachment[];
 }
+
+export interface ImportedImage {
+  url: string;
+  description: string | null;
+}
+
+/** Cap on images described per post - bounds worst-case per-item latency/cost;
+ * a post with more photos still keeps its full image list, just undescribed
+ * past this count (rare - Unipile posts are almost always 1-4 images). */
+const MAX_IMAGES_DESCRIBED = 4;
 
 export interface PersistImportedPostsResult {
   created: number;
@@ -70,6 +81,58 @@ export function buildPostUrl(platform: string, postId: string): string {
 export function firstImageUrl(item: UnipileItem): string | null {
   const img = item.attachments?.find((a) => a.type === 'img' && Boolean(a.url));
   return img?.url ?? null;
+}
+
+/** Every image attachment URL on a Unipile post (firstImageUrl only ever kept
+ * the first, silently discarding the rest). */
+export function allImageUrls(item: UnipileItem): string[] {
+  return (item.attachments ?? [])
+    .filter((a) => a.type === 'img' && Boolean(a.url))
+    .map((a) => a.url as string);
+}
+
+/**
+ * Describes every image on a post (bounded by MAX_IMAGES_DESCRIBED, run
+ * concurrently so total latency is ~one vision call, not the sum). Best-effort:
+ * describeImage never throws, so a failed/unsupported vision call just leaves
+ * that image's description null rather than blocking the import.
+ */
+async function describeImages(urls: string[]): Promise<ImportedImage[]> {
+  const toDescribe = urls.slice(0, MAX_IMAGES_DESCRIBED);
+  const described = await Promise.all(
+    toDescribe.map(async (url) => ({ url, description: await describeImage(url) })),
+  );
+  const rest = urls.slice(MAX_IMAGES_DESCRIBED).map((url) => ({ url, description: null }));
+  return [...described, ...rest];
+}
+
+/**
+ * Writes each described image as its OWN memory document (see
+ * buildImageMemoryCustomId) rather than only appending it inside the parent
+ * post's content - gives every photo an independent shot at surfacing on an
+ * image/venue-specific query regardless of how the parent post's other chunks
+ * rank for that query.
+ */
+function pushImageMemoryWrites(
+  memoryWrites: Promise<boolean>[],
+  client: Parameters<typeof writeToMemory>[0],
+  images: ImportedImage[],
+  ctx: { userId: string; workspaceId: string | null; platform: string; postId: string; postedDate: string },
+): void {
+  images.forEach((img, i) => {
+    if (!img.description) return;
+    memoryWrites.push(
+      writeToMemory(client, {
+        userId: ctx.userId,
+        workspaceId: ctx.workspaceId,
+        kind: 'post_image',
+        content:
+          `[Photo from your ${ctx.platform} post on ${ctx.postedDate || 'unknown date'}] — this ALREADY happened; reference as past.\n\n${img.description}`,
+        customId: buildImageMemoryCustomId(ctx.postId, i),
+        metadata: { platform: ctx.platform, posted_date: ctx.postedDate },
+      }),
+    );
+  });
 }
 
 /**
@@ -118,12 +181,14 @@ export async function persistImportedPosts({
     if (existingJob?.post_id) {
       const { data: existingPost } = await client.database
         .from('posts')
-        .select('id, views, likes, saves, comments, shares')
+        .select('id, views, likes, saves, comments, shares, images')
         .eq('id', existingJob.post_id)
         .eq('user_id', userId)
         .maybeSingle();
 
       if (existingPost) {
+        let repaired = false;
+
         if (unipileMetricsSupported(platform)) {
           const patch = metricsPatchFromNormalized(extractUnipilePostMetrics(item));
           if (!hasPostMetrics(existingPost) && Object.keys(patch).length > 0) {
@@ -131,9 +196,29 @@ export async function persistImportedPosts({
             const postPatch: Record<string, string | number> = { ...patch };
             if (publishedAt) postPatch.posted_date = publishedAt.split('T')[0];
             await client.database.from('posts').update(postPatch).eq('id', existingJob.post_id);
-            result.repaired++;
-            continue;
+            repaired = true;
           }
+        }
+
+        // Backfill images on posts imported before multi-image capture existed
+        // (firstImageUrl() used to be the only thing kept - the rest of a
+        // post's photos were silently discarded).
+        const existingImages = (existingPost as { images?: ImportedImage[] }).images ?? [];
+        const availableUrls = allImageUrls(item);
+        if (existingImages.length === 0 && availableUrls.length > 0) {
+          const images = await describeImages(availableUrls);
+          await client.database.from('posts').update({ images }).eq('id', existingJob.post_id);
+          repaired = true;
+
+          const postedDate = extractUnipilePublishedAt(item)?.split('T')[0] ?? '';
+          pushImageMemoryWrites(memoryWrites, client, images, {
+            userId, workspaceId, platform, postId: existingJob.post_id, postedDate,
+          });
+        }
+
+        if (repaired) {
+          result.repaired++;
+          continue;
         }
         result.skipped++;
         continue;
@@ -148,6 +233,7 @@ export async function persistImportedPosts({
     const importedPublishedAt = unipileMetricsSupported(platform)
       ? extractUnipilePublishedAt(item)
       : undefined;
+    const images = await describeImages(allImageUrls(item));
 
     // Create a posts row for this historically-published post
     const postId = randomUUID();
@@ -167,6 +253,10 @@ export async function persistImportedPosts({
       pillars: ['general'],
       // Carry the first image so the reconstructed post shows media, not just text.
       image_url: firstImageUrl(item),
+      // Every image (image_url only ever kept the first), each with a cached
+      // one-time vision description so generation can reference what was
+      // actually in the photo without re-analyzing it on every draft.
+      images,
       platform,
       status: 'posted',
       posted_date: importedPublishedAt?.split('T')[0] ?? new Date().toISOString().split('T')[0],
@@ -229,6 +319,7 @@ export async function persistImportedPosts({
         metadata: { platform, posted_date: postedDate },
       }),
     );
+    pushImageMemoryWrites(memoryWrites, client, images, { userId, workspaceId, platform, postId, postedDate });
   }
 
   // Await all memory writes concurrently before returning so nothing is dropped

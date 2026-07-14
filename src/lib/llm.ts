@@ -366,6 +366,58 @@ export async function chatCompletion(
   }
 }
 
+const DESCRIBE_IMAGE_PROMPT =
+  'Describe this image in one or two plain sentences: setting, people count, what is ' +
+  'happening, any visible text/signage. Concrete visual details only - never guess names ' +
+  'or identities of people in the photo.';
+
+/**
+ * One-time vision description of an image URL, cached by the caller (imports
+ * call this once per image and store the result - never re-run per generation).
+ * Best-effort like every other optional enhancement in this codebase (Supermemory
+ * writes, humanizer, evaluator): never throws, returns null on any failure
+ * (no vision-capable model configured, provider rejects the request, network
+ * error) so a bad/missing description degrades to "no image context" rather
+ * than blocking the import.
+ */
+export async function describeImage(imageUrl: string, model?: string): Promise<string | null> {
+  if ((await checkGlobalLlmBudget()) === 'blocked') return null;
+
+  const visionModel = model ?? process.env.LLM_VISION_MODEL;
+  const primary = getPrimaryProvider(visionModel);
+  if (!primary || !visionModel) return null;
+
+  try {
+    const response = await fetch(`${primary.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${primary.apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: primary.model,
+        max_tokens: 150,
+        temperature: 0.2,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: DESCRIBE_IMAGE_PROMPT },
+              { type: 'image_url', image_url: { url: imageUrl } },
+            ],
+          },
+        ],
+      }),
+    });
+    if (!response.ok) {
+      console.warn('[describeImage] provider rejected request', response.status, await response.text().catch(() => ''));
+      return null;
+    }
+    const data = (await response.json()) as { choices?: Array<{ message?: { content?: string } }> };
+    return data.choices?.[0]?.message?.content?.trim() || null;
+  } catch (err) {
+    console.warn('[describeImage] failed (non-fatal)', err);
+    return null;
+  }
+}
+
 /** Called for each text delta as it streams in. */
 export type StreamTokenHandler = (delta: string) => void;
 

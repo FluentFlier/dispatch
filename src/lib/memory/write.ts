@@ -9,7 +9,8 @@ export type MemoryKind =
   | 'imported_post'
   | 'event_answer'
   | 'story_bank'
-  | 'edited_post';
+  | 'edited_post'
+  | 'post_image';
 
 export interface WriteToMemoryArgs {
   userId: string;
@@ -49,6 +50,17 @@ export function buildPostMemoryCustomId(
   const safe = (s: string): string => s.replace(/[^A-Za-z0-9_-]/g, '_');
   if (providerPostId && platform) return `post_${safe(platform)}_${safe(providerPostId)}`;
   return `post_${safe(internalPostId)}`;
+}
+
+/**
+ * Customid for one image's description, written as its OWN memory document
+ * (not appended inside the parent post's content). A description tacked onto
+ * the end of a long post competes with the post's other chunks for search
+ * ranking and can lose to them even when the query is specifically about the
+ * photo; a standalone document gets its own independent shot at surfacing.
+ */
+export function buildImageMemoryCustomId(internalPostId: string, index: number): string {
+  return `image_${internalPostId.replace(/[^A-Za-z0-9_-]/g, '_')}_${index}`;
 }
 
 /**
