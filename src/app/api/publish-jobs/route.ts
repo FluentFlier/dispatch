@@ -26,7 +26,7 @@ export async function GET(): Promise<NextResponse> {
   // Publish jobs carry only post_id — pull the post titles in one extra query
   // (InsForge embeds are unreliable here) so the timeline can name each post.
   const jobs = data ?? [];
-  const postIds = [...new Set(jobs.map((j) => j.post_id).filter(Boolean))];
+  const postIds = Array.from(new Set(jobs.map((j) => j.post_id).filter(Boolean)));
   let titleById: Record<string, string | null> = {};
   if (postIds.length > 0) {
     const { data: posts } = await client.database
