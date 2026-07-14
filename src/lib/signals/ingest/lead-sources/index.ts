@@ -22,4 +22,4 @@ export {
   linkedinDiscoveryAdapter,
   socialAdapters,
   xDiscoveryAdapter,
-} from '@/lib/signals/ingest/lead-sources/social-stubs';
+} from '@/lib/signals/ingest/lead-sources/social-discovery';
