@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Blue paper rocket logo">
-  <g transform="translate(0 2)" fill="oklch(57% 0.24 260)">
-    <path d="M70 244 434 104 239 304z"/>
-    <path d="M434 104 293 335 251 311z"/>
-    <path d="M174 354 239 304 226 424z"/>
+  <g transform="translate(0 2)">
+    <path fill="#2563eb" d="M70 244 434 104 239 304z"/>
+    <path fill="#2563eb" d="M434 104 293 335 251 311z"/>
+    <path fill="#2563eb" d="M174 354 239 304 226 424z"/>
   </g>
 </svg>
