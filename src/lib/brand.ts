@@ -5,11 +5,8 @@
  */
 export const PRODUCT_NAME = 'Content OS';
 
-/** One-line descriptor shown under the wordmark (e.g. sidebar). */
-export const PRODUCT_TAGLINE = 'Creator operating system';
-
-/** Primary wordmark/logo asset (public path). */
-export const PRODUCT_LOGO = '/logo-paper-rocket-bw-transparent.svg';
+/** Primary logo asset (public path) — brand-blue paper rocket. */
+export const PRODUCT_LOGO = '/logo-paper-rocket-color.svg';
 
 export const SITE_TITLE = `${PRODUCT_NAME}: One system for content and leads`;
 
