@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { MotionValue, motion, useReducedMotion, useScroll, useTransform } from "motion/react";
 import { cn } from "@/lib/utils";
+import { PRODUCT_NAME } from "@/lib/brand";
 import {
   IconBrightnessDown,
   IconBrightnessUp,
@@ -188,7 +189,7 @@ export const Lid = ({
         ) : (
           <img
             src={src}
-            alt="Content OS product interface"
+            alt={`${PRODUCT_NAME} product interface`}
             className="absolute inset-0 h-full w-full rounded-lg object-cover object-left-top"
           />
         )}

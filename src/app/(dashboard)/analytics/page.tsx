@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PRODUCT_NAME } from "@/lib/brand";
 import {
   BarChart3,
   ChevronDown,
@@ -452,7 +453,7 @@ function AlgorithmPlaybookSection({ algorithm }: { algorithm: AlgorithmPanel | n
       </div>
 
       <p className="mt-4 text-xs text-text-tertiary">
-        Content OS uses these signals when generating posts so drafts are written to rank, not just to read well.
+        {PRODUCT_NAME} uses these signals when generating posts so drafts are written to rank, not just to read well.
       </p>
     </section>
   );

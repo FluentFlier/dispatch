@@ -7,7 +7,7 @@ import { usePathname } from 'next/navigation';
 import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, SlidersHorizontal } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { getInsforgeClient } from '@/lib/insforge/client';
-import { PRODUCT_NAME } from '@/lib/brand';
+import { PRODUCT_NAME, PRODUCT_TAGLINE, PRODUCT_LOGO } from '@/lib/brand';
 import { primaryNav, moreNav, settingsNav, navIcons, APP_HOME_PATH } from '@/lib/nav-config';
 import WorkspaceSwitcher from '@/components/nav/WorkspaceSwitcher';
 
@@ -101,7 +101,7 @@ export default function Sidebar() {
           }`}
         >
           <Image
-            src="/logo-paper-rocket-bw-transparent.svg"
+            src={PRODUCT_LOGO}
             alt={PRODUCT_NAME}
             width={26}
             height={26}
@@ -119,7 +119,7 @@ export default function Sidebar() {
                 animate="open"
                 className="mt-1.5 block whitespace-nowrap text-[11px] leading-tight text-ink3"
               >
-                Creator operating system
+                {PRODUCT_TAGLINE}
               </motion.span>
             </span>
           )}

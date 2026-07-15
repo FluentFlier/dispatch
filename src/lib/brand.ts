@@ -1,5 +1,15 @@
-/** App-wide product name, the single source of truth for UI copy. */
+/**
+ * App-wide brand identity — the single source of truth for UI copy and marks.
+ * To rebrand, change these three constants (name, tagline, logo) and every
+ * user-facing surface follows.
+ */
 export const PRODUCT_NAME = 'Content OS';
+
+/** One-line descriptor shown under the wordmark (e.g. sidebar). */
+export const PRODUCT_TAGLINE = 'Creator operating system';
+
+/** Primary wordmark/logo asset (public path). */
+export const PRODUCT_LOGO = '/logo-paper-rocket-bw-transparent.svg';
 
 export const SITE_TITLE = `${PRODUCT_NAME}: One system for content and leads`;
 
