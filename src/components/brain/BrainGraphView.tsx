@@ -30,6 +30,7 @@ const LEGEND_ORDER: BrainNodeKind[] = [
   'core',
   'pillar',
   'post',
+  'topic',
   'performance',
   'story',
   'gtm',
@@ -44,6 +45,7 @@ const LEGEND_COLOR: Record<BrainNodeKind, string> = {
   pillar: '#171717',
   post: '#5B8FA8',
   story: '#E07A5F',
+  topic: '#B8843F',
 };
 
 const PRIORITY_STYLE: Record<BrainDecision['priority'], string> = {
