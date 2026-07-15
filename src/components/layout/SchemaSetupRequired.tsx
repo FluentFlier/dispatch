@@ -1,3 +1,5 @@
+import { PRODUCT_NAME } from '@/lib/brand';
+
 /**
  * Soft-fail screen when Content OS core tables are missing or wrong-shaped
  * on the linked InsForge project (e.g. shared Ada/tryada DB).
@@ -11,7 +13,7 @@ export default function SchemaSetupRequired() {
         </p>
         <h1 className="text-xl font-semibold tracking-tight">Database not provisioned</h1>
         <p className="text-sm leading-relaxed text-ink2">
-          Content OS database is not provisioned on this InsForge project. Link a clean project and
+          {PRODUCT_NAME} database is not provisioned on this InsForge project. Link a clean project and
           apply db/APPLY_ORDER.md (core steps 1–10).
         </p>
       </div>

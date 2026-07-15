@@ -5,7 +5,7 @@ import { PRODUCT_NAME } from '@/lib/brand';
 
 export const metadata: Metadata = {
   title: 'Book a demo',
-  description: 'Schedule a founder-led walkthrough of Content OS.',
+  description: `Schedule a founder-led walkthrough of ${PRODUCT_NAME}.`,
   alternates: { canonical: '/book-demo' },
 };
 
@@ -26,7 +26,7 @@ export default function BookDemoPage(): JSX.Element {
               Founder walkthrough
             </p>
             <h1 className="mt-3 font-serif text-[clamp(28px,4vw,40px)] font-normal tracking-[-0.03em]">
-              See Content OS in action
+              See {PRODUCT_NAME} in action
             </h1>
             <p className="mt-4 text-[15px] leading-7 text-text-secondary">
               20 minutes on voice-aware drafting, scheduling, engagement replies, and the intelligence loop
