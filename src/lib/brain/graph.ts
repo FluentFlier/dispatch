@@ -232,7 +232,7 @@ export function buildBrainGraph(pages: BrainPageRecord[]): BrainGraph {
     label: profilePage?.title?.replace(/:\s*profile$/i, '') || 'Creator',
     kind: 'core',
     slug: 'profile',
-    detail: profilePage ? describeCorePage(profilePage) : 'The center of your Creator Brain.',
+    detail: profilePage ? describeCorePage(profilePage) : 'The center of your Brain.',
     pending: profilePage ? isPagePending(profilePage) : true,
   });
 

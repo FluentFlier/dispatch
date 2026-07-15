@@ -79,7 +79,7 @@ export function CreatorBrainCard() {
       <div className="rounded-2xl border border-amber-200/80 bg-amber-50/80 p-4 backdrop-blur-sm">
         <div className="flex items-center gap-2 text-amber-800">
           <Brain className="h-4 w-4" />
-          <span className="text-sm font-medium">Creator Brain</span>
+          <span className="text-sm font-medium">Brain</span>
         </div>
         <p className="mt-2 text-xs text-ink3">
           Apply <code className="text-ink2">db/creator-brain.sql</code> on InsForge to enable memory pages.
@@ -94,7 +94,7 @@ export function CreatorBrainCard() {
         <div>
           <div className="flex items-center gap-2">
             <Brain className="h-4 w-4 text-blue" />
-            <span className="text-sm font-medium text-ink">Creator Brain</span>
+            <span className="text-sm font-medium text-ink">Brain</span>
           </div>
           <p className="mt-1 text-xs text-ink3">
             {status?.provisioned
@@ -114,7 +114,7 @@ export function CreatorBrainCard() {
             <>
               <Link
                 href="/brain"
-                title="Visualize your Creator Brain as a graph"
+                title="Visualize your Brain as a graph"
                 className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-hair2 bg-white/90 px-3 text-sm text-ink backdrop-blur-sm transition-colors hover:border-blue/25 hover:bg-white"
               >
                 <Network className="h-3.5 w-3.5" />
