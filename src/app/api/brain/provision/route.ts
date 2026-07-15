@@ -19,7 +19,7 @@ export async function POST(): Promise<NextResponse> {
     return NextResponse.json({
       ok: true,
       page_count: result.synced_posts,
-      message: `Creator brain synced (${result.synced_posts} published posts)`,
+      message: `Brain synced (${result.synced_posts} published posts)`,
       synced_posts: result.synced_posts,
     });
   } catch (err) {

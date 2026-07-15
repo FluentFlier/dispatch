@@ -48,7 +48,7 @@ export const navItems: NavItem[] = [
   { name: 'Leads', href: '/leads', short: 'Leads', section: 'primary' },
 
   // --- More: power tools (working features only) ---
-  { name: 'Creator brain', href: '/brain', short: 'Brain', section: 'more' },
+  { name: 'Brain', href: '/brain', short: 'Brain', section: 'more' },
   { name: 'Ideas', href: '/ideas', short: 'Ideas', section: 'more' },
   { name: 'Story bank', href: '/story-bank', short: 'Stories', section: 'more' },
   { name: 'Series', href: '/series', short: 'Series', section: 'more' },
