@@ -103,12 +103,24 @@ export function SmoothCursor({
   const [isEnabled, setIsEnabled] = useState(false)
   const [isVisible, setIsVisible] = useState(false)
 
-  const cursorX = useSpring(0, springConfig)
-  const cursorY = useSpring(0, springConfig)
+  // Position tracks the pointer tightly; rotation/scale keep the expressive spring feel.
+  const cursorX = useSpring(0, {
+    damping: 40,
+    stiffness: 2200,
+    mass: 0.15,
+    restDelta: 0.001,
+  })
+  const cursorY = useSpring(0, {
+    damping: 40,
+    stiffness: 2200,
+    mass: 0.15,
+    restDelta: 0.001,
+  })
   const rotation = useSpring(0, {
     ...springConfig,
-    damping: 60,
-    stiffness: 300,
+    damping: 48,
+    stiffness: 280,
+    mass: 0.35,
   })
   const scale = useSpring(1, {
     ...springConfig,
@@ -158,7 +170,7 @@ export function SmoothCursor({
       lastMousePos.current = currentPos
     }
 
-    const smoothPointerMove = (e: PointerEvent) => {
+    const onPointerMove = (e: PointerEvent) => {
       if (!isTrackablePointer(e.pointerType)) {
         return
       }
@@ -199,29 +211,12 @@ export function SmoothCursor({
       }
     }
 
-    let rafId = 0
-    const throttledPointerMove = (e: PointerEvent) => {
-      if (!isTrackablePointer(e.pointerType)) {
-        return
-      }
-
-      if (rafId) return
-
-      rafId = requestAnimationFrame(() => {
-        smoothPointerMove(e)
-        rafId = 0
-      })
-    }
-
-    document.body.style.cursor = "none"
-    window.addEventListener("pointermove", throttledPointerMove, {
-      passive: true,
-    })
+    document.documentElement.classList.add("smooth-cursor-active")
+    window.addEventListener("pointermove", onPointerMove, { passive: true })
 
     return () => {
-      window.removeEventListener("pointermove", throttledPointerMove)
-      document.body.style.cursor = "auto"
-      if (rafId) cancelAnimationFrame(rafId)
+      window.removeEventListener("pointermove", onPointerMove)
+      document.documentElement.classList.remove("smooth-cursor-active")
       if (timeout !== null) {
         clearTimeout(timeout)
       }
