@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { DM_Sans, Fraunces, Hanken_Grotesk, JetBrains_Mono } from 'next/font/google';
-import { PRODUCT_NAME, SITE_TITLE } from '@/lib/brand';
+import { PRODUCT_NAME } from '@/lib/brand';
+import { pageMetadata, findSeoPage } from '@/lib/seo';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -26,16 +27,13 @@ const jetbrains = JetBrains_Mono({
   display: 'swap',
 });
 
-const SITE_DESC =
-  'Create in your voice, publish to LinkedIn and X, reply faster, and turn the response into what you do next.';
-
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://contentos.us'),
+  ...pageMetadata(findSeoPage('/')),
   title: {
-    default: SITE_TITLE,
+    default: findSeoPage('/').title,
     template: `%s - ${PRODUCT_NAME}`,
   },
-  description: SITE_DESC,
   applicationName: PRODUCT_NAME,
   keywords: [
     'content creation',
@@ -48,9 +46,6 @@ export const metadata: Metadata = {
     'AI writing in your voice',
   ],
   category: 'technology',
-  alternates: {
-    canonical: './',
-  },
   robots: {
     index: true,
     follow: true,
@@ -61,21 +56,6 @@ export const metadata: Metadata = {
       'max-snippet': -1,
       'max-video-preview': -1,
     },
-  },
-  openGraph: {
-    title: SITE_TITLE,
-    description: SITE_DESC,
-    url: '/',
-    siteName: PRODUCT_NAME,
-    type: 'website',
-    locale: 'en_US',
-    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: PRODUCT_NAME }],
-  },
-  twitter: {
-    card: 'summary_large_image',
-    title: SITE_TITLE,
-    description: SITE_DESC,
-    images: ['/opengraph-image'],
   },
 };
 
