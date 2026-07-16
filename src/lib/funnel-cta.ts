@@ -20,7 +20,7 @@ export interface FunnelCta {
  */
 export function getFunnelCta(state: FunnelState): FunnelCta {
   if (!state.loggedIn) {
-    return { href: '/login', label: CTA_START_TRIAL };
+    return { href: '/get-started', label: CTA_START_TRIAL };
   }
 
   const path = getPostAuthPath(

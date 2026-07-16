@@ -13,9 +13,9 @@ describe('getFunnelCta', () => {
     trial_ends_at: new Date(Date.now() - 86400000).toISOString(),
   };
 
-  it('sends logged-out users to login', () => {
+  it('sends logged-out users to the access-code gate', () => {
     expect(getFunnelCta({ loggedIn: false, onboardingComplete: false, sub: null })).toEqual({
-      href: '/login',
+      href: '/get-started',
       label: 'Start free trial',
     });
   });

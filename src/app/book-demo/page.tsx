@@ -30,7 +30,7 @@ export default function BookDemoPage(): JSX.Element {
               that makes your next post better than the last.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/login" className="btn-primary inline-flex justify-center">
+              <Link href="/get-started" className="btn-primary inline-flex justify-center">
                 Start free trial
               </Link>
               <Link

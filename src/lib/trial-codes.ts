@@ -56,34 +56,21 @@ export type RedeemResult =
   | { ok: true; status: 'already_paid' }
   | { ok: false; error: string };
 
-/**
- * Redeems a trial code for a user: validates the code, starts a trial with the
- * code's plan + duration, and records the redemption.
- *
- * Uses the service client because trial_codes is admin-owned (RLS blocks anon).
- * A user who already has a trial or paid plan is short-circuited without
- * consuming a redemption.
- */
-export async function redeemTrialCode(userId: string, rawCode: string): Promise<RedeemResult> {
+export type ValidateTrialCodeResult =
+  | { ok: true; code: string }
+  | { ok: false; error: string };
+
+type TrialCodeLookupResult =
+  | { ok: true; code: string; row: TrialCodeRow }
+  | { ok: false; error: string };
+
+async function findUsableTrialCode(rawCode: string): Promise<TrialCodeLookupResult> {
   const code = normalizeCode(rawCode);
   if (!code) {
     return { ok: false, error: 'Enter a code.' };
   }
 
   const service = getServiceClient();
-
-  // Don't let an already-provisioned user burn a redemption.
-  const sub = await getOrCreateSubscription(userId);
-  if (isAppTrialActive(sub)) {
-    return { ok: true, status: 'already_active' };
-  }
-  if (sub.stripe_subscription_id || sub.status === 'active') {
-    return { ok: true, status: 'already_paid' };
-  }
-  if (sub.trial_ends_at) {
-    return { ok: false, error: 'Your free trial has already been used. Choose a plan to continue.' };
-  }
-
   const { data: rows } = await service.database
     .from('trial_codes')
     .select('code, plan, trial_days, active, max_redemptions, redemption_count, note, created_at, updated_at')
@@ -100,6 +87,46 @@ export async function redeemTrialCode(userId: string, rawCode: string): Promise<
   if (row.max_redemptions != null && row.redemption_count >= row.max_redemptions) {
     return { ok: false, error: 'That code has reached its redemption limit.' };
   }
+
+  return { ok: true, code, row };
+}
+
+/** Checks whether a code can currently be redeemed without consuming it. */
+export async function validateTrialCode(rawCode: string): Promise<ValidateTrialCodeResult> {
+  const result = await findUsableTrialCode(rawCode);
+  if (!result.ok) return result;
+  return { ok: true, code: result.code };
+}
+
+/**
+ * Redeems a trial code for a user: validates the code, starts a trial with the
+ * code's plan + duration, and records the redemption.
+ *
+ * Uses the service client because trial_codes is admin-owned (RLS blocks anon).
+ * A user who already has a trial or paid plan is short-circuited without
+ * consuming a redemption.
+ */
+export async function redeemTrialCode(userId: string, rawCode: string): Promise<RedeemResult> {
+  if (!normalizeCode(rawCode)) {
+    return { ok: false, error: 'Enter a code.' };
+  }
+
+  // Don't let an already-provisioned user burn a redemption.
+  const sub = await getOrCreateSubscription(userId);
+  if (isAppTrialActive(sub)) {
+    return { ok: true, status: 'already_active' };
+  }
+  if (sub.stripe_subscription_id || sub.status === 'active') {
+    return { ok: true, status: 'already_paid' };
+  }
+  if (sub.trial_ends_at) {
+    return { ok: false, error: 'Your free trial has already been used. Choose a plan to continue.' };
+  }
+
+  const lookup = await findUsableTrialCode(rawCode);
+  if (!lookup.ok) return lookup;
+  const { code, row } = lookup;
+  const service = getServiceClient();
 
   // Record the redemption first. The unique(user_id) constraint makes this the
   // atomic guard against a single user redeeming twice (double-submit / retry).

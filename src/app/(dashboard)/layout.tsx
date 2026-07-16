@@ -49,7 +49,6 @@ export default async function DashboardLayout({
 
   const sessionKeepAlive = <SessionKeepAlive />;
 
-  const isGetStarted = pathname === '/get-started';
   const isOnboarding =
     pathname === '/onboarding' || pathname.startsWith('/onboarding/');
 
@@ -93,7 +92,7 @@ export default async function DashboardLayout({
       if (isOnboarding) {
         if (nextPath === '/get-started') redirect('/auth/continue');
         if (nextPath === APP_HOME_PATH) redirect(APP_HOME_PATH);
-      } else if (!isGetStarted) {
+      } else {
         const destination = nextPath === '/get-started' ? '/auth/continue' : nextPath;
         if (destination !== APP_HOME_PATH) redirect(destination);
       }
@@ -110,7 +109,7 @@ export default async function DashboardLayout({
     }
   }
 
-  if (isGetStarted || isOnboarding) {
+  if (isOnboarding) {
     return (
       <ToastProvider>
         {sessionKeepAlive}

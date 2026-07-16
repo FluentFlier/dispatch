@@ -8,6 +8,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // P0-1: CSRF logout fix - middleware no longer clears token on ?expired=1
 // ---------------------------------------------------------------------------
 describe('P0-1: middleware - no CSRF logout via ?expired=1', () => {
+  it('allows unauthenticated users to reach the access-code gate', async () => {
+    const { middleware } = await import('@/middleware');
+    const { NextRequest } = await import('next/server');
+
+    const response = await middleware(new NextRequest('http://localhost/get-started'));
+
+    expect(response.status).not.toBe(307);
+    expect(response.headers.get('location')).toBeNull();
+  });
+
   it('renders login on /login?expired=1 WITHOUT force-clearing the cookie (anti-CSRF)', async () => {
     const { middleware } = await import('@/middleware');
     const { NextRequest } = await import('next/server');

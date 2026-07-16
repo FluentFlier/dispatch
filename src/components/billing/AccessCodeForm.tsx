@@ -3,13 +3,14 @@
 import { useState } from 'react';
 
 /**
- * Redeems a trial access code, then hands off to /auth/continue which routes the
- * now-provisioned user into onboarding.
+ * Validates an access code before authentication, then carries it through sign-in
+ * in a short-lived, HttpOnly cookie. Signed-in users follow the same path and are
+ * routed straight through redemption.
  */
-export default function AccessCodeForm() {
+export default function AccessCodeForm({ initialError = '' }: { initialError?: string }) {
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [error, setError] = useState(initialError);
 
   async function submit(e: React.FormEvent): Promise<void> {
     e.preventDefault();
@@ -21,7 +22,7 @@ export default function AccessCodeForm() {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/billing/redeem-code', {
+      const res = await fetch('/api/billing/prepare-code', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code: trimmed }),
@@ -31,8 +32,9 @@ export default function AccessCodeForm() {
         setError(data.error ?? 'Could not redeem that code.');
         return;
       }
-      // Full navigation so the server re-evaluates access and routes to onboarding.
-      window.location.assign('/auth/continue');
+      // The login middleware sends already-authenticated users through the same
+      // pending-code redemption path without showing the sign-in UI again.
+      window.location.assign('/login');
     } catch {
       setError('Network error - try again.');
     } finally {

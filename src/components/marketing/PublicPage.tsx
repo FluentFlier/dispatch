@@ -31,7 +31,7 @@ export function PublicHeader(): JSX.Element {
             Pricing
           </Link>
         </div>
-        <Link href="/login" className="btn-secondary min-h-10 px-4 text-sm">
+        <Link href="/get-started" className="btn-secondary min-h-10 px-4 text-sm">
           Start free trial
         </Link>
       </nav>
@@ -56,7 +56,7 @@ export function PublicHero({
           </h1>
           <p className="mt-6 max-w-2xl text-[18px] leading-8 text-ink2">{description}</p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link href="/login" className="btn-primary">
+            <Link href="/get-started" className="btn-primary">
               {primaryCta}
               <ArrowRight size={16} />
             </Link>

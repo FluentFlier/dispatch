@@ -13,7 +13,7 @@ vi.mock('@/lib/analytics', () => ({
 
 import { getServiceClient } from '@/lib/insforge/server';
 import { getOrCreateSubscription } from '@/lib/entitlements';
-import { redeemTrialCode, normalizeCode } from '@/lib/trial-codes';
+import { redeemTrialCode, normalizeCode, validateTrialCode } from '@/lib/trial-codes';
 
 /**
  * Builds a chainable InsForge client stub. `results` maps a table name to the
@@ -54,6 +54,19 @@ describe('normalizeCode', () => {
   it('trims and uppercases', () => {
     expect(normalizeCode('  linkedin ')).toBe('LINKEDIN');
     expect(normalizeCode('')).toBe('');
+  });
+});
+
+describe('validateTrialCode', () => {
+  it('validates and normalizes a usable code without consuming it', async () => {
+    vi.mocked(getServiceClient).mockReturnValue(
+      makeClient({ trial_codes: { data: [LINKEDIN_ROW], error: null } }),
+    );
+
+    await expect(validateTrialCode(' linkedin ')).resolves.toEqual({
+      ok: true,
+      code: 'LINKEDIN',
+    });
   });
 });
 

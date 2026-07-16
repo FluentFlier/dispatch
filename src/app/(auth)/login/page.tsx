@@ -269,10 +269,10 @@ export default function LoginPage() {
             {PRODUCT_NAME}
           </p>
           <h1 className="text-3xl font-semibold text-text-primary leading-tight tracking-tight">
-            Sign in and enter your access code.
+            Sign in to continue.
           </h1>
           <p className="text-[15px] text-text-secondary mt-4 max-w-sm leading-relaxed">
-            Redeem your code for a free trial - no card. Quick profile setup, then you&apos;re in.
+            After your access code is confirmed, choose Google or GitHub to create your account and finish setup.
           </p>
         </div>
         <blockquote className="border-l-2 border-accent-primary/40 pl-4">
@@ -300,7 +300,7 @@ export default function LoginPage() {
                   Sign in
                 </h2>
                 <p className="text-[15px] text-text-secondary mt-2">
-                  Google or GitHub. You&apos;ll enter your access code next.
+                  Continue with Google or GitHub to finish setting up your account.
                 </p>
               </div>
 
