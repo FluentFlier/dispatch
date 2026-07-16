@@ -1,4 +1,5 @@
 import type { MetadataRoute } from 'next';
+import { PRODUCT_NAME } from '@/lib/brand';
 
 /**
  * PWA web app manifest. Editorial palette: ink theme color, paper background.
@@ -6,8 +7,8 @@ import type { MetadataRoute } from 'next';
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Content OS',
-    short_name: 'Content OS',
+    name: PRODUCT_NAME,
+    short_name: PRODUCT_NAME,
     description:
       'The self-improving content command center for creators who ship - generate, schedule, publish, reply, and learn across X, LinkedIn, Instagram, and Threads.',
     start_url: '/',

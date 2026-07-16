@@ -9,6 +9,7 @@ import {
   INSFORGE_PKCE_VERIFIER_KEY,
   isAuthCapableOrigin,
 } from "@/lib/auth-constants";
+import { PRODUCT_NAME } from "@/lib/brand";
 
 /**
  * Sync access + refresh tokens into httpOnly cookies via /api/auth.
@@ -265,7 +266,7 @@ export default function LoginPage() {
       <div className="hidden lg:flex lg:w-[42%] flex-col justify-between p-12 bg-bg-tertiary border-r border-border">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-accent-primary mb-4">
-            Content OS
+            {PRODUCT_NAME}
           </p>
           <h1 className="text-3xl font-semibold text-text-primary leading-tight tracking-tight">
             Sign in and enter your access code.
@@ -278,7 +279,7 @@ export default function LoginPage() {
           <p className="text-sm text-text-secondary italic leading-relaxed">
             &ldquo;I stopped trying to be consistent. I built a system instead.&rdquo;
           </p>
-          <footer className="text-xs text-text-tertiary mt-2">Content OS creator</footer>
+          <footer className="text-xs text-text-tertiary mt-2">{PRODUCT_NAME} creator</footer>
         </blockquote>
       </div>
 
@@ -293,7 +294,7 @@ export default function LoginPage() {
             <>
               <div className="text-center mb-8 lg:text-left">
                 <p className="text-xs font-semibold uppercase tracking-wide text-accent-primary mb-2 lg:hidden">
-                  Content OS
+                  {PRODUCT_NAME}
                 </p>
                 <h2 className="text-2xl font-semibold text-text-primary tracking-tight">
                   Sign in

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveAgentAuth } from '@/lib/agent-auth/context';
+import { PRODUCT_NAME } from '@/lib/brand';
 
 const ENDPOINTS = [
   { method: 'GET', path: '/api/agent/v1/session', scope: 'read', description: 'Bootstrap user, workspace, platforms' },
@@ -28,7 +29,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? request.nextUrl.origin;
 
   return NextResponse.json({
-    name: 'Content OS Agent API',
+    name: `${PRODUCT_NAME} Agent API`,
     version: 1,
     auth: 'Authorization: Bearer cos_live_...',
     docs: `${appUrl}/api/agent/v1/skill`,

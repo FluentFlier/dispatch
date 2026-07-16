@@ -1,5 +1,6 @@
 import { createClient } from '@insforge/sdk';
 import { verifyDraftToken } from '@/lib/sms/draft-token';
+import { PRODUCT_NAME } from '@/lib/brand';
 
 export const metadata = {
   robots: { index: false, follow: false },
@@ -24,7 +25,7 @@ export default async function DraftLinkPage({
       <Shell>
         <h1 className="text-lg font-medium text-ink">Link expired</h1>
         <p className="mt-2 text-sm text-ink2">
-          This draft link is invalid or has expired. Open Content OS to keep editing.
+          This draft link is invalid or has expired. Open {PRODUCT_NAME} to keep editing.
         </p>
       </Shell>
     );
@@ -60,7 +61,7 @@ export default async function DraftLinkPage({
         href="/generate"
         className="mt-6 inline-flex items-center justify-center rounded-md bg-ink px-4 py-2 text-sm font-medium text-white"
       >
-        Open in Content OS to edit &amp; post
+        Open in {PRODUCT_NAME} to edit &amp; post
       </a>
       <p className="mt-4 text-xs text-ink3">
         Reply to the text message with edits or a photo and it attaches to this draft automatically.
