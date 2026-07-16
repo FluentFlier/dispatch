@@ -80,6 +80,20 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   }
 
   const isLocalhost = appUrl.includes('localhost') || appUrl.includes('127.0.0.1');
+  const production = process.env.NODE_ENV === 'production';
+  const callbackSecret = process.env.UNIPILE_HOSTED_CALLBACK_SECRET
+    ?? process.env.UNIPILE_WEBHOOK_SECRET
+    ?? process.env.CRON_SECRET;
+
+  if (production && isLocalhost) {
+    console.error('[unipile/connect] refusing hosted link with localhost NEXT_PUBLIC_APP_URL in production');
+    return NextResponse.redirect(failureRedirect);
+  }
+
+  if (production && !callbackSecret?.trim()) {
+    console.error('[unipile/connect] refusing hosted link without callback secret in production');
+    return NextResponse.redirect(failureRedirect);
+  }
 
   // Scope the hosted flow to a single platform when the row's Connect button
   // passes ?provider=. Absent → show both (the all-at-once entry point).
@@ -117,9 +131,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // notify_url = our webhook, only set in deployed environments (localhost unreachable).
   // On localhost the success_redirect calls /api/social-accounts/sync as fallback.
   if (!isLocalhost) {
-    const callbackSecret = process.env.UNIPILE_HOSTED_CALLBACK_SECRET
-      ?? process.env.UNIPILE_WEBHOOK_SECRET
-      ?? process.env.CRON_SECRET;
     const notifyUrl = new URL(`${appUrl}/api/webhooks/unipile`);
     if (callbackSecret) {
       notifyUrl.searchParams.set('token', callbackSecret);

@@ -45,6 +45,113 @@ function mapPlatform(p: string): SocialPlatform | null {
   return null;
 }
 
+type VerifiableUnipilePlatform = 'linkedin' | 'twitter';
+
+function normalizedIdentity(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  let token = trimmed;
+  if (/^https?:\/\//i.test(token) || token.includes('linkedin.com/')) {
+    try {
+      const url = new URL(token.startsWith('http') ? token : `https://${token}`);
+      token = url.pathname.split('/').filter(Boolean).at(-1) ?? token;
+    } catch {
+      token = token.replace(/\/+$/, '');
+    }
+  }
+
+  return token.replace(/^@/, '').replace(/\/+$/, '').toLowerCase();
+}
+
+function urnTail(value?: string): string | null {
+  if (!value?.includes(':')) return null;
+  return value.split(':').filter(Boolean).at(-1) ?? null;
+}
+
+function uniq(values: Array<string | null | undefined>): string[] {
+  return Array.from(new Set(values.map((v) => v?.trim()).filter(Boolean) as string[]));
+}
+
+function identityVariants(value?: string | null): string[] {
+  return uniq([value, urnTail(value ?? undefined)])
+    .map(normalizedIdentity)
+    .filter(Boolean) as string[];
+}
+
+function imToProviderIds(
+  im: NonNullable<NonNullable<UnipileFullAccount['connection_params']>['im']> | undefined,
+  storedAccountId: string | null,
+): string[] {
+  return uniq([
+    im?.id,
+    im?.memberId,
+    urnTail(im?.objectUrn),
+    im?.objectUrn,
+    urnTail(im?.entityUrn),
+    im?.entityUrn,
+    im?.publicIdentifier,
+    storedAccountId,
+  ]);
+}
+
+function accountIdentityTokens(account: UnipileFullAccount): Set<string> {
+  const im = account.connection_params?.im;
+  return new Set(
+    [
+      account.username,
+      im?.id,
+      im?.memberId,
+      im?.objectUrn,
+      im?.entityUrn,
+      im?.publicIdentifier,
+    ].flatMap(identityVariants),
+  );
+}
+
+function accountMatchesStoredIdentity(account: UnipileFullAccount, storedAccountId: string | null): boolean {
+  const storedTokens = identityVariants(storedAccountId);
+  if (storedTokens.length === 0) return true;
+
+  const accountTokens = accountIdentityTokens(account);
+  return storedTokens.some((token) => accountTokens.has(token));
+}
+
+function accountMatchesPlatform(account: UnipileFullAccount, platform: VerifiableUnipilePlatform): boolean {
+  const type = (account.type ?? account.provider ?? '').toLowerCase();
+  if (platform === 'linkedin') return type === 'linkedin';
+  return type === 'twitter' || type === 'x' || type === 'twitter_v2';
+}
+
+async function resolveLiveUnipileAccount(
+  unipileAccountId: string,
+  storedAccountId: string | null,
+  platform: VerifiableUnipilePlatform,
+): Promise<{ unipileAccountId: string; providerUserIds: string[]; refreshed: boolean } | null> {
+  const full = await fetchUnipileAccountDetails(unipileAccountId);
+  if (full && accountMatchesPlatform(full, platform) && accountMatchesStoredIdentity(full, storedAccountId)) {
+    return {
+      unipileAccountId,
+      providerUserIds: imToProviderIds(full.connection_params?.im, storedAccountId),
+      refreshed: false,
+    };
+  }
+
+  if (!storedAccountId) return null;
+  const accounts = await listUnipileAccounts();
+  const match = accounts.find((account) => {
+    if (!accountMatchesPlatform(account, platform)) return false;
+    return accountMatchesStoredIdentity(account, storedAccountId);
+  });
+
+  if (!match) return null;
+  return {
+    unipileAccountId: match.id,
+    providerUserIds: imToProviderIds(match.connection_params?.im, storedAccountId),
+    refreshed: match.id !== unipileAccountId,
+  };
+}
+
 export const unipileProvider: SocialProvider = {
   name: 'unipile',
 
@@ -92,7 +199,7 @@ export const unipileProvider: SocialProvider = {
     const client = getServerClient();
     const { data: row } = await client.database
       .from('social_accounts')
-      .select('unipile_account_id')
+      .select('unipile_account_id, account_id')
       .eq('user_id', userId)
       .eq('platform', payload.platform)
       .not('unipile_account_id', 'is', null)
@@ -107,12 +214,39 @@ export const unipileProvider: SocialProvider = {
       };
     }
 
+    let unipileAccountId = row.unipile_account_id as string;
+    if (payload.platform === 'linkedin' || payload.platform === 'twitter') {
+      const target = await resolveLiveUnipileAccount(
+        unipileAccountId,
+        (row.account_id as string | null) ?? null,
+        payload.platform,
+      );
+
+      if (!target?.unipileAccountId) {
+        return {
+          success: false,
+          error: `No verified Unipile account connected for ${payload.platform}. Reconnect it in Settings before publishing.`,
+          provider: 'unipile',
+        };
+      }
+
+      if (target.refreshed) {
+        await client.database
+          .from('social_accounts')
+          .update({ unipile_account_id: target.unipileAccountId })
+          .eq('user_id', userId)
+          .eq('platform', payload.platform);
+      }
+
+      unipileAccountId = target.unipileAccountId;
+    }
+
     // POST /api/v1/posts is a file-carrying endpoint: it requires
     // multipart/form-data, NOT JSON. Required fields are account_id + text;
     // media is attached as binary file parts named `attachments` (there is no
     // `media_urls` field). See Unipile "Create a post" reference.
     const form = new FormData();
-    form.append('account_id', row.unipile_account_id);
+    form.append('account_id', unipileAccountId);
     form.append('text', payload.text);
 
     if (payload.imageUrl) {

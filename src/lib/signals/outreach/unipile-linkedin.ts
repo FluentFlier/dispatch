@@ -108,7 +108,7 @@ async function liveAccountId(
   if (!storedId) return null;
 
   const healed = await healUnipileAccountId(storedId, row?.account_id ?? null);
-  if (!healed) return storedId;
+  if (!healed) return null;
   if (healed.refreshed) {
     await persistHealedAccountId(client, storedId, healed.accountId, scope);
   }

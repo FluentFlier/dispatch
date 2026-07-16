@@ -1,4 +1,5 @@
 import type { createClient } from '@insforge/sdk';
+import { resolveUnipileTarget } from '@/lib/onboarding/import-posts';
 import {
   parseUnipileError,
   unipileFormPost,
@@ -36,7 +37,7 @@ export async function getXUnipileAccountId(
 ): Promise<string | null> {
   let query = client.database
     .from('social_accounts')
-    .select('unipile_account_id')
+    .select('unipile_account_id, account_id')
     .eq('user_id', userId)
     .eq('platform', 'twitter')
     .not('unipile_account_id', 'is', null);
@@ -44,7 +45,21 @@ export async function getXUnipileAccountId(
   if (workspaceId) query = query.eq('workspace_id', workspaceId);
 
   const { data } = await query.limit(1).maybeSingle();
-  return (data?.unipile_account_id as string) ?? null;
+  const row = data as { unipile_account_id?: string | null; account_id?: string | null } | null;
+  if (!row?.unipile_account_id) return null;
+
+  const target = await resolveUnipileTarget(row.unipile_account_id, row.account_id ?? null, 'twitter');
+  if (!target?.unipileAccountId) return null;
+  if (target.refreshed) {
+    let update = client.database
+      .from('social_accounts')
+      .update({ unipile_account_id: target.unipileAccountId })
+      .eq('user_id', userId)
+      .eq('platform', 'twitter');
+    if (workspaceId) update = update.eq('workspace_id', workspaceId);
+    await update;
+  }
+  return target.unipileAccountId;
 }
 
 /** Resolves an X handle to a Unipile provider_id (required to open a DM chat). */

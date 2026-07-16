@@ -142,7 +142,7 @@ export async function getUnipileAccountId(userId: string, platform: string): Pro
   const storedId = row.unipile_account_id ?? 'stale';
   try {
     const target = await resolveUnipileTarget(storedId, row.account_id, op);
-    if (!target?.unipileAccountId) return row.unipile_account_id ?? null;
+    if (!target?.unipileAccountId) return null;
     if (target.refreshed) {
       // Persist the recovered live id so the next sync skips the round-trip.
       await client.database
@@ -153,7 +153,7 @@ export async function getUnipileAccountId(userId: string, platform: string): Pro
     }
     return target.unipileAccountId;
   } catch {
-    return row.unipile_account_id ?? null;
+    return null;
   }
 }
 
