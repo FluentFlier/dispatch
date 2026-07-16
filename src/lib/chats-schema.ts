@@ -11,8 +11,23 @@ export const ChatMessageSchema = z.object({
   role: z.enum(['user', 'assistant']),
   content: z.string().max(20_000),
   voiceMetrics: z
-    .object({ used_hook_ids: z.array(z.string().max(64)).max(20).optional() })
+    .object({
+      used_hook_ids: z.array(z.string().max(64)).max(20).optional(),
+      ai_score: z.number().optional(),
+      voice_match_score: z.number().nullable().optional(),
+    })
     .optional(),
+  completeness: z
+    .object({
+      starved: z.boolean().optional(),
+      voiceSource: z.string().optional(),
+    })
+    .nullable()
+    .optional(),
+  status: z.enum(['queued', 'running', 'done', 'error', 'canceled']).optional(),
+  stage: z.enum(['thinking', 'writing', 'revising', 'polishing', 'scoring']).nullable().optional(),
+  error: z.string().max(500).optional(),
+  contextId: z.string().uuid().nullable().optional(),
 });
 
 export const ChatMessagesSchema = z.array(ChatMessageSchema).max(200);
