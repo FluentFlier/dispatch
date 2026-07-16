@@ -1,33 +1,13 @@
 import type { MetadataRoute } from 'next';
-
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://contentos.us';
+import { PUBLIC_SEO_PAGES, absoluteUrl } from '@/lib/seo';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return [
-    {
-      url: BASE_URL,
-      changeFrequency: 'weekly',
-      priority: 1,
-    },
-    {
-      url: `${BASE_URL}/pricing`,
-      changeFrequency: 'weekly',
-      priority: 0.9,
-    },
-    {
-      url: `${BASE_URL}/book-demo`,
-      changeFrequency: 'monthly',
-      priority: 0.8,
-    },
-    {
-      url: `${BASE_URL}/privacy`,
-      changeFrequency: 'yearly',
-      priority: 0.2,
-    },
-    {
-      url: `${BASE_URL}/terms`,
-      changeFrequency: 'yearly',
-      priority: 0.2,
-    },
-  ];
+  const lastModified = new Date();
+
+  return PUBLIC_SEO_PAGES.map((page) => ({
+    url: absoluteUrl(page.path),
+    lastModified,
+    changeFrequency: page.changeFrequency,
+    priority: page.priority,
+  }));
 }

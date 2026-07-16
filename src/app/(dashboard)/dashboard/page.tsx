@@ -26,6 +26,7 @@ import { GtmCommandCenter } from '@/components/dashboard/GtmCommandCenter';
 import { DashboardWelcomeBanner } from '@/components/dashboard/DashboardWelcomeBanner';
 import { getUserEntitlements } from '@/lib/entitlements';
 import { SectionHeader } from '@/components/layout/SectionHeader';
+import { PRODUCT_NAME } from '@/lib/brand';
 import { EmptyState } from '@/components/ui/EmptyState';
 import {
   composeMorningBrief,
@@ -90,7 +91,7 @@ export default async function DashboardPage() {
     // No server-side auth -- show welcome state
     return (
       <div className="max-w-lg mx-auto flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-        <h2 className="text-[clamp(28px,3.5vw,36px)] font-semibold tracking-[-0.03em] leading-tight text-ink mb-2">Welcome to Content OS</h2>
+        <h2 className="text-[clamp(28px,3.5vw,36px)] font-semibold tracking-[-0.03em] leading-tight text-ink mb-2">Welcome to {PRODUCT_NAME}</h2>
         <p className="text-[15px] text-ink2 mb-6 leading-relaxed">
           Write in your voice, schedule posts, and reply to comments, all in one place.
         </p>
@@ -260,7 +261,7 @@ export default async function DashboardPage() {
                   : 'Your content system is ready for the next move.'}
               </h1>
               <p className="mt-3 max-w-xl text-[15px] leading-6 text-ink2">
-                Draft the next post, schedule the week, or turn replies into leads. Content OS should feel like a command center, not a folder of half-finished tools.
+                Draft the next post, schedule the week, or turn replies into leads. {PRODUCT_NAME} should feel like a command center, not a folder of half-finished tools.
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row">
                 <Link href="/generate" className="btn-primary">
@@ -323,7 +324,7 @@ export default async function DashboardPage() {
             {upNext.length === 0 ? (
               <div className="empty-state mt-4">
                 <p className="font-medium text-ink">No posts are scheduled yet.</p>
-                <p className="mt-1">Write one post, choose a platform, then put it on the calendar. That is the fastest path to seeing Content OS work.</p>
+                <p className="mt-1">Write one post, choose a platform, then put it on the calendar. That is the fastest path to seeing {PRODUCT_NAME} work.</p>
                 <Link href="/generate" className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-blue">
                   Draft a post <ArrowRight className="h-4 w-4" />
                 </Link>

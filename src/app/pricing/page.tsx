@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Check, Loader2, Zap } from 'lucide-react';
+import { PRODUCT_NAME } from '@/lib/brand';
 
 const PLANS = [
   {
@@ -75,14 +76,14 @@ export default function PricingPage() {
       <div className="mx-auto max-w-6xl px-5 py-16">
         <div className="mb-10">
           <Link href="/" className="text-[12px] text-accent-primary hover:text-accent-dark inline-block">
-            ← Content OS
+            ← {PRODUCT_NAME}
           </Link>
           <h1 className="mt-6 text-[clamp(32px,5vw,48px)] font-semibold leading-[1.02] tracking-[-0.04em] text-text-primary">
             {trialExpired ? 'Keep publishing' : 'Simple pricing'}
           </h1>
           <p className="mt-3 max-w-xl text-[16px] leading-7 text-text-secondary">
             {trialExpired
-              ? 'Your trial ended. Pick a plan to stay in Content OS.'
+              ? `Your trial ended. Pick a plan to stay in ${PRODUCT_NAME}.`
               : '7-day free trial, then from $19/mo. No card to start.'}
           </p>
           {!trialExpired && (

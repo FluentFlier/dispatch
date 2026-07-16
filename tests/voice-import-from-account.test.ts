@@ -125,7 +125,8 @@ describe('POST /api/voice-lab/import-from-account', () => {
     // Fast path: a live account resolves directly, so providerUserIds derive from
     // the stored account_id (imToProviderIds always includes storedAccountId).
     (fetchUnipileAccountDetails as ReturnType<typeof vi.fn>).mockResolvedValue({
-      connection_params: { im: {} },
+      type: 'linkedin',
+      connection_params: { im: { id: 'ACoAABcDEFgH' } },
     });
     // Stale-id fallback list (used only when fetchUnipileAccountDetails returns null).
     (listUnipileAccounts as ReturnType<typeof vi.fn>).mockResolvedValue([
@@ -210,11 +211,45 @@ describe('POST /api/voice-lab/import-from-account', () => {
     (getServerClient as ReturnType<typeof vi.fn>).mockReturnValue({
       database: { from: vi.fn().mockReturnValue(mockDbChain({ unipile_account_id: 'unipile_abc123', account_id: null, account_name: 'Test' })) },
     });
+    (fetchUnipileAccountDetails as ReturnType<typeof vi.fn>).mockResolvedValue({
+      type: 'linkedin',
+      connection_params: { im: {} },
+    });
     const { POST } = await import('@/app/api/voice-lab/import-from-account/route');
     const res = await POST(makeRequest({ platform: 'linkedin' }));
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.error).toContain('provider ID');
+  });
+
+  it('refuses to import when the stored Unipile account belongs to a different platform', async () => {
+    (fetchUnipileAccountDetails as ReturnType<typeof vi.fn>).mockResolvedValue({
+      type: 'twitter',
+      connection_params: { im: { id: 'ACoAABcDEFgH' } },
+    });
+    (listUnipileAccounts as ReturnType<typeof vi.fn>).mockResolvedValue([]);
+
+    const { POST } = await import('@/app/api/voice-lab/import-from-account/route');
+    const res = await POST(makeRequest({ platform: 'linkedin' }));
+
+    expect(res.status).toBe(404);
+    expect(unipoleFetch).not.toHaveBeenCalled();
+  });
+
+  it('refuses to import when the live Unipile account identity does not match the stored account_id', async () => {
+    (fetchUnipileAccountDetails as ReturnType<typeof vi.fn>).mockResolvedValue({
+      type: 'linkedin',
+      connection_params: { im: { publicIdentifier: 'someone-else', id: 'ACoAAStranger' } },
+    });
+    (listUnipileAccounts as ReturnType<typeof vi.fn>).mockResolvedValue([
+      { id: 'unipile_abc123', type: 'linkedin', connection_params: { im: { publicIdentifier: 'someone-else' } } },
+    ]);
+
+    const { POST } = await import('@/app/api/voice-lab/import-from-account/route');
+    const res = await POST(makeRequest({ platform: 'linkedin' }));
+
+    expect(res.status).toBe(404);
+    expect(unipoleFetch).not.toHaveBeenCalled();
   });
 
   it('filters out reposts and replies, returns only original posts', async () => {

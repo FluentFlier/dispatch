@@ -421,6 +421,12 @@ html.lenis body {
   pointer-events: none;
 }
 
+/* Hide the system cursor (including pointer on buttons/links) while the custom cursor is active. */
+html.smooth-cursor-active,
+html.smooth-cursor-active * {
+  cursor: none !important;
+}
+
 /* ───────────────────────── Content Relay landing ───────────────────────── */
 .quiet-landing {
   --quiet-canvas: oklch(99.2% 0.002 85);
