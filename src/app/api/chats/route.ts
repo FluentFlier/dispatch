@@ -3,7 +3,8 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
-import { ChatMessagesSchema, deriveChatTitle } from '@/lib/chats-schema';
+import { ChatMessagesSchema, deriveChatTitle, type ChatMessagePayload } from '@/lib/chats-schema';
+import { deriveChatStatus } from '@/lib/chats-status';
 
 const CreateChatSchema = z.object({
   messages: ChatMessagesSchema,
@@ -23,9 +24,12 @@ export async function GET(): Promise<NextResponse> {
   const client = getServerClient();
   try {
     const workspaceId = await getActiveWorkspaceId(user.id);
+    // ponytail: pull messages to derive per-session status (running/stalled) in
+    // one query. Fine for the 50-chat cap; denormalize a job_status column that
+    // the jobs route writes if this jsonb scan ever gets hot.
     let query = client.database
       .from('chat_conversations')
-      .select('id, title, platform, pillar, updated_at')
+      .select('id, title, platform, pillar, updated_at, messages')
       .eq('user_id', user.id)
       .order('updated_at', { ascending: false })
       .limit(50);
@@ -33,7 +37,12 @@ export async function GET(): Promise<NextResponse> {
 
     const { data, error } = await query;
     if (error) throw error;
-    return NextResponse.json({ chats: data ?? [] });
+    const now = Date.now();
+    const chats = (data ?? []).map(({ messages, ...summary }) => ({
+      ...summary,
+      ...deriveChatStatus(Array.isArray(messages) ? (messages as ChatMessagePayload[]) : [], summary.updated_at, now),
+    }));
+    return NextResponse.json({ chats });
   } catch (err) {
     return errorResponse('Failed to list chats.', 500, err);
   }

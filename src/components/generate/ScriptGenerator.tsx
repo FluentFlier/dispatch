@@ -9,6 +9,8 @@ import { LinkedInComposer } from './LinkedInComposer';
 import { usePillars } from '@/hooks/usePillars';
 import { DASHBOARD_PLATFORMS, PLATFORM_LABELS, type DashboardPlatform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
+import { SessionSidebar } from './SessionSidebar';
+import type { ChatSummary } from '@/lib/chats-status';
 import { useCreatorPreferences, POST_LENGTH_CONFIG, type PostLength } from '@/hooks/useCreatorPreferences';
 import {
   extractTagMentions,
@@ -44,25 +46,13 @@ type ChatMessage =
       content: string;
       voiceMetrics?: GenerateVoiceMetrics;
       completeness?: MessageCompleteness;
+      status?: 'queued' | 'running' | 'done' | 'error' | 'canceled';
+      stage?: GenStage | null;
+      error?: string;
+      contextId?: string | null;
     };
 
 type GenStage = 'thinking' | 'writing' | 'revising' | 'polishing' | 'scoring';
-
-type StreamEvent =
-  | { type: 'stage'; stage: GenStage }
-  | { type: 'token'; delta: string }
-  | {
-      type: 'done';
-      text: string;
-      used_hook_ids?: string[];
-      ai_score?: number;
-      voice_match_score?: number | null;
-      humanized?: boolean;
-      starved?: boolean;
-      voice_source?: string;
-      context_id?: string | null;
-    }
-  | { type: 'error'; error: string };
 
 const STAGE_LABELS: Record<GenStage, string> = {
   thinking: 'Thinking through the angle…',
@@ -86,47 +76,6 @@ async function fetchDefaultPlatform(): Promise<DashboardPlatform> {
     return isPlatform(parsed?.defaultPlatform) ? parsed.defaultPlatform : 'linkedin';
   } catch {
     return 'linkedin';
-  }
-}
-
-/**
- * Streams a generation over SSE, calling `onEvent` for each parsed event.
- * Throws on transport/HTTP errors and on server-sent `error` events.
- */
-async function streamGenerate(
-  payload: Record<string, unknown>,
-  onEvent: (ev: StreamEvent) => void,
-  signal: AbortSignal,
-): Promise<void> {
-  const res = await fetchWithAuth('/api/generate/stream', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-    signal,
-  });
-  if (!res.ok || !res.body) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error((body as { error?: string }).error || 'Generation failed');
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split('\n\n');
-    buffer = events.pop() ?? '';
-    for (const evt of events) {
-      const line = evt.split('\n').find((l) => l.startsWith('data:'));
-      if (!line) continue;
-      try {
-        onEvent(JSON.parse(line.slice(5).trim()) as StreamEvent);
-      } catch {
-        // Ignore keepalive/comment lines and malformed frames.
-      }
-    }
   }
 }
 
@@ -164,13 +113,7 @@ const PLATFORM_OPTIONS: (DashboardPlatform | null)[] = [null, ...DASHBOARD_PLATF
 
 const CHAT_KEY = 'generate:script:chat';
 const CHAT_ID_KEY = 'generate:script:chat-id';
-
-interface ChatSummary {
-  id: string;
-  title: string;
-  platform?: string | null;
-  updated_at: string;
-}
+const SIDEBAR_COLLAPSED_KEY = 'generate:script:sidebar-collapsed';
 
 function formatChatDate(iso: string): string {
   try {
@@ -222,30 +165,33 @@ export function ScriptGenerator({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [history, setHistory] = useState<ChatSummary[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try { return localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1'; } catch { return false; }
+  });
   const [conversationId, setConversationId] = useState<string | null>(() => {
     try { return sessionStorage.getItem(CHAT_ID_KEY); } catch { return null; }
   });
-  const [streamingId, setStreamingId] = useState<string | null>(null);
   const [stage, setStage] = useState<GenStage | null>(null);
   const [error, setError] = useState('');
   const [attachments, setAttachments] = useState<{ id: string; name: string; text: string }[]>([]);
   const [attaching, setAttaching] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const autoGenTriggered = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const abortRef = useRef<AbortController | null>(null);
   // Generation-context bundle id for this thread. The server returns it on each
   // draft; we echo it back on revises so regens reuse the cached context and the
   // server can track the light-regen budget. Reset on new/loaded chats.
   const contextIdRef = useRef<string | null>(null);
-  // Token flushing is batched to one rAF tick so a fast stream doesn't trigger a
-  // React re-render (and JSON.stringify to sessionStorage) on every single token.
-  const flushRef = useRef<{ id: string; text: string } | null>(null);
-  const rafRef = useRef<number | null>(null);
 
   const lastDraft = [...messages].reverse().find((m) => m.role === 'assistant' && m.content.trim())?.content ?? '';
   const lastAssistantIdx = messages.findLastIndex((m) => m.role === 'assistant');
+  const activeAssistant = [...messages].reverse().find(
+    (m): m is Extract<ChatMessage, { role: 'assistant' }> =>
+      m.role === 'assistant' && (m.status === 'queued' || m.status === 'running'),
+  );
+  const isGenerating = Boolean(activeAssistant);
 
   useEffect(() => {
     if (initialPlatform) return;
@@ -272,18 +218,17 @@ export function ScriptGenerator({
   // Persist chat, but never mid-stream: writing a growing draft on every token
   // would stringify the whole history hundreds of times per generation.
   useEffect(() => {
-    if (streamingId) return;
+    if (isGenerating) return;
     try { sessionStorage.setItem(CHAT_KEY, JSON.stringify(messages)); } catch {}
-  }, [messages, streamingId]);
+  }, [messages, isGenerating]);
 
   // Server-side history: sync the conversation after each completed exchange
   // (debounced, best-effort - sessionStorage above is the immediate fallback).
   const conversationIdRef = useRef(conversationId);
   conversationIdRef.current = conversationId;
   const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const creatingRef = useRef(false);
   useEffect(() => {
-    if (streamingId) return;
+    if (isGenerating) return;
     if (!messages.some((m) => m.role === 'assistant' && m.content.trim())) return;
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     const snapshot = messages;
@@ -296,25 +241,8 @@ export function ScriptGenerator({
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ messages: snapshot }),
             });
-          } else if (!creatingRef.current) {
-            creatingRef.current = true;
-            const res = await fetchWithAuth('/api/chats', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ messages: snapshot, ...(platform ? { platform } : {}), pillar }),
-            });
-            if (res.ok) {
-              const data = await res.json();
-              const id = data?.chat?.id as string | undefined;
-              if (id) {
-                setConversationId(id);
-                try { sessionStorage.setItem(CHAT_ID_KEY, id); } catch {}
-              }
-            }
-            creatingRef.current = false;
           }
         } catch {
-          creatingRef.current = false;
           // History sync is best-effort; the chat stays in sessionStorage.
         }
       })();
@@ -322,11 +250,9 @@ export function ScriptGenerator({
     return () => {
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     };
-  }, [messages, streamingId, platform, pillar]);
+  }, [messages, isGenerating]);
 
-  const openHistory = useCallback(async () => {
-    setHistoryOpen((open) => !open);
-    if (historyOpen) return;
+  const refreshHistory = useCallback(async () => {
     setHistoryLoading(true);
     try {
       const res = await fetchWithAuth('/api/chats', { method: 'GET' });
@@ -339,7 +265,41 @@ export function ScriptGenerator({
     } finally {
       setHistoryLoading(false);
     }
-  }, [historyOpen]);
+  }, []);
+
+  useEffect(() => {
+    if (historyOpen) void refreshHistory();
+  }, [historyOpen, refreshHistory]);
+
+  const toggleSidebar = useCallback(() => {
+    setSidebarCollapsed((prev) => {
+      const next = !prev;
+      try { localStorage.setItem(SIDEBAR_COLLAPSED_KEY, next ? '1' : '0'); } catch {}
+      return next;
+    });
+  }, []);
+
+  // Populate the sidebar on mount, then poll the list only while a session is
+  // still generating so running badges clear when background jobs finish.
+  const anyRunning = history.some((c) => c.status === 'running');
+  useEffect(() => { void refreshHistory(); }, [refreshHistory]);
+  useEffect(() => {
+    if (!anyRunning) return;
+    const t = window.setInterval(() => void refreshHistory(), 4000);
+    return () => window.clearInterval(t);
+  }, [anyRunning, refreshHistory]);
+
+  const openHistory = useCallback(() => {
+    setHistoryOpen((open) => !open);
+  }, []);
+
+  useEffect(() => {
+    const latestContext = [...messages]
+      .reverse()
+      .find((m): m is Extract<ChatMessage, { role: 'assistant' }> => m.role === 'assistant' && Boolean(m.contextId))
+      ?.contextId;
+    if (latestContext) contextIdRef.current = latestContext;
+  }, [messages]);
 
   const loadConversation = useCallback(async (id: string) => {
     setHistoryOpen(false);
@@ -349,8 +309,12 @@ export function ScriptGenerator({
       const data = await res.json();
       const chat = data?.chat;
       if (!chat || !Array.isArray(chat.messages)) return;
-      abortRef.current?.abort();
-      contextIdRef.current = null;
+      const loadedMessages = chat.messages as ChatMessage[];
+      contextIdRef.current =
+        [...loadedMessages]
+          .reverse()
+          .find((m): m is Extract<ChatMessage, { role: 'assistant' }> => m.role === 'assistant' && Boolean(m.contextId))
+          ?.contextId ?? null;
       setMessages(chat.messages as ChatMessage[]);
       setConversationId(id);
       if (isPlatform(chat.platform)) setPlatform(chat.platform);
@@ -423,59 +387,9 @@ export function ScriptGenerator({
     el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages, loading]);
 
-  useEffect(() => () => abortRef.current?.abort(), []);
-
-  const scheduleFlush = useCallback((id: string, text: string) => {
-    flushRef.current = { id, text };
-    if (rafRef.current != null) return;
-    rafRef.current = requestAnimationFrame(() => {
-      rafRef.current = null;
-      const pending = flushRef.current;
-      if (!pending) return;
-      setMessages((prev) =>
-        prev.map((m) => (m.id === pending.id && m.role === 'assistant' ? { ...m, content: pending.text } : m)),
-      );
-    });
-  }, []);
-
-  const finalizeMessage = useCallback(
-    (
-      id: string,
-      text: string,
-      hookIds: string[],
-      extra?: { ai_score?: number; voice_match_score?: number | null; starved?: boolean; voice_source?: string },
-    ) => {
-      if (rafRef.current != null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-      flushRef.current = null;
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === id && m.role === 'assistant'
-            ? {
-                ...m,
-                content: text,
-                voiceMetrics: {
-                  used_hook_ids: hookIds,
-                  ...(extra?.ai_score !== undefined ? { ai_score: extra.ai_score } : {}),
-                  ...(extra?.voice_match_score != null ? { voice_match_score: extra.voice_match_score } : {}),
-                },
-                completeness:
-                  extra?.starved || extra?.voice_source
-                    ? { starved: extra.starved, voiceSource: extra.voice_source }
-                    : null,
-              }
-            : m,
-        ),
-      );
-    },
-    [],
-  );
-
   const sendMessage = useCallback(async (text: string) => {
     const trimmed = text.trim();
-    if (!trimmed || loading || pillarsLoading || prefLoading || !pillar) return;
+    if (!trimmed || loading || isGenerating || pillarsLoading || prefLoading || !pillar) return;
 
     const priorDraft = [...messages].reverse().find((m) => m.role === 'assistant' && m.content.trim())?.content;
     const info = pillarList.find((p) => p.value === pillar);
@@ -505,86 +419,98 @@ export function ScriptGenerator({
 
     const userMsg: ChatMessage = { id: newId(), role: 'user', content: trimmed };
     const assistantId = newId();
-    setMessages((prev) => [...prev, userMsg, { id: assistantId, role: 'assistant', content: '' }]);
+    const assistantMsg: ChatMessage = {
+      id: assistantId,
+      role: 'assistant',
+      content: '',
+      status: 'queued',
+      stage: mode === 'revise' ? 'revising' : 'thinking',
+    };
+    const optimisticMessages = [...messages, userMsg, assistantMsg];
+    setMessages(optimisticMessages);
     setInput('');
     setAttachments([]);
     setError('');
     setLoading(true);
-    setStreamingId(assistantId);
     setStage(mode === 'revise' ? 'revising' : 'thinking');
 
-    const controller = new AbortController();
-    abortRef.current = controller;
-    let acc = '';
-    let finalized = false;
-
     try {
-      await streamGenerate(
-        {
+      const res = await fetchWithAuth('/api/generate/jobs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          conversationId: conversationIdRef.current,
+          userMessage: { id: userMsg.id, content: trimmed },
+          assistantId,
           prompt: assembled,
           topic: assembled.slice(0, 200),
-          ...(platform ? { platform } : {}),
+          platform,
+          pillar,
           useVoice,
           mode,
           ...(mentions.length > 0 ? { mentions } : {}),
           ...(mode === 'revise' && contextIdRef.current ? { context_id: contextIdRef.current } : {}),
-        },
-        (ev) => {
-          if (ev.type === 'stage') {
-            setStage(ev.stage);
-          } else if (ev.type === 'token') {
-            acc += ev.delta;
-            scheduleFlush(assistantId, acc);
-          } else if (ev.type === 'done') {
-            finalized = true;
-            if (ev.context_id) contextIdRef.current = ev.context_id;
-            finalizeMessage(assistantId, ev.text || acc, ev.used_hook_ids ?? [], {
-              ai_score: ev.ai_score,
-              voice_match_score: ev.voice_match_score,
-              starved: ev.starved,
-              voice_source: ev.voice_source,
-            });
-          } else if (ev.type === 'error') {
-            throw new Error(ev.error);
-          }
-        },
-        controller.signal,
-      );
-      // Stream closed without a done event (e.g. user hit Stop): keep partial text.
-      if (!finalized) {
-        if (acc.trim()) {
-          finalizeMessage(assistantId, acc, []);
-        } else {
-          // Nothing streamed yet - drop the exchange and hand the prompt back.
-          setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
-          setInput(trimmed);
-        }
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Generation failed');
+      const id = (data as { conversationId?: string }).conversationId;
+      if (id) {
+        setConversationId(id);
+        try { sessionStorage.setItem(CHAT_ID_KEY, id); } catch {}
       }
+      if (Array.isArray((data as { messages?: unknown }).messages)) {
+        setMessages((data as { messages: ChatMessage[] }).messages);
+      }
+      void refreshHistory();
     } catch (e: unknown) {
-      const aborted = controller.signal.aborted;
-      if (aborted && acc.trim()) {
-        finalizeMessage(assistantId, acc, []);
-      } else {
-        // Aborted-with-nothing, or a real error: drop the exchange, restore input.
-        if (!aborted) setError(e instanceof Error ? e.message : 'Something went wrong');
-        setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
-        setInput(trimmed);
-      }
+      setError(e instanceof Error ? e.message : 'Something went wrong');
+      setMessages((prev) => prev.filter((m) => m.id !== assistantId && m.id !== userMsg.id));
+      setInput(trimmed);
     } finally {
-      if (rafRef.current != null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
       setLoading(false);
-      setStreamingId(null);
       setStage(null);
-      abortRef.current = null;
     }
   }, [
-    loading, pillarsLoading, prefLoading, pillar, pillarList, getLabel,
+    loading, isGenerating, pillarsLoading, prefLoading, pillar, pillarList, getLabel,
     platform, postLength, useVoice, stableInitialMentions, messages, attachments,
-    scheduleFlush, finalizeMessage,
+    refreshHistory,
   ]);
+
+  useEffect(() => {
+    if (!conversationId || !activeAssistant) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const res = await fetchWithAuth(`/api/chats/${conversationId}`, { method: 'GET' });
+        if (!res.ok) return;
+        const data = await res.json();
+        const chat = data?.chat;
+        if (cancelled || !chat || !Array.isArray(chat.messages)) return;
+        const nextMessages = chat.messages as ChatMessage[];
+        setMessages(nextMessages);
+        const currentAssistant = nextMessages.find(
+          (m): m is Extract<ChatMessage, { role: 'assistant' }> => m.id === activeAssistant.id && m.role === 'assistant',
+        );
+        setStage(currentAssistant?.stage ?? null);
+        try {
+          sessionStorage.setItem(CHAT_KEY, JSON.stringify(nextMessages));
+        } catch {}
+      } catch {
+        // A missed poll is harmless; the next tick will catch up.
+      }
+    };
+    void poll();
+    const interval = window.setInterval(() => void poll(), 1600);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+    // Key on the job id, not the activeAssistant object: each poll replaces the
+    // message array with fresh objects, so depending on the object would tear
+    // down and restart this effect every tick, polling back-to-back instead of
+    // on the interval.
+  }, [conversationId, activeAssistant?.id]);
 
   useEffect(() => {
     if (!autoGenerate || autoGenTriggered.current || pillarsLoading || prefLoading || !pillar) return;
@@ -607,12 +533,7 @@ export function ScriptGenerator({
     );
   }
 
-  const stopGeneration = useCallback(() => {
-    abortRef.current?.abort();
-  }, []);
-
   const newChat = useCallback(() => {
-    abortRef.current?.abort();
     setMessages([]);
     setInput('');
     setError('');
@@ -623,6 +544,29 @@ export function ScriptGenerator({
       sessionStorage.removeItem(CHAT_ID_KEY);
     } catch {}
   }, []);
+
+  const stopGeneration = useCallback(() => {
+    const assistantId = activeAssistant?.id;
+    if (!assistantId) return;
+    setLoading(false);
+    setStage(null);
+    setMessages((prev) =>
+      prev.map((m) =>
+        m.id === assistantId && m.role === 'assistant'
+          ? { ...m, status: 'canceled', error: 'Generation stopped.' }
+          : m,
+      ),
+    );
+  }, [activeAssistant?.id]);
+
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = '0px';
+    const next = Math.min(el.scrollHeight, 176);
+    el.style.height = `${Math.max(next, 44)}px`;
+    el.style.overflowY = el.scrollHeight > 176 ? 'auto' : 'hidden';
+  }, [input]);
 
   function changeLength(next: PostLength) {
     setPostLength(next);
@@ -641,7 +585,8 @@ export function ScriptGenerator({
   const isEmpty = messages.length === 0 && !loading;
 
   return (
-    <div className="flex min-h-[calc(100vh-10rem)] flex-col">
+    <div className="relative flex min-h-[calc(100vh-10rem)] gap-3">
+      <div className="flex min-w-0 flex-1 flex-col">
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pb-4">
         {isEmpty && (
           <div className="py-12 text-center">
@@ -665,14 +610,14 @@ export function ScriptGenerator({
             );
           }
 
-          const isStreaming = msg.id === streamingId;
-          if (isStreaming) {
+          const isRunning = msg.role === 'assistant' && (msg.status === 'queued' || msg.status === 'running');
+          if (isRunning) {
             return (
               <div key={msg.id} className="flex justify-start">
                 <div className="w-full max-w-full space-y-2">
                   <div className="flex items-center gap-2 text-[12px] text-ink3">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    {STAGE_LABELS[stage ?? 'thinking']}
+                    {STAGE_LABELS[msg.stage ?? stage ?? 'thinking']}
                   </div>
                   {msg.content && (
                     <div className="rounded-2xl border border-hair bg-paper p-4 text-[15px] leading-relaxed text-ink whitespace-pre-wrap">
@@ -680,6 +625,16 @@ export function ScriptGenerator({
                       <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-[3px] animate-pulse bg-ink" />
                     </div>
                   )}
+                </div>
+              </div>
+            );
+          }
+
+          if (msg.role === 'assistant' && msg.status === 'error') {
+            return (
+              <div key={msg.id} className="flex justify-start">
+                <div className="max-w-[90%] rounded-2xl border border-flame/30 bg-flame/5 px-4 py-3 text-[14px] leading-relaxed text-flame">
+                  {msg.error || 'Generation failed.'}
                 </div>
               </div>
             );
@@ -734,6 +689,7 @@ export function ScriptGenerator({
           </div>
         )}
         <textarea
+          ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
@@ -847,7 +803,7 @@ export function ScriptGenerator({
               {attaching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}
             </button>
 
-            <div className="relative flex items-center gap-1">
+            <div className="relative flex items-center gap-1 lg:hidden">
               <button
                 type="button"
                 onClick={() => void openHistory()}
@@ -933,6 +889,17 @@ export function ScriptGenerator({
         </div>
       </div>
 
+      </div>
+      <SessionSidebar
+        chats={history}
+        activeId={conversationId}
+        collapsed={sidebarCollapsed}
+        loading={historyLoading}
+        onSelect={(id) => void loadConversation(id)}
+        onNew={newChat}
+        onDelete={(id) => void deleteConversation(id)}
+        onToggleCollapsed={toggleSidebar}
+      />
       <LinkedInComposer
         open={publishOpen}
         onClose={() => setPublishOpen(false)}
