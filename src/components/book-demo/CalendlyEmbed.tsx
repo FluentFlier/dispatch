@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { getCalendlyUrl } from '@/lib/calendly';
+import { getBookingUrl, isCalendlyUrl } from '@/lib/calendly';
 
 declare global {
   interface Window {
@@ -16,14 +16,15 @@ interface Props {
 }
 
 /**
- * Renders the Calendly inline booking widget when NEXT_PUBLIC_CALENDLY_URL is set.
+ * Embeds Calendly URLs and links out to other supported booking providers.
  */
 export default function CalendlyEmbed({ className }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const url = getCalendlyUrl();
+  const url = getBookingUrl();
+  const usesCalendly = isCalendlyUrl(url);
 
   useEffect(() => {
-    if (!url || !containerRef.current) return;
+    if (!url || !usesCalendly || !containerRef.current) return;
 
     function init() {
       if (!containerRef.current || !window.Calendly) return;
@@ -45,15 +46,34 @@ export default function CalendlyEmbed({ className }: Props) {
     return () => {
       script.remove();
     };
-  }, [url]);
+  }, [url, usesCalendly]);
 
   if (!url) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-bg-secondary p-8 text-center text-sm text-text-secondary">
-        <p className="font-medium text-text-primary">Calendly link not configured</p>
+        <p className="font-medium text-text-primary">Booking link not configured</p>
         <p className="mt-2">
-          Add <code className="text-xs">NEXT_PUBLIC_CALENDLY_URL</code> to your environment.
+          Add <code className="text-xs">NEXT_PUBLIC_BOOKING_URL</code> to your environment.
         </p>
+      </div>
+    );
+  }
+
+  if (!usesCalendly) {
+    return (
+      <div className="flex min-h-[260px] flex-col items-center justify-center rounded-lg border border-border bg-bg-primary p-8 text-center">
+        <p className="font-serif text-2xl tracking-[-0.02em] text-text-primary">Choose a time that works</p>
+        <p className="mt-3 max-w-sm text-sm leading-6 text-text-secondary">
+          Open the scheduling calendar to pick an available 20-minute walkthrough.
+        </p>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="btn-primary mt-6 inline-flex justify-center"
+        >
+          View available times
+        </a>
       </div>
     );
   }
