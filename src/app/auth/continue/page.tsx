@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getOrCreateSubscription } from '@/lib/entitlements';
 import { getPostAuthPath } from '@/lib/auth-routing';
+import { ensureInternalProductAccess } from '@/lib/internal-access';
 
 /**
  * Post-auth router: sends users to code entry, profile setup, or the app.
@@ -16,6 +17,10 @@ export default async function AuthContinuePage() {
     // to /auth/continue in an infinite loop.
     redirect('/login?expired=1');
   }
+
+  // Admin/internal accounts are more privileged than ordinary invitees and
+  // must never be sent to the access-code gate.
+  await ensureInternalProductAccess(user);
 
   const client = getServerClient();
   const [profileRes, sub] = await Promise.all([

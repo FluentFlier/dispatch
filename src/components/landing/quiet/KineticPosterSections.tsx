@@ -116,7 +116,7 @@ function VoicePoster() {
             <span className="block">you edit.</span>
           </motion.h2>
           <p className="m-0 mt-9 max-w-sm text-base font-medium leading-7">
-            Your Brain learns from your posts, emails, and stories. Voice QA checks every draft
+            Creator Brain learns from your posts, emails, and stories. Voice QA checks every draft
             before it reaches your queue.
           </p>
       
