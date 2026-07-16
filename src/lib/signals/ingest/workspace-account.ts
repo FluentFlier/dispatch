@@ -1,4 +1,5 @@
 import type { createClient } from '@insforge/sdk';
+import { resolveUnipileTarget, type OnboardingPlatform } from '@/lib/onboarding/import-posts';
 import type { SignalPlatform } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -19,7 +20,7 @@ export async function getWorkspacePollAccount(
 
   const { data } = await client.database
     .from('social_accounts')
-    .select('user_id, unipile_account_id, platform')
+    .select('user_id, unipile_account_id, account_id, platform')
     .eq('workspace_id', workspaceId)
     .eq('platform', dbPlatform)
     .not('unipile_account_id', 'is', null)
@@ -28,9 +29,23 @@ export async function getWorkspacePollAccount(
 
   if (!data?.unipile_account_id || !data.user_id) return null;
 
+  const target = await resolveUnipileTarget(
+    data.unipile_account_id as string,
+    (data.account_id as string | null) ?? null,
+    dbPlatform as OnboardingPlatform,
+  );
+  if (!target?.unipileAccountId) return null;
+  if (target.refreshed) {
+    await client.database
+      .from('social_accounts')
+      .update({ unipile_account_id: target.unipileAccountId })
+      .eq('workspace_id', workspaceId)
+      .eq('platform', dbPlatform);
+  }
+
   return {
     userId: data.user_id as string,
-    unipileAccountId: data.unipile_account_id as string,
+    unipileAccountId: target.unipileAccountId,
     platform: dbPlatform,
   };
 }
