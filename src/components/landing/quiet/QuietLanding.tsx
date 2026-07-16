@@ -242,7 +242,7 @@ function FinalCta({ funnel }: { funnel: FunnelState }) {
             Content that compounds.
           </h2>
           <p className="mx-auto mb-0 mt-7 max-w-xl text-lg leading-8 text-paper/70">
-            Draft, publish, reply, reach warm contacts, and feed every win back into Creator Brain.
+            Draft, publish, reply, reach warm contacts, and feed every win back into your Brain.
           </p>
           <Link
             href={cta.href}

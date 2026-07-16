@@ -12,8 +12,10 @@ import {
 /** ICP-driven open-web discovery - primary source for any vertical. */
 export const PRIMARY_DISCOVERY_SOURCES: LeadSource[] = ['web_discovery'];
 
-/** Fixed startup directories (YC Algolia + YC Launches / Product Hunt via TinyFish). */
-export const OPTIONAL_DIRECTORY_SOURCES: LeadSource[] = ['yc_directory', 'yc_launches', 'product_hunt'];
+// Fixed startup directories (YC Algolia + YC Launches). product_hunt is disabled -
+// its SPA can't be scraped via Fetch and produced hallucinated famous brands; see
+// lead-sources/directories.ts. Re-add once it's on a real PH API feed.
+export const OPTIONAL_DIRECTORY_SOURCES: LeadSource[] = ['yc_directory', 'yc_launches'];
 
 /** Social platform adapters (LinkedIn via Apify, X via TinyFish) - see lead-sources/social-discovery. */
 export const SOCIAL_DISCOVERY_SOURCES: LeadSource[] = ['linkedin', 'x'];
@@ -56,7 +58,6 @@ export function mergeEnabledSources(current: LeadSource[]): LeadSource[] {
   if (isWebDiscoveryConfigured()) merged.add('web_discovery');
   if (isTinyFishConfigured()) {
     merged.add('yc_launches');
-    merged.add('product_hunt');
   }
   if (isLinkedinDiscoveryAvailable()) merged.add('linkedin');
   if (isXDiscoveryAvailable()) merged.add('x');
@@ -82,7 +83,8 @@ export const LEAD_SOURCE_UI: Array<{
   },
   { key: 'yc_directory', label: 'YC directory' },
   { key: 'yc_launches', label: 'YC launches', disabled: () => !isTinyFishConfigured() },
-  { key: 'product_hunt', label: 'Product Hunt', disabled: () => !isTinyFishConfigured() },
+  // product_hunt intentionally omitted - disabled until rebuilt on a real PH API feed
+  // (Fetch can't render the SPA; it produced hallucinated brands). See directories.ts.
   {
     key: 'linkedin',
     label: 'LinkedIn discovery',

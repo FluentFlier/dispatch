@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import {
   mapExtractedToLeads,
   parseExtractedCompanies,
+  extractCompanyLeads,
   isWebDiscoveryConfigured,
   isSerperWebDiscoveryConfigured,
   discoverWebLeads,
@@ -29,6 +30,31 @@ describe('Phase: web discovery', () => {
       tagline: 'Modern practice management',
     });
     expect(leads[0].externalId).toContain('web-acme-dental');
+  });
+
+  it('drops invented companies not present in the source text (grounding guard)', async () => {
+    const ctx = {
+      icpDescription: 'freelance sales professionals',
+      icpVerticals: [],
+      icpKeywords: [],
+      icpQuery: 'freelance sales',
+      maxLeads: 10,
+    };
+    // LLM returns one real name (in the snippet) + one fabrication (not in it).
+    const complete = async () =>
+      JSON.stringify({
+        companies: [
+          { company_name: 'Upwork', website: 'https://upwork.com', tags: [] },
+          { company_name: 'Fractionus', website: 'https://fractionus.io', tags: [] },
+        ],
+      });
+    const leads = await extractCompanyLeads(
+      ctx,
+      'web_discovery',
+      { serp: 'Title: Upwork\nURL: https://upwork.com\nSnippet: hire freelance sales talent' },
+      { complete },
+    );
+    expect(leads.map((l) => l.companyName)).toEqual(['Upwork']);
   });
 
   it('dedupes by domain', () => {

@@ -233,6 +233,7 @@ export async function getAdminUsers(filters: AdminUserFilters = {}): Promise<Adm
 export async function getAdminSubscriptions(): Promise<
   Array<{
     userId: string;
+    displayName: string | null;
     plan: string;
     status: string;
     trialEndsAt: string | null;
@@ -248,8 +249,24 @@ export async function getAdminSubscriptions(): Promise<
     .order('updated_at', { ascending: false })
     .limit(200);
 
-  return (data ?? []).map((s) => ({
+  const rows = data ?? [];
+  const userIds = rows.map((s) => s.user_id as string);
+
+  const namesByUser = new Map<string, string>();
+  if (userIds.length > 0) {
+    const { data: profiles } = await client.database
+      .from('creator_profile')
+      .select('user_id, display_name')
+      .in('user_id', userIds);
+    for (const p of profiles ?? []) {
+      const name = (p.display_name as string | null)?.trim();
+      if (name) namesByUser.set(p.user_id as string, name);
+    }
+  }
+
+  return rows.map((s) => ({
     userId: s.user_id as string,
+    displayName: namesByUser.get(s.user_id as string) ?? null,
     plan: s.plan as string,
     status: s.status as string,
     trialEndsAt: (s.trial_ends_at as string | null) ?? null,

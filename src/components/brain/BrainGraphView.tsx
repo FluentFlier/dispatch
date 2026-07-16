@@ -30,6 +30,7 @@ const LEGEND_ORDER: BrainNodeKind[] = [
   'core',
   'pillar',
   'post',
+  'topic',
   'performance',
   'story',
   'gtm',
@@ -44,6 +45,7 @@ const LEGEND_COLOR: Record<BrainNodeKind, string> = {
   pillar: '#171717',
   post: '#5B8FA8',
   story: '#E07A5F',
+  topic: '#B8843F',
 };
 
 const PRIORITY_STYLE: Record<BrainDecision['priority'], string> = {
@@ -146,7 +148,7 @@ export function BrainGraphView() {
       <div className="rounded-surface border border-amber-200/80 bg-amber-50/80 p-6">
         <div className="flex items-center gap-2 text-amber-800">
           <Brain className="h-4 w-4" />
-          <span className="text-sm font-medium">Creator Brain not enabled</span>
+          <span className="text-sm font-medium">Brain not enabled</span>
         </div>
         <p className="mt-2 text-sm text-ink3">
           Apply <code className="text-ink2">db/creator-brain.sql</code> on InsForge to enable memory pages, then refresh.
@@ -161,7 +163,7 @@ export function BrainGraphView() {
         <Brain className="mb-4 h-10 w-10 text-blue" />
         <h2 className="text-[20px] font-normal tracking-[-0.02em] text-ink">Your brain is empty</h2>
         <p className="mt-1 max-w-sm text-[13px] text-ink3">
-          Set up your Creator Brain to map how your voice, pillars, and top posts connect.
+          Set up your Brain to map how your voice, pillars, and top posts connect.
         </p>
         {message && <p className="mt-3 text-xs text-blue">{message}</p>}
         <Button
@@ -171,7 +173,7 @@ export function BrainGraphView() {
           loading={syncing}
           onClick={() => runSync('/api/brain/provision')}
         >
-          Set up Creator Brain
+          Set up Brain
         </Button>
       </div>
     );

@@ -10,7 +10,8 @@ export type BrainNodeKind =
   | 'references'
   | 'pillar'
   | 'post'
-  | 'story';
+  | 'story'
+  | 'topic';
 
 export interface BrainGraphNode {
   id: string;
@@ -161,6 +162,50 @@ function backgroundMeta(body: Record<string, unknown> | null): Record<string, st
   return Object.keys(meta).length ? meta : undefined;
 }
 
+const TOPIC_STOPWORDS = new Set([
+  'this', 'that', 'with', 'from', 'your', 'have', 'will', 'they', 'them', 'what', 'when', 'which',
+  'about', 'would', 'there', 'their', 'been', 'were', 'into', 'more', 'than', 'then', 'some', 'just',
+  'like', 'over', 'also', 'only', 'very', 'much', 'make', 'made', 'need', 'want', 'know', 'time',
+  'post', 'posts', 'content', 'people', 'thing', 'things', 'really', 'something', 'because', 'after',
+  'before', 'other', 'these', 'those', 'being', 'doing', 'does', 'still', 'even', 'most', 'many',
+  'such', 'here', 'where', 'while', 'should', 'could', 'around', 'them', 'this', 'https', 'http',
+  'linkedin', 'twitter', 'instagram', 'threads', 'share', 'follow', 'comment', 'today', 'week',
+]);
+
+function topicTokens(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 4 && !TOPIC_STOPWORDS.has(w) && !/^\d+$/.test(w));
+}
+
+/**
+ * Mines recurring topics from post text using document frequency (how many posts
+ * a term appears in). Heuristic, no LLM. Terms matching a pillar label are
+ * excluded to avoid redundant nodes.
+ */
+export function extractTopics(
+  postTexts: { id: string; text: string }[],
+  exclude: Set<string>,
+  minPosts: number,
+  limit: number,
+): { term: string; label: string; postIds: string[] }[] {
+  const byTerm = new Map<string, Set<string>>();
+  for (const post of postTexts) {
+    for (const term of Array.from(new Set(topicTokens(post.text)))) {
+      if (exclude.has(term)) continue;
+      const ids = byTerm.get(term) ?? new Set<string>();
+      ids.add(post.id);
+      byTerm.set(term, ids);
+    }
+  }
+  return Array.from(byTerm.entries())
+    .map(([term, ids]) => ({ term, label: term.charAt(0).toUpperCase() + term.slice(1), postIds: Array.from(ids) }))
+    .filter((t) => t.postIds.length >= minPosts)
+    .sort((a, b) => b.postIds.length - a.postIds.length)
+    .slice(0, limit);
+}
+
 /**
  * Transforms brain pages into a connected graph where every learning signal
  * (voice, intel, posts, stories, GTM, references) shapes nodes, weights, and edges.
@@ -171,6 +216,7 @@ export function buildBrainGraph(pages: BrainPageRecord[]): BrainGraph {
   const nodeIds = new Set<string>();
   const nodeById = new Map<string, BrainGraphNode>();
   const postScores = new Map<string, number>();
+  const postTexts: { id: string; text: string }[] = [];
 
   const addNode = (node: BrainGraphNode) => {
     if (nodeIds.has(node.id)) return;
@@ -186,7 +232,7 @@ export function buildBrainGraph(pages: BrainPageRecord[]): BrainGraph {
     label: profilePage?.title?.replace(/:\s*profile$/i, '') || 'Creator',
     kind: 'core',
     slug: 'profile',
-    detail: profilePage ? describeCorePage(profilePage) : 'The center of your Creator Brain.',
+    detail: profilePage ? describeCorePage(profilePage) : 'The center of your Brain.',
     pending: profilePage ? isPagePending(profilePage) : true,
   });
 
@@ -228,6 +274,8 @@ export function buildBrainGraph(pages: BrainPageRecord[]): BrainGraph {
       });
 
       postScores.set(slug, Math.max(views ?? 0, (likes ?? 0) * 8));
+      const postContent = typeof body?.content === 'string' ? body.content : '';
+      postTexts.push({ id: slug, text: `${page.title ?? ''} ${postContent}` });
 
       const pillarTarget = pillarToken ? pillarIdByToken.get(pillarToken) : undefined;
       if (pillarTarget) {
@@ -352,6 +400,24 @@ export function buildBrainGraph(pages: BrainPageRecord[]): BrainGraph {
       const node = nodeById.get(id);
       if (node?.kind === 'pillar') node.weight = Math.sqrt(score / maxPillarScore);
     });
+  }
+
+  // --- Recurring topics mined from post text (relational cross-links) ---
+  // Posts sharing a theme become linked through a topic node, turning the star
+  // into a web. Exclude pillar labels so topics don't duplicate pillars.
+  const pillarLabelTokens = new Set(pillars.flatMap((p) => topicTokens(p.label)));
+  const topics = extractTopics(postTexts, pillarLabelTokens, 3, 6);
+  for (const topic of topics) {
+    const topicId = `topic:${topic.term}`;
+    addNode({
+      id: topicId,
+      label: topic.label,
+      kind: 'topic',
+      detail: `Recurring theme across ${topic.postIds.length} posts.`,
+    });
+    for (const postId of topic.postIds) {
+      if (nodeIds.has(postId)) edges.push({ source: postId, target: topicId, kind: 'structural' });
+    }
   }
 
   return { nodes, edges };

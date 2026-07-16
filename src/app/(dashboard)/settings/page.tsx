@@ -16,6 +16,7 @@ import BioGenerator from "@/components/settings/BioGenerator";
 import PlatformConnections from "@/components/settings/PlatformConnections";
 import CalendarConnectionCard from "@/components/calendar/CalendarConnectionCard";
 import GmailConnectionCard from "@/components/settings/GmailConnectionCard";
+import { SlackConnectionCard } from "@/components/leads/SlackConnectionCard";
 import ProfileEditor from "@/components/settings/ProfileEditor";
 import AutoOptimizeToggle from "@/components/settings/AutoOptimizeToggle";
 import VoiceDefaultToggle from "@/components/settings/VoiceDefaultToggle";
@@ -649,6 +650,11 @@ export default function SettingsPage() {
               </div>
             )}
             <GmailConnectionCard refreshKey={integrationsRefreshKey} />
+
+            {/* Slack */}
+            <div className="border-t border-hair my-6" />
+            <SubHeader>Slack</SubHeader>
+            <SlackConnectionCard refreshKey={integrationsRefreshKey} />
 
             {/* Calendar */}
             <div className="border-t border-hair my-6" />

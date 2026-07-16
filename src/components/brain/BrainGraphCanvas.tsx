@@ -35,6 +35,7 @@ const KIND_STYLE: Record<BrainNodeKind, { fill: string; radius: number }> = {
   pillar: { fill: '#1F1B16', radius: 12 },
   post: { fill: '#5B8FA8', radius: 7 },
   story: { fill: '#E07A5F', radius: 8 },
+  topic: { fill: '#B8843F', radius: 9 },
 };
 
 export const KIND_LABELS: Record<BrainNodeKind, string> = {
@@ -45,6 +46,7 @@ export const KIND_LABELS: Record<BrainNodeKind, string> = {
   pillar: 'Content pillar',
   post: 'Published post',
   story: 'Story memory',
+  topic: 'Recurring topic',
 };
 
 const PROFILE_RADIUS = 24;

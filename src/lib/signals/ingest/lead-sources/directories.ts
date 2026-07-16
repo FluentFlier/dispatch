@@ -17,9 +17,18 @@ function createDirectoryAdapter(source: LeadSource): LeadDiscoveryAdapter {
   };
 }
 
-/** Optional startup-directory adapters (YC, Product Hunt). */
+/**
+ * Optional startup-directory adapters.
+ *
+ * product_hunt is DISABLED: producthunt.com is a JS SPA that the TinyFish Fetch
+ * surface can't render, so the extractor saw skeleton HTML and hallucinated famous
+ * brands (Slack, ChatGPT, "Product Hunt" itself) instead of real launches. Re-enable
+ * only once it's rebuilt on a real data source (PH GraphQL API), the way yc_directory
+ * moved to the Algolia index.
+ * ponytail: dropped the source outright; wire the PH API before adding it back.
+ */
 export const directoryAdapters: LeadDiscoveryAdapter[] = (
-  ['yc_directory', 'yc_launches', 'product_hunt'] as LeadSource[]
+  ['yc_directory', 'yc_launches'] as LeadSource[]
 ).map(createDirectoryAdapter);
 
 export function isDirectorySource(source: LeadSource): boolean {

@@ -53,6 +53,25 @@ function slugify(name: string): string {
     .slice(0, 80);
 }
 
+/**
+ * Grounding guard: keep only companies whose name actually appears in the scraped
+ * source text. The extractor LLM, given thin snippets or a skeleton SPA page,
+ * confidently invents plausible names (e.g. "Fractionus", "SoloFounder.io") despite
+ * the "no invented names" instruction. A real extracted company is by definition
+ * present in the search results / page it was pulled from, so a substring check on
+ * the source haystack drops the fabrications without a second LLM call.
+ * ponytail: exact-substring heuristic (case-insensitive, TLD-tolerant). If it drops
+ * legitimate leads whose name the source paraphrases, loosen to token overlap.
+ */
+export function isGroundedInSource(name: string, haystack: string): boolean {
+  const clean = name.toLowerCase().trim();
+  if (!clean) return false;
+  if (haystack.includes(clean)) return true;
+  // Tolerate a trailing TLD the LLM appended (e.g. "Commission.io" vs "Commission").
+  const stripped = clean.replace(/\.(io|ai|com|co|app|dev|xyz|so|net|org)$/i, '');
+  return stripped.length >= 3 && stripped !== clean && haystack.includes(stripped);
+}
+
 export function parseExtractedCompanies(raw: string): ExtractedCompany[] {
   const fenced = raw.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = (fenced?.[1] ?? raw).trim();
@@ -155,5 +174,16 @@ export async function extractCompanyLeads(
   }
 
   const extracted = parseExtractedCompanies(raw);
-  return mapExtractedToLeads(extracted, source).slice(0, Math.min(ctx.maxLeads, MAX_EXTRACT));
+
+  // Ground every extracted name against the text it was supposedly pulled from,
+  // dropping LLM fabrications. `serp` + `pages` is exactly what the model saw.
+  const haystack = `${serp ?? ''}\n${pages ?? ''}`.toLowerCase();
+  const grounded = extracted.filter((c) => isGroundedInSource(String(c.company_name ?? ''), haystack));
+  if (signalsDebugEnabled() && grounded.length < extracted.length) {
+    console.warn(
+      `[extract-companies] ${source}: dropped ${extracted.length - grounded.length} ungrounded (invented) names`,
+    );
+  }
+
+  return mapExtractedToLeads(grounded, source).slice(0, Math.min(ctx.maxLeads, MAX_EXTRACT));
 }

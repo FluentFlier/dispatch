@@ -57,6 +57,6 @@ export async function POST(req: Request): Promise<NextResponse> {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error('Brain save error:', err);
-    return NextResponse.json({ error: 'Could not save to Creator Brain' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not save to Brain' }, { status: 500 });
   }
 }

@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { getBrainGuidanceForGeneration } from '@/lib/brain/generation-guidance';
 import { classifyPromptForMemory } from '@/lib/memory/classify-prompt';
 import { z } from 'zod';
 import { guardAiRequest } from '@/lib/ai-guard';
@@ -89,6 +90,13 @@ export async function POST(request: NextRequest): Promise<Response> {
     signalBlock = formatSignalTopicsBlock(topics);
   }
 
+  // Close the loop: feed what the brain has learned about this creator's own
+  // top posts (strongest pillar, winning hook style) back into the draft.
+  let brainBlock = '';
+  if (!cached && useVoice) {
+    brainBlock = await getBrainGuidanceForGeneration(client, user.id, workspaceId ?? undefined);
+  }
+
   // Steer memory retrieval the same way the non-stream /api/generate route does.
   // Without classification the composer searched memory with the raw prompt prefix
   // and only the top 3 docs, so a "remember the people I met at <event>" prompt
@@ -118,7 +126,7 @@ export async function POST(request: NextRequest): Promise<Response> {
   const completeness = voiceContext?.completeness;
   const autoHumanize = parsed.data.humanize !== false;
 
-  const mergedContext = [contextAdditions, signalBlock].filter(Boolean).join('\n') || undefined;
+  const mergedContext = [contextAdditions, signalBlock, brainBlock].filter(Boolean).join('\n') || undefined;
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({

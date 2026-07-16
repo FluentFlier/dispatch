@@ -11,6 +11,7 @@ import { SignalsSetup } from '@/components/leads/SignalsSetup';
 import { IcpManager } from '@/components/leads/IcpManager';
 import { LeadSourcesCard } from '@/components/leads/LeadSourcesCard';
 import { LeadDeliveryCard } from '@/components/leads/LeadDeliveryCard';
+import { SlackConnectionCard } from '@/components/leads/SlackConnectionCard';
 import { LeadImportDrawer } from '@/components/leads/LeadImportDrawer';
 import {
   LeadsHeaderActions,
@@ -69,7 +70,8 @@ export function LeadsFeedBody(props: LeadsController) {
     companyById, engagersById, engagerNotices, draftAll, demoData,
     loadBootstrap, refetchList, retryCompany, isFollowed, visibleCards,
     handleDraftAll, handleScrape, handleDraft, handleEditPlan, handleApprove,
-    handleCheckConnection, handleMarkStage, handleDraftFollowup, handleEmail, confirmEmailSend,
+    handleCheckConnection, handleMarkStage, handleDraftFollowup, handleDraftReply, handleSendReply,
+    handleEmail, confirmEmailSend,
     handleDismiss, handleExport, handleTogglePlaybookStep, handleSnooze, handleResolve,
     handlePlanNurture, handleFollowLead, handleSignalDraft, handleSignalSend,
     handleEngagerPlan, handleEngagerSend, handleEngagerDismiss,
@@ -148,7 +150,10 @@ export function LeadsFeedBody(props: LeadsController) {
           />
           {/* 3. Signals & sending. */}
           <SignalsSetup />
-          {/* 4. Delivery — timing/channels (folded in from the old /leads/settings page). */}
+          {/* 4. Slack alerts — connect + channel + instant-alert toggle. Without a
+              channel set here, every Slack send (digest + instant) silently no-ops. */}
+          <SlackConnectionCard />
+          {/* 5. Delivery — timing/channels (folded in from the old /leads/settings page). */}
           {settings && (
             <LeadDeliveryCard settings={settings} onSettingsSaved={setSettings} toast={toast} />
           )}
@@ -363,6 +368,8 @@ export function LeadsFeedBody(props: LeadsController) {
                 }
                 onDraftFollowup={() => handleDraftFollowup(selectedLead.id)}
                 onCheckConnection={() => handleCheckConnection(selectedLead.id)}
+                onDraftReply={() => handleDraftReply(selectedLead.id)}
+                onSendReply={() => handleSendReply(selectedLead.id)}
                 accepted={
                   acceptedIds.has(selectedLead.id) ||
                   ['accepted', 'replied', 'closed'].includes(selectedLead.outreach?.status ?? '')

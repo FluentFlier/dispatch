@@ -48,7 +48,7 @@ export default async function AdminSubscriptionsPage() {
         <table className="w-full text-sm">
           <thead>
             <tr className={adminTableHead}>
-              <th className="px-4 py-3 font-medium">User ID</th>
+              <th className="px-4 py-3 font-medium">User</th>
               <th className="px-4 py-3 font-medium">Override</th>
               <th className="px-4 py-3 font-medium">Stripe</th>
               <th className="px-4 py-3 font-medium">Trial ends</th>
@@ -59,8 +59,12 @@ export default async function AdminSubscriptionsPage() {
           <tbody className="divide-y divide-border">
             {subs.map((s) => (
               <tr key={s.userId} className={adminTableRow}>
-                <td className="px-4 py-3 font-mono text-[11px] text-text-secondary" title={s.userId}>
-                  {shortId(s.userId)}
+                <td className="px-4 py-3" title={s.userId}>
+                  {s.displayName ? (
+                    <span className="text-text-primary">{s.displayName}</span>
+                  ) : (
+                    <span className="font-mono text-[11px] text-text-secondary">{shortId(s.userId)}</span>
+                  )}
                 </td>
                 <td className="px-4 py-3">
                   <SubscriptionEditor userId={s.userId} plan={s.plan} status={s.status} />
