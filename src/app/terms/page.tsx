@@ -1,12 +1,9 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { PRODUCT_NAME } from '@/lib/brand';
+import { findSeoPage, pageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'Terms of Service',
-  description: `Terms of service for ${PRODUCT_NAME}.`,
-  alternates: { canonical: '/terms' },
-};
+export const metadata: Metadata = pageMetadata(findSeoPage('/terms'));
 
 function Section({
   id,

@@ -1,6 +1,5 @@
 import type { MetadataRoute } from 'next';
-
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://contentos.us';
+import { absoluteUrl } from '@/lib/seo';
 
 /** Keep the app surface (dashboard, admin, auth, share links) out of search. */
 export default function robots(): MetadataRoute.Robots {
@@ -38,6 +37,6 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
-    sitemap: `${BASE_URL}/sitemap.xml`,
+    sitemap: absoluteUrl('/sitemap.xml'),
   };
 }
