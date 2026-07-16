@@ -2,12 +2,9 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import CalendlyEmbed from '@/components/book-demo/CalendlyEmbed';
 import { PRODUCT_NAME } from '@/lib/brand';
+import { findSeoPage, pageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'Book a demo',
-  description: `Schedule a founder-led walkthrough of ${PRODUCT_NAME}.`,
-  alternates: { canonical: '/book-demo' },
-};
+export const metadata: Metadata = pageMetadata(findSeoPage('/book-demo'));
 
 /**
  * Public demo booking page - no auth required so GTM links work from ads and email.

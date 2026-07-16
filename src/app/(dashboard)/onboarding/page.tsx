@@ -392,7 +392,7 @@ function OnboardingInner() {
       <p className="mt-2 text-sm leading-6 text-ink2">
         {step === 'connect' &&
           (autoRedirecting
-            ? 'Opening secure connect - link at least LinkedIn or X. We scrape your posts, extract voice & specs, and sync them to your creator brain.'
+            ? 'Opening secure connect - link at least LinkedIn or X. We scrape your posts, extract voice & specs, and sync them to your brain.'
             : 'Link at least LinkedIn or X to move forward. Both is better, but one is enough. Gmail is optional for richer 1:1 voice.')}
         {step === 'ingest' && statusLine}
         {step === 'baseline' &&

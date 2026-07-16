@@ -96,7 +96,7 @@ export async function provisionCreatorBrain(
     ok: true,
     page_count: pages.length,
     slugs: pages.map((p) => p.slug),
-    message: `Creator brain provisioned (${pages.length} pages on InsForge)`,
+    message: `Brain provisioned (${pages.length} pages on InsForge)`,
   };
 }
 

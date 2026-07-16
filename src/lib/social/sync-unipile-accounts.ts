@@ -14,7 +14,7 @@ interface UnipileAccount {
   name?: string;
   connection_status?: string;
   connection_params?: {
-    im?: { username?: string; publicIdentifier?: string };
+    im?: { username?: string; publicIdentifier?: string; memberId?: string; id?: string };
   };
 }
 
@@ -43,6 +43,25 @@ function mapUnipilePlatform(account: UnipileAccount) {
   return null;
 }
 
+function normalizedIdentity(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+  return trimmed.replace(/^@/, '').replace(/\/+$/, '').toLowerCase();
+}
+
+function accountClaimTokens(account: UnipileAccount): string[] {
+  const im = account.connection_params?.im;
+  return [
+    account.id,
+    account.username,
+    im?.publicIdentifier,
+    im?.memberId,
+    im?.id,
+  ]
+    .map(normalizedIdentity)
+    .filter(Boolean) as string[];
+}
+
 /**
  * Picks the accounts safe to bind to the connecting user. An account qualifies
  * only if it appeared AFTER the pre-connect snapshot, isn't owned by another
@@ -61,7 +80,9 @@ export function pickAccountsToBind(
   for (const account of accounts) {
     if (seen.has(account.id)) continue;
     seen.add(account.id);
-    if (snapshotIds.has(account.id) || claimedByOthers.has(account.id)) continue;
+    if (snapshotIds.has(account.id) || accountClaimTokens(account).some((token) => claimedByOthers.has(token))) {
+      continue;
+    }
     const platform = mapUnipilePlatform(account);
     if (!platform) continue;
     const group = byPlatform.get(platform) ?? [];
@@ -178,14 +199,17 @@ export async function syncUnipileAccountsForUser(
 
   const { data: allClaimed } = await serviceClient.database
     .from('social_accounts')
-    .select('unipile_account_id, user_id')
+    .select('unipile_account_id, account_id, user_id')
     .not('unipile_account_id', 'is', null)
     .neq('user_id', userId);
 
   const claimedByOthers = new Set(
     (allClaimed ?? [])
-      .map((r) => (r as { unipile_account_id: string }).unipile_account_id)
-      .filter(Boolean),
+      .flatMap((r) => {
+        const row = r as { unipile_account_id?: string | null; account_id?: string | null };
+        return [row.unipile_account_id, row.account_id].map(normalizedIdentity);
+      })
+      .filter((token): token is string => Boolean(token)),
   );
 
   const clearSnapshot = () =>

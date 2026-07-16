@@ -3,41 +3,40 @@ import { getOrCreateSubscription } from '@/lib/entitlements';
 import LandingPageContent from '@/components/landing/LandingPageContent';
 import type { FunnelState } from '@/lib/funnel-cta';
 import { PRODUCT_NAME } from '@/lib/brand';
-
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || 'https://contentos.us';
+import JsonLd from '@/components/seo/JsonLd';
+import { SITE_DESCRIPTION, SITE_URL, absoluteUrl } from '@/lib/seo';
 
 const structuredData = {
   '@context': 'https://schema.org',
   '@graph': [
     {
       '@type': 'Organization',
-      '@id': `${BASE_URL}/#organization`,
+      '@id': `${SITE_URL}/#organization`,
       name: PRODUCT_NAME,
-      url: BASE_URL,
-      logo: `${BASE_URL}/icon.png`,
+      url: SITE_URL,
+      logo: absoluteUrl('/icon.png'),
     },
     {
       '@type': 'WebSite',
-      '@id': `${BASE_URL}/#website`,
+      '@id': `${SITE_URL}/#website`,
       name: PRODUCT_NAME,
-      url: BASE_URL,
-      publisher: { '@id': `${BASE_URL}/#organization` },
+      url: SITE_URL,
+      publisher: { '@id': `${SITE_URL}/#organization` },
     },
     {
       '@type': 'SoftwareApplication',
       name: PRODUCT_NAME,
       applicationCategory: 'BusinessApplication',
       operatingSystem: 'Web',
-      url: BASE_URL,
-      description:
-        'Create in your voice, publish to LinkedIn and X, reply faster, and turn the response into what you do next.',
+      url: SITE_URL,
+      description: SITE_DESCRIPTION,
       offers: {
         '@type': 'AggregateOffer',
         lowPrice: '19',
         highPrice: '99',
         priceCurrency: 'USD',
         offerCount: 3,
-        url: `${BASE_URL}/pricing`,
+        url: absoluteUrl('/pricing'),
       },
     },
   ],
@@ -68,10 +67,7 @@ export default async function LandingPage() {
 
   return (
     <>
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
-      />
+      <JsonLd data={structuredData} />
       <LandingPageContent funnel={funnel} />
     </>
   );

@@ -456,7 +456,7 @@ export default function IdeasPage() {
                       try {
                         const res = await fetchWithAuth('/api/brain/save', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content: hook.text, type: 'hook', source: 'intelligence' }) });
                         if (!res.ok) throw new Error('save failed');
-                        toast('Saved to Creator Brain');
+                        toast('Saved to Brain');
                       } catch { toast('Could not save. Try again.', 'error'); }
                     }} className="text-[10px] text-sage hover:underline">Save to Brain</button>
                   </div>

@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { pickAccountsToBind } from '@/lib/social/sync-unipile-accounts';
 
-const li = (id: string) => ({ id, type: 'linkedin', name: id });
+const li = (id: string, publicIdentifier?: string) => ({
+  id,
+  type: 'linkedin',
+  name: id,
+  connection_params: publicIdentifier ? { im: { publicIdentifier } } : undefined,
+});
 const x = (id: string) => ({ id, type: 'twitter', name: id });
 
 describe('pickAccountsToBind', () => {
@@ -18,6 +23,15 @@ describe('pickAccountsToBind', () => {
   it('excludes accounts owned by another user (the anti cross-wire guard)', () => {
     // 'stranger' is new vs snapshot but claimed by someone else → never bound.
     const picked = pickAccountsToBind([li('stranger')], new Set(), new Set(['stranger']));
+    expect(picked).toEqual([]);
+  });
+
+  it('excludes a rotated account when its stable identity is already owned by another user', () => {
+    const picked = pickAccountsToBind(
+      [li('new-session-id', 'ava-chen')],
+      new Set(),
+      new Set(['ava-chen']),
+    );
     expect(picked).toEqual([]);
   });
 

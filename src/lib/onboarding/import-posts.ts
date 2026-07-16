@@ -80,6 +80,29 @@ function urnTail(value?: string): string | null {
 
 type UnipileIm = NonNullable<NonNullable<UnipileFullAccount['connection_params']>['im']>;
 
+function normalizedIdentity(value?: string | null): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) return null;
+
+  let token = trimmed;
+  if (/^https?:\/\//i.test(token) || token.includes('linkedin.com/')) {
+    try {
+      const url = new URL(token.startsWith('http') ? token : `https://${token}`);
+      token = url.pathname.split('/').filter(Boolean).at(-1) ?? token;
+    } catch {
+      token = token.replace(/\/+$/, '');
+    }
+  }
+
+  return token.replace(/^@/, '').replace(/\/+$/, '').toLowerCase();
+}
+
+function identityVariants(value?: string | null): string[] {
+  return uniq([value, urnTail(value ?? undefined)])
+    .map(normalizedIdentity)
+    .filter(Boolean) as string[];
+}
+
 /**
  * Extract every candidate provider user id from an account's connection_params.im.
  *
@@ -98,6 +121,28 @@ function imToProviderIds(im: UnipileIm | undefined, storedAccountId: string | nu
     im?.publicIdentifier,
     storedAccountId,
   ]);
+}
+
+function accountIdentityTokens(account: UnipileFullAccount): Set<string> {
+  const im = account.connection_params?.im;
+  return new Set(
+    [
+      account.username,
+      im?.id,
+      im?.memberId,
+      im?.objectUrn,
+      im?.entityUrn,
+      im?.publicIdentifier,
+    ].flatMap(identityVariants),
+  );
+}
+
+function accountMatchesStoredIdentity(account: UnipileFullAccount, storedAccountId: string | null): boolean {
+  const storedTokens = identityVariants(storedAccountId);
+  if (storedTokens.length === 0) return true;
+
+  const accountTokens = accountIdentityTokens(account);
+  return storedTokens.some((token) => accountTokens.has(token));
 }
 
 export async function resolveProviderUserIds(
@@ -144,7 +189,7 @@ export async function resolveUnipileTarget(
 ): Promise<ResolvedUnipileTarget | null> {
   // 1. Stored id still valid - the common, fast path.
   const full = await fetchUnipileAccountDetails(unipileAccountId);
-  if (full) {
+  if (full && accountMatchesPlatform(full, platform) && accountMatchesStoredIdentity(full, storedAccountId)) {
     return {
       unipileAccountId,
       providerUserIds: imToProviderIds(full.connection_params?.im, storedAccountId),
@@ -157,13 +202,7 @@ export async function resolveUnipileTarget(
   const accounts = await listUnipileAccounts();
   const match = accounts.find((account) => {
     if (!accountMatchesPlatform(account, platform)) return false;
-    const im = account.connection_params?.im;
-    return (
-      im?.publicIdentifier === storedAccountId ||
-      im?.id === storedAccountId ||
-      im?.memberId === storedAccountId ||
-      account.username === storedAccountId
-    );
+    return accountMatchesStoredIdentity(account, storedAccountId);
   });
 
   if (!match) return null;

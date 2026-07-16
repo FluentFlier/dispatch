@@ -1,6 +1,6 @@
 import { unipileCommentsAvailable } from '@/lib/engagement/unipile-comments';
 import { buildPostIdCandidates } from '@/lib/engagement/unipile-reactions';
-import { getServerClient } from '@/lib/insforge/server';
+import { getUnipileAccountId } from '@/lib/engagement/unipile-comments';
 import { retryWithBackoff, throwIfNotOk, HttpStatusError } from '@/lib/social/reliability';
 import type { PostReaction } from '@/lib/social-graph/types';
 import {
@@ -13,23 +13,6 @@ function getUnipileBase(): string {
   const dsn = process.env.UNIPILE_DSN;
   if (!dsn) throw new Error('UNIPILE_DSN is not configured');
   return `https://${dsn.replace(/\/$/, '')}/api/v1`;
-}
-
-async function getUnipileAccountId(userId: string, platform: string): Promise<string | null> {
-  const client = getServerClient();
-  const normalized =
-    platform.toLowerCase() === 'x' || platform.toLowerCase() === 'twitter_v2'
-      ? 'twitter'
-      : platform.toLowerCase();
-  const { data } = await client.database
-    .from('social_accounts')
-    .select('unipile_account_id')
-    .eq('user_id', userId)
-    .eq('platform', normalized)
-    .not('unipile_account_id', 'is', null)
-    .limit(1)
-    .maybeSingle();
-  return (data?.unipile_account_id as string) ?? null;
 }
 
 function extractReactions(json: unknown): PostReaction[] {

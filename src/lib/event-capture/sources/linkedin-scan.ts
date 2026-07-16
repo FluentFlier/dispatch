@@ -3,6 +3,7 @@ import { generateContent } from '@/lib/ai';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import { resolveModel } from '@/lib/ai-tiers';
 import { fetchUnipileAccountDetails, unipoleFetch } from '@/lib/social/unipile';
+import { resolveUnipileTarget } from '@/lib/onboarding/import-posts';
 import type { NormalizedEvent } from '@/lib/event-capture/sources/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -110,8 +111,25 @@ export async function scanLinkedInForEvents(
     return [];
   }
 
-  const unipileAccountId = account?.unipile_account_id;
-  if (!unipileAccountId) return [];
+  const storedUnipileAccountId = account?.unipile_account_id;
+  if (!storedUnipileAccountId) return [];
+
+  const target = await resolveUnipileTarget(
+    storedUnipileAccountId,
+    account?.account_id ?? null,
+    'linkedin',
+  );
+  if (!target?.unipileAccountId || target.providerUserIds.length === 0) return [];
+  const unipileAccountId = target.unipileAccountId;
+
+  if (target.refreshed) {
+    await client.database
+      .from('social_accounts')
+      .update({ unipile_account_id: unipileAccountId })
+      .eq('user_id', owner.userId)
+      .eq('workspace_id', owner.workspaceId)
+      .eq('platform', 'linkedin');
+  }
 
   // 2. Resolve the LinkedIn provider member id. Mirrors the precedence used by
   // /api/voice-lab/import-from-account: prefer the numeric/encoded member id
@@ -121,9 +139,9 @@ export async function scanLinkedInForEvents(
     const full = await fetchUnipileAccountDetails(unipileAccountId);
     const im = full?.connection_params?.im;
     providerUserId =
-      im?.memberId ?? im?.id ?? im?.objectUrn ?? im?.publicIdentifier ?? account?.account_id ?? null;
+      im?.memberId ?? im?.id ?? im?.objectUrn ?? im?.publicIdentifier ?? target.providerUserIds[0] ?? null;
   } catch {
-    providerUserId = account?.account_id ?? null;
+    providerUserId = target.providerUserIds[0] ?? null;
   }
   if (!providerUserId) return [];
 

@@ -46,7 +46,6 @@ export default function AccessCodeForm() {
         type="text"
         value={code}
         onChange={(e) => setCode(e.target.value.toUpperCase())}
-        placeholder="e.g. LINKEDIN"
         autoCapitalize="characters"
         autoComplete="off"
         spellCheck={false}
