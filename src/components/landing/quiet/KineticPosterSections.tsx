@@ -116,7 +116,7 @@ function VoicePoster() {
             <span className="block">you edit.</span>
           </motion.h2>
           <p className="m-0 mt-9 max-w-sm text-base font-medium leading-7">
-            Your Brain learns from your posts, emails, and stories. Voice QA checks every draft
+            Creator Brain learns from your posts, emails, and stories. Voice QA checks every draft
             before it reaches your queue.
           </p>
       
@@ -378,18 +378,14 @@ function LeadsPoster() {
                         <path d="M0 0 7 3.5 0 7Z" fill="#c9ff49" />
                       </marker>
                     </defs>
-                    <motion.path
+                    <path
                       d="M45 3 C12 18 75 34 38 50 C10 66 72 80 44 98 C38 107 45 115 45 126"
                       fill="none"
                       stroke="#c9ff49"
                       strokeWidth="5"
-                      strokeDasharray="10 9"
                       strokeLinecap="round"
+                      strokeLinejoin="round"
                       markerEnd="url(#mobile-signal-arrow)"
-                      initial={reduceMotion ? false : { pathLength: 0 }}
-                      whileInView={{ pathLength: 1 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 1, ease: EASE }}
                     />
                   </svg>
                 </div>
