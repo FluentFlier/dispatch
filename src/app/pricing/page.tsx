@@ -87,7 +87,7 @@ export default function PricingPage() {
               : '7-day free trial, then from $19/mo. No card to start.'}
           </p>
           {!trialExpired && (
-            <Link href="/login" className="btn-primary inline-flex mt-6">
+            <Link href="/get-started" className="btn-primary inline-flex mt-6">
               Start free trial
             </Link>
           )}

@@ -1,12 +1,14 @@
 import { redirect } from 'next/navigation';
+import { cookies } from 'next/headers';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getOrCreateSubscription } from '@/lib/entitlements';
 import { getPostAuthPath } from '@/lib/auth-routing';
 import { ensureInternalProductAccess } from '@/lib/internal-access';
+import { PENDING_TRIAL_CODE_COOKIE } from '@/lib/trial-code-cookie';
 
 /**
- * Post-auth router: sends users to code entry, profile setup, or the app.
- * New users have no trial until they redeem an access code at /get-started.
+ * Post-auth router: redeems a code validated before sign-in, then sends users to
+ * profile setup or the app. Direct sign-ins without a code return to /get-started.
  */
 export default async function AuthContinuePage() {
   const user = await getAuthenticatedUser();
@@ -21,6 +23,10 @@ export default async function AuthContinuePage() {
   // Admin/internal accounts are more privileged than ordinary invitees and
   // must never be sent to the access-code gate.
   await ensureInternalProductAccess(user);
+
+  if (cookies().get(PENDING_TRIAL_CODE_COOKIE)?.value) {
+    redirect('/auth/redeem-code');
+  }
 
   const client = getServerClient();
   const [profileRes, sub] = await Promise.all([
@@ -38,6 +44,5 @@ export default async function AuthContinuePage() {
     redirect('/pricing?trial=expired');
   }
 
-  // '/get-started' is now the access-code entry page (no auto-trial).
   redirect(nextPath);
 }

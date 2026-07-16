@@ -20,7 +20,7 @@ const PROTECTED_ROUTES = [
   '/leads',
   '/event-capture',
   '/onboarding',
-  '/get-started',
+  '/auth/redeem-code',
 ];
 
 const AUTH_BYPASS_PREFIXES = [
@@ -28,6 +28,7 @@ const AUTH_BYPASS_PREFIXES = [
   '/auth/restore-session',
   '/login',
   '/auth/continue',
+  '/get-started',
 ];
 
 function shouldBypassAuthRefresh(pathname: string): boolean {
