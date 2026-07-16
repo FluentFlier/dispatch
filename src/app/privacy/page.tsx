@@ -1,12 +1,9 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { PRODUCT_NAME } from '@/lib/brand';
+import { findSeoPage, pageMetadata } from '@/lib/seo';
 
-export const metadata: Metadata = {
-  title: 'Privacy Policy',
-  description: `Privacy policy for ${PRODUCT_NAME}.`,
-  alternates: { canonical: '/privacy' },
-};
+export const metadata: Metadata = pageMetadata(findSeoPage('/privacy'));
 
 export default function PrivacyPage(): JSX.Element {
   return (
