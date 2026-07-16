@@ -407,6 +407,13 @@ html.lenis body {
   height: auto;
 }
 
+/* Hide the system cursor on every interactive descendant while the landing's
+   custom cursor is active. */
+html.smooth-cursor-active,
+html.smooth-cursor-active * {
+  cursor: none !important;
+}
+
 .lenis:not(.lenis-autoToggle).lenis-stopped {
   overflow: clip;
 }

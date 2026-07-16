@@ -27,10 +27,12 @@ mkdir -p "$ROOT/src/components/landing"
 cp -R "$UI/src/components/landing/quiet" "$ROOT/src/components/landing/"
 cp "$UI/src/components/landing/LandingPageContent.tsx" "$ROOT/src/components/landing/"
 
-# Public marketing assets
-mkdir -p "$ROOT/public/images" "$ROOT/public/landing"
+# Public marketing assets, including the complete Content OS / Ada brand kit
+mkdir -p "$ROOT/public/images" "$ROOT/public/landing" "$ROOT/public/brand-assets"
 cp -R "$UI/public/images/." "$ROOT/public/images/" 2>/dev/null || true
 cp "$UI/public/landing/grid-paper-texture.png" "$ROOT/public/landing/" 2>/dev/null || true
+cp -R "$UI/public/brand-assets/." "$ROOT/public/brand-assets/" 2>/dev/null || true
+cp "$UI/public/og.png" "$ROOT/public/og.png" 2>/dev/null || true
 
 # Shared UI primitives + new landing helpers
 for f in Drawer Modal Tabs Toast Skeleton ErrorBoundary link-preview smooth-cursor macbook-scroll; do

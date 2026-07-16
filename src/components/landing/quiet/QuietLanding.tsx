@@ -119,7 +119,7 @@ function Hero({ funnel }: { funnel: FunnelState }) {
     <header className="relative overflow-x-clip overflow-y-visible bg-surface">
       <div className="pointer-events-none absolute left-[8%] top-[34%] h-24 w-24 rounded-full bg-lime/20 blur-3xl" aria-hidden />
       <div className="pointer-events-none absolute right-[10%] top-[20%] h-32 w-32 rounded-full bg-lilac/20 blur-3xl" aria-hidden />
-      <div className="relative z-10 mx-auto max-w-[1240px] px-5 pb-8 pt-8 sm:px-8 sm:pb-10 sm:pt-10 lg:pt-12">
+      <div className="relative z-10 mx-auto max-w-[1240px] px-5 pb-8 pt-12 sm:px-8 sm:pb-10 sm:pt-10 lg:pt-12">
         <div className="mx-auto w-full max-w-[900px]">
           <Image
             src="/images/content-relay-characters.png"
@@ -188,7 +188,7 @@ function Hero({ funnel }: { funnel: FunnelState }) {
         <div
           ref={productRef}
           id="product"
-          className="relative z-20 mx-auto -mb-24 mt-16 hidden max-w-[1120px] md:block"
+          className="relative z-20 mx-auto -mb-16 mt-12 max-w-[1120px] sm:-mb-20 sm:mt-14 md:-mb-24 md:mt-16"
         >
           <div className="relative z-10">
             <motion.div
