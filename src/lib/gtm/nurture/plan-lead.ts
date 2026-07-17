@@ -43,8 +43,42 @@ export async function planLeadNurture(
   const startedAt = Date.now();
   const lead = await getLead(client, workspaceId, leadId);
   if (!lead) throw new Error('Lead not found.');
-  if (lead.contact_status === 'no_contact') {
-    throw new Error('Resolve a contact before planning nurture.');
+
+  // Contactless plan: no person resolved yet (no_contact, or unresolved with no
+  // contact row). Previously this threw ('Resolve a contact…'), so the button
+  // 422'd and the user saw "Plan outreach doesn't work". Instead produce a
+  // research-first plan that starts by finding the right person, and DON'T draft
+  // a connect note (there's no one to send to). The 'planned' stage keeps it out
+  // of the auto-connect funnel until a contact exists.
+  const hasContact =
+    lead.contact_status !== 'no_contact' && Boolean(lead.primary_contact ?? lead.contacts?.[0]);
+  if (!hasContact) {
+    const base = buildLeadPlaybook(lead);
+    const playbook: LeadPlaybook = {
+      ...base,
+      steps: [
+        {
+          type: 'research',
+          label: `Find the right person to reach at ${lead.company_name}`,
+          dueInDays: 0,
+          status: 'pending',
+        },
+        ...base.steps.filter((s) => s.type !== 'research'),
+      ],
+      hookContext: `No contact resolved yet - identify a person at ${lead.company_name} first.`,
+    };
+    await updateLead(client, workspaceId, leadId, { nurture_stage: 'planned', playbook });
+    await logLeadEvent(client, workspaceId, leadId, 'rescored', {
+      action: 'nurture_planned',
+      nurture_stage: 'planned',
+      no_contact: true,
+    });
+    const updated = await getLead(client, workspaceId, leadId);
+    if (!updated) throw new Error('Lead missing after plan.');
+    console.info(
+      `[latency] lead-plan workspace=${workspaceId} lead=${leadId} path=contactless ms=${Date.now() - startedAt}`,
+    );
+    return { lead: updated, playbook, connectDue: '' };
   }
 
   const playbook = buildLeadPlaybook(lead);

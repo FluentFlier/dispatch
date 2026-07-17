@@ -7,6 +7,7 @@ import { updateDirectorySettings, getDirectorySettings } from '@/lib/signals/lea
 import { putBrainPage } from '@/lib/brain/pages';
 import { BRAIN_SLUG } from '@/lib/brain/types';
 import { parseIcpDescription } from '@/lib/signals/icp/parse-description';
+import { syncIcpKeywordsToTopics } from '@/lib/signals/leads/topic-sync';
 import { chatCompletion, LlmError } from '@/lib/llm';
 import { errorResponse } from '@/lib/api-errors';
 
@@ -201,6 +202,14 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         body: JSON.stringify({ ...icp.gtm, status: 'ready' }, null, 2),
         workspaceId,
       });
+      // Arm the live signal engine too: mirror the ICP's keywords into
+      // "Topics to monitor" (additive, capped, never deletes user topics). This
+      // is why the assistant can now "write topics". Non-fatal on failure.
+      try {
+        await syncIcpKeywordsToTopics(client, workspaceId, icp.icp_keywords);
+      } catch {
+        /* topic sync is best-effort; the ICP is already saved */
+      }
       applied = true;
     }
 
@@ -216,7 +225,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // this same turn) - searching with an empty ICP returns noise. The regex
     // fallback catches close phrasings the classifier missed.
     const hasIcpNow = Boolean(currentIcp || icpBrief);
-    const suggestRun = (intent.run_discovery || wantsDiscovery) && hasIcpNow;
+    // Save-only: a turn that creates/changes the ICP never auto-searches - it
+    // saves and lets the user review + edit. Discovery fires only on a pure
+    // "find leads" command (no ICP change) or the explicit "Find leads now"
+    // button. `!applied` is the decoupling guard.
+    const suggestRun = (intent.run_discovery || wantsDiscovery) && hasIcpNow && !applied;
 
     const settings = await getDirectorySettings(client, workspaceId);
 
@@ -227,7 +240,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const assistantMessage = suggestRun
       ? 'On it - searching for matching leads now. This can take up to a minute.'
       : applied
-        ? intent.reply || 'Got it - your ICP is set. Hit "Find leads now" to search.'
+        ? intent.reply || 'Saved your ICP - review and edit it below, then hit "Find leads now" to search.'
         : intent.reply ||
           (wantsDiscovery
             ? 'Tell me who you sell to first, then I can search - e.g. "seed-stage fintech from YC".'

@@ -14,6 +14,7 @@ import type {
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import type { WarmContactRow } from '@/lib/social-graph/types';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { busyActionFor as deriveBusyAction, type LeadBusy } from '@/lib/leads/busy';
 import { draftAllOutcome } from '@/lib/leads/feed-view';
 
@@ -849,14 +850,18 @@ export function useLeadsController() {
   const handlePlanNurture = async (id: string) => {
     setBusy({ id, action: 'plan' });
     try {
-      const res = await fetch(`/api/leads/${id}/playbook`, { method: 'POST' });
-      const data = await res.json();
+      const res = await fetchWithAuth(`/api/leads/${id}/playbook`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error ?? 'Plan failed');
       mergeLead(data.lead);
       if (data.lead?.outreach?.draft_text) {
         setDrafts((d) => ({ ...d, [id]: data.lead.outreach.draft_text }));
       }
-      toast('Nurture plan ready — connect queued.');
+      toast(
+        data.lead?.nurture_stage === 'planned'
+          ? 'Plan ready — resolve a contact to start outreach.'
+          : 'Nurture plan ready — connect queued.',
+      );
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not plan nurture.', 'error');
     } finally {

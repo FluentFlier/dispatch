@@ -3,6 +3,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { activateIcpProfile, listIcpProfiles } from '@/lib/signals/leads/icp-profiles';
 import { getDirectorySettings } from '@/lib/signals/leads/store';
+import { syncIcpKeywordsToTopics } from '@/lib/signals/leads/topic-sync';
 import { errorResponse } from '@/lib/api-errors';
 
 /**
@@ -27,6 +28,13 @@ export async function POST(
       listIcpProfiles(client, workspaceId),
       getDirectorySettings(client, workspaceId),
     ]);
+    // Arm the live signal engine with the newly-active ICP's keywords (additive,
+    // capped, non-destructive). Best-effort - activation already succeeded.
+    try {
+      await syncIcpKeywordsToTopics(client, workspaceId, settings.icp_keywords ?? []);
+    } catch {
+      /* topic sync is best-effort */
+    }
     return NextResponse.json({ profiles, settings });
   } catch (err) {
     return errorResponse('Could not activate ICP.', 500, err);
