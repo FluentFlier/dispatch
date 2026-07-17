@@ -6,7 +6,10 @@ import { sendLeadOutreach } from '@/lib/signals/outreach/send-lead';
 import { getWorkspaceOwnerUserId } from '@/lib/signals/ingest/workspace-account';
 import { advanceLeadsAfterSentComments } from '@/lib/gtm/nurture/comment-task';
 import { autoSendDueDms, prepareDueFollowUpDms } from '@/lib/gtm/nurture/dm-stage';
+import { followUpDmDueAt } from '@/lib/gtm/nurture/shared';
 import { planLeadNurture } from '@/lib/gtm/nurture/plan-lead';
+import { getActiveIcpProfile } from '@/lib/signals/leads/icp-profiles';
+import { resolveAgenda } from '@/lib/signals/leads/agenda';
 import type { NurtureProcessResult } from '@/lib/gtm/nurture/types';
 import { logError, logInfo } from '@/lib/logger';
 
@@ -65,6 +68,14 @@ export async function autoSendDueConnects(
     return { sent: 0, blocked: 0, errors: [] };
   }
 
+  // The agenda's daily connect limit can lower the per-run cap, never raise it.
+  // Best-effort: any failure keeps the hardcoded cap.
+  const agendaLimit = await getActiveIcpProfile(client, workspaceId)
+    .then((profile) => (profile ? resolveAgenda(profile).dailyConnectLimit : null))
+    .catch(() => null);
+  const cap = agendaLimit != null && agendaLimit < MAX_SEND_PER_RUN ? agendaLimit : MAX_SEND_PER_RUN;
+  if (cap <= 0) return { sent: 0, blocked: 0, errors: [] };
+
   const { data, error } = await client.database
     .from('signal_leads')
     .select('id')
@@ -73,7 +84,7 @@ export async function autoSendDueConnects(
     .lte('next_action_at', now.toISOString())
     .in('lead_status', ['new', 'drafted', 'approved', 'resurfaced'])
     .order('rank_score', { ascending: false })
-    .limit(MAX_SEND_PER_RUN);
+    .limit(cap);
 
   if (error) throw error;
 
@@ -111,12 +122,9 @@ export async function autoSendDueConnects(
         continue;
       }
 
-      const dmDue = new Date(now);
-      dmDue.setUTCDate(dmDue.getUTCDate() + 5);
-
       await updateLead(client, workspaceId, leadId, {
         nurture_stage: 'connect_sent',
-        next_action_at: dmDue.toISOString(),
+        next_action_at: followUpDmDueAt(now),
         lead_status: 'sent',
       });
 

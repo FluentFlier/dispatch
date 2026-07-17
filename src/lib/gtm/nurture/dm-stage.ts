@@ -4,28 +4,13 @@ import { getLead, logLeadEvent, updateLead } from '@/lib/signals/leads/store';
 import { draftOutreachForLead } from '@/lib/signals/outreach/draft-lead';
 import { sendLeadOutreach } from '@/lib/signals/outreach/send-lead';
 import { isLinkedInFirstDegree } from '@/lib/gtm/nurture/connection-check';
-import type { LeadPlaybook } from '@/lib/signals/types';
+import { followUpDmDueAt, markPlaybookStepDone } from '@/lib/gtm/nurture/shared';
 import { logInfo } from '@/lib/logger';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
 const MAX_DM_PREP = 5;
 const MAX_DM_SEND = 2;
-
-function dmDueAt(from: Date = new Date()): Date {
-  const due = new Date(from);
-  due.setUTCDate(due.getUTCDate() + 5);
-  due.setUTCHours(16, 0, 0, 0);
-  return due;
-}
-
-function markDmStepDone(playbook: LeadPlaybook | null | undefined): LeadPlaybook | undefined {
-  if (!playbook) return undefined;
-  return {
-    ...playbook,
-    steps: playbook.steps.map((s) => (s.type === 'connect' ? { ...s, status: 'done' as const } : s)),
-  };
-}
 
 /**
  * For connect_sent leads past due: if 1st-degree, draft follow-up DM and queue send.
@@ -75,7 +60,7 @@ export async function prepareDueFollowUpDms(
 
     await updateLead(client, workspaceId, leadId, {
       nurture_stage: 'dm_ready',
-      playbook: markDmStepDone(lead.playbook as LeadPlaybook | undefined),
+      playbook: markPlaybookStepDone(lead.playbook, 'connect'),
       next_action_at: now.toISOString(),
       lead_status: 'drafted',
     });
@@ -137,18 +122,12 @@ export async function autoSendDueDms(
       continue;
     }
 
-    const pb = lead.playbook as LeadPlaybook | undefined;
-    const updatedPb = pb
-      ? {
-          ...pb,
-          steps: pb.steps.map((s) => (s.type === 'dm' ? { ...s, status: 'done' as const } : s)),
-        }
-      : undefined;
+    const updatedPb = markPlaybookStepDone(lead.playbook, 'dm');
 
     await updateLead(client, workspaceId, leadId, {
       nurture_stage: 'dm_sent',
       playbook: updatedPb,
-      next_action_at: dmDueAt(now).toISOString(),
+      next_action_at: followUpDmDueAt(now),
       lead_status: 'sent',
     });
 

@@ -11,7 +11,9 @@
  * whitespace boundary. No ellipsis is added, so the result always reads as a
  * complete (if shorter) message rather than a truncated one.
  */
-export function enforceConnectLimit(text: string, limit = 300): string {
+import { LINKEDIN_CONNECT_NOTE_LIMIT } from '@/lib/leads/constants';
+
+export function enforceConnectLimit(text: string, limit = LINKEDIN_CONNECT_NOTE_LIMIT): string {
   if (text.length <= limit) return text;
 
   const window = text.slice(0, limit + 1);

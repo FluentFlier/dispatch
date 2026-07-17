@@ -208,7 +208,7 @@ export function LeadDetail({
   }, [loadNotes]);
 
   const loadThread = useCallback(async () => {
-    if (!lead.needs_reply && lead.nurture_stage !== 'replied') return;
+    if (!lead.needs_reply && lead.nurture_stage !== 'replied' && lead.nurture_stage !== 'in_conversation') return;
     setThreadLoading(true);
     try {
       const res = await fetchWithAuth(`/api/leads/${lead.id}/messages`);
@@ -248,7 +248,9 @@ export function LeadDetail({
   const overLimit = draft.length > CONNECT_LIMIT;
   const summary = summarizeLead(lead);
   const sourceUrl = leadSourceUrl(lead);
-  const inReplyMode = Boolean(lead.needs_reply || lead.nurture_stage === 'replied');
+  const inReplyMode = Boolean(
+    lead.needs_reply || lead.nurture_stage === 'replied' || lead.nurture_stage === 'in_conversation',
+  );
 
   const detail = company && company !== 'loading' && company !== 'error' ? company : null;
   const loadingCompany = company === 'loading';

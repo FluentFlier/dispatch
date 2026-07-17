@@ -115,10 +115,10 @@ export function nurtureStageLabel(stage: NurtureStage | string | null | undefine
     engaging: 'Engaging',
     connect_ready: 'Connect ready',
     connect_sent: 'Connect sent',
-    nurturing: 'Nurturing',
     dm_ready: 'DM ready',
     dm_sent: 'DM sent',
     replied: 'Replied',
+    in_conversation: 'In conversation',
     closed: 'Closed',
   };
   return labels[stage as NurtureStage] ?? null;

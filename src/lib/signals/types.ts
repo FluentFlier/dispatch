@@ -8,10 +8,12 @@ export type NurtureStage =
   | 'engaging'
   | 'connect_ready'
   | 'connect_sent'
-  | 'nurturing'
   | 'dm_ready'
   | 'dm_sent'
+  // The prospect replied and is waiting on you (inbound).
   | 'replied'
+  // You replied back; the thread is live (outbound).
+  | 'in_conversation'
   | 'closed';
 
 export interface LeadPlaybook {
@@ -139,6 +141,8 @@ export interface SignalOutreachRow {
   channel: OutreachChannel;
   status: string;
   draft_text: string | null;
+  /** User's autosaved edits; draft_text stays the model original for edit learning. */
+  edited_draft_text?: string | null;
   final_text: string | null;
   template_id: string | null;
   sent_at: string | null;

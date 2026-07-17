@@ -4,6 +4,7 @@ import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { updateLead } from '@/lib/signals/leads/store';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import { ensureLeadCompanyDetail } from '@/lib/signals/outreach/draft-lead';
+import { upsertLeadOutreachRow } from '@/lib/gtm/nurture/shared';
 import { loadEditStyleGuidance } from '@/lib/signals/outreach/edit-feedback';
 import { buildLeadConversationContext } from '@/lib/signals/leads/inbound-message';
 import { meetingLinkPromptLine, normalizeMeetingLink } from '@/lib/signals/leads/meeting-link';
@@ -87,39 +88,6 @@ function buildReplyPrompt(
     .join('\n');
 }
 
-async function saveReplyDraft(
-  client: InsforgeClient,
-  workspaceId: string,
-  leadId: string,
-  draftText: string,
-): Promise<void> {
-  const { data: existing } = await client.database
-    .from('signal_outreach')
-    .select('id')
-    .eq('lead_id', leadId)
-    .limit(1);
-
-  if (existing && existing.length > 0) {
-    const { error } = await client.database
-      .from('signal_outreach')
-      .update({ draft_text: draftText, channel: 'linkedin_dm', status: 'draft', final_text: null })
-      .eq('id', (existing[0] as { id: string }).id);
-    if (error) throw error;
-    return;
-  }
-
-  const { error } = await client.database.from('signal_outreach').insert([
-    {
-      workspace_id: workspaceId,
-      lead_id: leadId,
-      channel: 'linkedin_dm',
-      status: 'draft',
-      draft_text: draftText,
-    },
-  ]);
-  if (error) throw error;
-}
-
 /**
  * Drafts a reply to the prospect's latest inbound message using full thread
  * context, nurture playbook, and creator voice.
@@ -177,7 +145,14 @@ export async function draftReplyForLead(
   });
 
   const draftText = result.text.trim();
-  await saveReplyDraft(client, workspaceId, leadId, draftText);
+  await upsertLeadOutreachRow(client, workspaceId, leadId, {
+    draft_text: draftText,
+    channel: 'linkedin_dm',
+    status: 'draft',
+    final_text: null,
+    // A fresh model draft supersedes any autosaved user edits of the old one.
+    edited_draft_text: null,
+  });
   await updateLead(client, workspaceId, leadId, { lead_status: 'drafted' });
 
   void companyDetail;

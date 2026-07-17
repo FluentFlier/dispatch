@@ -19,29 +19,11 @@ import { getXUnipileAccountId, resolveXProfile, sendXDirectMessage } from '@/lib
 import { sendGmailEmail } from '@/lib/composio/actions/gmail';
 import { getIntegration } from '@/lib/signals/integrations/store';
 import { recordOutreachEdit } from '@/lib/signals/outreach/edit-feedback';
-import type { LeadPlaybook, OutreachChannel, SignalLeadWithContacts } from '@/lib/signals/types';
+import { followUpDmDueAt, markPlaybookStepDone, upsertLeadOutreachRow } from '@/lib/gtm/nurture/shared';
+import { LINKEDIN_CONNECT_NOTE_LIMIT } from '@/lib/leads/constants';
+import type { OutreachChannel, SignalLeadWithContacts } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
-
-const CONNECT_NOTE_LIMIT = 300;
-
-/** Mark one playbook step done (by type) so the sequence reflects a sent step. */
-function markPlaybookStepDone(
-  playbook: SignalLeadWithContacts['playbook'],
-  type: LeadPlaybook['steps'][number]['type'],
-): LeadPlaybook | undefined {
-  const pb = playbook as LeadPlaybook | null;
-  if (!pb?.steps) return undefined;
-  return { ...pb, steps: pb.steps.map((s) => (s.type === type ? { ...s, status: 'done' as const } : s)) };
-}
-
-/** Follow-up DM fires ~5 days after the connect is sent (16:00 UTC). */
-function followUpDmDueAt(from: Date = new Date()): string {
-  const due = new Date(from);
-  due.setUTCDate(due.getUTCDate() + 5);
-  due.setUTCHours(16, 0, 0, 0);
-  return due.toISOString();
-}
 
 /** v1 lead channels: LinkedIn connection (default), LinkedIn DM, X DM, or cold email. */
 export type LeadChannel = Extract<
@@ -127,8 +109,8 @@ async function sendLeadLinkedIn(
 
   const messageText = (input.messageText ?? lead.outreach?.draft_text ?? '').trim();
   if (!messageText) return { success: false, error: 'Draft the message before sending.' };
-  if (messageText.length > CONNECT_NOTE_LIMIT) {
-    return { success: false, error: `Connection note exceeds ${CONNECT_NOTE_LIMIT} characters.` };
+  if (messageText.length > LINKEDIN_CONNECT_NOTE_LIMIT) {
+    return { success: false, error: `Connection note exceeds ${LINKEDIN_CONNECT_NOTE_LIMIT} characters.` };
   }
 
   const accountId = await getLinkedInUnipileAccountId(client, userId, workspaceId);
@@ -507,9 +489,9 @@ async function markLeadOutreachSent(
   finalText: string,
   ids: { providerId?: string; identifier: string; externalId?: string },
 ): Promise<void> {
-  await upsertLeadOutreach(client, leadId, {
-    workspace_id: workspaceId,
-    lead_id: leadId,
+  // Bookkeeping after a real provider send: never let a DB write failure
+  // convert a successful send into a reported failure (pre-refactor behavior).
+  await upsertLeadOutreachRow(client, workspaceId, leadId, {
     channel,
     status: 'sent',
     final_text: finalText,
@@ -518,7 +500,7 @@ async function markLeadOutreachSent(
     external_message_id: ids.externalId ?? null,
     sent_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  });
+  }).catch(() => undefined);
 }
 
 async function markLeadOutreachFailed(
@@ -528,30 +510,10 @@ async function markLeadOutreachFailed(
   channel: OutreachChannel,
   error: string,
 ): Promise<void> {
-  await upsertLeadOutreach(client, leadId, {
-    workspace_id: workspaceId,
-    lead_id: leadId,
+  await upsertLeadOutreachRow(client, workspaceId, leadId, {
     channel,
     status: 'failed',
     error,
     updated_at: new Date().toISOString(),
-  });
-}
-
-/** Update-or-insert the single outreach row for a lead (unique on lead_id). */
-async function upsertLeadOutreach(
-  client: InsforgeClient,
-  leadId: string,
-  payload: Record<string, unknown>,
-): Promise<void> {
-  const { data: existing } = await client.database
-    .from('signal_outreach')
-    .select('id')
-    .eq('lead_id', leadId)
-    .maybeSingle();
-  if (existing?.id) {
-    await client.database.from('signal_outreach').update(payload).eq('id', (existing as { id: string }).id);
-  } else {
-    await client.database.from('signal_outreach').insert(payload);
-  }
+  }).catch(() => undefined);
 }

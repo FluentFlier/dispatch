@@ -57,6 +57,22 @@ export function useLeadsController() {
   const [filters, setFilters] = useState<FeedFilterState>(INITIAL_FILTERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
+  // Debounced server autosave of edited draft text, so edits survive
+  // navigation/logout/tab close instead of living only in this state map.
+  const draftSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const autosaveDraft = useCallback((id: string, text: string) => {
+    setDrafts((d) => ({ ...d, [id]: text }));
+    const timers = draftSaveTimers.current;
+    if (timers[id]) clearTimeout(timers[id]);
+    timers[id] = setTimeout(() => {
+      delete timers[id];
+      void fetchWithAuth(`/api/leads/${id}/draft`, {
+        method: 'PATCH',
+        headers: jsonHeaders,
+        body: JSON.stringify({ draftText: text }),
+      }).catch(() => {});
+    }, 800);
+  }, []);
 
   const [loading, setLoading] = useState(true);
   // True when the initial bootstrap fetch FAILED (vs a genuine empty feed), so
@@ -1026,7 +1042,7 @@ export function useLeadsController() {
     toast, searchParams,
     cards, setCards, leadsById, setLeadsById, settings, setSettings,
     profiles, setProfiles, followed, setFollowed, filters, setFilters,
-    selectedId, setSelectedId, drafts, setDrafts,
+    selectedId, setSelectedId, drafts, setDrafts, autosaveDraft,
     loading, setLoading, loadError, setLoadError, setupRequired, setSetupRequired,
     setupMessage, setSetupMessage, listLoading, setListLoading, scraping, setScraping,
     scrapeProgress, setScrapeProgress, busy, setBusy, busyActionFor,

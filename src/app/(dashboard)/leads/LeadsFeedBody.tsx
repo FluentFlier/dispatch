@@ -64,7 +64,7 @@ export function LeadsFeedBody(props: LeadsController) {
   const {
     toast,
     cards, settings, setSettings, profiles, setProfiles, followed, setFollowed,
-    filters, setFilters, selectedId, setSelectedId, drafts, setDrafts,
+    filters, setFilters, selectedId, setSelectedId, drafts, setDrafts, autosaveDraft,
     loading, loadError, setupRequired, setupMessage, listLoading, scraping, scrapeProgress,
     busyActionFor, selectedIds, bulkBusy, acceptedIds, emailConfirmId, setEmailConfirmId,
     feedLimit, setFeedLimit, importOpen, setImportOpen, view, setView,
@@ -369,8 +369,13 @@ export function LeadsFeedBody(props: LeadsController) {
                 lead={selectedLead}
                 company={companyById[selectedLead.id]}
                 onRetryCompany={() => retryCompany(selectedLead.id)}
-                draft={drafts[selectedLead.id] ?? selectedLead.outreach?.draft_text ?? ''}
-                onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedLead.id]: v }))}
+                draft={
+                  drafts[selectedLead.id] ??
+                  selectedLead.outreach?.edited_draft_text ??
+                  selectedLead.outreach?.draft_text ??
+                  ''
+                }
+                onDraftChange={(v) => autosaveDraft(selectedLead.id, v)}
                 busyAction={busyActionFor(selectedLead.id) as LeadDetailAction | null}
                 followed={isFollowed(selectedCard)}
                 onDraft={(rewriteInstruction) => handleDraft(selectedLead.id, rewriteInstruction)}
