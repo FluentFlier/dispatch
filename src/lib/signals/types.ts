@@ -51,7 +51,8 @@ export type SignalType =
   | 'role_change'
   | 'launch'
   | 'other'
-  | 'keyword_match';
+  | 'keyword_match'
+  | 'field_change';
 
 export type SignalEventStatus =
   | 'pending'
