@@ -86,6 +86,7 @@ export const linkedinDiscoveryAdapter: LeadDiscoveryAdapter = {
         externalId,
         companyName: name,
         tagline: it.summary?.trim() || undefined,
+        sourceUrl: it.linkedinUrl?.trim() || undefined,
         tags: it.industry ? [it.industry] : [],
         founders: [],
       });

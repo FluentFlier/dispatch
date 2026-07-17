@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import type { DirectorySettingsRow, FollowedCompanyRow } from '@/lib/signals/types';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
@@ -41,12 +42,18 @@ export function LeadSourcesCard({
       ? [...(settings?.enabled_sources ?? []), key]
       : (settings?.enabled_sources ?? []).filter((x) => x !== key);
     try {
-      const res = await fetch('/api/leads/settings', {
+      const res = await fetchWithAuth('/api/leads/settings', {
         method: 'PUT',
         headers: jsonHeaders,
         body: JSON.stringify({ enabled_sources: next }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      // Guard: a failed save returns no settings - applying it wiped the parent
+      // settings to undefined (which blanks the whole Setup surface).
+      if (!res.ok || !data.settings) {
+        toast('Could not update sources.', 'error');
+        return;
+      }
       onSettingsSaved(data.settings);
     } catch {
       toast('Could not update sources.', 'error');
@@ -56,7 +63,7 @@ export function LeadSourcesCard({
   const follow = async () => {
     if (!company.trim()) return;
     try {
-      const res = await fetch('/api/leads/followed', {
+      const res = await fetchWithAuth('/api/leads/followed', {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ companyName: company.trim() }),
@@ -73,7 +80,7 @@ export function LeadSourcesCard({
 
   const unfollow = async (id: string) => {
     try {
-      const res = await fetch(`/api/leads/followed/${id}`, { method: 'DELETE' });
+      const res = await fetchWithAuth(`/api/leads/followed/${id}`, { method: 'DELETE' });
       const data = await res.json();
       onFollowedChange(data.followedCompanies ?? followed);
       toast('Unfollowed.');

@@ -1,4 +1,5 @@
-import { Loader2, Plus, PanelRightClose, PanelRightOpen, Trash2 } from 'lucide-react';
+import { useState, type ComponentType } from 'react';
+import { ChevronDown, Loader2, Plus, PanelRightClose, PanelRightOpen, Trash2 } from 'lucide-react';
 import { formatRelative } from '@/lib/utils';
 import type { ChatSummary } from '@/lib/chats-status';
 
@@ -10,6 +11,14 @@ const STAGE_LABELS: Record<string, string> = {
   scoring: 'Scoring…',
 };
 
+/** A secondary Write tool surfaced in the sidebar's "More tools" dropdown. */
+export interface WriteTool {
+  id: string;
+  label: string;
+  hint: string;
+  icon: ComponentType<{ className?: string }>;
+}
+
 interface SessionSidebarProps {
   chats: ChatSummary[];
   activeId: string | null;
@@ -19,6 +28,8 @@ interface SessionSidebarProps {
   onNew: () => void;
   onDelete: (id: string) => void;
   onToggleCollapsed: () => void;
+  tools: WriteTool[];
+  onSelectTool: (id: string) => void;
 }
 
 /**
@@ -35,8 +46,11 @@ export function SessionSidebar({
   onNew,
   onDelete,
   onToggleCollapsed,
+  tools,
+  onSelectTool,
 }: SessionSidebarProps): JSX.Element {
   const runningCount = chats.filter((c) => c.status === 'running').length;
+  const [toolsOpen, setToolsOpen] = useState(false);
 
   if (collapsed) {
     return (
@@ -135,6 +149,40 @@ export function SessionSidebar({
           </div>
         ))}
       </div>
+
+      {/* More tools: the secondary Write modes, as a collapsible dropdown under
+          the sessions list (moved here from the strip beneath the composer). */}
+      {tools.length > 0 && (
+        <div className="mt-2 border-t border-hair pt-2">
+          <button
+            type="button"
+            onClick={() => setToolsOpen((o) => !o)}
+            aria-expanded={toolsOpen}
+            className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-[13px] font-medium text-ink2 transition-colors hover:bg-paper2"
+          >
+            More tools
+            <ChevronDown className={`h-4 w-4 text-ink3 transition-transform ${toolsOpen ? 'rotate-180' : ''}`} />
+          </button>
+          {toolsOpen && (
+            <div className="mt-0.5 space-y-0.5 pb-1">
+              {tools.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => onSelectTool(t.id)}
+                  className="group flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-paper2"
+                >
+                  <t.icon className="mt-0.5 h-4 w-4 shrink-0 text-ink3 group-hover:text-ink2" />
+                  <span className="min-w-0">
+                    <span className="block text-[13px] text-ink2">{t.label}</span>
+                    <span className="block truncate text-[11px] text-ink3">{t.hint}</span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </aside>
   );
 }

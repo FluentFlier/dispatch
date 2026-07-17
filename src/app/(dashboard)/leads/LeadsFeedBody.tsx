@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { FeedFilters, type FeedFilterState } from '@/components/leads/FeedFilters';
@@ -80,6 +82,14 @@ export function LeadsFeedBody(props: LeadsController) {
     icpConfigured, verticals, filtersActive,
   } = props;
 
+  // Bumped whenever the ICP changes so the Signals card (Topics to monitor)
+  // reloads and reflects keywords the assistant just mirrored in.
+  const [signalsRefreshKey, setSignalsRefreshKey] = useState(0);
+  const handleIcpSettingsSaved = (s: Parameters<typeof setSettings>[0]) => {
+    setSettings(s);
+    setSignalsRefreshKey((k) => k + 1);
+  };
+
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <PageHeader
@@ -124,23 +134,20 @@ export function LeadsFeedBody(props: LeadsController) {
 
       {view === 'setup' ? (
         <div className="space-y-6">
-          {/* 1. Who you want to reach — single ICP surface (chat + saved profiles). */}
+          {/* Basics — the two things a user must set to get relevant leads: who to
+              reach (ICP) and where to look (sources). Everything else is under
+              "Advanced" below so the surface isn't a wall of ~20 fields.
+              The old Setup "Scrape now" button was a duplicate of the ICP chat's
+              "Find leads now" (both POST /api/leads/sync); it's dropped here, and
+              the Feed header keeps the scrape control for the feed surface. */}
           <IcpManager
             settings={settings}
             profiles={profiles}
             onProfilesChange={setProfiles}
-            onSettingsSaved={setSettings}
+            onSettingsSaved={handleIcpSettingsSaved}
             onDiscoveryComplete={() => void loadBootstrap()}
-            onRunScrape={() => {
-              // Hand off to the streamed scrape and switch to the feed so the
-              // user sees the live progress bar instead of a blocked chat.
-              setView('feed');
-              void handleScrape();
-            }}
-            scraping={scraping}
             toast={toast}
           />
-          {/* 2. Where to look — sources + watchlist (folded in from the old Advanced drawer). */}
           <LeadSourcesCard
             settings={settings}
             followed={followed}
@@ -148,15 +155,29 @@ export function LeadsFeedBody(props: LeadsController) {
             onFollowedChange={setFollowed}
             toast={toast}
           />
-          {/* 3. Signals & sending. */}
-          <SignalsSetup />
-          {/* 4. Slack alerts — connect + channel + instant-alert toggle. Without a
-              channel set here, every Slack send (digest + instant) silently no-ops. */}
-          <SlackConnectionCard />
-          {/* 5. Delivery — timing/channels (folded in from the old /leads/settings page). */}
-          {settings && (
-            <LeadDeliveryCard settings={settings} onSettingsSaved={setSettings} toast={toast} />
-          )}
+
+          {/* Advanced — delivery timing, signal engine + sending safety, and Slack
+              alerts. Collapsed by default (native <details>) so first-run users
+              aren't buried; power users expand when they need it. */}
+          <details className="group rounded-lg border border-border bg-bg-secondary [&_summary::-webkit-details-marker]:hidden">
+            <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 select-none list-none">
+              <div>
+                <h2 className="text-sm font-semibold text-text-primary">Advanced</h2>
+                <p className="mt-0.5 text-xs text-text-secondary">
+                  Delivery timing, signals &amp; sending safety, and Slack alerts.
+                </p>
+              </div>
+              <ChevronDown className="h-4 w-4 shrink-0 text-text-tertiary transition-transform group-open:rotate-180" />
+            </summary>
+            <div className="space-y-6 border-t border-border px-4 py-4">
+              <SignalsSetup refreshKey={signalsRefreshKey} />
+              {/* Without a channel set here, every Slack send (digest + instant) silently no-ops. */}
+              <SlackConnectionCard />
+              {settings && (
+                <LeadDeliveryCard settings={settings} onSettingsSaved={setSettings} toast={toast} />
+              )}
+            </div>
+          </details>
         </div>
       ) : (
       <>

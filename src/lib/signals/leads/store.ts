@@ -109,7 +109,16 @@ export async function listLeads(
   workspaceId: string,
   opts: { status?: LeadStatus; needsReply?: boolean; limit?: number } = {},
 ): Promise<SignalLeadWithContacts[]> {
-  const limit = Math.min(opts.limit ?? 100, 200);
+  const renderLimit = Math.min(opts.limit ?? 100, 200);
+  // This backend collapses embed + .order() to a single row (see the note in
+  // signals/store.ts), so we can't rank at the DB while embedding contacts/
+  // outreach. A bare .limit(renderLimit) before the JS sort returned an
+  // arbitrary, unstable slice - so after the morning scrape INSERTed new rows,
+  // that window shifted off yesterday's leads and they appeared "deleted".
+  // Fix: fetch a generous unordered window, rank in JS, THEN slice.
+  // ponytail: full-workspace fetch capped at 500; switch to a two-step
+  // ordered-id read if a workspace ever exceeds that.
+  const FETCH_CAP = 500;
   let query = client.database
     .from('signal_leads')
     .select(`
@@ -118,7 +127,7 @@ export async function listLeads(
       outreach:signal_outreach(*)
     `)
     .eq('workspace_id', workspaceId)
-    .limit(limit);
+    .limit(FETCH_CAP);
 
   if (opts.status) query = query.eq('lead_status', opts.status);
   if (opts.needsReply) query = query.eq('needs_reply', true);
@@ -128,7 +137,8 @@ export async function listLeads(
 
   return (data ?? [])
     .map((row) => hydrateLead(row))
-    .sort((a, b) => leadSortScore(b) - leadSortScore(a));
+    .sort((a, b) => leadSortScore(b) - leadSortScore(a))
+    .slice(0, renderLimit);
 }
 
 /** Warm replies and active nurture stages float above cold leads in the feed. */
@@ -266,7 +276,7 @@ export async function upsertIngestedLeads(
             batch: lead.batch ?? null,
             tags: lead.tags ?? [],
             intent_flags: lead.intentFlags ?? {},
-            source_fact: { batch: lead.batch, tagline: lead.tagline },
+            source_fact: { batch: lead.batch, tagline: lead.tagline, source_url: lead.sourceUrl },
             // Seed rich company facts from the scrape (description + industries).
             // Completed once from the YC detail page at first draft, then reused.
             company_detail: {

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { Button } from '@/components/ui/Button';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import type { DirectorySettingsRow } from '@/lib/signals/types';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
@@ -22,13 +23,61 @@ export function LeadDeliveryCard({ settings, onSettingsSaved, toast }: LeadDeliv
   const detectedTz = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
   const [draft, setDraft] = useState<DirectorySettingsRow>(settings);
   const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
 
   const patch = (p: Partial<DirectorySettingsRow>) => setDraft((s) => ({ ...s, ...p }));
+
+  /** Human label for a per-channel skip reason from the digest endpoint. */
+  const reasonLabel = (reason: string): string => {
+    if (reason === 'sent') return 'sent';
+    if (reason === 'channel_off') return 'channel off';
+    if (reason === 'no_leads') return 'no leads today';
+    if (reason === 'not_connected') return 'not connected';
+    if (reason === 'no_channel_id') return 'no channel picked';
+    if (reason === 'no_recipient') return 'no recipient email';
+    if (reason === 'composio_off') return 'integrations not configured';
+    if (reason.startsWith('send_failed')) return 'send failed';
+    return reason;
+  };
+
+  /**
+   * Fires the digest immediately (force/test mode) so the user can verify email
+   * + Slack delivery without waiting for the hourly cron. Reports exactly why
+   * each channel did or didn't send.
+   */
+  const sendTest = async () => {
+    setTesting(true);
+    try {
+      const res = await fetchWithAuth('/api/leads/digest/test', { method: 'POST', headers: jsonHeaders });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.result) {
+        toast('Could not run test digest.', 'error');
+        return;
+      }
+      const r = data.result as {
+        count?: number;
+        results?: { slack: { sent: boolean; reason: string }; email: { sent: boolean; reason: string } };
+      };
+      const email = r.results?.email;
+      const slack = r.results?.slack;
+      const parts = [
+        `${r.count ?? 0} lead${r.count === 1 ? '' : 's'}`,
+        email ? `email: ${reasonLabel(email.reason)}` : null,
+        slack ? `slack: ${reasonLabel(slack.reason)}` : null,
+      ].filter(Boolean);
+      const anySent = Boolean(email?.sent || slack?.sent);
+      toast(`Test digest — ${parts.join(' · ')}`, anySent ? 'success' : 'error');
+    } catch {
+      toast('Could not run test digest.', 'error');
+    } finally {
+      setTesting(false);
+    }
+  };
 
   const save = async () => {
     setSaving(true);
     try {
-      const res = await fetch('/api/leads/settings', {
+      const res = await fetchWithAuth('/api/leads/settings', {
         method: 'PUT',
         headers: jsonHeaders,
         body: JSON.stringify({
@@ -39,7 +88,13 @@ export function LeadDeliveryCard({ settings, onSettingsSaved, toast }: LeadDeliv
           sender_identity: draft.sender_identity,
         }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
+      // Guard: on a 4xx/5xx, data.settings is undefined - applying it blanked
+      // the form and reported a false "saved". Keep the draft, surface the error.
+      if (!res.ok || !data.settings) {
+        toast('Could not save.', 'error');
+        return;
+      }
       setDraft(data.settings);
       onSettingsSaved(data.settings);
       toast('Delivery settings saved.');
@@ -129,7 +184,16 @@ export function LeadDeliveryCard({ settings, onSettingsSaved, toast }: LeadDeliv
           </span>
         </label>
 
-        <Button variant="primary" size="sm" onClick={() => void save()} loading={saving}>Save delivery</Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="primary" size="sm" onClick={() => void save()} loading={saving}>Save delivery</Button>
+          <Button variant="secondary" size="sm" onClick={() => void sendTest()} loading={testing}>
+            Send test digest now
+          </Button>
+        </div>
+        <p className="text-xs text-text-tertiary">
+          Sends the digest right now to your enabled channels so you can verify email/Slack. Tick the
+          channels above and connect Gmail/Slack in Advanced first.
+        </p>
       </div>
     </section>
   );

@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Check, Download, Loader2, Pencil, Search, Star, Trash2, X } from 'lucide-react';
+import { Check, Loader2, Pencil, Plus, Search, Star, Trash2, X } from 'lucide-react';
 import { IcpChat } from '@/components/leads/IcpChat';
+import { IcpForm } from '@/components/leads/IcpForm';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import type { DirectorySettingsRow, IcpProfileRow } from '@/lib/signals/types';
 
@@ -14,10 +15,6 @@ interface IcpManagerProps {
   onProfilesChange: (profiles: IcpProfileRow[]) => void;
   onSettingsSaved: (settings: DirectorySettingsRow) => void;
   onDiscoveryComplete?: () => void;
-  /** Kick off a full directory scrape (hands off to the feed's live progress). */
-  onRunScrape?: () => void;
-  /** Whether a scrape is currently running (drives the scrape button state). */
-  scraping?: boolean;
   toast?: (message: string, type?: 'success' | 'error') => void;
 }
 
@@ -41,8 +38,6 @@ export function IcpManager({
   onProfilesChange,
   onSettingsSaved,
   onDiscoveryComplete,
-  onRunScrape,
-  scraping = false,
   toast,
 }: IcpManagerProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -54,9 +49,8 @@ export function IcpManager({
   const [saveName, setSaveName] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Inline rename.
-  const [renameId, setRenameId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
+  // Manual add/edit ICP form (null = closed, {profile:null} = create, {profile} = edit).
+  const [formState, setFormState] = useState<{ profile: IcpProfileRow | null } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ id: string; name: string } | null>(null);
 
   const activeId = useMemo(() => profiles.find((p) => p.is_active)?.id ?? null, [profiles]);
@@ -119,30 +113,6 @@ export function IcpManager({
       toast?.('ICP activated.', 'success');
     } catch {
       toast?.('Could not activate ICP.', 'error');
-    } finally {
-      setBusyId(null);
-    }
-  };
-
-  const saveRename = async (id: string) => {
-    const name = renameValue.trim();
-    if (!name) {
-      setRenameId(null);
-      return;
-    }
-    setBusyId(id);
-    try {
-      const res = await fetch(`/api/leads/icp/profiles/${id}`, {
-        method: 'PATCH',
-        headers: jsonHeaders,
-        body: JSON.stringify({ name }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error('rename failed');
-      onProfilesChange(data.profiles as IcpProfileRow[]);
-      setRenameId(null);
-    } catch {
-      toast?.('Could not rename ICP.', 'error');
     } finally {
       setBusyId(null);
     }
@@ -261,6 +231,18 @@ export function IcpManager({
             )}
             <button
               type="button"
+              onClick={() => {
+                setFormState({ profile: null });
+                setShowSave(false);
+              }}
+              title="Create an ICP manually - no assistant needed"
+              className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary hover:border-accent-primary/40 min-h-[34px]"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add ICP
+            </button>
+            <button
+              type="button"
               onClick={() => void discover()}
               disabled={discovering || selected.size === 0}
               className="inline-flex items-center gap-1.5 rounded-md bg-accent-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-accent-primary/90 disabled:opacity-40 min-h-[34px]"
@@ -268,20 +250,22 @@ export function IcpManager({
               {discovering ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
               Discover ({selected.size})
             </button>
-            {onRunScrape && (
-              <button
-                type="button"
-                onClick={() => onRunScrape()}
-                disabled={scraping}
-                title="Scrape the directories now and jump to the live feed"
-                className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text-primary hover:border-accent-primary/40 disabled:opacity-40 min-h-[34px]"
-              >
-                {scraping ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-                {scraping ? 'Scraping…' : 'Scrape now'}
-              </button>
-            )}
           </div>
         </div>
+
+        {formState && (
+          <div className="border-b border-border px-4 py-4">
+            <IcpForm
+              profile={formState.profile}
+              onSaved={(profiles) => {
+                onProfilesChange(profiles);
+                setFormState(null);
+              }}
+              onCancel={() => setFormState(null)}
+              toast={toast}
+            />
+          </div>
+        )}
 
         {profiles.length === 0 ? (
           <div className="px-4 py-6 text-sm text-text-tertiary">
@@ -292,7 +276,6 @@ export function IcpManager({
           <ul className="divide-y divide-border">
             {profiles.map((p) => {
               const ticked = selected.has(p.id);
-              const isRenaming = renameId === p.id;
               return (
                 <li key={p.id} className="flex items-start gap-3 px-4 py-3">
                   <label className="mt-0.5 flex cursor-pointer items-center">
@@ -307,21 +290,7 @@ export function IcpManager({
 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      {isRenaming ? (
-                        <input
-                          autoFocus
-                          value={renameValue}
-                          onChange={(e) => setRenameValue(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter') void saveRename(p.id);
-                            if (e.key === 'Escape') setRenameId(null);
-                          }}
-                          onBlur={() => void saveRename(p.id)}
-                          className="w-48 rounded border border-border bg-bg-primary px-2 py-0.5 text-sm text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
-                        />
-                      ) : (
-                        <span className="truncate text-sm font-medium text-text-primary">{p.name}</span>
-                      )}
+                      <span className="truncate text-sm font-medium text-text-primary">{p.name}</span>
                       {p.is_active && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-accent-primary/10 px-2 py-0.5 text-[10px] font-medium text-accent-primary">
                           <Star className="h-2.5 w-2.5" /> Active
@@ -367,10 +336,10 @@ export function IcpManager({
                     <button
                       type="button"
                       onClick={() => {
-                        setRenameId(p.id);
-                        setRenameValue(p.name);
+                        setFormState({ profile: p });
+                        setShowSave(false);
                       }}
-                      aria-label={`Rename ${p.name}`}
+                      aria-label={`Edit ${p.name}`}
                       className="rounded-md p-1.5 text-text-tertiary hover:text-text-primary hover:bg-bg-tertiary"
                     >
                       <Pencil className="h-3.5 w-3.5" />

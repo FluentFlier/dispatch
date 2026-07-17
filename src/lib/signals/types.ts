@@ -231,6 +231,10 @@ export interface LeadCompanyDetail {
   yearFounded?: number;
   /** ISO timestamp of the one-time full detail-page fetch; absent = seed only. */
   fetchedAt?: string;
+  /** Where a fallback description came from when one was fetched live. */
+  description_source?: 'linkedin' | 'web';
+  /** True once we've tried and failed to fetch a description, so we don't refetch. */
+  description_checked?: boolean;
 }
 
 export interface SignalLeadRow {
@@ -371,6 +375,8 @@ export interface IngestedLead {
   tagline?: string;
   /** Longer company description captured at scrape time (seeds company_detail). */
   longDescription?: string;
+  /** Provenance URL of the scrape (e.g. LinkedIn company page), stored in source_fact. */
+  sourceUrl?: string;
   website?: string;
   batch?: string;
   tags?: string[];
