@@ -1,7 +1,7 @@
 import { chatCompletion } from '@/lib/llm';
 import type { ClassifiedSignal, IngestedPost, SignalType } from '@/lib/signals/types';
 
-const VALID_TYPES: SignalType[] = ['accelerator_join', 'funding_round', 'role_change', 'launch', 'keyword_match', 'field_change', 'other'];
+const VALID_TYPES: SignalType[] = ['accelerator_join', 'funding_round', 'role_change', 'launch', 'other'];
 
 interface LlmVerdict {
   is_signal: boolean;
