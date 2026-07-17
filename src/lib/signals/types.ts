@@ -231,6 +231,10 @@ export interface LeadCompanyDetail {
   yearFounded?: number;
   /** ISO timestamp of the one-time full detail-page fetch; absent = seed only. */
   fetchedAt?: string;
+  /** Where a fallback description came from when one was fetched live. */
+  description_source?: 'linkedin' | 'web';
+  /** True once we've tried and failed to fetch a description, so we don't refetch. */
+  description_checked?: boolean;
 }
 
 export interface SignalLeadRow {
