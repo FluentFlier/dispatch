@@ -13,7 +13,7 @@ export async function getProfileSnapshot(
 ): Promise<ProfileState | null> {
   const { data } = await client.database
     .from('signal_profile_snapshots')
-    .select('profile_key, provider_id, full_name, headline')
+    .select('profile_key, provider_id, full_name, headline, description')
     .eq('workspace_id', workspaceId)
     .eq('platform', platform)
     .eq('profile_key', profileKey)
@@ -25,6 +25,7 @@ export async function getProfileSnapshot(
     providerId: (data.provider_id as string) ?? undefined,
     fullName: (data.full_name as string) ?? undefined,
     headline: (data.headline as string) ?? undefined,
+    description: (data.description as string) ?? undefined,
   };
 }
 
@@ -44,6 +45,7 @@ export async function putProfileSnapshot(
       provider_id: state.providerId ?? null,
       full_name: state.fullName ?? null,
       headline: state.headline ?? null,
+      description: state.description ?? null,
       captured_at: now,
       updated_at: now,
     },
