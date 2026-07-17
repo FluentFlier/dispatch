@@ -382,9 +382,7 @@ export function LeadsFeedBody(props: LeadsController) {
 
           {/* Detail */}
           <div className="lg:col-span-3 border border-border rounded-lg bg-bg-secondary p-5">
-            {!selectedCard ? (
-              <div className="flex items-center justify-center h-full text-text-tertiary text-sm">Select a lead to review.</div>
-            ) : selectedCard.kind === 'engager' ? (
+            {selectedCard?.kind === 'engager' ? (
               <EngagerDetail
                 card={selectedCard}
                 contact={engagersById[selectedCard.id] ?? null}
@@ -397,8 +395,14 @@ export function LeadsFeedBody(props: LeadsController) {
                 onSendDm={() => handleEngagerSend(selectedCard.id, 'dm')}
                 onDismiss={() => handleEngagerDismiss(selectedCard.id)}
               />
-            ) : selectedCard.kind === 'directory' && selectedLead ? (
+            ) : selectedLead ? (
+              // Keyed by lead id so switching leads remounts the panel (resets
+              // the Activity accordion + textarea state instead of leaking the
+              // previous lead's). Renders off selectedLead, not the card list:
+              // a pipeline click must open even when the lead ranks below the
+              // feed's current page slice.
               <LeadDetail
+                key={selectedLead.id}
                 lead={selectedLead}
                 company={companyById[selectedLead.id]}
                 onRetryCompany={() => retryCompany(selectedLead.id)}
@@ -410,7 +414,11 @@ export function LeadsFeedBody(props: LeadsController) {
                 }
                 onDraftChange={(v) => autosaveDraft(selectedLead.id, v)}
                 busyAction={busyActionFor(selectedLead.id) as LeadDetailAction | null}
-                followed={isFollowed(selectedCard)}
+                followed={followed.some(
+                  (f) =>
+                    (selectedLead.domain && f.domain === selectedLead.domain) ||
+                    f.company_name === selectedLead.company_name,
+                )}
                 onDraft={(rewriteInstruction) => handleDraft(selectedLead.id, rewriteInstruction)}
                 onPolish={() => handleDraft(selectedLead.id, undefined, true)}
                 onApprove={(channel) => handleApprove(selectedLead.id, channel)}
