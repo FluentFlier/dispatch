@@ -135,6 +135,8 @@ function GeneratePageInner() {
             initialMentions={initialMentions}
             initialPlatform={isWelcome ? welcomePlatform : undefined}
             autoGenerate={isWelcome && Boolean(initialTopic)}
+            secondaryTools={SECONDARY_TOOLS}
+            onSelectTool={(id) => setActiveTab(id as TabId)}
           />
         );
       case "voice-note":
@@ -179,7 +181,7 @@ function GeneratePageInner() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:py-10">
+    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-10">
       {isWelcome && !welcomeDismissed && (
         <p className="mb-4 text-center text-sm text-ink">
           Your voice is ready.{" "}
@@ -191,7 +193,9 @@ function GeneratePageInner() {
 
       {renderTool()}
 
-      <div className="mt-10 border-t border-hair pt-6">
+      {/* Mobile-only: the sidebar (with its own "More tools" dropdown) is hidden
+          below lg, so keep the strip here for small screens. */}
+      <div className="mt-10 border-t border-hair pt-6 lg:hidden">
         <p className="mb-3 font-mono text-[10px] uppercase tracking-[0.14em] text-ink3">
           More tools
         </p>

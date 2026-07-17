@@ -9,7 +9,7 @@ import { LinkedInComposer } from './LinkedInComposer';
 import { usePillars } from '@/hooks/usePillars';
 import { DASHBOARD_PLATFORMS, PLATFORM_LABELS, type DashboardPlatform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
-import { SessionSidebar } from './SessionSidebar';
+import { SessionSidebar, type WriteTool } from './SessionSidebar';
 import type { ChatSummary } from '@/lib/chats-status';
 import { useCreatorPreferences, POST_LENGTH_CONFIG, type PostLength } from '@/hooks/useCreatorPreferences';
 import {
@@ -107,6 +107,9 @@ interface ScriptGeneratorProps {
   initialPlatform?: DashboardPlatform;
   initialMentions?: string[];
   autoGenerate?: boolean;
+  /** Secondary Write tools, rendered as a "More tools" dropdown in the sidebar. */
+  secondaryTools?: WriteTool[];
+  onSelectTool?: (id: string) => void;
 }
 
 const PLATFORM_OPTIONS: (DashboardPlatform | null)[] = [null, ...DASHBOARD_PLATFORMS];
@@ -135,6 +138,8 @@ export function ScriptGenerator({
   initialPlatform,
   initialMentions = [],
   autoGenerate = false,
+  secondaryTools = [],
+  onSelectTool,
 }: ScriptGeneratorProps) {
   const mentionSeed = initialMentions.join(',');
   const stableInitialMentions = useMemo(
@@ -586,7 +591,10 @@ export function ScriptGenerator({
 
   return (
     <div className="relative flex min-h-[calc(100vh-10rem)] gap-3">
+      {/* Main column grows to fill; its content stays centered at a readable
+          width so the sidebar can sit flush on the right. */}
       <div className="flex min-w-0 flex-1 flex-col">
+      <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pb-4">
         {isEmpty && (
           <div className="py-12 text-center">
@@ -890,6 +898,7 @@ export function ScriptGenerator({
       </div>
 
       </div>
+      </div>
       <SessionSidebar
         chats={history}
         activeId={conversationId}
@@ -899,6 +908,8 @@ export function ScriptGenerator({
         onNew={newChat}
         onDelete={(id) => void deleteConversation(id)}
         onToggleCollapsed={toggleSidebar}
+        tools={secondaryTools}
+        onSelectTool={(id) => onSelectTool?.(id)}
       />
       <LinkedInComposer
         open={publishOpen}
