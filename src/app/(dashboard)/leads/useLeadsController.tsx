@@ -26,6 +26,7 @@ type ScrapeResultSummary = {
   updated: number;
   resolved: number;
   warnings?: string[];
+  perSource?: Array<{ source: string; count: number; error?: string }>;
 };
 
 /** Initial feed page + how much each "Load more" adds. Capped by the server at 300. */
@@ -443,7 +444,13 @@ export function useLeadsController() {
       } else if (warnings.length > 0) {
         toast(`${result.inserted} new, but ${warnings.length} source(s) failed: ${warnings[0]}`, 'error');
       } else {
-        toast(`Scrape done: ${result.inserted} new, ${result.updated} updated, ${result.resolved} resolved.`);
+        // Per-source counts make source health visible right after a run.
+        const perSource = (result.perSource ?? [])
+          .map((p) => `${p.source.replace(/_/g, ' ')} ${p.count}`)
+          .join(' / ');
+        toast(
+          `Scrape done: ${result.inserted} new, ${result.updated} updated, ${result.resolved} resolved${perSource ? ` (${perSource})` : ''}.`,
+        );
       }
       await refetchList();
     } catch (err) {

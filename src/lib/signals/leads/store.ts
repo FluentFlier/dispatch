@@ -288,6 +288,8 @@ export async function upsertIngestedLeads(
             company_detail: {
               description: lead.longDescription,
               industries: lead.tags?.length ? lead.tags : undefined,
+              teamSize: lead.teamSize,
+              location: lead.location,
             },
             lead_status: 'new',
             digest_date: digestDate,

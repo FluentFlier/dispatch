@@ -388,6 +388,10 @@ export interface IngestedLead {
   tagline?: string;
   /** Longer company description captured at scrape time (seeds company_detail). */
   longDescription?: string;
+  /** Headcount captured at scrape time (seeds company_detail.teamSize). */
+  teamSize?: number;
+  /** HQ location captured at scrape time (seeds company_detail.location). */
+  location?: string;
   /** Provenance URL of the scrape (e.g. LinkedIn company page), stored in source_fact. */
   sourceUrl?: string;
   website?: string;
