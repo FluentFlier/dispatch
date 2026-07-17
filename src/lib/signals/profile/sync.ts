@@ -8,6 +8,7 @@ import {
 import { unipileConfigured } from '@/lib/signals/ingest/unipile-fetch';
 import { detectFieldChanges, type ProfileState } from '@/lib/signals/profile/detect';
 import { getProfileSnapshot, putProfileSnapshot } from '@/lib/signals/profile/store';
+import { fetchXProfile } from '@/lib/signals/profile/x-profile';
 import { createSignalEvent, getEvent, upsertRawPost } from '@/lib/signals/store';
 import { runSignalActions } from '@/lib/signals/actions';
 import { resolveRuleAction } from '@/lib/signals/rules/match';
@@ -18,14 +19,16 @@ type InsforgeClient = ReturnType<typeof createClient>;
 
 /**
  * Detects field changes (role/tagline/name/description) on a tracked LinkedIn
- * person or company page and, for each change found, creates a signal event
- * and runs the action pipeline for it.
+ * person/company page or X person profile and, for each change found,
+ * creates a signal event and runs the action pipeline for it.
  *
- * Only meaningful for LinkedIn person_profile / company_page sources, and only
- * when a Unipile account is connected (profile lookup goes through Unipile).
- * First sight of a profile records a baseline snapshot with no signal - a
- * change can only be detected against a prior. Every failure is logged and
- * swallowed.
+ * LinkedIn person_profile / company_page sources require a connected Unipile
+ * account (profile lookup goes through Unipile). X person_profile sources go
+ * through Apify (fetchXProfile) instead; bio rides the shared `headline`
+ * snapshot field, so a bio change fires as a person `role_change` like a
+ * LinkedIn headline change. First sight of a profile records a baseline
+ * snapshot with no signal - a change can only be detected against a prior.
+ * Every failure is logged and swallowed.
  */
 export async function checkProfileChange(
   client: InsforgeClient,
@@ -33,65 +36,85 @@ export async function checkProfileChange(
   source: SignalSourceRow,
   rules: SignalRuleRow[],
 ): Promise<{ signalCreated: boolean }> {
-  if (
-    source.platform !== 'linkedin' ||
-    !['person_profile', 'company_page'].includes(source.source_type)
-  ) {
+  const isLinkedIn =
+    source.platform === 'linkedin' &&
+    ['person_profile', 'company_page'].includes(source.source_type);
+  const isXProfile = source.platform === 'x' && source.source_type === 'person_profile';
+  if (!isLinkedIn && !isXProfile) {
     return { signalCreated: false };
   }
-  if (!unipileConfigured()) return { signalCreated: false };
 
-  const account = await getWorkspacePollAccount(client, workspaceId, 'linkedin');
-  if (!account) return { signalCreated: false };
-
-  const profileKey = parseLinkedInPublicIdentifier(source.handle_or_url);
   const isCompany = source.source_type === 'company_page';
-
+  let profileKey: string;
   let current: ProfileState;
-  try {
-    if (isCompany) {
-      const company = await resolveLinkedInCompany(account.unipileAccountId, source.handle_or_url);
-      current = {
-        profileKey,
-        providerId: company.providerId,
-        fullName: company.name,
-        headline: company.tagline,
-        description: company.description,
-      };
-    } else {
-      const profile = await resolveLinkedInProfile(account.unipileAccountId, source.handle_or_url);
-      const fullName = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim();
-      current = {
-        profileKey,
-        providerId: profile.providerId,
-        fullName: fullName || undefined,
-        headline: profile.headline,
-        description: profile.description,
-      };
+
+  if (isXProfile) {
+    const profile = await fetchXProfile(source.handle_or_url);
+    if (!profile) {
+      await logSignalAudit(client, {
+        workspace_id: workspaceId,
+        action: 'poll_source',
+        channel: 'x',
+        metadata: { source_id: source.id, handle: source.handle_or_url, profile_lookup_error: 'apify profile lookup returned no data' },
+      });
+      return { signalCreated: false };
     }
-  } catch (err) {
-    await logSignalAudit(client, {
-      workspace_id: workspaceId,
-      action: 'poll_source',
-      channel: 'linkedin',
-      metadata: { source_id: source.id, profile_key: profileKey, profile_lookup_error: String(err) },
-    });
-    return { signalCreated: false };
+    profileKey = profile.handle;
+    current = { profileKey, fullName: profile.name, headline: profile.bio };
+  } else {
+    if (!unipileConfigured()) return { signalCreated: false };
+
+    const account = await getWorkspacePollAccount(client, workspaceId, 'linkedin');
+    if (!account) return { signalCreated: false };
+
+    profileKey = parseLinkedInPublicIdentifier(source.handle_or_url);
+    try {
+      if (isCompany) {
+        const company = await resolveLinkedInCompany(account.unipileAccountId, source.handle_or_url);
+        current = {
+          profileKey,
+          providerId: company.providerId,
+          fullName: company.name,
+          headline: company.tagline,
+          description: company.description,
+        };
+      } else {
+        const profile = await resolveLinkedInProfile(account.unipileAccountId, source.handle_or_url);
+        const fullName = [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim();
+        current = {
+          profileKey,
+          providerId: profile.providerId,
+          fullName: fullName || undefined,
+          headline: profile.headline,
+          description: profile.description,
+        };
+      }
+    } catch (err) {
+      await logSignalAudit(client, {
+        workspace_id: workspaceId,
+        action: 'poll_source',
+        channel: 'linkedin',
+        metadata: { source_id: source.id, profile_key: profileKey, profile_lookup_error: String(err) },
+      });
+      return { signalCreated: false };
+    }
   }
 
-  const previous = await getProfileSnapshot(client, workspaceId, 'linkedin', profileKey);
+  const previous = await getProfileSnapshot(client, workspaceId, source.platform, profileKey);
   const classifiedList = detectFieldChanges(previous, current, isCompany ? 'company' : 'person');
 
-  const profileUrl = isCompany
-    ? `https://www.linkedin.com/company/${profileKey}/`
-    : `https://www.linkedin.com/in/${profileKey}/`;
+  const profileUrl = isXProfile
+    ? `https://x.com/${profileKey}`
+    : isCompany
+      ? `https://www.linkedin.com/company/${profileKey}/`
+      : `https://www.linkedin.com/in/${profileKey}/`;
 
   let anyCreated = false;
   for (const classified of classifiedList) {
     // Change detected: synthesize a raw post capturing the change so the
     // event carries context for drafting, then classify + run actions.
     const post: IngestedPost = {
-      platform: 'linkedin',
+      platform: source.platform,
       externalPostId: `profile-change:${profileKey}:${classified.dedupeKey}`,
       authorHandle: profileKey,
       authorName: current.fullName,
@@ -107,11 +130,11 @@ export async function checkProfileChange(
       if (event) {
         const resolution = resolveRuleAction(
           rules,
-          { platform: 'linkedin', sourceType: source.source_type },
+          { platform: source.platform, sourceType: source.source_type },
           classified,
         );
         await runSignalActions(client, workspaceId, event, {
-          platform: 'linkedin',
+          platform: source.platform,
           sourceType: source.source_type,
           actionMode: resolution.actionMode ?? undefined,
           channels: resolution.channels,
@@ -123,7 +146,7 @@ export async function checkProfileChange(
 
   // Record the current state as the new baseline - once, after all signals
   // for this poll have been processed (first sight or no change: same call).
-  await putProfileSnapshot(client, workspaceId, 'linkedin', current);
+  await putProfileSnapshot(client, workspaceId, source.platform, current);
 
   return { signalCreated: anyCreated };
 }

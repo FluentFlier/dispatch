@@ -190,13 +190,14 @@ export async function syncWorkspaceSignals(
     result.signalsCreated += batch.signalsCreated;
     result.errors.push(...batch.errors);
 
-    // Profile-change detection: diff the tracked person/company's LinkedIn fields
-    // against the stored baseline. Skipped in dry-run and for non-tracked-profile
-    // / non-LinkedIn sources (the helper guards internally).
+    // Profile-change detection: diff the tracked person/company's LinkedIn fields,
+    // or a tracked X person's bio, against the stored baseline. Skipped in
+    // dry-run and for non-tracked-profile sources (the helper guards internally).
     if (
       !opts.dryRun &&
-      source.platform === 'linkedin' &&
-      ['person_profile', 'company_page'].includes(source.source_type)
+      ((source.platform === 'linkedin' &&
+        ['person_profile', 'company_page'].includes(source.source_type)) ||
+        (source.platform === 'x' && source.source_type === 'person_profile'))
     ) {
       try {
         const profileResult = await checkProfileChange(client, workspaceId, source, rules);
