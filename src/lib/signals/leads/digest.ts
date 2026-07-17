@@ -6,7 +6,7 @@ import { getIntegration } from '@/lib/signals/integrations/store';
 import { isComposioConfigured } from '@/lib/composio/config';
 import { sendSlackAlert } from '@/lib/composio/actions/slack';
 import { sendGmailEmail } from '@/lib/composio/actions/gmail';
-import type { SignalLeadWithContacts } from '@/lib/signals/types';
+import type { ScrapeFrequency, SignalLeadWithContacts } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -51,6 +51,27 @@ export function shouldRunDigest(input: {
 }): boolean {
   if (input.deliveredLocalDate === input.localDate) return false;
   return input.localHour >= input.runHour;
+}
+
+const DAY_MS = 24 * 3_600_000;
+/** Tolerance so a cron firing a few minutes early never slips a whole day. */
+const FREQUENCY_SLOP_MS = 3_600_000;
+
+/**
+ * Whether the cadence allows an automatic scrape now. 'manual' never auto-runs;
+ * a workspace that has never synced is always due; otherwise due once the
+ * interval (minus one hour of cron slop) has elapsed since the last sync.
+ * Any scrape (cron or user-triggered) resets the clock via last_synced_at.
+ */
+export function scrapeDueByFrequency(
+  frequency: ScrapeFrequency,
+  lastSyncedAt: string | null,
+  now: number = Date.now(),
+): boolean {
+  if (frequency === 'manual') return false;
+  if (!lastSyncedAt) return true;
+  const days = frequency === 'weekly' ? 7 : frequency === 'every_3_days' ? 3 : 1;
+  return now - Date.parse(lastSyncedAt) >= days * DAY_MS - FREQUENCY_SLOP_MS;
 }
 
 export interface DigestPayload {
@@ -115,11 +136,14 @@ export async function runWorkspaceDigest(
     return { ran: false, reason: `local ${hour}:00 ${date}, run at ${settings.digest_run_hour_local}, delivered ${deliveredLocalDate ?? 'never'}` };
   }
 
-  // Build today's list: scrape + reactivate. Skipped in force/test mode - the
-  // regular scrape cron already keeps leads fresh, and a full scrape here would
-  // make the test button take minutes.
+  // Build today's list: scrape + reactivate. Skipped in force/test mode, and
+  // the scrape itself is gated by the workspace's scrape_frequency so users
+  // control credit spend ('manual' = only user-triggered scrapes ever run).
   if (!opts.force) {
-    await syncWorkspaceDirectory(client, workspaceId);
+    const frequency = (settings.scrape_frequency ?? 'daily') as ScrapeFrequency;
+    if (scrapeDueByFrequency(frequency, settings.last_synced_at ?? null, now.getTime())) {
+      await syncWorkspaceDirectory(client, workspaceId);
+    }
     await reactivateWorkspaceLeads(client, workspaceId, date, now);
   }
 

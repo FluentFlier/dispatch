@@ -6,6 +6,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { descriptionCheckDue, DESCRIPTION_RECHECK_MS } from '@/lib/signals/leads/describe';
+import { scrapeDueByFrequency } from '@/lib/signals/leads/digest';
 
 describe('F3: description recheck TTL (no permanent latch)', () => {
   const now = Date.parse('2026-07-17T12:00:00Z');
@@ -32,9 +33,32 @@ describe('F3: description recheck TTL (no permanent latch)', () => {
 });
 
 describe('SCRAPE FREQUENCY: cron gate respects workspace scrape_frequency', () => {
-  it.todo(
-    "unit (once the gate helper exists in src/lib/signals/leads/digest.ts): weekly + last scrape 2 days ago -> skipped; weekly + 8 days ago -> runs; 'manual' never auto-runs",
-  );
+  const now = Date.parse('2026-07-17T12:00:00Z');
+  const daysAgo = (d: number) => new Date(now - d * 24 * 3_600_000).toISOString();
+
+  it('weekly: 2 days since last scrape skips, 8 days runs', () => {
+    expect(scrapeDueByFrequency('weekly', daysAgo(2), now)).toBe(false);
+    expect(scrapeDueByFrequency('weekly', daysAgo(8), now)).toBe(true);
+  });
+
+  it('every_3_days: 2 days skips, 4 days runs', () => {
+    expect(scrapeDueByFrequency('every_3_days', daysAgo(2), now)).toBe(false);
+    expect(scrapeDueByFrequency('every_3_days', daysAgo(4), now)).toBe(true);
+  });
+
+  it('manual never auto-runs, even when never synced', () => {
+    expect(scrapeDueByFrequency('manual', null, now)).toBe(false);
+    expect(scrapeDueByFrequency('manual', daysAgo(30), now)).toBe(false);
+  });
+
+  it('never-synced workspace is always due (except manual)', () => {
+    expect(scrapeDueByFrequency('daily', null, now)).toBe(true);
+    expect(scrapeDueByFrequency('weekly', null, now)).toBe(true);
+  });
+
+  it('cron slop: a daily scrape 23.5h ago still counts as due', () => {
+    expect(scrapeDueByFrequency('daily', new Date(now - 23.5 * 3_600_000).toISOString(), now)).toBe(true);
+  });
 });
 
 describe('DRAFT AUTOSAVE: edited draft text persists server-side', () => {

@@ -301,6 +301,9 @@ export interface SignalLeadWithContacts extends SignalLeadRow {
   outreach?: SignalOutreachRow | null;
 }
 
+/** How often the cron may scrape a workspace's directories. */
+export type ScrapeFrequency = 'daily' | 'every_3_days' | 'weekly' | 'manual';
+
 export interface DirectorySettingsRow {
   workspace_id: string;
   enabled_sources: LeadSource[];
@@ -308,6 +311,12 @@ export interface DirectorySettingsRow {
   icp_description: string | null;
   icp_verticals: string[];
   icp_keywords: string[];
+  /** Parsed hunt goal (stage/vertical/geography) consumed by web discovery. */
+  discovery_goal: string | null;
+  /** Cron scrape cadence; 'manual' means only user-triggered scrapes run. */
+  scrape_frequency: ScrapeFrequency;
+  /** Stamped after every directory sync (any trigger); drives the cadence gate. */
+  last_synced_at: string | null;
   recency_window: string;
   digest_run_hour_local: number;
   digest_timezone: string | null;

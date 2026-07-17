@@ -24,6 +24,9 @@ export {
 
 function buildSearchQueries(ctx: DiscoveryContext): string[] {
   const out: string[] = [];
+  // The parsed hunt goal carries stage/geo constraints verbatim - prefer it.
+  const goal = ctx.discoveryGoal?.trim();
+  if (goal) out.push(goal.slice(0, 220));
   const desc = ctx.icpDescription?.trim();
   if (desc) out.push(desc.slice(0, 220));
   if (ctx.icpQuery.trim()) {

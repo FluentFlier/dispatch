@@ -6,6 +6,7 @@ import {
   getDirectorySettings,
   ensureDirectorySourcesEnabled,
   getLead,
+  updateDirectorySettings,
   updateLead,
   upsertIngestedLeads,
 } from '@/lib/signals/leads/store';
@@ -150,6 +151,7 @@ export async function syncWorkspaceDirectory(
     icpVerticals: settings.icp_verticals ?? [],
     icpKeywords: settings.icp_keywords ?? [],
     icpQuery,
+    discoveryGoal: settings.discovery_goal ?? null,
     maxLeads: MAX_LEADS_PER_RUN,
     onAdapterStart: (source, index, total) => {
       emit({
@@ -260,6 +262,11 @@ export async function syncWorkspaceDirectory(
 
   emit({ phase: 'describing', label: 'Filling company descriptions…', pct: PCT.rankingEnd });
   result.described = await backfillLeadDescriptions(client, workspaceId, emit);
+
+  // Any completed sync (cron or user-triggered) resets the cadence clock.
+  await updateDirectorySettings(client, workspaceId, {
+    last_synced_at: new Date().toISOString(),
+  }).catch(() => {});
 
   emit({ phase: 'done', label: 'Done', pct: 100 });
   return result;

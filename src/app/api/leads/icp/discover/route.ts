@@ -18,6 +18,9 @@ function mirror(profile: IcpProfileRow) {
     icp_description: profile.description,
     icp_verticals: profile.verticals,
     icp_keywords: profile.keywords,
+    // Profiles carry no hunt goal; clear it so a stale goal from another ICP
+    // never steers this profile's web discovery.
+    discovery_goal: null,
   };
 }
 
