@@ -41,15 +41,32 @@ const bodySchema = z.object({
     .optional(),
 });
 
+/** Nouns a search command can target ("leads", "founders", "companies", ...). */
+const DISCOVERY_NOUN = String.raw`(leads?|founders?|compan(?:y|ies)|startups?|prospects?|customers?|buyers?)`;
+
 /**
  * Deterministic discovery intent. Fires even when the LLM misreads the turn OR
  * is over capacity - a search command needs no model, just the saved ICP.
- * Matches natural phrasings, not only the literal word "leads": "find leads
- * now", "find me seed-stage fintech founders in NYC", "search for healthtech
- * companies", "pull startups in Berlin", "get me prospects", etc.
+ * Matches natural IMPERATIVE phrasings, not only the literal word "leads":
+ * "find leads now", "find me seed-stage fintech founders in NYC", "search for
+ * healthtech companies", "pull startups in Berlin". Descriptive statements that
+ * merely mention the nouns near a verb ("we want to find product-market fit
+ * with founders") must NOT match - a false positive burns a paid scrape - so
+ * the verb has to lead the message or be explicitly requested ("can you find").
  */
-const FIND_LEADS_RE =
-  /\b(find|search|pull|get|show|fetch|surface|source|scan)\b[^.!?]*\b(leads?|founders?|compan(?:y|ies)|startups?|prospects?|customers?|buyers?)\b/i;
+const IMPERATIVE_DISCOVERY_RE = new RegExp(
+  String.raw`^(?:please\s+|ok(?:ay)?[,\s]+|now\s+)?(?:find|search|pull|get|show|fetch|surface|source|scan)\b[^.!?]*\b${DISCOVERY_NOUN}\b`,
+  'i',
+);
+const REQUESTED_DISCOVERY_RE = new RegExp(
+  String.raw`\b(?:can you|could you|please|go)\s+(?:find|search|pull|get|fetch)\b[^.!?]{0,60}\b${DISCOVERY_NOUN}\b`,
+  'i',
+);
+
+function isDiscoveryCommand(message: string): boolean {
+  const m = message.trim();
+  return IMPERATIVE_DISCOVERY_RE.test(m) || REQUESTED_DISCOVERY_RE.test(m);
+}
 
 /**
  * Deterministic guard: does this message read like an ICP definition rather than
@@ -146,7 +163,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .filter(Boolean)
       .join('\n\n');
 
-    const wantsDiscovery = FIND_LEADS_RE.test(parsed.data.message);
+    const wantsDiscovery = isDiscoveryCommand(parsed.data.message);
 
     // Deterministic discovery response, used whenever the classifier can't run or
     // can't be parsed but the user clearly asked to find leads and an ICP exists.

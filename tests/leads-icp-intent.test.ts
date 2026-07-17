@@ -99,6 +99,26 @@ describe('F2: discovery intent is detected without the literal word "leads"', ()
   }
 });
 
+describe('F2: descriptive statements near discovery nouns are NOT commands', () => {
+  const briefsThatMentionNouns = [
+    'we want to find product-market fit with founders',
+    'we are trying to get more customers who are mid-market SaaS founders',
+  ];
+
+  for (const msg of briefsThatMentionNouns) {
+    it(`saves "${msg}" as a brief instead of burning a scrape`, async () => {
+      h.currentIcp = 'seed-stage B2B founders';
+      chatMock.mockResolvedValue(CLASSIFIER_WHIFF);
+
+      const res = await POST(req(msg));
+      const body = await res.json();
+
+      expect(body.suggestRun).toBe(false);
+      expect(updateMock).toHaveBeenCalledTimes(1);
+    });
+  }
+});
+
 describe('F2: an ICP brief is saved, never mistaken for discovery', () => {
   it('saves "we sell to CFOs of mid-market SaaS" as a brief (no discovery run)', async () => {
     chatMock.mockResolvedValue(CLASSIFIER_WHIFF);
