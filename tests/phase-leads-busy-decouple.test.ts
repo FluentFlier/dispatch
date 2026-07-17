@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 import {
   busyActionFor,
   leadButtonBusy,
-  signalButtonBusy,
   type LeadBusy,
   type LeadDetailAction,
 } from '@/lib/leads/busy';
@@ -75,24 +74,5 @@ describe('WS1.1 leadButtonBusy: Plan and Draft spinners are independent', () => 
     expect(leadButtonBusy(null).anyBusy).toBe(false);
     expect(leadButtonBusy('plan').anyBusy).toBe(true);
     expect(leadButtonBusy('email').anyBusy).toBe(true);
-  });
-});
-
-describe('WS1.1 signalButtonBusy: Draft and Send spinners are independent', () => {
-  it('drafting a signal does not spin Send', () => {
-    const flags = signalButtonBusy('draft');
-    expect(flags.draftBusy).toBe(true);
-    expect(flags.sendBusy).toBe(false);
-    expect(flags.anyBusy).toBe(true);
-  });
-
-  it('sending a signal does not spin Draft/Regenerate', () => {
-    const flags = signalButtonBusy('send');
-    expect(flags.sendBusy).toBe(true);
-    expect(flags.draftBusy).toBe(false);
-  });
-
-  it('idle signal panel has no spinners', () => {
-    expect(signalButtonBusy(null)).toEqual({ draftBusy: false, sendBusy: false, anyBusy: false });
   });
 });

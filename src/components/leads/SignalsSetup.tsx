@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { Plus, X } from 'lucide-react';
 import { SignalsSetupBanner } from '@/components/signals/SignalsSetupBanner';
-import { SignalRulesManager } from '@/components/signals/SignalRulesManager';
 import type { SignalSourceRow } from '@/lib/signals/types';
 
 /**
@@ -416,17 +415,6 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
             Monitor
           </button>
         </div>
-      </section>
-
-      {/* --- Trigger rules --- */}
-      <section className="rounded-lg border border-border bg-bg-secondary p-5 space-y-3">
-        <div>
-          <h2 className="text-sm font-semibold text-text-primary">Automation rules</h2>
-          <p className="mt-1 text-xs text-text-secondary">
-            Decide which signals auto-draft, and which can auto-send.
-          </p>
-        </div>
-        <SignalRulesManager />
       </section>
 
       {/* --- Safety + usage --- */}

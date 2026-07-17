@@ -36,9 +36,6 @@ export interface LeadBusy {
 /** Actions surfaced by the directory-lead detail panel (never 'send'). */
 export type LeadDetailAction = Exclude<LeadBusyAction, 'send'>;
 
-/** Actions surfaced by the signal detail panel. */
-export type SignalDetailAction = 'draft' | 'send';
-
 /**
  * Returns the action in flight for `id`, or null. Only the lead that owns the
  * in-flight action reports busy; every other lead is idle.
@@ -76,18 +73,3 @@ export function leadButtonBusy(action: LeadDetailAction | null): LeadButtonBusy 
   };
 }
 
-/** Per-button busy flags for the signal detail panel. */
-export interface SignalButtonBusy {
-  draftBusy: boolean;
-  sendBusy: boolean;
-  anyBusy: boolean;
-}
-
-/** Derive the signal-panel button flags from the single in-flight action. */
-export function signalButtonBusy(action: SignalDetailAction | null): SignalButtonBusy {
-  return {
-    draftBusy: action === 'draft',
-    sendBusy: action === 'send',
-    anyBusy: action !== null,
-  };
-}

@@ -7,7 +7,6 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { FeedFilters, type FeedFilterState } from '@/components/leads/FeedFilters';
 import { UnifiedFeed } from '@/components/leads/UnifiedFeed';
 import { LeadDetail } from '@/components/leads/LeadDetail';
-import { SignalDetail } from '@/components/leads/SignalDetail';
 import { EngagerDetail, type EngagerDetailAction } from '@/components/leads/EngagerDetail';
 import { SignalsSetup } from '@/components/leads/SignalsSetup';
 import { IcpManager } from '@/components/leads/IcpManager';
@@ -21,7 +20,7 @@ import {
   LeadsFilteredEmptyState,
   ScrapeProgress,
 } from '@/components/leads/LeadsFeedChrome';
-import type { LeadDetailAction, SignalDetailAction } from '@/lib/leads/busy';
+import type { LeadDetailAction } from '@/lib/leads/busy';
 import { feedViewState } from '@/lib/leads/feed-view';
 import { useLeadsController } from './useLeadsController';
 
@@ -65,7 +64,7 @@ export function LeadsFeedBody(props: LeadsController) {
   const {
     toast,
     cards, settings, setSettings, profiles, setProfiles, followed, setFollowed,
-    filters, setFilters, selectedId, setSelectedId, drafts, setDrafts, signalNotices,
+    filters, setFilters, selectedId, setSelectedId, drafts, setDrafts,
     loading, loadError, setupRequired, setupMessage, listLoading, scraping, scrapeProgress,
     busyActionFor, selectedIds, bulkBusy, acceptedIds, emailConfirmId, setEmailConfirmId,
     feedLimit, setFeedLimit, importOpen, setImportOpen, view, setView,
@@ -75,7 +74,7 @@ export function LeadsFeedBody(props: LeadsController) {
     handleCheckConnection, handleMarkStage, handleDraftFollowup, handleDraftReply, handleSendReply,
     handleEmail, confirmEmailSend,
     handleDismiss, handleExport, handleTogglePlaybookStep, handleSnooze, handleResolve,
-    handlePlanNurture, handleFollowLead, handleSignalDraft, handleSignalSend,
+    handlePlanNurture, handleFollowLead,
     handleEngagerPlan, handleEngagerSend, handleEngagerDismiss,
     clearSelection, toggleSelect, toggleSelectAll, allVisibleSelected, bulkLeadAction,
     selectedCard, selectedLead,
@@ -399,15 +398,9 @@ export function LeadsFeedBody(props: LeadsController) {
                 onMarkClosed={() => handleMarkStage(selectedLead.id, 'closed')}
               />
             ) : (
-              <SignalDetail
-                card={selectedCard}
-                draft={drafts[selectedCard.id] ?? ''}
-                onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedCard.id]: v }))}
-                busyAction={busyActionFor(selectedCard.id) as SignalDetailAction | null}
-                notice={signalNotices[selectedCard.id] ?? null}
-                onDraft={() => handleSignalDraft(selectedCard)}
-                onSend={() => handleSignalSend(selectedCard)}
-              />
+              <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
+                Select a lead to review.
+              </div>
             )}
           </div>
         </div>

@@ -7,11 +7,10 @@ import {
 import { unipileConfigured } from '@/lib/signals/ingest/unipile-fetch';
 import { detectRoleChange, normalizeHeadline, type ProfileState } from '@/lib/signals/profile/detect';
 import { getProfileSnapshot, putProfileSnapshot } from '@/lib/signals/profile/store';
-import { createSignalEvent, getEvent, upsertRawPost } from '@/lib/signals/store';
-import { runSignalActions } from '@/lib/signals/actions';
-import { resolveRuleAction } from '@/lib/signals/rules/match';
+import { upsertRawPost } from '@/lib/signals/store';
+import { applySignalToLeads } from '@/lib/signals/leads/intent-bridge';
 import { logSignalAudit } from '@/lib/signals/safety/audit';
-import type { IngestedPost, SignalRuleRow, SignalSourceRow } from '@/lib/signals/types';
+import type { IngestedPost, SignalSourceRow } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -28,7 +27,6 @@ export async function checkProfileChange(
   client: InsforgeClient,
   workspaceId: string,
   source: SignalSourceRow,
-  rules: SignalRuleRow[],
 ): Promise<{ signalCreated: boolean }> {
   if (source.platform !== 'linkedin' || source.source_type !== 'person_profile') {
     return { signalCreated: false };
@@ -80,27 +78,13 @@ export async function checkProfileChange(
     postUrl: `https://www.linkedin.com/in/${profileKey}/`,
   };
 
-  const rawPostId = await upsertRawPost(client, workspaceId, source.id, post);
-  const { created, eventId } = await createSignalEvent(client, workspaceId, rawPostId, classified);
+  await upsertRawPost(client, workspaceId, source.id, post);
   await putProfileSnapshot(client, workspaceId, 'linkedin', current);
 
-  if (created && eventId) {
-    const event = await getEvent(client, workspaceId, eventId);
-    if (event) {
-      const resolution = resolveRuleAction(
-        rules,
-        { platform: 'linkedin', sourceType: 'person_profile' },
-        classified,
-      );
-      await runSignalActions(client, workspaceId, event, {
-        platform: 'linkedin',
-        sourceType: 'person_profile',
-        actionMode: resolution.actionMode ?? undefined,
-        channels: resolution.channels,
-      });
-    }
-    return { signalCreated: true };
-  }
-
-  return { signalCreated: false };
+  // The role change lands on the matching lead (intent flag + Slack), not in
+  // the retired signal-events feed.
+  const bridge = await applySignalToLeads(client, workspaceId, classified, {
+    sourceUrl: post.postUrl,
+  });
+  return { signalCreated: bridge.matched + bridge.created > 0 };
 }

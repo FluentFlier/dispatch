@@ -11,8 +11,7 @@
 
 import type { createClient } from '@insforge/sdk';
 import { listLeads } from '@/lib/signals/leads/store';
-import { listEventsWithPosts } from '@/lib/signals/store';
-import { normalizeEvent, normalizeLead, type UnifiedLeadCard } from '@/lib/signals/feed/normalize';
+import { normalizeLead, type UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import type { LeadStatus } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -79,11 +78,14 @@ export async function buildUnifiedFeed(
       ? (filters.status as LeadStatus)
       : undefined;
 
-  const [leads, events] = await Promise.all([
-    listLeads(client, workspaceId, { limit, status: leadStatus, needsReply: needsReply || undefined }),
-    listEventsWithPosts(client, workspaceId, { limit }),
-  ]);
-  let cards = mergeFeed(leads.map(normalizeLead), events.map(normalizeEvent), { ...filters, limit });
+  // Signal events are retired: detected signals land on the lead itself
+  // (intent flags via the intent bridge), so leads are the only feed source.
+  const leads = await listLeads(client, workspaceId, {
+    limit,
+    status: leadStatus,
+    needsReply: needsReply || undefined,
+  });
+  let cards = mergeFeed(leads.map(normalizeLead), [], { ...filters, limit });
   if (needsReply) {
     cards = cards.filter((c) => c.needsReply || c.nurtureStage === 'replied');
   }

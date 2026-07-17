@@ -214,6 +214,15 @@ export interface LeadIntentFlags {
   raised?: boolean;
   seeking_investors?: boolean;
   seeking_tools?: boolean;
+  /** Ported from the retired Signals feature: monitoring lands on the lead. */
+  accelerator_join?: boolean;
+  launch?: boolean;
+  role_change?: boolean;
+  keyword_match?: boolean;
+  /** Most recent detected signal, surfaced on the lead's feed card. */
+  last_signal_type?: string;
+  last_signal_summary?: string;
+  last_signal_at?: string;
 }
 
 /**

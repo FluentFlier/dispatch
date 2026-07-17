@@ -67,8 +67,4 @@ describe('DRAFT AUTOSAVE: edited draft text persists server-side', () => {
   );
 });
 
-describe('INTENT FLAGS PORT: watched-company events surface on leads', () => {
-  it.todo(
-    'integration: after the signals teardown, an event on a followed/watched company must set the matching intent flag on its lead so the feed card still shows the signal',
-  );
-});
+// INTENT FLAGS PORT is covered by tests/leads-intent-bridge.test.ts.

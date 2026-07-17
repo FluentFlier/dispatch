@@ -36,9 +36,17 @@ export const xDiscoveryAdapter: LeadDiscoveryAdapter = {
 
     let pages = '';
     try {
+      const isXHost = (u: string): boolean => {
+        try {
+          const host = new URL(u).hostname.toLowerCase();
+          return ['x.com', 'twitter.com'].some((d) => host === d || host.endsWith(`.${d}`));
+        } catch {
+          return false;
+        }
+      };
       const urls = results
         .map((r) => r.url)
-        .filter((u) => /(?:^|\.)x\.com|twitter\.com/i.test(u))
+        .filter(isXHost)
         .slice(0, MAX_X_PAGE_FETCHES);
       const fetched = urls.length > 0 ? await tinyfishFetch(urls) : [];
       pages = fetched
