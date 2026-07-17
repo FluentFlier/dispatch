@@ -590,7 +590,7 @@ export function ScriptGenerator({
   const isEmpty = messages.length === 0 && !loading;
 
   return (
-    <div className="relative flex min-h-[calc(100vh-10rem)] gap-3">
+    <div className="relative flex min-h-[calc(100vh-10rem)] gap-8">
       {/* Main column grows to fill; its content stays centered at a readable
           width so the sidebar can sit flush on the right. */}
       <div className="flex min-w-0 flex-1 flex-col">
