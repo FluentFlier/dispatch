@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Content OS Leads Revamp Sketch</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { margin: 0; background: #f5f5f3; color: #222; font: 14px/1.45 system-ui, sans-serif; }
+    .page { max-width: 1180px; margin: 28px auto; padding: 0 20px 56px; }
+    .note { color: #666; font-size: 12px; }
+    .screen { background: #fff; border: 1px solid #999; margin: 20px 0 38px; box-shadow: 4px 4px 0 #ddd; }
+    .screen-label { padding: 7px 10px; border-bottom: 1px dashed #999; font: 12px ui-monospace, monospace; color: #555; }
+    .onboard { min-height: 530px; display: grid; place-items: center; padding: 42px 20px; }
+    .onboard-inner { width: min(640px, 100%); }
+    h1 { font-size: 29px; letter-spacing: -.03em; margin: 0 0 8px; }
+    h2 { font-size: 18px; margin: 0 0 5px; }
+    p { margin: 0; }
+    .input { margin-top: 22px; border: 1px solid #555; padding: 14px; min-height: 50px; color: #777; }
+    .row { display: flex; gap: 10px; flex-wrap: wrap; }
+    .chip, button { border: 1px solid #777; background: #fff; padding: 9px 12px; font: inherit; }
+    .chip { margin-top: 12px; color: #555; }
+    .primary { background: #222; color: #fff; border-color: #222; }
+    .actions { display: flex; align-items: center; justify-content: space-between; margin-top: 20px; }
+    .app { display: grid; grid-template-columns: 180px 1fr; min-height: 680px; }
+    aside { border-right: 1px solid #aaa; padding: 18px 13px; }
+    .logo { font-weight: 700; margin-bottom: 26px; }
+    nav div { padding: 8px; margin: 3px 0; }
+    nav .active { border: 1px solid #777; background: #eee; }
+    main { padding: 24px; min-width: 0; }
+    .top { display: flex; justify-content: space-between; gap: 16px; align-items: start; }
+    .mission { border: 1px solid #777; padding: 11px 12px; margin: 20px 0 14px; display: flex; justify-content: space-between; gap: 15px; align-items: center; }
+    .mission strong { display: block; }
+    .grid { display: grid; grid-template-columns: minmax(260px, 38%) 1fr; border: 1px solid #888; min-height: 470px; }
+    .list { border-right: 1px solid #aaa; }
+    .lead { padding: 13px; border-bottom: 1px solid #ccc; }
+    .lead.selected { background: #eee; }
+    .lead-title { display: flex; justify-content: space-between; gap: 10px; font-weight: 650; }
+    .meta { color: #666; font-size: 12px; margin-top: 3px; }
+    .reason { margin-top: 7px; font-size: 12px; }
+    .detail { padding: 20px; }
+    .badge { border: 1px solid #999; padding: 3px 7px; font-size: 11px; display: inline-block; }
+    .evidence { border: 1px dashed #888; padding: 12px; margin: 18px 0; }
+    .evidence li { margin: 7px 0; }
+    .draft { border: 1px solid #888; padding: 12px; min-height: 105px; margin-top: 12px; }
+    @media (max-width: 760px) { .app { grid-template-columns: 1fr; } aside { display:none; } .grid { grid-template-columns: 1fr; } .detail { display:none; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <p class="note">ROUGH WIREFRAME, flow and hierarchy only</p>
+
+    <section class="screen">
+      <div class="screen-label">1. GLOBAL ONBOARDING, OPTIONAL DURABLE CONTEXT</div>
+      <div class="onboard">
+        <div class="onboard-inner">
+          <p class="note">STEP 1 OF 2</p>
+          <h1>What are you building or growing?</h1>
+          <p>Give Content OS one source of truth. We will use it for your voice, content, and future lead searches.</p>
+          <div class="input">Paste your website, LinkedIn profile, deck URL, or describe it in one sentence…</div>
+          <div class="row">
+            <span class="chip">contentos.us</span><span class="chip">Upload a file</span><span class="chip">Paste text</span>
+          </div>
+          <div class="actions">
+            <button>Skip for now</button>
+            <button class="primary">Analyze and continue →</button>
+          </div>
+          <p class="note" style="margin-top:12px">No multi-field form. Ask only for what cannot be inferred.</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="screen">
+      <div class="screen-label">2. FIRST LEADS VISIT, ONE-SENTENCE MISSION THEN THE EXISTING WORKFLOW</div>
+      <div class="app">
+        <aside><div class="logo">CONTENT OS</div><nav><div>Dashboard</div><div>Write</div><div class="active">Leads</div><div>Analytics</div></nav></aside>
+        <main>
+          <div class="top"><div><p class="note">TODAY</p><h1>Leads</h1><p>People and organizations worth acting on now.</p></div><button>New mission</button></div>
+          <div class="mission">
+            <div><strong>Raise our seed round</strong><span class="note">Find fintech investors who lead $1–3M seed rounds and have backed creator tools.</span></div>
+            <button>Edit</button>
+          </div>
+          <div class="grid">
+            <div class="list">
+              <div class="lead selected"><div class="lead-title"><span>Maya Chen</span><span>92</span></div><div class="meta">Partner · Northstar Ventures · Person</div><div class="reason">Why now: published a thesis on creator-fintech infrastructure 6 days ago.</div></div>
+              <div class="lead"><div class="lead-title"><span>Relay Capital</span><span>88</span></div><div class="meta">Seed fund · Organization</div><div class="reason">Why fit: 7 related investments, $500k–$2M first checks.</div></div>
+              <div class="lead"><div class="lead-title"><span>Daniel Ortiz</span><span>84</span></div><div class="meta">Angel investor · Person</div><div class="reason">Warm path: follows you and engaged with 2 posts.</div></div>
+            </div>
+            <div class="detail">
+              <div class="row"><span class="badge">PERSON</span><span class="badge">VERIFIED LINKEDIN</span><span class="badge">MISSION: FUNDRAISING</span></div>
+              <h1 style="margin-top:13px">Maya Chen</h1><p>Partner at Northstar Ventures · San Francisco</p>
+              <div class="evidence"><strong>Why this is a workable lead</strong><ul><li>Leads seed rounds between $1M and $3M. <u>Fund profile</u></li><li>Wrote about creator-fintech infrastructure this week. <u>LinkedIn post</u></li><li>Three portfolio companies overlap your market. <u>Portfolio</u></li></ul><p class="note">Every claim links to its source. Low-confidence claims are labeled, never hidden.</p></div>
+              <h2>Recommended next action</h2><p>Comment on the thesis post, then send a short connection note if she responds.</p>
+              <div class="draft">Maya, your point about creator businesses needing finance tooling before they need another audience tool landed. We are seeing the same pattern while building Content OS…</div>
+              <div class="row" style="margin-top:12px"><button class="primary">Approve next action</button><button>Rewrite</button><button>Save</button><button>Dismiss</button></div>
+            </div>
+          </div>
+        </main>
+      </div>
+    </section>
+  </div>
+</body>
+</html>
