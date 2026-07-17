@@ -18,6 +18,14 @@ export interface LinkedInProfile {
   firstName?: string;
   lastName?: string;
   headline?: string;
+  description?: string;
+}
+
+export interface LinkedInCompany {
+  providerId?: string;
+  name?: string;
+  tagline?: string;
+  description?: string;
 }
 
 export interface InMailBalance {
@@ -164,6 +172,31 @@ export async function resolveLinkedInProfile(
     firstName: json.first_name ? String(json.first_name) : undefined,
     lastName: json.last_name ? String(json.last_name) : undefined,
     headline: json.headline ? String(json.headline) : undefined,
+    // Unipile's user-profile response carries the About section as `summary`.
+    description: json.summary ? String(json.summary) : undefined,
+  };
+}
+
+/** Resolves a tracked LinkedIn company page's current name/tagline/description via Unipile. */
+export async function resolveLinkedInCompany(
+  accountId: string,
+  companyUrl: string,
+): Promise<LinkedInCompany> {
+  const identifier = parseLinkedInPublicIdentifier(companyUrl);
+  const res = await unipileJsonGet(
+    `/linkedin/company/${encodeURIComponent(identifier)}?account_id=${encodeURIComponent(accountId)}`,
+  );
+
+  if (!res.ok) {
+    throw new Error(`Company lookup failed: ${await parseUnipileError(res)}`);
+  }
+
+  const json = (await res.json()) as Record<string, unknown>;
+  return {
+    providerId: json.provider_id ? String(json.provider_id) : undefined,
+    name: json.name ? String(json.name) : undefined,
+    tagline: json.tagline ? String(json.tagline) : undefined,
+    description: json.description ? String(json.description) : undefined,
   };
 }
 

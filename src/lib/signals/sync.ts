@@ -190,10 +190,14 @@ export async function syncWorkspaceSignals(
     result.signalsCreated += batch.signalsCreated;
     result.errors.push(...batch.errors);
 
-    // Role-change detection: diff the tracked person's LinkedIn headline against
-    // its stored baseline. Skipped in dry-run and for non-person / non-LinkedIn
-    // sources (the helper guards internally).
-    if (!opts.dryRun && source.platform === 'linkedin' && source.source_type === 'person_profile') {
+    // Profile-change detection: diff the tracked person/company's LinkedIn fields
+    // against the stored baseline. Skipped in dry-run and for non-tracked-profile
+    // / non-LinkedIn sources (the helper guards internally).
+    if (
+      !opts.dryRun &&
+      source.platform === 'linkedin' &&
+      ['person_profile', 'company_page'].includes(source.source_type)
+    ) {
       try {
         const profileResult = await checkProfileChange(client, workspaceId, source, rules);
         if (profileResult.signalCreated) result.signalsCreated += 1;
