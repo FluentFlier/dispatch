@@ -135,6 +135,39 @@ interface LeadNote {
   created_at: string;
 }
 
+interface LeadEvent {
+  id: string;
+  event_type: string;
+  detail: Record<string, unknown> | null;
+  created_at: string;
+}
+
+/** Human label for an activity-trail row (detail.action wins over event_type). */
+function leadEventLabel(e: LeadEvent): string {
+  const action = typeof e.detail?.action === 'string' ? (e.detail.action as string) : e.event_type;
+  const labels: Record<string, string> = {
+    new: 'Added to leads',
+    scraped: 'Seen in scrape',
+    renamed: 'Company renamed',
+    pivoted: 'Pivot detected',
+    merged: 'Duplicate merged',
+    reactivated: 'Resurfaced',
+    resolved: 'Contact found',
+    unresolved: 'Contact lookup failed',
+    signal: 'Signal detected',
+    connect_accepted: 'Connection accepted',
+    sent: 'Message sent',
+    reply_sent: 'Reply sent',
+    dm_drafted: 'Follow-up DM drafted',
+    auto_dm_sent: 'Follow-up DM auto-sent',
+    auto_connect_sent: 'Connect request auto-sent',
+    auto_planned: 'Outreach auto-planned',
+    followed: 'Followed on LinkedIn',
+    rescored: 'Updated',
+  };
+  return labels[action] ?? action.replace(/_/g, ' ');
+}
+
 /**
  * The Maps-style detail panel for a directory lead: company card (logo, about,
  * info box, tags, social links, photo strip), a contact block (or a clear "no
@@ -185,6 +218,22 @@ export function LeadDetail({
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [noteText, setNoteText] = useState('');
   const [notesLoading, setNotesLoading] = useState(false);
+  // Activity trail, loaded lazily when the user expands the section.
+  const [events, setEvents] = useState<LeadEvent[] | null>(null);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const loadEvents = useCallback(async () => {
+    if (events !== null || eventsLoading) return;
+    setEventsLoading(true);
+    try {
+      const res = await fetchWithAuth(`/api/leads/${lead.id}/events`);
+      const data = await res.json();
+      if (res.ok) setEvents((data.events as LeadEvent[]) ?? []);
+    } catch {
+      /* leave collapsed-state; reopen retries */
+    } finally {
+      setEventsLoading(false);
+    }
+  }, [lead.id, events, eventsLoading]);
   const [threadMessages, setThreadMessages] = useState<Array<{ id: string; direction: string; body: string; sent_at: string }>>([]);
   const [threadLoading, setThreadLoading] = useState(false);
   // Free-text "how to change it" instruction for a targeted rewrite of the draft.
@@ -609,6 +658,34 @@ export function LeadDetail({
           </Button>
         </div>
       </section>
+
+      {/* Activity trail (CRM timeline) - lazy-loaded on expand */}
+      <details
+        className="rounded-lg border border-border bg-bg-secondary/40 px-3 py-2"
+        onToggle={(e) => {
+          if ((e.target as HTMLDetailsElement).open) void loadEvents();
+        }}
+      >
+        <summary className="cursor-pointer text-xs tracking-wide text-text-tertiary flex items-center gap-1.5">
+          <Clock className="h-3.5 w-3.5" /> Activity
+        </summary>
+        {eventsLoading ? (
+          <p className="mt-2 text-xs text-text-tertiary">Loading activity…</p>
+        ) : events && events.length > 0 ? (
+          <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+            {events.map((e) => (
+              <li key={e.id} className="flex items-baseline justify-between gap-3 text-xs">
+                <span className="text-text-secondary">{leadEventLabel(e)}</span>
+                <span className="text-text-tertiary shrink-0">
+                  {new Date(e.created_at).toLocaleDateString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : events ? (
+          <p className="mt-2 text-xs text-text-tertiary italic">No activity yet.</p>
+        ) : null}
+      </details>
 
       {/* Lead summary: what this is + why it's worth pursuing (+ source link) */}
       <div className="rounded-md border border-border bg-bg-primary px-3 py-2 space-y-1">

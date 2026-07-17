@@ -99,9 +99,9 @@ export function useLeadsController() {
   const [feedLimit, setFeedLimit] = useState(FEED_PAGE_SIZE);
   // Bulk lead import drawer (CSV / paste).
   const [importOpen, setImportOpen] = useState(false);
-  // Header toggle: "feed" is the unified lead list (default); "setup" is the
-  // signal + directory configuration surface folded in from the retired /signals page.
-  const [view, setView] = useState<'feed' | 'setup'>('feed');
+  // Header toggle: "feed" is the unified lead list (default); "pipeline" is
+  // the CRM funnel view; "setup" is the configuration surface.
+  const [view, setView] = useState<'feed' | 'pipeline' | 'setup'>('feed');
   const [companyById, setCompanyById] = useState<Record<string, YcCompanyDetail | 'loading' | 'error'>>({});
   // Full engager records, loaded lazily when an engager card is opened.
   const [engagersById, setEngagersById] = useState<Record<string, WarmContactRow | 'loading'>>({});
@@ -122,6 +122,20 @@ export function useLeadsController() {
       setView('setup');
     }
   }, [searchParams]);
+
+  // The pipeline view spans every outreach status, while the feed's default
+  // filter only loads 'new' leads - so entering it loads the full workspace.
+  useEffect(() => {
+    if (view !== 'pipeline') return;
+    void fetchWithAuth('/api/leads?status=all')
+      .then(async (r) => {
+        if (!r.ok) return;
+        const d = await r.json();
+        indexLeads(d.leads ?? []);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   // --- Data loading ---
   // Directory-lead detail + settings + watchlist come from bootstrap; the feed

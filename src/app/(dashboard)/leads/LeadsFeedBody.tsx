@@ -21,7 +21,8 @@ import {
   ScrapeProgress,
 } from '@/components/leads/LeadsFeedChrome';
 import type { LeadDetailAction } from '@/lib/leads/busy';
-import { feedViewState } from '@/lib/leads/feed-view';
+import { feedViewState, PIPELINE_COLUMNS, pipelineColumn } from '@/lib/leads/feed-view';
+import { nurtureStageLabel } from '@/components/leads/feed-format';
 import { useLeadsController } from './useLeadsController';
 
 /** Initial feed page + how much each "Load more" adds. Capped by the server at 300. */
@@ -64,7 +65,7 @@ export function LeadsFeedBody(props: LeadsController) {
   const {
     toast,
     cards, settings, setSettings, profiles, setProfiles, followed, setFollowed,
-    filters, setFilters, selectedId, setSelectedId, drafts, setDrafts, autosaveDraft,
+    filters, setFilters, selectedId, setSelectedId, drafts, setDrafts, autosaveDraft, leadsById,
     loading, loadError, setupRequired, setupMessage, listLoading, scraping, scrapeProgress,
     busyActionFor, selectedIds, bulkBusy, acceptedIds, emailConfirmId, setEmailConfirmId,
     feedLimit, setFeedLimit, importOpen, setImportOpen, view, setView,
@@ -114,9 +115,9 @@ export function LeadsFeedBody(props: LeadsController) {
         }
       />
 
-      {/* Feed | Setup segmented control */}
+      {/* Feed | Pipeline | Setup segmented control */}
       <div className="inline-flex rounded-md border border-border bg-bg-secondary p-1 gap-1">
-        {(['feed', 'setup'] as const).map((v) => (
+        {(['feed', 'pipeline', 'setup'] as const).map((v) => (
           <button
             key={v}
             type="button"
@@ -126,12 +127,44 @@ export function LeadsFeedBody(props: LeadsController) {
             }`}
             aria-pressed={view === v}
           >
-            {v === 'feed' ? 'Feed' : 'Setup'}
+            {v === 'feed' ? 'Feed' : v === 'pipeline' ? 'Pipeline' : 'Setup'}
           </button>
         ))}
       </div>
 
-      {view === 'setup' ? (
+      {view === 'pipeline' ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {PIPELINE_COLUMNS.map((col) => {
+            const items = Object.values(leadsById).filter((l) => pipelineColumn(l) === col.key);
+            return (
+              <div key={col.key} className="rounded-lg border border-border bg-bg-secondary p-3 space-y-2 min-h-[140px]">
+                <p className="text-xs font-semibold text-text-primary">
+                  {col.label} <span className="text-text-tertiary font-normal">({items.length})</span>
+                </p>
+                {items.map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedId(l.id);
+                      setView('feed');
+                      setFilters((f) => ({ ...f, status: 'all' }));
+                    }}
+                    className="w-full text-left rounded-md border border-border bg-bg-primary px-2.5 py-2 hover:border-accent-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+                  >
+                    <p className="text-sm font-medium text-text-primary truncate">{l.company_name}</p>
+                    <p className="text-xs text-text-tertiary truncate">
+                      {nurtureStageLabel(l.nurture_stage) ?? l.lead_status}
+                      {l.needs_reply ? ' - needs reply' : ''}
+                    </p>
+                  </button>
+                ))}
+                {items.length === 0 && <p className="text-xs text-text-tertiary italic">Empty</p>}
+              </div>
+            );
+          })}
+        </div>
+      ) : view === 'setup' ? (
         <div className="space-y-6">
           {/* Basics — the two things a user must set to get relevant leads: who to
               reach (ICP) and where to look (sources). Everything else is under
