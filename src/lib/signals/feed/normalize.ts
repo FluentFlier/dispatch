@@ -44,6 +44,8 @@ export interface UnifiedLeadCard {
   nurtureStage?: NurtureStage | null;
   /** True when the prospect replied and is waiting on you. */
   needsReply?: boolean;
+  /** Hidden from the feed until this timestamp (directory leads only). */
+  snoozedUntil?: string | null;
 }
 
 /**
@@ -186,5 +188,6 @@ export function normalizeLead(l: SignalLeadWithContacts): UnifiedLeadCard {
     firstSeenAt: l.first_seen_at ?? null,
     nurtureStage: (l.nurture_stage as NurtureStage | null | undefined) ?? null,
     needsReply: l.needs_reply ?? false,
+    snoozedUntil: l.snoozed_until ?? null,
   };
 }

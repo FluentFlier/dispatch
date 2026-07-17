@@ -7,6 +7,8 @@ import { errorResponse } from '@/lib/api-errors';
 
 const patchSchema = z.object({
   action: z.enum(['dismiss', 'snooze']).optional(),
+  /** Snooze horizon in days (1, 7, or 30 from the UI). */
+  days: z.number().int().min(1).max(30).optional(),
   status: z
     .enum(['new', 'drafted', 'approved', 'sent', 'dismissed', 'resurfaced'])
     .optional(),
@@ -19,7 +21,7 @@ const patchSchema = z.object({
 
 /**
  * PATCH /api/leads/:id
- * Lifecycle updates from the Today tab: dismiss, or snooze (push digest_date +1).
+ * Lifecycle updates from the Today tab: dismiss, or snooze (hide until snoozed_until).
  */
 export async function PATCH(
   request: NextRequest,
@@ -43,9 +45,13 @@ export async function PATCH(
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
 
     if (body.action === 'snooze') {
-      const next = new Date();
-      next.setDate(next.getDate() + 1);
-      await updateLead(client, workspaceId, params.id, { digest_date: next.toISOString().slice(0, 10) });
+      const next = new Date(Date.now() + (body.days ?? 7) * 86_400_000);
+      await updateLead(client, workspaceId, params.id, {
+        // Feed hides the lead until snoozed_until; digest_date keeps the email
+        // digest from resurfacing it earlier.
+        snoozed_until: next.toISOString(),
+        digest_date: next.toISOString().slice(0, 10),
+      });
     } else if (body.conversion_stage !== undefined || body.needs_reply !== undefined) {
       const clearsReply =
         body.needs_reply === false ||

@@ -137,6 +137,9 @@ export async function listLeads(
 
   return (data ?? [])
     .map((row) => hydrateLead(row))
+    // Snoozed leads stay hidden until their snooze expires. JS-side filter on
+    // purpose: this backend's .or() with null checks is a known quirk trap.
+    .filter((l) => !l.snoozed_until || Date.parse(l.snoozed_until) <= Date.now())
     .sort((a, b) => leadSortScore(b) - leadSortScore(a))
     .slice(0, renderLimit);
 }

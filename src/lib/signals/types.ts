@@ -264,6 +264,8 @@ export interface SignalLeadRow {
   unipile_chat_id?: string | null;
   last_inbound_at?: string | null;
   conversion_stage?: ConversionStage | string | null;
+  /** Hide from the feed until this timestamp (null = not snoozed). */
+  snoozed_until?: string | null;
   first_seen_at: string;
   last_seen_at: string;
   digest_date: string | null;

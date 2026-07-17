@@ -135,8 +135,8 @@ export function useLeadsController() {
     setSetupMessage(null);
     try {
       const [feedRes, bootRes] = await Promise.all([
-        fetch(`/api/leads/feed?${feedQuery()}`),
-        fetch(`/api/leads/bootstrap?status=${filters.status}`),
+        fetchWithAuth(`/api/leads/feed?${feedQuery()}`),
+        fetchWithAuth(`/api/leads/bootstrap?status=${filters.status}`),
       ]);
       const feed = await feedRes.json().catch(() => ({}));
       const boot = await bootRes.json().catch(() => ({}));
@@ -166,7 +166,7 @@ export function useLeadsController() {
       // a failure here must not surface as a load error (swallow + ignore).
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       if (tz)
-        void fetch('/api/leads/settings', { method: 'PUT', headers: jsonHeaders, body: JSON.stringify({ timezone: tz }) }).catch(
+        void fetchWithAuth('/api/leads/settings', { method: 'PUT', headers: jsonHeaders, body: JSON.stringify({ timezone: tz }) }).catch(
           () => {},
         );
     } catch {
@@ -192,9 +192,11 @@ export function useLeadsController() {
     setListLoading(true);
     try {
       const [feedRes, leadsRes] = await Promise.all([
-        fetch(`/api/leads/feed?${feedQuery()}`),
-        fetch(`/api/leads?status=${filters.status}`),
+        fetchWithAuth(`/api/leads/feed?${feedQuery()}`),
+        fetchWithAuth(`/api/leads?status=${filters.status}`),
       ]);
+      // A non-ok response must not blank the feed to a fake "no leads" state.
+      if (!feedRes.ok || !leadsRes.ok) throw new Error('refresh failed');
       const feed = await feedRes.json();
       const leadsData = await leadsRes.json();
       // Discard if a newer fetch (filter change or bootstrap) started meanwhile.
@@ -238,7 +240,7 @@ export function useLeadsController() {
     if (!card || card.kind !== 'directory') return;
     const id = selectedId;
     setCompanyById((m) => ({ ...m, [id]: 'loading' }));
-    fetch(`/api/leads/${id}/company`)
+    fetchWithAuth(`/api/leads/${id}/company`)
       .then((r) => {
         if (!r.ok) throw new Error('company fetch failed');
         return r.json();
@@ -266,8 +268,11 @@ export function useLeadsController() {
     if (!card || card.kind !== 'engager') return;
     const id = selectedId;
     setEngagersById((m) => ({ ...m, [id]: 'loading' }));
-    fetch(`/api/social-graph/warm-contacts/${id}`)
-      .then((r) => r.json())
+    fetchWithAuth(`/api/social-graph/warm-contacts/${id}`)
+      .then((r) => {
+        if (!r.ok) throw new Error('engager fetch failed');
+        return r.json();
+      })
       .then((d) => {
         const contact = (d.contact as WarmContactRow) ?? null;
         setEngagersById((m) => ({ ...m, [id]: contact ?? 'loading' }));
@@ -354,7 +359,7 @@ export function useLeadsController() {
     const worker = async () => {
       for (let lead = queue.shift(); lead; lead = queue.shift()) {
         try {
-          const res = await fetch(`/api/leads/${lead.id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
+          const res = await fetchWithAuth(`/api/leads/${lead.id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
           const data = await res.json();
           if (res.ok) {
             mergeLead(data.lead);
@@ -381,7 +386,7 @@ export function useLeadsController() {
     setScraping(true);
     setScrapeProgress({ pct: 0, label: 'Starting scrape…' });
     try {
-      const res = await fetch('/api/leads/sync', { method: 'POST' });
+      const res = await fetchWithAuth('/api/leads/sync', { method: 'POST' });
       if (!res.ok || !res.body) {
         // Non-stream error path (auth / no-workspace return plain JSON).
         const data = await res.json().catch(() => ({}));
@@ -451,7 +456,7 @@ export function useLeadsController() {
       const payload: Record<string, unknown> = {};
       if (rewriteInstruction) payload.rewriteInstruction = rewriteInstruction;
       if (polish) payload.polish = true;
-      const res = await fetch(`/api/leads/${id}/draft`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/draft`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify(payload),
@@ -474,7 +479,7 @@ export function useLeadsController() {
     edit: { whyThem?: string; angle?: string; stepLabels?: string[] },
   ) => {
     try {
-      const res = await fetch(`/api/leads/${id}/playbook`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/playbook`, {
         method: 'PATCH',
         headers: jsonHeaders,
         body: JSON.stringify({ edit }),
@@ -495,7 +500,7 @@ export function useLeadsController() {
     setBusy({ id, action: 'approve' });
     try {
       // Send the (possibly edited) draft so the edit-feedback loop can capture it.
-      const res = await fetch(`/api/leads/${id}/approve`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/approve`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ channel, messageText: drafts[id] }),
@@ -517,7 +522,7 @@ export function useLeadsController() {
   const handleCheckConnection = async (id: string) => {
     setBusy({ id, action: 'check' });
     try {
-      const res = await fetch(`/api/leads/${id}/check-connection`, { method: 'POST' });
+      const res = await fetchWithAuth(`/api/leads/${id}/check-connection`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       if (data.connected) {
@@ -538,7 +543,7 @@ export function useLeadsController() {
   const handleMarkStage = async (id: string, stage: 'accepted' | 'replied' | 'closed') => {
     setBusy({ id, action: 'stage' });
     try {
-      const res = await fetch(`/api/leads/${id}/outreach-stage`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/outreach-stage`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ stage }),
@@ -558,7 +563,7 @@ export function useLeadsController() {
   const handleDraftFollowup = async (id: string) => {
     setBusy({ id, action: 'followup' });
     try {
-      const res = await fetch(`/api/leads/${id}/draft`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/draft`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ channel: 'linkedin_dm' }),
@@ -580,7 +585,7 @@ export function useLeadsController() {
   const handleDraftReply = async (id: string) => {
     setBusy({ id, action: 'reply' });
     try {
-      const res = await fetch(`/api/leads/${id}/draft-reply`, { method: 'POST', headers: jsonHeaders, body: '{}' });
+      const res = await fetchWithAuth(`/api/leads/${id}/draft-reply`, { method: 'POST', headers: jsonHeaders, body: '{}' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       mergeLead(data.lead);
@@ -599,7 +604,7 @@ export function useLeadsController() {
   const handleSendReply = async (id: string) => {
     setBusy({ id, action: 'approve' });
     try {
-      const res = await fetch(`/api/leads/${id}/reply`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/reply`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ messageText: drafts[id] }),
@@ -628,7 +633,7 @@ export function useLeadsController() {
     setEmailConfirmId(null);
     setBusy({ id, action: 'email' });
     try {
-      const res = await fetch(`/api/leads/${id}/approve`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/approve`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ channel: 'gmail', emailOptIn: true, messageText: drafts[id] }),
@@ -647,7 +652,7 @@ export function useLeadsController() {
   const handleDismiss = async (id: string) => {
     setBusy({ id, action: 'dismiss' });
     try {
-      const res = await fetch(`/api/leads/${id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ action: 'dismiss' }) });
+      const res = await fetchWithAuth(`/api/leads/${id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ action: 'dismiss' }) });
       if (!res.ok) throw new Error();
       setCards((prev) => prev.filter((c) => c.id !== id));
       setLeadsById((prev) => {
@@ -694,7 +699,7 @@ export function useLeadsController() {
     try {
       const results = await Promise.allSettled(
         ids.map((id) =>
-          fetch(`/api/leads/${id}`, {
+          fetchWithAuth(`/api/leads/${id}`, {
             method: 'PATCH',
             headers: jsonHeaders,
             body: JSON.stringify({ action }),
@@ -745,7 +750,7 @@ export function useLeadsController() {
   // Export a specific id subset (POST, since a GET can't carry many UUIDs).
   const exportSelectedIds = async (ids: string[]) => {
     try {
-      const res = await fetch('/api/leads/export', {
+      const res = await fetchWithAuth('/api/leads/export', {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ ids, status: filters.status }),
@@ -778,7 +783,7 @@ export function useLeadsController() {
     status: 'pending' | 'done',
   ) => {
     try {
-      const res = await fetch(`/api/leads/${id}/playbook`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/playbook`, {
         method: 'PATCH',
         headers: jsonHeaders,
         body: JSON.stringify({ stepIndex, status }),
@@ -791,12 +796,12 @@ export function useLeadsController() {
     }
   };
 
-  const handleSnooze = async (id: string) => {
+  const handleSnooze = async (id: string, days: number = 7) => {
     setBusy({ id, action: 'snooze' });
     try {
-      const res = await fetch(`/api/leads/${id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ action: 'snooze' }) });
+      const res = await fetchWithAuth(`/api/leads/${id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ action: 'snooze', days }) });
       if (!res.ok) throw new Error();
-      // Snoozed leads leave today's surface (digest_date pushed +1); drop from view like dismiss.
+      // Server hides the lead via snoozed_until; drop from view like dismiss.
       setCards((prev) => prev.filter((c) => c.id !== id));
       setLeadsById((prev) => {
         const next = { ...prev };
@@ -804,7 +809,7 @@ export function useLeadsController() {
         return next;
       });
       if (selectedId === id) setSelectedId(null);
-      toast('Snoozed until tomorrow.');
+      toast(days === 1 ? 'Snoozed until tomorrow.' : `Snoozed for ${days} days.`);
     } catch {
       toast('Could not snooze.', 'error');
     } finally {
@@ -815,7 +820,7 @@ export function useLeadsController() {
   const handleResolve = async (id: string, force = false) => {
     setBusy({ id, action: 'resolve' });
     try {
-      const res = await fetch(`/api/leads/${id}/resolve`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/resolve`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ force }),
@@ -833,7 +838,7 @@ export function useLeadsController() {
         return;
       }
       toast('Contact found — drafting…', 'success');
-      const dres = await fetch(`/api/leads/${id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
+      const dres = await fetchWithAuth(`/api/leads/${id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
       const ddata = await dres.json();
       if (dres.ok) {
         mergeLead(ddata.lead);
@@ -871,7 +876,7 @@ export function useLeadsController() {
 
   const handleFollowLead = async (lead: SignalLeadWithContacts) => {
     try {
-      const res = await fetch('/api/leads/followed', {
+      const res = await fetchWithAuth('/api/leads/followed', {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ companyName: lead.company_name, domain: lead.domain, externalId: lead.external_id }),
@@ -899,7 +904,7 @@ export function useLeadsController() {
     });
     try {
       const plan = resolveSignalOutreach(card);
-      const res = await fetch(`/api/signals/${id}/draft`, {
+      const res = await fetchWithAuth(`/api/signals/${id}/draft`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ channel: plan.channel }),
@@ -933,7 +938,7 @@ export function useLeadsController() {
       return next;
     });
     try {
-      const res = await fetch(`/api/signals/${id}/send`, {
+      const res = await fetchWithAuth(`/api/signals/${id}/send`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({
@@ -964,7 +969,7 @@ export function useLeadsController() {
   // card so the list + detail stay consistent without a full refetch.
   const refreshEngager = useCallback(async (id: string) => {
     try {
-      const res = await fetch(`/api/social-graph/warm-contacts/${id}`);
+      const res = await fetchWithAuth(`/api/social-graph/warm-contacts/${id}`);
       const data = await res.json();
       const contact = (data.contact as WarmContactRow) ?? null;
       if (!contact) return;
@@ -995,7 +1000,7 @@ export function useLeadsController() {
       return next;
     });
     try {
-      const res = await fetch(`/api/social-graph/warm-contacts/${id}/plan`, { method: 'POST' });
+      const res = await fetchWithAuth(`/api/social-graph/warm-contacts/${id}/plan`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Plan failed');
       await refreshEngager(id);
@@ -1022,14 +1027,14 @@ export function useLeadsController() {
       // Persist any inline edits to the draft before sending.
       const draft = drafts[id];
       if (draft?.trim()) {
-        await fetch(`/api/social-graph/warm-contacts/${id}`, {
+        await fetchWithAuth(`/api/social-graph/warm-contacts/${id}`, {
           method: 'PATCH',
           headers: jsonHeaders,
           body: JSON.stringify({ draft }),
         }).catch(() => {});
       }
       const path = kind === 'connect' ? 'send' : 'send-dm';
-      const res = await fetch(`/api/social-graph/warm-contacts/${id}/${path}`, {
+      const res = await fetchWithAuth(`/api/social-graph/warm-contacts/${id}/${path}`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify(kind === 'connect' ? { note: draft } : { message: draft }),
@@ -1055,7 +1060,7 @@ export function useLeadsController() {
   const handleEngagerDismiss = async (id: string) => {
     setBusy({ id, action: 'dismiss' });
     try {
-      const res = await fetch(`/api/social-graph/warm-contacts/${id}/dismiss`, { method: 'POST' });
+      const res = await fetchWithAuth(`/api/social-graph/warm-contacts/${id}/dismiss`, { method: 'POST' });
       if (!res.ok) throw new Error();
       setCards((prev) => prev.filter((c) => c.id !== id));
       if (selectedId === id) setSelectedId(null);

@@ -45,6 +45,9 @@ export function mergeFeed(
   filters: FeedFilters,
 ): UnifiedLeadCard[] {
   let cards = [...directoryCards, ...signalCards];
+  // Snoozed leads stay hidden until the snooze expires (listLeads filters too;
+  // this keeps the pure merge correct for any caller).
+  cards = cards.filter((c) => !c.snoozedUntil || Date.parse(c.snoozedUntil) <= Date.now());
   if (filters.kind) cards = cards.filter((c) => c.kind === filters.kind);
   if (filters.source) cards = cards.filter((c) => c.source === filters.source);
   if (filters.signalType) cards = cards.filter((c) => c.signalType === filters.signalType);

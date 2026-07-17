@@ -379,7 +379,7 @@ export function LeadsFeedBody(props: LeadsController) {
                 onApprove={(channel) => handleApprove(selectedLead.id, channel)}
                 onEmail={() => handleEmail(selectedLead.id)}
                 onDismiss={() => handleDismiss(selectedLead.id)}
-                onSnooze={() => handleSnooze(selectedLead.id)}
+                onSnooze={(days) => handleSnooze(selectedLead.id, days)}
                 onResolve={(force?: boolean) => handleResolve(selectedLead.id, force ?? false)}
                 onFollow={() => handleFollowLead(selectedLead)}
                 onPlanNurture={() => handlePlanNurture(selectedLead.id)}

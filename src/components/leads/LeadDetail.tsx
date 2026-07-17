@@ -110,7 +110,7 @@ interface LeadDetailProps {
   onApprove: (channel?: 'linkedin_connect' | 'linkedin_dm' | 'x_dm') => void;
   onEmail: () => void;
   onDismiss: () => void;
-  onSnooze?: () => void;
+  onSnooze?: (days: number) => void;
   onResolve: (force?: boolean) => void;
   onFollow: () => void;
   onPlanNurture?: () => void;
@@ -689,9 +689,23 @@ export function LeadDetail({
             </Button>
           )}
           {onSnooze && (
-            <Button variant="ghost" size="sm" onClick={onSnooze} title="Hide until tomorrow's digest">
-              <Clock className="h-4 w-4" /> Snooze
-            </Button>
+            <label className="inline-flex items-center gap-1 text-xs text-text-secondary" title="Hide this lead for a while">
+              <Clock className="h-4 w-4" aria-hidden="true" />
+              <span className="sr-only">Snooze</span>
+              <select
+                value=""
+                onChange={(e) => {
+                  const days = Number(e.target.value);
+                  if (days) onSnooze(days);
+                }}
+                className="rounded-md border border-border bg-bg-secondary px-2 py-1.5 text-xs text-text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+              >
+                <option value="" disabled>Snooze&hellip;</option>
+                <option value="1">1 day</option>
+                <option value="7">7 days</option>
+                <option value="30">30 days</option>
+              </select>
+            </label>
           )}
           <Button variant="ghost" size="sm" onClick={onDismiss}>
             <X className="h-4 w-4" /> Dismiss

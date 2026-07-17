@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { SignalsSetupBanner } from '@/components/signals/SignalsSetupBanner';
 import { SignalRulesManager } from '@/components/signals/SignalRulesManager';
-import CalendarConnectionCard from '@/components/calendar/CalendarConnectionCard';
 import type { SignalSourceRow } from '@/lib/signals/types';
 
 /**
@@ -64,18 +63,6 @@ interface LinkedInStatus {
   inmail?: { available: number | null } | null;
 }
 
-/** One integration row (Slack / Gmail / Google Calendar) from the API. */
-interface IntegrationStatus {
-  toolkit: 'slack' | 'gmail' | 'googlecalendar';
-  connected: boolean;
-  enabled: boolean;
-  config: {
-    slack_channel_id?: string;
-    slack_channel_name?: string;
-    notify_on_new_signal?: boolean;
-  };
-}
-
 /**
  * Signal configuration surface for the unified `/leads` page Setup tab.
  *
@@ -95,7 +82,6 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
   const [sources, setSources] = useState<SignalSourceRow[]>([]);
   const [safety, setSafety] = useState<SafetyStatus | null>(null);
   const [linkedIn, setLinkedIn] = useState<LinkedInStatus | null>(null);
-  const [integrations, setIntegrations] = useState<IntegrationStatus[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
@@ -105,20 +91,17 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
   const [removingKeywordId, setRemovingKeywordId] = useState<string | null>(null);
   const [enablingSend, setEnablingSend] = useState(false);
   const [togglingAuto, setTogglingAuto] = useState(false);
-  const [connectingToolkit, setConnectingToolkit] = useState<'slack' | 'gmail' | null>(null);
-  const [composioConfigured, setComposioConfigured] = useState(true);
 
   // --- Data loading (same endpoints as the retired /signals page) ---
-  /** Loads sources, safety, LinkedIn status, and integrations in parallel. */
+  /** Loads sources, safety, and LinkedIn status in parallel. */
   const loadAll = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const [sourcesRes, safetyRes, linkedInRes, integrationsRes] = await Promise.all([
+      const [sourcesRes, safetyRes, linkedInRes] = await Promise.all([
         fetch('/api/signals/sources', { credentials: 'same-origin' }),
         fetch('/api/signals/safety', { credentials: 'same-origin' }),
         fetch('/api/signals/linkedin', { credentials: 'same-origin' }),
-        fetch('/api/signals/integrations', { credentials: 'same-origin' }),
       ]);
       if (sourcesRes.ok) {
         const data = await sourcesRes.json();
@@ -126,11 +109,6 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
       }
       if (safetyRes.ok) setSafety(await safetyRes.json());
       if (linkedInRes.ok) setLinkedIn(await linkedInRes.json());
-      if (integrationsRes.ok) {
-        const data = await integrationsRes.json();
-        setIntegrations((data.integrations ?? []) as IntegrationStatus[]);
-        setComposioConfigured(Boolean(data.composio_configured));
-      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not load setup.');
     } finally {
@@ -214,27 +192,6 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
       setError(e instanceof Error ? e.message : 'Could not update auto-send.');
     } finally {
       setTogglingAuto(false);
-    }
-  };
-
-  /** Starts Composio OAuth for Gmail or Slack (same flow as onboarding). */
-  const connectComposio = async (toolkit: 'slack' | 'gmail') => {
-    if (!composioConfigured) {
-      setError('Composio is not configured on this deployment.');
-      return;
-    }
-    setConnectingToolkit(toolkit);
-    setError(null);
-    try {
-      const res = await fetch(`/api/integrations/composio/link?toolkit=${toolkit}`);
-      const data = await res.json();
-      if (!res.ok || !data.redirect_url) {
-        throw new Error(data.error ?? `Could not start ${toolkit} connect.`);
-      }
-      window.location.href = data.redirect_url as string;
-    } catch (e) {
-      setError(e instanceof Error ? e.message : `Could not connect ${toolkit}.`);
-      setConnectingToolkit(null);
     }
   };
 
@@ -331,9 +288,6 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
     dryRun: Boolean(safety?.settings.dry_run),
     outreachEnabled: Boolean(safety?.settings.outreach_enabled),
   };
-
-  const slackIntegration = integrations.find((i) => i.toolkit === 'slack');
-  const gmailIntegration = integrations.find((i) => i.toolkit === 'gmail');
 
   if (loading) {
     return <p className="text-sm text-text-tertiary">Loading setup…</p>;
@@ -546,39 +500,6 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
         </div>
       </section>
 
-    </div>
-  );
-}
-
-/** Small connected/not-connected status chip for an integration. */
-function IntegrationPill({
-  label,
-  connected,
-  onConnect,
-  connecting,
-}: {
-  label: string;
-  connected: boolean;
-  onConnect?: () => void;
-  connecting?: boolean;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-md border border-border bg-bg-primary px-3 py-2">
-      <span className="text-text-primary font-medium">{label}</span>
-      {connected ? (
-        <span className="text-accent-secondary">Connected</span>
-      ) : onConnect ? (
-        <button
-          type="button"
-          onClick={onConnect}
-          disabled={connecting}
-          className="text-accent-primary font-medium hover:underline disabled:opacity-60"
-        >
-          {connecting ? 'Connecting…' : 'Connect'}
-        </button>
-      ) : (
-        <span className="text-text-tertiary">Not connected</span>
-      )}
     </div>
   );
 }
