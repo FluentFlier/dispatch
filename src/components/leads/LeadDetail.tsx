@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import {
   RefreshCw,
   Sparkles,
@@ -192,7 +193,7 @@ export function LeadDetail({
   const loadNotes = useCallback(async () => {
     setNotesLoading(true);
     try {
-      const res = await fetch(`/api/leads/${lead.id}/notes`);
+      const res = await fetchWithAuth(`/api/leads/${lead.id}/notes`);
       const data = await res.json();
       if (res.ok) setNotes(data.notes ?? []);
     } catch {
@@ -210,7 +211,7 @@ export function LeadDetail({
     if (!lead.needs_reply && lead.nurture_stage !== 'replied') return;
     setThreadLoading(true);
     try {
-      const res = await fetch(`/api/leads/${lead.id}/messages`);
+      const res = await fetchWithAuth(`/api/leads/${lead.id}/messages`);
       const data = await res.json();
       if (res.ok) setThreadMessages(data.messages ?? []);
     } catch {
@@ -227,7 +228,7 @@ export function LeadDetail({
   const addNote = async () => {
     const body = noteText.trim();
     if (!body) return;
-    const res = await fetch(`/api/leads/${lead.id}/notes`, {
+    const res = await fetchWithAuth(`/api/leads/${lead.id}/notes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ body }),
@@ -337,7 +338,18 @@ export function LeadDetail({
             {detail?.description ? (
               <AboutText text={detail.description} />
             ) : (
-              <p className="text-sm text-text-tertiary italic">No public description yet.</p>
+              <p className="text-sm text-text-tertiary italic">
+                No public description yet.
+                {onRetryCompany && (
+                  <button
+                    type="button"
+                    onClick={onRetryCompany}
+                    className="ml-2 not-italic text-accent-primary hover:underline cursor-pointer"
+                  >
+                    Look again
+                  </button>
+                )}
+              </p>
             )}
           </div>
           {/* Info box + tags (right) */}

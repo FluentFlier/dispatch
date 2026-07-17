@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { useToast } from '@/components/ui/Toast';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
@@ -44,7 +45,7 @@ export function SlackConnectionCard({ refreshKey = 0 }: SlackConnectionCardProps
 
   const loadStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/signals/integrations');
+      const res = await fetchWithAuth('/api/signals/integrations');
       const data = await res.json();
       const row = (data.integrations as Array<{ toolkit: string; connected: boolean; enabled: boolean; config: SlackConfig }> | undefined)?.find(
         (i) => i.toolkit === 'slack',
@@ -69,7 +70,7 @@ export function SlackConnectionCard({ refreshKey = 0 }: SlackConnectionCardProps
   const loadChannels = useCallback(async () => {
     setChannelsLoading(true);
     try {
-      const res = await fetch('/api/signals/integrations/slack/channels');
+      const res = await fetchWithAuth('/api/signals/integrations/slack/channels');
       const data = await res.json();
       if (res.ok) setChannels(data.channels ?? []);
       else toast(data.error ?? 'Could not load channels.', 'error');
@@ -89,7 +90,7 @@ export function SlackConnectionCard({ refreshKey = 0 }: SlackConnectionCardProps
     if (!toolkitReady) return toast('Slack auth is not configured on this deployment.', 'error');
     setConnecting(true);
     try {
-      const res = await fetch('/api/integrations/composio/link?toolkit=slack&return=settings');
+      const res = await fetchWithAuth('/api/integrations/composio/link?toolkit=slack&return=settings');
       const data = await res.json();
       if (!res.ok || !data.redirect_url) throw new Error(data.error ?? 'Could not start Slack connect.');
       window.location.href = data.redirect_url as string;
@@ -102,7 +103,7 @@ export function SlackConnectionCard({ refreshKey = 0 }: SlackConnectionCardProps
   const patch = async (body: SlackConfig, successMsg: string) => {
     setSaving(true);
     try {
-      const res = await fetch('/api/signals/integrations', {
+      const res = await fetchWithAuth('/api/signals/integrations', {
         method: 'PATCH',
         headers: jsonHeaders,
         body: JSON.stringify({ toolkit: 'slack', ...body }),

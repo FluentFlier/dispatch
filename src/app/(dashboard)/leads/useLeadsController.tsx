@@ -251,13 +251,17 @@ export function useLeadsController() {
       .catch(() => setCompanyById((m) => ({ ...m, [id]: 'error' })));
   }, [selectedId, companyById, cards]);
 
-  // Retry a failed company-info fetch: dropping the entry re-arms the effect.
+  // Retry a failed or empty company-info fetch. ?refresh=1 tells the server to
+  // bypass the "checked, nothing found" TTL and look again right now.
   const retryCompany = useCallback((id: string) => {
-    setCompanyById((m) => {
-      const next = { ...m };
-      delete next[id];
-      return next;
-    });
+    setCompanyById((m) => ({ ...m, [id]: 'loading' }));
+    fetchWithAuth(`/api/leads/${id}/company?refresh=1`)
+      .then((r) => {
+        if (!r.ok) throw new Error('company fetch failed');
+        return r.json();
+      })
+      .then((d) => setCompanyById((m) => ({ ...m, [id]: (d.company as YcCompanyDetail) ?? null })))
+      .catch(() => setCompanyById((m) => ({ ...m, [id]: 'error' })));
   }, []);
 
   // Load the full engager record the first time an engager card is opened, so

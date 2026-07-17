@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { Plus, X } from 'lucide-react';
 import { SignalsSetupBanner } from '@/components/signals/SignalsSetupBanner';
 import { SignalRulesManager } from '@/components/signals/SignalRulesManager';
@@ -99,9 +100,9 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
     setError(null);
     try {
       const [sourcesRes, safetyRes, linkedInRes] = await Promise.all([
-        fetch('/api/signals/sources', { credentials: 'same-origin' }),
-        fetch('/api/signals/safety', { credentials: 'same-origin' }),
-        fetch('/api/signals/linkedin', { credentials: 'same-origin' }),
+        fetchWithAuth('/api/signals/sources', { credentials: 'same-origin' }),
+        fetchWithAuth('/api/signals/safety', { credentials: 'same-origin' }),
+        fetchWithAuth('/api/signals/linkedin', { credentials: 'same-origin' }),
       ]);
       if (sourcesRes.ok) {
         const data = await sourcesRes.json();
@@ -125,7 +126,7 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
   /** Refreshes just the safety block after an outreach setting changes. */
   const fetchSafety = useCallback(async () => {
     try {
-      const res = await fetch('/api/signals/safety', { credentials: 'same-origin' });
+      const res = await fetchWithAuth('/api/signals/safety', { credentials: 'same-origin' });
       if (res.ok) setSafety(await res.json());
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not refresh safety.');
@@ -140,7 +141,7 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
     setEnablingSend(true);
     setError(null);
     try {
-      const res = await fetch('/api/signals/safety', {
+      const res = await fetchWithAuth('/api/signals/safety', {
         method: 'PATCH',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -169,7 +170,7 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
     setError(null);
     try {
       const next = !safety.settings.auto_send_enabled;
-      const res = await fetch('/api/signals/safety', {
+      const res = await fetchWithAuth('/api/signals/safety', {
         method: 'PATCH',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -200,7 +201,7 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
     if (!newSourceHandle.trim()) return;
     setError(null);
     try {
-      const res = await fetch('/api/signals/sources', {
+      const res = await fetchWithAuth('/api/signals/sources', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -231,7 +232,7 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
     if (!keyword) return;
     setError(null);
     try {
-      const res = await fetch('/api/signals/sources', {
+      const res = await fetchWithAuth('/api/signals/sources', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
@@ -260,7 +261,7 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
     setRemovingKeywordId(id);
     setError(null);
     try {
-      const res = await fetch(`/api/signals/sources/${id}`, {
+      const res = await fetchWithAuth(`/api/signals/sources/${id}`, {
         method: 'DELETE',
         credentials: 'same-origin',
       });

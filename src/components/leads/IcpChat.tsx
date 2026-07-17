@@ -143,7 +143,7 @@ export function IcpChat({
       setMessages((prev) => prev.map((m) => (m.id === statusId ? { ...m, content } : m)));
 
     try {
-      const res = await fetch('/api/leads/sync', { method: 'POST' });
+      const res = await fetchWithAuth('/api/leads/sync', { method: 'POST' });
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
         throw new Error(typeof data.error === 'string' ? data.error : 'Search failed.');
@@ -223,7 +223,7 @@ export function IcpChat({
     setLoading(true);
 
     try {
-      const res = await fetch('/api/leads/icp/chat', {
+      const res = await fetchWithAuth('/api/leads/icp/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: trimmed, history }),

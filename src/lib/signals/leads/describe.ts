@@ -1,4 +1,4 @@
-import type { SignalLeadWithContacts } from '@/lib/signals/types';
+import type { LeadCompanyDetail, SignalLeadWithContacts } from '@/lib/signals/types';
 import { tinyfishSearch, tinyfishFetch } from '@/lib/signals/ingest/tinyfish-web';
 import { leadSourceUrl } from '@/lib/signals/leads/summary';
 import { chatCompletion } from '@/lib/llm';
@@ -23,6 +23,44 @@ const OVERALL_BUDGET_MS = 6000;
 const CALL_BUDGET_MS = 4500;
 const MAX_SUMMARY_CHARS = 600;
 const MAX_SOURCE_CHARS = 6000;
+
+/** How long a "checked, nothing found" marker suppresses another live fetch. */
+export const DESCRIPTION_RECHECK_MS = 7 * 24 * 3_600_000;
+
+/**
+ * True when a live description fetch is worth attempting: no description yet,
+ * and the last genuine miss (if any) is older than the recheck TTL. A legacy
+ * boolean `description_checked` latch (no timestamp) counts as due, so
+ * previously latched-forever leads self-migrate to the timestamped marker.
+ */
+export function descriptionCheckDue(
+  cd: LeadCompanyDetail | null | undefined,
+  now: number = Date.now(),
+): boolean {
+  if (cd?.description) return false;
+  const at = cd?.description_checked_at;
+  if (at) return now - Date.parse(at) >= DESCRIPTION_RECHECK_MS;
+  return true;
+}
+
+/**
+ * The description a lead card can already show without any live fetch:
+ * stored company_detail.description, else the tagline, else the tagline
+ * stashed in source_fact. Shared by the company route and the ingest
+ * backfill so "needs a live lookup" means the same thing everywhere.
+ */
+export function seededLeadDescription(
+  lead: Pick<SignalLeadWithContacts, 'company_detail' | 'tagline' | 'source_fact'>,
+): string | undefined {
+  if (lead.company_detail?.description) return lead.company_detail.description;
+  if (lead.tagline?.trim()) return lead.tagline.trim();
+  const sf = lead.source_fact;
+  if (sf && typeof sf === 'object' && 'tagline' in sf) {
+    const t = (sf as { tagline?: unknown }).tagline;
+    if (typeof t === 'string' && t.trim()) return t.trim();
+  }
+  return undefined;
+}
 
 /** Grounding: the source text must actually mention the company (name/token/domain). */
 export function mentionsCompany(text: string, lead: SignalLeadWithContacts): boolean {

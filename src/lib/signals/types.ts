@@ -233,8 +233,10 @@ export interface LeadCompanyDetail {
   fetchedAt?: string;
   /** Where a fallback description came from when one was fetched live. */
   description_source?: 'linkedin' | 'web';
-  /** True once we've tried and failed to fetch a description, so we don't refetch. */
+  /** Legacy permanent latch; superseded by description_checked_at. */
   description_checked?: boolean;
+  /** When we last tried and found nothing; rechecked after a TTL, not latched forever. */
+  description_checked_at?: string;
 }
 
 export interface SignalLeadRow {

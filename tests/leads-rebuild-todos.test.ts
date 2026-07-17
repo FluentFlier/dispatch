@@ -4,12 +4,31 @@
  * eventual test (unit once the helper lands, integration otherwise) must
  * make. Convert to real tests as the rebuild ships the pieces.
  */
-import { describe, it } from 'vitest';
+import { describe, it, expect } from 'vitest';
+import { descriptionCheckDue, DESCRIPTION_RECHECK_MS } from '@/lib/signals/leads/describe';
 
 describe('F3: description recheck TTL (no permanent latch)', () => {
-  it.todo(
-    'unit (once the helper exists): a description check must be recorded as description_checked_at (timestamp), not a boolean latch - a check older than 7 days makes the lead eligible for recheck, a newer one skips it',
-  );
+  const now = Date.parse('2026-07-17T12:00:00Z');
+  const daysAgo = (d: number) => new Date(now - d * 24 * 3_600_000).toISOString();
+
+  it('a stored description is never re-fetched', () => {
+    expect(descriptionCheckDue({ description: 'Acme does X.' }, now)).toBe(false);
+  });
+
+  it('never-checked lead is due', () => {
+    expect(descriptionCheckDue({}, now)).toBe(true);
+    expect(descriptionCheckDue(null, now)).toBe(true);
+  });
+
+  it('a check newer than the TTL skips, older than the TTL rechecks', () => {
+    expect(descriptionCheckDue({ description_checked_at: daysAgo(2) }, now)).toBe(false);
+    expect(descriptionCheckDue({ description_checked_at: daysAgo(8) }, now)).toBe(true);
+    expect(DESCRIPTION_RECHECK_MS).toBe(7 * 24 * 3_600_000);
+  });
+
+  it('legacy boolean latch (no timestamp) counts as due so it self-migrates', () => {
+    expect(descriptionCheckDue({ description_checked: true }, now)).toBe(true);
+  });
 });
 
 describe('SCRAPE FREQUENCY: cron gate respects workspace scrape_frequency', () => {
