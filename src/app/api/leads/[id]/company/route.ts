@@ -37,7 +37,13 @@ export async function GET(
       oneLiner: lead.tagline ?? undefined,
       description: undefined,
       website: lead.website ?? undefined,
-      ycUrl: lead.external_id ? `https://www.ycombinator.com/companies/${lead.external_id}` : '',
+      // Only real YC leads get a YC link. external_id is set for every source
+      // (product_hunt slug, etc.), so templating a YC URL from it unconditionally
+      // slapped a bogus "View on YC" link on non-YC leads.
+      ycUrl:
+        lead.source === 'yc_directory' && lead.external_id
+          ? `https://www.ycombinator.com/companies/${lead.external_id}`
+          : '',
       logoUrl: undefined,
       batch: lead.batch ?? undefined,
       teamSize: undefined,

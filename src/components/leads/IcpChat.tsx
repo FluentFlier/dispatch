@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ArrowUp, Loader2, Sparkles, Target } from 'lucide-react';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import type { DirectorySettingsRow } from '@/lib/signals/types';
 
 export interface IcpChatMessage {
@@ -63,6 +64,9 @@ export function IcpChat({
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [discovering, setDiscovering] = useState(false);
+  // Live, profile-aware refinement chips (Google-autocomplete style). Replaces
+  // the old hardcoded hints; regenerated as the user types or the ICP changes.
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   // LOCAL DEBUG ONLY (do not commit): surfaces when a message failed to set up the
   // ICP so we can see silent no-ops while testing. Renders nothing in prod builds.
   const [icpDebug, setIcpDebug] = useState<string | null>(null);
@@ -89,6 +93,39 @@ export function IcpChat({
     }
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [messages, loading]);
+
+  // Debounced live suggestions: ask the small model for 3-4 refinement chips
+  // based on the saved ICP + what the user is typing. Skips when there's nothing
+  // to work with, aborts in-flight calls on change, and silently shows nothing
+  // if the provider is down - suggestions are a nicety, never a blocker.
+  const icpDescription = settings?.icp_description ?? '';
+  useEffect(() => {
+    const icp = icpDescription.trim();
+    const draft = input.trim();
+    if (draft.length < 3 && !icp) {
+      setSuggestions([]);
+      return;
+    }
+    const ctrl = new AbortController();
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetchWithAuth('/api/leads/icp/suggest', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ current_icp: icp, draft }),
+          signal: ctrl.signal,
+        });
+        const data = await res.json().catch(() => ({}));
+        setSuggestions(Array.isArray(data.suggestions) ? (data.suggestions as string[]) : []);
+      } catch {
+        /* aborted or offline - leave existing chips as-is */
+      }
+    }, 500);
+    return () => {
+      clearTimeout(timer);
+      ctrl.abort();
+    };
+  }, [input, icpDescription]);
 
   /**
    * Runs the real discovery: streams /api/leads/sync (the same endpoint the
@@ -347,36 +384,29 @@ export function IcpChat({
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
           </button>
         </div>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {['Seed B2B SaaS, recently raised', 'Narrow to US fintech only'].map((hint) => (
-            <button
-              key={hint}
-              type="button"
-              disabled={loading || discovering}
-              onClick={() => setInput(hint)}
-              className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border border-border text-text-tertiary hover:text-text-primary hover:border-accent-primary/30 disabled:opacity-50"
-            >
-              {hint}
-            </button>
-          ))}
-          {/* Once an ICP is set this is the primary CTA: filled blue so the user
-              knows to click it, and it runs discovery directly (no chat round
-              trip). Before setup it stays a muted hint that routes through chat
-              so the assistant can ask for an ICP first. */}
-          <button
-            type="button"
-            disabled={loading || discovering}
-            onClick={() => (hasIcp ? void runDiscovery() : void send('Find leads now'))}
-            className={
-              hasIcp
-                ? 'inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full bg-accent-primary text-white hover:bg-accent-primary/90 disabled:opacity-50'
-                : 'inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border border-border text-text-tertiary hover:text-text-primary hover:border-accent-primary/30 disabled:opacity-50'
-            }
-          >
-            {discovering ? <Loader2 className="h-3 w-3 animate-spin" /> : <Sparkles className="h-3 w-3" />}
-            {discovering ? 'Searching…' : 'Find leads now'}
-          </button>
-        </div>
+        {/* Live, profile-aware refinement chips. Clicking one fills the input
+            (doesn't send) so the user can tweak before hitting enter. Discovery
+            is triggered by typing "find leads now" or the feed's Scrape button -
+            defining an ICP here only saves it. */}
+        {suggestions.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-2">
+            {suggestions.map((s) => (
+              <button
+                key={s}
+                type="button"
+                disabled={loading || discovering}
+                onClick={() => {
+                  setInput(s);
+                  inputRef.current?.focus();
+                }}
+                className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border border-border text-text-tertiary hover:text-text-primary hover:border-accent-primary/30 disabled:opacity-50"
+              >
+                <Sparkles className="h-3 w-3" />
+                {s}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

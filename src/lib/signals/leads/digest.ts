@@ -66,22 +66,43 @@ export function assembleDigest(leads: SignalLeadWithContacts[], topN: number): D
 
 // --- Orchestration ---
 
+/** Per-channel delivery outcome, so the UI/logs can explain a non-send. */
+export interface ChannelOutcome {
+  sent: boolean;
+  /** sent | channel_off | no_leads | not_connected | no_channel_id | no_recipient | composio_off | send_failed:<msg> */
+  reason: string;
+}
+
 export interface DigestRunResult {
   ran: boolean;
   reason?: string;
   count?: number;
   channels?: string[];
+  results?: { today: ChannelOutcome; slack: ChannelOutcome; email: ChannelOutcome };
+}
+
+export interface RunDigestOptions {
+  /**
+   * Bypass the local-time/idempotency gate and skip the scrape+reactivate
+   * pipeline (uses already-ingested leads). Used by the "Send test digest now"
+   * button so a user can verify email/Slack delivery on demand without waiting
+   * for the hourly cron and without stamping digest_delivered_at (which would
+   * suppress the real morning digest).
+   */
+  force?: boolean;
 }
 
 /**
  * One workspace's daily digest: gate on local time + idempotency, run the
  * scrape + reactivation pipeline, assemble today's surfaced leads, and push to
  * enabled channels. Slack/email failures degrade gracefully (logged, non-fatal).
+ * `force` (test mode) skips the gate + scrape and does not stamp delivery.
  */
 export async function runWorkspaceDigest(
   client: InsforgeClient,
   workspaceId: string,
   now: Date = new Date(),
+  opts: RunDigestOptions = {},
 ): Promise<DigestRunResult> {
   const settings = await getDirectorySettings(client, workspaceId);
   const timezone = settings.digest_timezone || (await getWorkspaceTimezone(client, workspaceId)) || 'UTC';
@@ -90,13 +111,17 @@ export async function runWorkspaceDigest(
     ? localHourAndDate(new Date(settings.digest_delivered_at), timezone).date
     : null;
 
-  if (!shouldRunDigest({ localHour: hour, localDate: date, runHour: settings.digest_run_hour_local, deliveredLocalDate })) {
+  if (!opts.force && !shouldRunDigest({ localHour: hour, localDate: date, runHour: settings.digest_run_hour_local, deliveredLocalDate })) {
     return { ran: false, reason: `local ${hour}:00 ${date}, run at ${settings.digest_run_hour_local}, delivered ${deliveredLocalDate ?? 'never'}` };
   }
 
-  // Build today's list: scrape + reactivate.
-  await syncWorkspaceDirectory(client, workspaceId);
-  await reactivateWorkspaceLeads(client, workspaceId, date, now);
+  // Build today's list: scrape + reactivate. Skipped in force/test mode - the
+  // regular scrape cron already keeps leads fresh, and a full scrape here would
+  // make the test button take minutes.
+  if (!opts.force) {
+    await syncWorkspaceDirectory(client, workspaceId);
+    await reactivateWorkspaceLeads(client, workspaceId, date, now);
+  }
 
   const all = await listLeads(client, workspaceId, { limit: 200 });
   const todays = all.filter(
@@ -104,16 +129,22 @@ export async function runWorkspaceDigest(
   );
   const digest = assembleDigest(todays, settings.digest_top_n);
 
-  const channels: string[] = ['today'];
-  if (settings.digest_channels?.slack) {
-    if (await pushSlackDigest(client, workspaceId, digest)) channels.push('slack');
-  }
-  if (settings.digest_channels?.email) {
-    if (await pushEmailDigest(client, workspaceId, digest)) channels.push('email');
-  }
+  const today: ChannelOutcome = { sent: true, reason: 'sent' };
+  const slack = settings.digest_channels?.slack
+    ? await pushSlackDigest(client, workspaceId, digest)
+    : { sent: false, reason: 'channel_off' };
+  const email = settings.digest_channels?.email
+    ? await pushEmailDigest(client, workspaceId, digest)
+    : { sent: false, reason: 'channel_off' };
 
-  await updateDirectorySettings(client, workspaceId, { digest_delivered_at: now.toISOString() });
-  return { ran: true, count: digest.count, channels };
+  const channels = ['today', ...(slack.sent ? ['slack'] : []), ...(email.sent ? ['email'] : [])];
+
+  // Only stamp delivery on a real (non-forced) run, so the test button never
+  // suppresses the morning digest.
+  if (!opts.force) {
+    await updateDirectorySettings(client, workspaceId, { digest_delivered_at: now.toISOString() });
+  }
+  return { ran: true, count: digest.count, channels, results: { today, slack, email } };
 }
 
 /** Workspace timezone column (browser-detected on first app load). */
@@ -133,11 +164,13 @@ async function pushSlackDigest(
   client: InsforgeClient,
   workspaceId: string,
   digest: DigestPayload,
-): Promise<boolean> {
-  if (!isComposioConfigured() || digest.count === 0) return false;
+): Promise<ChannelOutcome> {
+  if (!isComposioConfigured()) return { sent: false, reason: 'composio_off' };
+  if (digest.count === 0) return { sent: false, reason: 'no_leads' };
   const integration = await getIntegration(client, workspaceId, 'slack');
+  if (!integration?.enabled) return { sent: false, reason: 'not_connected' };
   const channelId = integration?.config?.slack_channel_id;
-  if (!integration?.enabled || !channelId) return false;
+  if (!channelId) return { sent: false, reason: 'no_channel_id' };
 
   const result = await sendSlackAlert(integration.composio_user_id, {
     channelId,
@@ -147,7 +180,9 @@ async function pushSlackDigest(
     batch: digest.top[0]?.batch ?? undefined,
     signalUrl: `${appBaseUrl()}/leads`,
   });
-  return result.success;
+  return result.success
+    ? { sent: true, reason: 'sent' }
+    : { sent: false, reason: `send_failed:${result.error ?? 'unknown'}` };
 }
 
 /** Emails the morning list to the workspace owner via Gmail/Composio. */
@@ -155,13 +190,14 @@ async function pushEmailDigest(
   client: InsforgeClient,
   workspaceId: string,
   digest: DigestPayload,
-): Promise<boolean> {
-  if (!isComposioConfigured() || digest.count === 0) return false;
+): Promise<ChannelOutcome> {
+  if (!isComposioConfigured()) return { sent: false, reason: 'composio_off' };
+  if (digest.count === 0) return { sent: false, reason: 'no_leads' };
   const integration = await getIntegration(client, workspaceId, 'gmail');
-  if (!integration?.enabled) return false;
+  if (!integration?.enabled) return { sent: false, reason: 'not_connected' };
 
   const to = await getWorkspaceOwnerEmail(client, workspaceId);
-  if (!to) return false;
+  if (!to) return { sent: false, reason: 'no_recipient' };
 
   const body = `You have ${digest.count} new leads today.\n\n${digestSummary(digest)}\n\nReview: ${appBaseUrl()}/leads`;
   const result = await sendGmailEmail(integration.composio_user_id, {
@@ -169,7 +205,9 @@ async function pushEmailDigest(
     subject: `${digest.count} new lead${digest.count === 1 ? '' : 's'} today`,
     body,
   });
-  return result.success;
+  return result.success
+    ? { sent: true, reason: 'sent' }
+    : { sent: false, reason: `send_failed:${result.error ?? 'unknown'}` };
 }
 
 /** Resolves the workspace owner's email for the email digest recipient. */

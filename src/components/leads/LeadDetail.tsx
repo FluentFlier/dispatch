@@ -19,6 +19,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import { YCLogo, XLogo } from '@/components/ui/BrandIcons';
 import type { SignalLeadWithContacts, LeadPlaybook } from '@/lib/signals/types';
+import { summarizeLead, leadSourceUrl } from '@/lib/signals/leads/summary';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { leadButtonBusy, type LeadDetailAction } from '@/lib/leads/busy';
 import { linkedInBadgeState } from '@/lib/leads/verified-badge';
@@ -244,7 +245,8 @@ export function LeadDetail({
   const xHandle = contact?.x_handle?.trim() || lead.contacts?.find((c) => c.x_handle)?.x_handle?.trim() || null;
   const hasLinkedIn = Boolean(contact?.linkedin_url?.trim());
   const overLimit = draft.length > CONNECT_LIMIT;
-  const fact = lead.source_fact as { batch?: string; tagline?: string };
+  const summary = summarizeLead(lead);
+  const sourceUrl = leadSourceUrl(lead);
   const inReplyMode = Boolean(lead.needs_reply || lead.nurture_stage === 'replied');
 
   const detail = company && company !== 'loading' && company !== 'error' ? company : null;
@@ -422,7 +424,7 @@ export function LeadDetail({
           <p className="text-xs tracking-wide text-text-tertiary flex items-center gap-1.5">
             <Sparkles className="h-3.5 w-3.5" /> Nurture plan
           </p>
-          {onPlanNurture && lead.contact_status === 'resolved' && (
+          {onPlanNurture && (
             <Button variant="secondary" size="sm" onClick={onPlanNurture} loading={planBusy}>
               {lead.playbook ? 'Regenerate plan' : 'Plan outreach'}
             </Button>
@@ -594,11 +596,29 @@ export function LeadDetail({
         </div>
       </section>
 
-      {/* Source-fact strip */}
-      <blockquote className="text-sm text-text-secondary border-l-2 border-border pl-3 py-1">
-        Claim used: {fact.batch ? `joined YC ${fact.batch}` : lead.source}
-        {fact.tagline ? ` · "${fact.tagline}"` : ''}
-      </blockquote>
+      {/* Lead summary: what this is + why it's worth pursuing (+ source link) */}
+      <div className="rounded-md border border-border bg-bg-primary px-3 py-2 space-y-1">
+        <p className="text-sm text-text-primary">{summary.what}</p>
+        {summary.why && (
+          <p className="text-xs text-text-secondary">
+            <span className="font-medium text-text-primary">Why pursue: </span>
+            {summary.why}
+          </p>
+        )}
+        {sourceUrl && (
+          <p className="text-xs text-text-tertiary truncate">
+            Source:{' '}
+            <a
+              href={sourceUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-primary hover:underline"
+            >
+              {sourceUrl.replace(/^https?:\/\/(www\.)?/, '')}
+            </a>
+          </p>
+        )}
+      </div>
 
       {/* Draft */}
       {draft ? (

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Plus, X } from 'lucide-react';
 import { SignalsSetupBanner } from '@/components/signals/SignalsSetupBanner';
 import { SignalRulesManager } from '@/components/signals/SignalRulesManager';
@@ -87,7 +87,11 @@ interface IntegrationStatus {
  * component: the unified feed owns event data now, so config must load
  * independently rather than piggy-backing on a shared bootstrap.
  */
-export function SignalsSetup() {
+/**
+ * @param refreshKey bump this to force a reload - e.g. after the ICP assistant
+ * mirrors keywords into "Topics to monitor", so the card reflects them live.
+ */
+export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
   const [sources, setSources] = useState<SignalSourceRow[]>([]);
   const [safety, setSafety] = useState<SafetyStatus | null>(null);
   const [linkedIn, setLinkedIn] = useState<LinkedInStatus | null>(null);
@@ -103,7 +107,6 @@ export function SignalsSetup() {
   const [togglingAuto, setTogglingAuto] = useState(false);
   const [connectingToolkit, setConnectingToolkit] = useState<'slack' | 'gmail' | null>(null);
   const [composioConfigured, setComposioConfigured] = useState(true);
-  const loaded = useRef(false);
 
   // --- Data loading (same endpoints as the retired /signals page) ---
   /** Loads sources, safety, LinkedIn status, and integrations in parallel. */
@@ -135,11 +138,11 @@ export function SignalsSetup() {
     }
   }, []);
 
+  // Load on mount, and reload whenever refreshKey changes (e.g. the ICP
+  // assistant just added Topics to monitor).
   useEffect(() => {
-    if (loaded.current) return;
-    loaded.current = true;
     void loadAll();
-  }, [loadAll]);
+  }, [loadAll, refreshKey]);
 
   /** Refreshes just the safety block after an outreach setting changes. */
   const fetchSafety = useCallback(async () => {
