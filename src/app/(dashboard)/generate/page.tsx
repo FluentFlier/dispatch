@@ -181,7 +181,7 @@ function GeneratePageInner() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:py-10">
+    <div className="w-full py-6 sm:py-10">
       {isWelcome && !welcomeDismissed && (
         <p className="mb-4 text-center text-sm text-ink">
           Your voice is ready.{" "}

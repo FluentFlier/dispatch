@@ -79,9 +79,9 @@ export function SessionSidebar({
   }
 
   return (
-    <aside className="hidden w-64 shrink-0 flex-col border-l border-hair pl-3 lg:flex">
+    <aside className="hidden w-72 shrink-0 flex-col border-l border-hair pl-4 lg:flex">
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-[13px] font-medium text-ink2">Sessions</span>
+        <span className="text-sm font-semibold text-ink">Sessions</span>
         <div className="flex items-center gap-1">
           <button
             type="button"
@@ -105,12 +105,12 @@ export function SessionSidebar({
 
       <div className="flex-1 space-y-0.5 overflow-y-auto">
         {loading && chats.length === 0 && (
-          <div className="flex items-center gap-2 px-2 py-2 text-[13px] text-ink3">
+          <div className="flex items-center gap-2 px-2 py-2 text-sm text-ink2">
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
           </div>
         )}
         {!loading && chats.length === 0 && (
-          <p className="px-2 py-2 text-[13px] text-ink3">No sessions yet.</p>
+          <p className="px-2 py-2 text-sm text-ink2">No sessions yet.</p>
         )}
         {chats.map((chat) => (
           <div
@@ -124,8 +124,8 @@ export function SessionSidebar({
               onClick={() => onSelect(chat.id)}
               className="min-w-0 flex-1 text-left"
             >
-              <span className="block truncate text-[13px] text-ink2">{chat.title}</span>
-              <span className="flex items-center gap-1.5 text-[11px] text-ink3">
+              <span className="block truncate text-sm font-normal text-ink">{chat.title}</span>
+              <span className="flex items-center gap-1.5 text-xs text-ink2">
                 {chat.status === 'running' ? (
                   <>
                     <Loader2 className="h-3 w-3 animate-spin text-accent-primary" />
@@ -158,10 +158,10 @@ export function SessionSidebar({
             type="button"
             onClick={() => setToolsOpen((o) => !o)}
             aria-expanded={toolsOpen}
-            className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-[13px] font-medium text-ink2 transition-colors hover:bg-paper2"
+            className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-sm font-semibold text-ink transition-colors hover:bg-paper2"
           >
             More tools
-            <ChevronDown className={`h-4 w-4 text-ink3 transition-transform ${toolsOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`h-4 w-4 text-ink2 transition-transform ${toolsOpen ? 'rotate-180' : ''}`} />
           </button>
           {toolsOpen && (
             <div className="mt-0.5 space-y-0.5 pb-1">
@@ -172,10 +172,10 @@ export function SessionSidebar({
                   onClick={() => onSelectTool(t.id)}
                   className="group flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-paper2"
                 >
-                  <t.icon className="mt-0.5 h-4 w-4 shrink-0 text-ink3 group-hover:text-ink2" />
+                  <t.icon className="mt-0.5 h-4 w-4 shrink-0 text-ink2 group-hover:text-ink" />
                   <span className="min-w-0">
-                    <span className="block text-[13px] text-ink2">{t.label}</span>
-                    <span className="block truncate text-[11px] text-ink3">{t.hint}</span>
+                    <span className="block text-sm font-semibold text-ink">{t.label}</span>
+                    <span className="block truncate text-xs text-ink2">{t.hint}</span>
                   </span>
                 </button>
               ))}
