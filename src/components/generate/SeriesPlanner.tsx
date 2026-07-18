@@ -133,23 +133,27 @@ Each part works standalone but rewards watching all. Part 1 must be the stronges
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-6">
       <div>
-        <label className="block section-label mb-2">
-          Series concept
-        </label>
+        <h2 className="text-title text-ink">Plan a series</h2>
+        <p className="mt-1.5 text-sm leading-relaxed text-ink2">
+          Describe the arc and how many parts. We&apos;ll outline each episode; you produce and
+          publish them from the Series page.
+        </p>
+      </div>
+
+      <div>
+        <label className="field-label">Series concept</label>
         <input
           value={concept}
           onChange={(e) => setConcept(e.target.value)}
           placeholder="What is this series about?"
-          className="w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors duration-100"
+          className="w-full min-h-[48px] rounded-control border border-hair bg-white px-4 py-3 font-body text-[15px] text-ink placeholder:text-ink3 focus:border-blue focus:outline-none transition-colors"
         />
       </div>
 
       <div>
-        <label className="block section-label mb-2">
-          Number of parts
-        </label>
+        <label className="field-label">Number of parts</label>
         <input
           type="number"
           min={2}
@@ -160,7 +164,7 @@ Each part works standalone but rewards watching all. Part 1 must be the stronges
               Math.min(10, Math.max(2, parseInt(e.target.value, 10) || 2)),
             )
           }
-          className="w-24 bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors duration-100"
+          className="w-28 min-h-[48px] rounded-control border border-hair bg-white px-4 py-3 font-body text-[15px] text-ink focus:border-blue focus:outline-none transition-colors"
         />
       </div>
 
@@ -169,10 +173,10 @@ Each part works standalone but rewards watching all. Part 1 must be the stronges
         loading={loading}
         disabled={!concept.trim()}
       >
-        Plan Series
+        Plan series
       </Button>
 
-      {error && <p className="font-body text-[13px] text-accent-primary">{error}</p>}
+      {error && <p className="font-body text-sm text-flame">{error}</p>}
 
       <GenerateOutput text={output} loading={loading}>
         <Button
