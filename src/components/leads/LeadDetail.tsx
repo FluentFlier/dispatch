@@ -16,6 +16,7 @@ import {
   MessageSquare,
   Clock,
   Check,
+  Ban,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { YCLogo, XLogo } from '@/components/ui/BrandIcons';
@@ -23,6 +24,7 @@ import type { SignalLeadWithContacts, LeadPlaybook } from '@/lib/signals/types';
 import { summarizeLead, leadSourceUrl } from '@/lib/signals/leads/summary';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { leadButtonBusy, type LeadDetailAction } from '@/lib/leads/busy';
+import { formatDuplicateWarning, type DuplicateWarningState } from '@/lib/leads/duplicate-warning';
 import { linkedInBadgeState } from '@/lib/leads/verified-badge';
 import { LINKEDIN_CONNECT_NOTE_LIMIT } from '@/lib/leads/constants';
 
@@ -109,6 +111,14 @@ interface LeadDetailProps {
   /** Run the full voice + critique loop for a higher-fidelity rewrite (slower). */
   onPolish?: () => void;
   onApprove: (channel?: 'linkedin_connect' | 'linkedin_dm' | 'x_dm') => void;
+  /** Inline duplicate-contact warning after a 409 from approve, or null. */
+  duplicateWarning?: DuplicateWarningState | null;
+  /** "Send anyway" on the warning: retry the approve with overrideDuplicate. */
+  onSendDuplicateAnyway?: () => void;
+  /** Dismiss the inline warning without sending. */
+  onCancelDuplicate?: () => void;
+  /** "Never contact again": add the lead's identity to do_not_contact. */
+  onNeverContact?: () => void;
   onEmail: () => void;
   onDismiss: () => void;
   onSnooze?: (days: number) => void;
@@ -187,6 +197,10 @@ export function LeadDetail({
   onDraft,
   onPolish,
   onApprove,
+  duplicateWarning,
+  onSendDuplicateAnyway,
+  onCancelDuplicate,
+  onNeverContact,
   onEmail,
   onDismiss,
   onSnooze,
@@ -207,7 +221,7 @@ export function LeadDetail({
   // Per-action flags: a spinner shows only on the button whose action is live.
   // `anyBusy` gates send/email/dismiss so an unrelated in-flight action can't be
   // double-submitted, without skeletoning those buttons.
-  const { draftBusy, planBusy, approveBusy, resolveBusy, followupBusy, checkBusy, replyBusy, stageBusy, anyBusy } =
+  const { draftBusy, planBusy, approveBusy, resolveBusy, followupBusy, checkBusy, replyBusy, stageBusy, dncBusy, anyBusy } =
     leadButtonBusy(busyAction);
   // Outreach lifecycle stage persisted on the outreach row (draft → sent →
   // accepted → replied → closed). Drives the post-send stage control below.
@@ -801,6 +815,39 @@ export function LeadDetail({
           <Button variant="ghost" size="sm" onClick={onDismiss}>
             <X className="h-4 w-4" /> Dismiss
           </Button>
+          {onNeverContact && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onNeverContact}
+              loading={dncBusy}
+              disabled={anyBusy}
+              title="Add this contact to your do-not-contact list"
+            >
+              <Ban className="h-4 w-4" /> Never contact again
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Duplicate-contact warning after a 409 from approve (Task 10 guard). A
+          DNC block is absolute (no "Send anyway"); a prior-contact block can be
+          overridden. */}
+      {duplicateWarning && (
+        <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <p>{formatDuplicateWarning(duplicateWarning)}</p>
+          <div className="mt-2 flex items-center gap-2">
+            {!duplicateWarning.blockedByDnc && onSendDuplicateAnyway && (
+              <Button variant="primary" size="sm" onClick={onSendDuplicateAnyway} loading={approveBusy}>
+                Send anyway
+              </Button>
+            )}
+            {onCancelDuplicate && (
+              <Button variant="ghost" size="sm" onClick={onCancelDuplicate}>
+                Cancel
+              </Button>
+            )}
+          </div>
         </div>
       )}
 

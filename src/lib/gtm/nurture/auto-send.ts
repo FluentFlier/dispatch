@@ -113,6 +113,7 @@ export async function autoSendDueConnects(
         userId,
         leadId,
         channel: 'linkedin_connect',
+        mode: 'auto',
       });
 
       if (!result.success) {

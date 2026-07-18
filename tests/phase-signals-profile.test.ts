@@ -126,7 +126,14 @@ describe('Phase: role_change orchestration', () => {
   });
 
   it('headline change: applies the signal to leads and updates the snapshot', async () => {
-    vi.mocked(getProfileSnapshot).mockResolvedValue({ profileKey: 'jane-doe', headline: 'CTO at Acme' });
+    // fullName matches the current resolved name so only the headline diff fires -
+    // detectFieldChanges (Task 4) also diffs fullName/description, and a baseline
+    // missing fullName would otherwise fire a second field_change signal here.
+    vi.mocked(getProfileSnapshot).mockResolvedValue({
+      profileKey: 'jane-doe',
+      headline: 'CTO at Acme',
+      fullName: 'Jane Doe',
+    });
     const res = await checkProfileChange(client, 'ws', source);
     expect(res.signalCreated).toBe(true);
     expect(upsertRawPost).toHaveBeenCalledOnce();

@@ -138,16 +138,19 @@ export async function syncWorkspaceSignals(
     )
     .slice(0, safety.max_sources_per_sync_run);
 
-  // ICP context for the keyword-match relevance gate. Loaded once per run, and
-  // only when a keyword source is actually up for polling; a load failure just
-  // skips the gate (matches surface at baseline confidence).
+  // Directory settings loaded once per run: ICP description feeds the
+  // keyword-match relevance gate, custom_keywords extends accelerator
+  // classification for every source. A load failure just skips both (ICP
+  // gate off, no extra keywords) rather than failing the whole sync.
   let icpDescription: string | null = null;
-  if (eligible.some((s) => s.source_type === 'keyword_search')) {
-    try {
-      icpDescription = (await getDirectorySettings(client, workspaceId)).icp_description;
-    } catch {
-      icpDescription = null;
-    }
+  let customKeywords: string[] = [];
+  try {
+    const settings = await getDirectorySettings(client, workspaceId);
+    icpDescription = settings.icp_description;
+    customKeywords = settings.custom_keywords ?? [];
+  } catch {
+    icpDescription = null;
+    customKeywords = [];
   }
 
   for (let i = 0; i < eligible.length; i++) {
@@ -181,15 +184,21 @@ export async function syncWorkspaceSignals(
       dryRun: opts.dryRun,
       maxItems,
       icpDescription,
+      customKeywords,
     });
     result.postsIngested += batch.postsIngested;
     result.signalsCreated += batch.signalsCreated;
     result.errors.push(...batch.errors);
 
-    // Role-change detection: diff the tracked person's LinkedIn headline against
-    // its stored baseline. Skipped in dry-run and for non-person / non-LinkedIn
-    // sources (the helper guards internally).
-    if (!opts.dryRun && source.platform === 'linkedin' && source.source_type === 'person_profile') {
+    // Profile-change detection: diff the tracked person/company's LinkedIn fields,
+    // or a tracked X person's bio, against the stored baseline. Skipped in
+    // dry-run and for non-tracked-profile sources (the helper guards internally).
+    if (
+      !opts.dryRun &&
+      ((source.platform === 'linkedin' &&
+        ['person_profile', 'company_page'].includes(source.source_type)) ||
+        (source.platform === 'x' && source.source_type === 'person_profile'))
+    ) {
       try {
         const profileResult = await checkProfileChange(client, workspaceId, source);
         if (profileResult.signalCreated) result.signalsCreated += 1;

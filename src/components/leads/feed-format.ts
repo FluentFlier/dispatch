@@ -46,6 +46,7 @@ export function signalTypeLabel(type: SignalType): string {
     launch: 'Launched',
     other: 'Signal',
     keyword_match: 'Posted about topic',
+    field_change: 'Profile changed',
   };
   return labels[type] ?? 'Signal';
 }

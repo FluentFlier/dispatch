@@ -53,7 +53,8 @@ export type SignalType =
   | 'role_change'
   | 'launch'
   | 'other'
-  | 'keyword_match';
+  | 'keyword_match'
+  | 'field_change';
 
 export type SignalEventStatus =
   | 'pending'
@@ -324,6 +325,8 @@ export interface DirectorySettingsRow {
   icp_description: string | null;
   icp_verticals: string[];
   icp_keywords: string[];
+  /** Workspace watchlist keywords (Task 6), merged into accelerator classification. */
+  custom_keywords: string[];
   /** Parsed hunt goal (stage/vertical/geography) consumed by web discovery. */
   discovery_goal: string | null;
   /** Cron scrape cadence; 'manual' means only user-triggered scrapes run. */

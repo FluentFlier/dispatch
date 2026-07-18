@@ -7,6 +7,8 @@ export interface HybridOptions {
    *  (account, company_page, person_profile). Only these pay for an LLM
    *  confirm on a keyword miss, keeping cost bounded. */
   highValueSource?: boolean;
+  /** Workspace watchlist keywords (Task 6), merged into the accelerator pack. */
+  extraKeywords?: string[];
 }
 
 export interface HybridResult {
@@ -38,7 +40,7 @@ export async function classifyPostHybridWithMeta(
   post: IngestedPost,
   opts: HybridOptions = {},
 ): Promise<HybridResult> {
-  const keyword = classifyPost(post);
+  const keyword = classifyPost(post, opts.extraKeywords);
   if (keyword) {
     // Regex often cannot name the company on "we joined YC W26" style posts.
     // Recover it via the LLM ONLY when the keyword stage produced no company,

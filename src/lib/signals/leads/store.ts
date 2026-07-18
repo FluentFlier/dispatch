@@ -31,6 +31,7 @@ const DEFAULT_SETTINGS: Omit<DirectorySettingsRow, 'workspace_id' | 'created_at'
   icp_description: null,
   icp_verticals: [],
   icp_keywords: [],
+  custom_keywords: [],
   discovery_goal: null,
   scrape_frequency: 'daily',
   last_synced_at: null,

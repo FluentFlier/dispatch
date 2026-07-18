@@ -5,6 +5,7 @@ export interface ProfileState {
   providerId?: string;
   fullName?: string;
   headline?: string;
+  description?: string;
 }
 
 /** Normalize a headline for change comparison (case + whitespace insensitive). */
@@ -59,4 +60,69 @@ export function detectRoleChange(
     dedupeKey: `role_change|${current.profileKey.toLowerCase()}|${normalizeHeadline(newHeadline)}`,
     matchedKeywords: [],
   };
+}
+
+export type TrackedEntity = 'person' | 'company';
+
+const norm = (v: string | undefined | null): string =>
+  (v ?? '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+function fieldChangeSignal(
+  field: 'headline' | 'fullName' | 'description',
+  previous: ProfileState,
+  current: ProfileState,
+  entity: TrackedEntity,
+): ClassifiedSignal | null {
+  const prev = (previous[field] ?? '').trim();
+  const next = (current[field] ?? '').trim();
+  if (!next) return null; // no data - don't invent a change
+  if (norm(prev) === norm(next)) return null;
+
+  const who = current.fullName?.trim() || current.profileKey;
+  const fieldLabel = field === 'fullName' ? 'name' : field === 'headline' ? (entity === 'company' ? 'tagline' : 'headline') : 'description';
+  const dedupeField = field === 'fullName' ? 'name' : field;
+
+  return {
+    signalType: 'field_change',
+    companyName: entity === 'company' ? who : extractCompanyFromHeadline(current.headline),
+    personName: entity === 'person' ? who : undefined,
+    acceleratorName: undefined,
+    batch: undefined,
+    signalSummary: prev
+      ? `${entity === 'company' ? 'Company' : 'Profile'} ${fieldLabel} change: ${who} - "${prev}" -> "${next}"`
+      : `${entity === 'company' ? 'Company' : 'Profile'} ${fieldLabel} set: ${who} - "${next}"`,
+    confidence: 0.8,
+    dedupeKey: `field_change|${dedupeField}|${current.profileKey.toLowerCase()}|${norm(next)}`,
+    matchedKeywords: [],
+  };
+}
+
+/**
+ * Diffs all tracked fields between baseline and current state.
+ * Person headline changes keep firing as role_change (existing behavior and
+ * Slack labels preserved); every other tracked field fires field_change.
+ * First sight (no baseline) returns [] - baseline only.
+ */
+export function detectFieldChanges(
+  previous: ProfileState | null,
+  current: ProfileState,
+  entity: TrackedEntity,
+): ClassifiedSignal[] {
+  if (!previous) return [];
+  const out: ClassifiedSignal[] = [];
+
+  if (entity === 'person') {
+    const role = detectRoleChange(previous, current);
+    if (role) out.push(role);
+  } else {
+    const headline = fieldChangeSignal('headline', previous, current, entity);
+    if (headline) out.push(headline);
+  }
+
+  const name = fieldChangeSignal('fullName', previous, current, entity);
+  if (name) out.push(name);
+  const description = fieldChangeSignal('description', previous, current, entity);
+  if (description) out.push(description);
+
+  return out;
 }

@@ -28,8 +28,11 @@ export async function POST(
     // The (possibly edited) draft the user is approving. When it differs from
     // the stored model draft, the difference is captured as edit feedback.
     messageText?: string;
+    // User confirmed "Send anyway" on a duplicate-contact warning.
+    overrideDuplicate?: boolean;
   };
   const messageText = typeof body.messageText === 'string' ? body.messageText.trim() : undefined;
+  const overrideDuplicate = body.overrideDuplicate === true;
 
   try {
     const client = getServerClient();
@@ -49,9 +52,23 @@ export async function POST(
       channel: body.channel ?? 'linkedin_connect',
       emailOptIn: body.emailOptIn,
       messageText: messageText || undefined,
+      mode: 'manual',
+      overrideDuplicate,
     });
 
     if (!result.success) {
+      if (result.error === 'duplicate_contact') {
+        return NextResponse.json(
+          {
+            duplicate: true,
+            blockedByDnc: result.duplicate?.blockedByDnc ?? false,
+            lastAt: result.duplicate?.lastAt,
+            channel: result.duplicate?.channel,
+            leadId: result.duplicate?.leadId,
+          },
+          { status: 409 },
+        );
+      }
       // Cooldown/cap → 429 with retry hint; other guard/validation blocks → 422.
       const status = result.retryAfterSeconds ? 429 : 422;
       return NextResponse.json(

@@ -23,6 +23,8 @@ export type LeadBusyAction =
   | 'stage'
   | 'reply'
   | 'send'
+  // "Never contact again" - adds the lead's identity to do_not_contact.
+  | 'dnc'
   // Engager (post-engager) detail panel actions.
   | 'connect'
   | 'dm';
@@ -54,6 +56,7 @@ export interface LeadButtonBusy {
   checkBusy: boolean;
   stageBusy: boolean;
   replyBusy: boolean;
+  dncBusy: boolean;
   /** True while ANY action runs; gates send/email to avoid double-submit. */
   anyBusy: boolean;
 }
@@ -69,6 +72,7 @@ export function leadButtonBusy(action: LeadDetailAction | null): LeadButtonBusy 
     checkBusy: action === 'check',
     stageBusy: action === 'stage',
     replyBusy: action === 'reply',
+    dncBusy: action === 'dnc',
     anyBusy: action !== null,
   };
 }
