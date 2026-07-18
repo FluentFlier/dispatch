@@ -4,6 +4,7 @@ import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { generateWithVoicePipeline } from '@/lib/voice-pipeline';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { guardAiRequest } from '@/lib/ai-guard';
+import { classifyPostPillar, appendEmergentPillar } from '@/lib/pillars/classify';
 import { errorResponse } from '@/lib/api-errors';
 import { z } from 'zod';
 
@@ -113,6 +114,18 @@ Return ONLY the post text, ready to publish.`;
       reasoning: `Generated via voice pipeline (${result.stagesCompleted?.join(' -> ') ?? 'base'})`,
     };
 
+    // Classify the pillar from the generated content instead of always stamping
+    // the profile's first pillar; grow the taxonomy when it's a new theme.
+    const existingPillars = (profile?.content_pillars ?? []).filter(
+      (p): p is { name: string } => Boolean(p?.name),
+    );
+    let autoPillar = existingPillars[0]?.name || 'general';
+    if (workspaceId) {
+      const classified = await classifyPostPillar(client, workspaceId, content, existingPillars);
+      autoPillar = classified.pillar;
+      if (classified.isNew) await appendEmergentPillar(client, user.id, classified.pillar);
+    }
+
     // Store in auto_generated_posts queue
     const { data: savedPost, error: saveError } = await client.database
       .from('posts')
@@ -120,7 +133,7 @@ Return ONLY the post text, ready to publish.`;
         user_id: user.id,
         workspace_id: workspaceId ?? null,
         title: hook.slice(0, 80),
-        pillar: profile?.content_pillars?.[0]?.name || 'general',
+        pillar: autoPillar,
         platform,
         status: shouldAutoPublish ? 'edited' : 'scripted',
         script: content,

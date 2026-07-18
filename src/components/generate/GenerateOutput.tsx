@@ -9,9 +9,7 @@ import { useToast } from '@/components/ui/Toast';
 import { PLATFORMS, normalizeDashboardPlatform } from '@/lib/constants';
 import type { DashboardPlatform } from '@/lib/constants';
 import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
-import { usePillars } from '@/hooks/usePillars';
 import PillarMultiSelect from '@/components/ui/PillarMultiSelect';
-import { DEFAULT_PILLAR_WEIGHT } from '@/lib/pillars';
 import { OptimizePanel } from './OptimizePanel';
 import { LinkedInComposer } from './LinkedInComposer';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
@@ -101,8 +99,6 @@ interface GenerateOutputProps {
   onTextUpdate?: (newText: string) => void;
   /** Simple = creator flow: edit, viral score, post/save/copy only */
   variant?: 'full' | 'simple';
-  /** Default pillar slug for one-click save in simple mode */
-  savePillar?: string;
 }
 
 function scoreColor(value: number, invert = false): string {
@@ -222,7 +218,6 @@ export function GenerateOutput({
   children,
   onTextUpdate,
   variant = 'full',
-  savePillar,
 }: GenerateOutputProps) {
   const { toast } = useToast();
   const [showSave, setShowSave] = useState(false);
@@ -341,7 +336,10 @@ export function GenerateOutput({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title || 'Untitled draft',
-          pillars: savePillar ? [savePillar] : ['general'],
+          // 'general' tells the server to classify the pillar from the post's
+          // own content (the quick Save has no picker), so a saved draft is
+          // tagged by what it's about, not a fixed default.
+          pillars: ['general'],
           script: displayText,
           status: 'scripted',
           platform: sourcePlatform ?? 'linkedin',
@@ -609,7 +607,6 @@ function SaveToLibraryModal({
   sourcePlatform?: DashboardPlatform;
 }) {
   const { toast } = useToast();
-  const { pillars: pillarList, loading: pillarsLoading } = usePillars();
   const [title, setTitle] = useState(() => {
     const firstLine = script.split('\n').find((l) => l.trim())?.trim() ?? '';
     const cleaned = firstLine.replace(/^[#*\->\s]+/, '').slice(0, 120);
@@ -624,16 +621,9 @@ function SaveToLibraryModal({
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-
-  // Default to the first pillar (at the neutral weight) once pillars finish loading.
-  useEffect(() => {
-    if (pillarsLoading || pillarList.length === 0) return;
-    if (pillars.length === 0) {
-      const first = pillarList[0].value;
-      setPillars([first]);
-      setWeights({ [first]: DEFAULT_PILLAR_WEIGHT });
-    }
-  }, [pillarsLoading, pillarList, pillars.length]);
+  // No auto-default to the first pillar: an untouched picker means "let the
+  // server classify from the content" (sent as the 'general' sentinel below);
+  // a deliberate pick is respected.
 
   const save = async () => {
     if (!title.trim()) {
@@ -648,7 +638,8 @@ function SaveToLibraryModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: title.trim(),
-          pillars,
+          // Untouched picker -> classify from content; a real pick is respected.
+          pillars: pillars.length ? pillars : ['general'],
           pillar_weights: weights,
           script,
           status: 'scripted',
