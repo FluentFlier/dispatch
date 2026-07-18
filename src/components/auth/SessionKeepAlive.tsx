@@ -9,7 +9,12 @@ import { refreshAppSessionWithFallback } from '@/lib/auth-client-refresh';
  */
 const REFRESH_SKEW_MS = 120_000;
 const FALLBACK_INTERVAL_MS = 45 * 60_000;
-const MIN_DELAY_MS = 1_000;
+// Floor the self-scheduling delay well above 1s. Access tokens live ~15min and
+// we refresh 120s early, so re-checking every 30s is ample - while a 1s floor let
+// the loop hot-poll session+refresh once per second whenever a refresh failed to
+// push expiry past the skew, which (with dev latency) became a request storm that
+// froze the tab.
+const MIN_DELAY_MS = 30_000;
 
 export default function SessionKeepAlive() {
   useEffect(() => {
@@ -55,6 +60,12 @@ export default function SessionKeepAlive() {
       const delay = meta.accessExpiresAt
         ? Math.max(MIN_DELAY_MS, meta.accessExpiresAt - Date.now() - REFRESH_SKEW_MS)
         : FALLBACK_INTERVAL_MS;
+      // Cancel any prior pending timer before arming a new one so at most ONE
+      // poll chain is ever live. schedule() is re-entered from the timer callback,
+      // from onVisible, and (in dev StrictMode) from a double-mount; without this
+      // clear, each re-entry spawned a parallel self-perpetuating chain and the
+      // session/refresh calls multiplied until the tab froze.
+      if (timer) clearTimeout(timer);
       timer = setTimeout(async () => {
         await refreshAndSync();
         void schedule();
