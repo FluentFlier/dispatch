@@ -341,4 +341,84 @@ describe('Phase: Leads watchlist dedup - send path wiring', () => {
     expect(assertOutreachAllowed).toHaveBeenCalled();
     expect(sendLinkedInConnectionInvite).toHaveBeenCalled();
   });
+
+  it('primary contact no email, secondary contact has email + DNC -> checkPriorContact called with secondary email', async () => {
+    checkPriorContact.mockResolvedValue({
+      contacted: false,
+      blockedByDnc: true,
+    });
+    const { client } = makeClient();
+    const leadWithSecondaryEmail = makeLead({
+      primary_contact: {
+        id: 'c1',
+        lead_id: LEAD_ID,
+        workspace_id: WS,
+        name: 'Jane Doe',
+        role: 'CEO',
+        linkedin_url: 'https://linkedin.com/in/jane',
+        x_handle: null,
+        email: null, // No email on primary
+        provider_id: null,
+        resolution_source: 'scraped',
+        enriched_via: null,
+        is_primary: true,
+        created_at: new Date().toISOString(),
+      },
+      contacts: [
+        {
+          id: 'c1',
+          lead_id: LEAD_ID,
+          workspace_id: WS,
+          name: 'Jane Doe',
+          role: 'CEO',
+          linkedin_url: 'https://linkedin.com/in/jane',
+          x_handle: null,
+          email: null,
+          provider_id: null,
+          resolution_source: 'scraped',
+          enriched_via: null,
+          is_primary: true,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 'c2',
+          lead_id: LEAD_ID,
+          workspace_id: WS,
+          name: 'John Smith',
+          role: 'CTO',
+          linkedin_url: null,
+          x_handle: null,
+          email: 'john@acme.ai', // Secondary contact has email
+          provider_id: null,
+          resolution_source: 'enriched',
+          enriched_via: null,
+          is_primary: false,
+          created_at: new Date().toISOString(),
+        },
+      ],
+    });
+    getLead.mockResolvedValue(leadWithSecondaryEmail);
+
+    const result = await sendLeadOutreach(client, {
+      workspaceId: WS,
+      userId: USER,
+      leadId: LEAD_ID,
+      channel: 'gmail',
+      mode: 'manual',
+      emailOptIn: true,
+    });
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('duplicate_contact');
+    expect(result.duplicate?.blockedByDnc).toBe(true);
+    // Verify checkPriorContact was called with identity containing the secondary contact's email
+    expect(checkPriorContact).toHaveBeenCalledWith(
+      expect.anything(),
+      WS,
+      expect.objectContaining({
+        email: 'john@acme.ai',
+      }),
+    );
+    expect(assertOutreachAllowed).not.toHaveBeenCalled();
+  });
 });

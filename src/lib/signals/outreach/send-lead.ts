@@ -103,7 +103,7 @@ export async function sendLeadOutreach(
     linkedinProviderId: contact?.provider_id ?? undefined,
     linkedinUrl: contact?.linkedin_url ?? undefined,
     xHandle: contact?.x_handle ?? undefined,
-    email: contact?.email ?? undefined,
+    email: (contact?.email ?? lead.contacts?.find((c) => c.email)?.email) ?? undefined,
   };
   const duplicate = await checkPriorContact(client, workspaceId, identity);
   const contactedElsewhere = duplicate.contacted && duplicate.leadId !== leadId;
