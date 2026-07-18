@@ -7,6 +7,7 @@ import { assembleGeneratePrompt } from '@/lib/generate-prompt';
 import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
 import { LinkedInComposer } from './LinkedInComposer';
 import { usePillars } from '@/hooks/usePillars';
+import { resolvePillarBrief } from '@/lib/pillars/briefs';
 import { DASHBOARD_PLATFORMS, PLATFORM_LABELS, type DashboardPlatform } from '@/lib/constants';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { SessionSidebar } from './SessionSidebar';
@@ -22,19 +23,6 @@ import {
 // SETUP: 2 bullets" format forced broetry (single-sentence paragraphs) that
 // reads as generic AI slop and fights the pipeline's paragraph_shape rule. These
 // ask for flowing paragraphs instead, so the draft sounds like a person wrote it.
-const PILLAR_PROMPTS: Record<string, string> = {
-  'hot-take': `Write a hot take in the creator's voice (pick a strong angle from their real experience if no topic is given). Open with one bold, scroll-stopping line that states the controversial claim, then back it with a specific real example from the creator's background, turn to what people should think or do instead, and close with one direct question. Write it as flowing paragraphs, not labeled beats or one-line fragments. Under 60 seconds when spoken. No em dashes.`,
-
-  hackathon: `Write a hackathon story in the creator's voice, drawn from one specific, real, dramatic moment. Drop straight into the most intense moment with no setup, give just enough of the challenge and stakes to make it land, then what changed under pressure and what it taught about building. End by asking viewers about their own experience. Flowing paragraphs, not a beat list. No em dashes.`,
-
-  founder: `Write a founder-in-public update in the creator's voice about building their product or startup. Open with one honest, vulnerable line (real energy, no spin), be specific about what was hard or went wrong, name the one thing that actually moved, and what it is teaching about startups. Invite other builders to share their week. Sound like Tuesday at 11pm, not a polished success story. Flowing paragraphs, not a beat list. No em dashes.`,
-
-  explainer: `Write a concept explainer in the creator's voice from their expertise (pick one concept from their domain if no topic is given). Open with a question that makes the reader feel they are missing something, explain it simply enough for a 16-year-old with zero jargon, say why it matters, correct the common misconception, and close by asking what to explain next. Flowing paragraphs, not a beat list. Under 60 seconds when spoken. No em dashes.`,
-
-  origin: `Write an origin/arc piece in the creator's voice from their real background and journey. Open with one specific detail that makes someone lean in, move through the unexpected parts of the path, name the through-line that actually connects them, and where it is heading now. Invite non-linear paths in the comments. Flowing paragraphs, not a beat list. No em dashes.`,
-
-  research: `Write a "research unlocked" piece in the creator's voice that makes their research feel accessible and interesting. Open with a line that hooks even someone who hates science, share what is genuinely surprising about the research and its real-world stakes, then the meta lesson about what doing research teaches that classes do not. Ask if they knew this kind of research existed. Flowing paragraphs, not a beat list. No em dashes.`,
-};
 
 type MessageCompleteness = { starved?: boolean; voiceSource?: string } | null;
 
@@ -89,8 +77,8 @@ function buildFirstDraftBase(
   platform: DashboardPlatform | null,
   promptTemplate?: string,
 ): string {
-  if (promptTemplate) return promptTemplate;
-  if (PILLAR_PROMPTS[pillar]) return PILLAR_PROMPTS[pillar];
+  const brief = resolvePillarBrief(pillar, promptTemplate);
+  if (brief) return brief;
   if (platform === 'linkedin') {
     return `Write a LinkedIn post in the creator's voice only, 200-350 words, no em dashes. Open with one strong first line that earns the read, give the context or stakes, then a specific story or real detail, land a genuine takeaway, and close with one direct question. Write it as real flowing paragraphs (2-4 sentences each), never a stack of one-line fragments or labeled beats.`;
   }

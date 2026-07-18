@@ -2,6 +2,7 @@ import type { createClient } from '@insforge/sdk';
 import { chatCompletion } from '@/lib/llm';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import { normalizePillarSlug } from '@/lib/pillars';
+import { generatePillarBrief } from '@/lib/pillars/briefs-generate';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -100,6 +101,7 @@ export async function appendEmergentPillar(
   client: InsforgeClient,
   userId: string,
   pillarName: string,
+  workspaceId?: string,
 ): Promise<void> {
   try {
     // Explicit column (InsForge select('*') + .eq() quirk).
@@ -116,7 +118,16 @@ export async function appendEmergentPillar(
     const slug = normalizePillarSlug(pillarName);
     if (pillars.some((p) => normalizePillarSlug(p.name ?? '') === slug)) return;
 
-    const next = [...pillars, { name: pillarName, weight: 50 }];
+    // Give the new pillar a generation brief up front so it steers drafting as
+    // much as a built-in pillar (best-effort; null just means no bespoke steer).
+    const promptTemplate = workspaceId
+      ? await generatePillarBrief(client, workspaceId, pillarName)
+      : null;
+
+    const next = [
+      ...pillars,
+      { name: pillarName, weight: 50, ...(promptTemplate ? { promptTemplate } : {}) },
+    ];
     await client.database
       .from('creator_profile')
       .update({ content_pillars: next, updated_at: new Date().toISOString() })
