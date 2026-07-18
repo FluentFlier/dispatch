@@ -7,11 +7,12 @@ import { logSignalAudit } from '@/lib/signals/safety/audit';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
-const SIGNAL_LABELS: Record<string, string> = {
+export const SIGNAL_LABELS: Record<string, string> = {
   accelerator_join: 'New accelerator signal',
   funding_round: 'New funding signal',
   role_change: 'New role change signal',
   launch: 'New launch signal',
+  field_change: 'Profile/company change signal',
   other: 'New signal',
 };
 

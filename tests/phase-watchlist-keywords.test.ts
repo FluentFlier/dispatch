@@ -10,6 +10,8 @@
 import { describe, it, expect } from 'vitest';
 import { addWatchlistEntry } from '@/lib/signals/watchlist';
 import { classifyPost } from '@/lib/signals/classifier';
+import { SIGNAL_LABELS } from '@/lib/signals/notifications/slack-alert';
+import { parseTrackIntent } from '@/lib/signals/icp/parse-track-intent';
 import type { DirectorySettingsRow, IngestedPost } from '@/lib/signals/types';
 
 type DbCall = { table: string; op: 'select' | 'insert' | 'update'; payload?: unknown };
@@ -195,5 +197,36 @@ describe('Phase: watchlist keywords - classifier extraKeywords', () => {
     expect(classified).not.toBeNull();
     expect(classified?.signalType).toBe('accelerator_join');
     expect(classified?.matchedKeywords).toContain('foundry fellowship');
+  });
+});
+
+describe('Phase: field_change slack label', () => {
+  it('has a non-empty label for field_change', () => {
+    expect(SIGNAL_LABELS.field_change).toBeTruthy();
+  });
+});
+
+describe('Phase: track chat intent parsing', () => {
+  it('parses "track HF0" into a name-only intent', () => {
+    expect(parseTrackIntent('track HF0')).toEqual({
+      name: 'HF0',
+      xHandle: undefined,
+      linkedinCompanyUrl: undefined,
+    });
+  });
+
+  it('parses an x handle and linkedin company url out of a track command', () => {
+    const intent = parseTrackIntent(
+      'track Speedrun on x @speedrun and linkedin https://linkedin.com/company/speedrun',
+    );
+    expect(intent).toEqual({
+      name: 'Speedrun',
+      xHandle: 'speedrun',
+      linkedinCompanyUrl: 'https://linkedin.com/company/speedrun',
+    });
+  });
+
+  it('returns null for a message that is not a track command', () => {
+    expect(parseTrackIntent('find leads now')).toBeNull();
   });
 });

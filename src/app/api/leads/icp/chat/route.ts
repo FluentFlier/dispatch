@@ -7,7 +7,9 @@ import { updateDirectorySettings, getDirectorySettings } from '@/lib/signals/lea
 import { putBrainPage } from '@/lib/brain/pages';
 import { BRAIN_SLUG } from '@/lib/brain/types';
 import { parseIcpDescription } from '@/lib/signals/icp/parse-description';
+import { parseTrackIntent } from '@/lib/signals/icp/parse-track-intent';
 import { syncIcpKeywordsToTopics } from '@/lib/signals/leads/topic-sync';
+import { addWatchlistEntry } from '@/lib/signals/watchlist';
 import { chatCompletion, LlmError } from '@/lib/llm';
 import { errorResponse } from '@/lib/api-errors';
 
@@ -114,6 +116,25 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const client = getServerClient();
     const current = await getDirectorySettings(client, workspaceId);
     const currentIcp = current?.icp_description?.trim() ?? '';
+
+    // Deterministic "track <name>" command - adds a workspace watchlist entry
+    // (X + LinkedIn sources, seeded keyword) directly, no LLM round trip needed.
+    const trackIntent = parseTrackIntent(parsed.data.message);
+    if (trackIntent) {
+      const result = await addWatchlistEntry(client, workspaceId, {
+        name: trackIntent.name,
+        xHandle: trackIntent.xHandle,
+        linkedinCompanyUrl: trackIntent.linkedinCompanyUrl,
+        keywords: [trackIntent.name.toLowerCase()],
+      });
+      const sourceCount = result.sourcesCreated.length;
+      return NextResponse.json({
+        assistantMessage: `Tracking ${trackIntent.name} - added ${sourceCount} source${sourceCount === 1 ? '' : 's'} to your watchlist.`,
+        settings: current,
+        applied: false,
+        suggestRun: false,
+      });
+    }
 
     const historyText = (parsed.data.history ?? [])
       .slice(-8)
