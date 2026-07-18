@@ -32,6 +32,7 @@ interface SignalOutreachSentRow {
   channel: string;
   status: string;
   created_at: string;
+  sent_at?: string;
 }
 
 /** One normalized identity field, ready to match against do_not_contact / signal_lead_contacts. */
@@ -120,14 +121,16 @@ async function findMatchingLeadIds(
 /** Newest 'sent' outreach row across the matched leads, or null if none was ever sent. */
 async function findLatestSentOutreach(
   client: InsforgeClient,
+  workspaceId: string,
   leadIds: string[],
 ): Promise<SignalOutreachSentRow | null> {
   const { data } = await client.database
     .from('signal_outreach')
-    .select('id, lead_id, channel, status, created_at')
+    .select('id, lead_id, channel, status, created_at, sent_at')
+    .eq('workspace_id', workspaceId)
     .in('lead_id', leadIds)
     .eq('status', 'sent')
-    .order('created_at', { ascending: false })
+    .order('sent_at', { ascending: false })
     .limit(1);
   const rows = (data ?? []) as SignalOutreachSentRow[];
   return rows[0] ?? null;
@@ -154,13 +157,13 @@ export async function checkPriorContact(
   const leadIds = await findMatchingLeadIds(client, workspaceId, fields);
   if (leadIds.length === 0) return { contacted: false, blockedByDnc };
 
-  const sent = await findLatestSentOutreach(client, leadIds);
+  const sent = await findLatestSentOutreach(client, workspaceId, leadIds);
   if (!sent) return { contacted: false, blockedByDnc };
 
   return {
     contacted: true,
     blockedByDnc,
-    lastAt: sent.created_at,
+    lastAt: sent.sent_at ?? sent.created_at,
     channel: sent.channel,
     leadId: sent.lead_id,
   };

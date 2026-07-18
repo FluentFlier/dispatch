@@ -37,8 +37,8 @@ function makeClient(tables: Record<string, Row[]>) {
       },
       order: (col: string, opts: { ascending: boolean }) => {
         rows = [...rows].sort((a, b) => {
-          const av = String(a[col]);
-          const bv = String(b[col]);
+          const av = String(a[col] ?? '');
+          const bv = String(b[col] ?? '');
           if (av === bv) return 0;
           const asc = av < bv ? -1 : 1;
           return opts.ascending ? asc : -asc;
@@ -76,7 +76,7 @@ describe('Phase: Leads watchlist dedup - checkPriorContact', () => {
     expect(result.contacted).toBe(false);
   });
 
-  it('prior sent outreach: contacted true with the newest lastAt/channel/leadId', async () => {
+  it('prior sent outreach: contacted true with the newest lastAt/channel/leadId (ordered by sent_at)', async () => {
     const { client } = makeClient({
       do_not_contact: [],
       signal_lead_contacts: [
@@ -91,8 +91,8 @@ describe('Phase: Leads watchlist dedup - checkPriorContact', () => {
         },
       ],
       signal_outreach: [
-        { id: 'o1', lead_id: 'lead1', channel: 'linkedin_connect', status: 'sent', created_at: '2026-07-01T00:00:00Z' },
-        { id: 'o2', lead_id: 'lead1', channel: 'linkedin_dm', status: 'sent', created_at: '2026-07-10T00:00:00Z' },
+        { id: 'o1', workspace_id: WS, lead_id: 'lead1', channel: 'linkedin_connect', status: 'sent', created_at: '2026-07-10T00:00:00Z', sent_at: '2026-07-01T00:00:00Z' },
+        { id: 'o2', workspace_id: WS, lead_id: 'lead1', channel: 'linkedin_dm', status: 'sent', created_at: '2026-07-01T00:00:00Z', sent_at: '2026-07-10T00:00:00Z' },
       ],
     });
 
@@ -101,6 +101,7 @@ describe('Phase: Leads watchlist dedup - checkPriorContact', () => {
 
     expect(result.contacted).toBe(true);
     expect(result.blockedByDnc).toBe(false);
+    // sent_at is used, not created_at (o2 has newer sent_at even though o1 has newer created_at)
     expect(result.lastAt).toBe('2026-07-10T00:00:00Z');
     expect(result.channel).toBe('linkedin_dm');
     expect(result.leadId).toBe('lead1');
@@ -112,7 +113,7 @@ describe('Phase: Leads watchlist dedup - checkPriorContact', () => {
       signal_lead_contacts: [
         { id: 'c2', workspace_id: WS, lead_id: 'lead2', provider_id: null, linkedin_url: null, x_handle: 'janedoe', email: null },
       ],
-      signal_outreach: [{ id: 'o3', lead_id: 'lead2', channel: 'x_dm', status: 'draft', created_at: '2026-07-05T00:00:00Z' }],
+      signal_outreach: [{ id: 'o3', workspace_id: WS, lead_id: 'lead2', channel: 'x_dm', status: 'draft', created_at: '2026-07-05T00:00:00Z' }],
     });
 
     const result = await checkPriorContact(client, WS, { xHandle: 'JaneDoe' });
@@ -131,5 +132,67 @@ describe('Phase: Leads watchlist dedup - checkPriorContact', () => {
 
     expect(result).toEqual({ contacted: false, blockedByDnc: false });
     expect(fromSpy).not.toHaveBeenCalled();
+  });
+
+  it('sent_at null fallback: lastAt uses created_at when sent_at is null', async () => {
+    const { client } = makeClient({
+      do_not_contact: [],
+      signal_lead_contacts: [
+        {
+          id: 'c3',
+          workspace_id: WS,
+          lead_id: 'lead3',
+          provider_id: null,
+          linkedin_url: 'https://linkedin.com/in/bob',
+          x_handle: null,
+          email: null,
+        },
+      ],
+      signal_outreach: [
+        { id: 'o4', workspace_id: WS, lead_id: 'lead3', channel: 'linkedin_dm', status: 'sent', created_at: '2026-07-05T00:00:00Z', sent_at: null },
+      ],
+    });
+
+    const result = await checkPriorContact(client, WS, { linkedinUrl: 'https://linkedin.com/in/bob' });
+
+    expect(result.contacted).toBe(true);
+    expect(result.lastAt).toBe('2026-07-05T00:00:00Z');
+  });
+
+  it('multi-lead case: identity matches contacts on two leads, newest sent_at row wins', async () => {
+    const { client } = makeClient({
+      do_not_contact: [],
+      signal_lead_contacts: [
+        {
+          id: 'c4',
+          workspace_id: WS,
+          lead_id: 'lead4',
+          provider_id: null,
+          linkedin_url: 'https://linkedin.com/in/alice',
+          x_handle: null,
+          email: null,
+        },
+        {
+          id: 'c5',
+          workspace_id: WS,
+          lead_id: 'lead5',
+          provider_id: null,
+          linkedin_url: 'https://linkedin.com/in/alice',
+          x_handle: null,
+          email: null,
+        },
+      ],
+      signal_outreach: [
+        { id: 'o5', workspace_id: WS, lead_id: 'lead4', channel: 'linkedin_connect', status: 'sent', created_at: '2026-07-08T00:00:00Z', sent_at: '2026-07-08T00:00:00Z' },
+        { id: 'o6', workspace_id: WS, lead_id: 'lead5', channel: 'linkedin_dm', status: 'sent', created_at: '2026-07-06T00:00:00Z', sent_at: '2026-07-12T00:00:00Z' },
+      ],
+    });
+
+    const result = await checkPriorContact(client, WS, { linkedinUrl: 'https://linkedin.com/in/alice' });
+
+    expect(result.contacted).toBe(true);
+    expect(result.lastAt).toBe('2026-07-12T00:00:00Z');
+    expect(result.channel).toBe('linkedin_dm');
+    expect(result.leadId).toBe('lead5');
   });
 });
