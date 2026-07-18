@@ -6,7 +6,6 @@ import type { Post, Series } from '@/lib/types';
 import { postPillars, pillarWeights } from '@/lib/pillars';
 import type { Status, DashboardPlatform } from '@/lib/constants';
 import { PLATFORMS, PLATFORM_LABELS, STATUSES, STATUS_LABELS, normalizeDashboardPlatform } from '@/lib/constants';
-import PillarMultiSelect from '@/components/ui/PillarMultiSelect';
 import StatusPipeline from '@/components/library/StatusPipeline';
 import PerformanceModal from '@/components/library/PerformanceModal';
 import PublishPanel from '@/components/library/PublishPanel';
@@ -274,31 +273,6 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
    * Apply a pillar selection + weights change from the picker and persist it.
    * `pillars` arrives primary-first, so pillars[0] is the synced primary.
    */
-  function handlePillarsChange(next: { pillars: string[]; weights: Record<string, number> }) {
-    setForm((f) => ({ ...f, pillars: next.pillars, pillar: next.pillars[0], pillar_weights: next.weights }));
-    void persistPillars(next.pillars, next.weights);
-  }
-
-  /** PATCH just the pillars (synced primary + weights) for this post. */
-  async function persistPillars(pillars: string[], weights: Record<string, number>) {
-    try {
-      const res = await fetchWithAuth(`/api/posts/${post.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pillars,
-          pillar: pillars[0],
-          pillar_weights: weights,
-          updated_at: new Date().toISOString(),
-        }),
-      });
-      if (res.ok) onSave();
-      else toast('Save failed', 'error');
-    } catch {
-      toast('Save failed', 'error');
-    }
-  }
-
   const inputClass =
     'w-full bg-bg-secondary border border-border rounded-md px-3 py-2 text-[13px] text-text-primary focus:outline-none focus:border-border-hover transition-colors min-h-[44px]';
   const labelClass = 'text-[11px] text-text-secondary mb-1 block font-medium tracking-wide';
@@ -364,18 +338,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                 />
               </label>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {/* Imported (historical) posts aren't authored against a pillar — hide the picker. */}
-                {!post.is_imported && (
-                  <div className="block sm:col-span-3">
-                    <span className={labelClass}>Pillars (pick one or more)</span>
-                    <PillarMultiSelect
-                      pillars={form.pillars}
-                      weights={form.pillar_weights}
-                      onChange={handlePillarsChange}
-                    />
-                  </div>
-                )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <label className="block">
                   <span className={labelClass}>Platform</span>
                   <select
