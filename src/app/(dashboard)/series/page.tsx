@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Layers, Plus } from "lucide-react";
 import { getInsforge } from "@/lib/insforge/client";
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import type { Series, Post } from "@/lib/types";
 import SeriesCard from "@/components/series/SeriesCard";
 import SeriesPostList from "@/components/series/SeriesPostList";
@@ -156,6 +157,19 @@ export default function SeriesPage() {
     }
   }
 
+  async function pauseResumeSeries(series: Series) {
+    const action = series.status === 'active' ? 'pause' : 'resume';
+    const nextStatus = action === 'pause' ? 'paused' : 'active';
+    // Optimistic status flip; revert on failure.
+    setSeriesList((prev) => prev.map((s) => (s.id === series.id ? { ...s, status: nextStatus } : s)));
+    try {
+      const res = await fetchWithAuth(`/api/series/${series.id}/${action}`, { method: 'POST' });
+      if (!res.ok) throw new Error('failed');
+    } catch {
+      setSeriesList((prev) => prev.map((s) => (s.id === series.id ? { ...s, status: series.status } : s)));
+    }
+  }
+
   function addPostToPart(series: Series, position: number) {
     const params = new URLSearchParams({
       series_id: series.id,
@@ -205,7 +219,7 @@ export default function SeriesPage() {
         title="Series"
         action={
           <button
-            onClick={() => router.push("/generate?tab=series")}
+            onClick={() => router.push("/series/new")}
             className="flex items-center gap-1.5 bg-accent-primary hover:opacity-90 text-white text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-md transition-opacity"
           >
             <Plus size={16} />
@@ -238,7 +252,7 @@ export default function SeriesPage() {
             Organize your content into multi-part series.
           </p>
           <button
-            onClick={() => router.push("/generate?tab=series")}
+            onClick={() => router.push("/series/new")}
             className="flex items-center gap-1.5 bg-accent-primary hover:opacity-90 text-white text-[13px] font-medium px-5 py-[10px] rounded-md transition-opacity"
           >
             <Plus size={16} />
@@ -262,6 +276,7 @@ export default function SeriesPage() {
                 confirmingDelete={confirmDeleteId === series.id}
                 onConfirmDelete={() => setConfirmDeleteId(series.id)}
                 onCancelDelete={() => setConfirmDeleteId(null)}
+                onPauseResume={() => pauseResumeSeries(series)}
               >
                 <SeriesPostList
                   series={series}

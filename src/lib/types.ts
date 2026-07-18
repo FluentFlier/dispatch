@@ -71,13 +71,27 @@ export interface ContentIdea {
   created_at: string;
 }
 
+export interface SeriesCadence {
+  days: string[];
+  time: string;
+  tz?: string;
+  start_date: string;
+  interval_weeks?: number;
+}
+
 export interface Series {
   id: string;
   user_id: string;
+  workspace_id?: string | null;
   name: string;
   description: string | null;
   pillar: string;
   total_parts: number;
+  platform?: 'twitter' | 'linkedin' | 'instagram' | 'threads' | null;
+  cadence?: SeriesCadence | null;
+  status?: 'draft' | 'active' | 'paused' | 'completed';
+  auto_publish?: boolean;
+  source_summary?: string | null;
   created_at: string;
 }
 

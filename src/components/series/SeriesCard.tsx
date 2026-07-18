@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Pause, Play, Trash2 } from 'lucide-react';
 import type { Series } from '@/lib/types';
 import { usePillars } from '@/hooks/usePillars';
 
@@ -13,8 +13,16 @@ interface SeriesCardProps {
   confirmingDelete: boolean;
   onConfirmDelete: () => void;
   onCancelDelete: () => void;
+  onPauseResume?: () => void;
   children?: React.ReactNode;
 }
+
+const STATUS_STYLE: Record<string, string> = {
+  active: 'text-green-600 bg-green-600/10',
+  paused: 'text-amber-600 bg-amber-600/10',
+  completed: 'text-text-secondary bg-bg-tertiary',
+  draft: 'text-text-secondary bg-bg-tertiary',
+};
 
 export default function SeriesCard({
   series,
@@ -25,12 +33,14 @@ export default function SeriesCard({
   confirmingDelete,
   onConfirmDelete,
   onCancelDelete,
+  onPauseResume,
   children,
 }: SeriesCardProps) {
   const { getColor, getLabel } = usePillars();
   const total = series.total_parts;
   const progress = total > 0 ? (completedParts / total) * 100 : 0;
   const pillarColor = getColor(series.pillar);
+  const status = series.status ?? 'draft';
 
   return (
     <div
@@ -59,6 +69,11 @@ export default function SeriesCard({
               >
                 {getLabel(series.pillar)}
               </span>
+              {status !== 'draft' && (
+                <span className={`inline-flex items-center px-[7px] py-[2px] rounded-[3px] text-[10px] font-medium shrink-0 capitalize ${STATUS_STYLE[status] ?? ''}`}>
+                  {status}
+                </span>
+              )}
             </div>
 
             {series.description && (
@@ -96,8 +111,16 @@ export default function SeriesCard({
 
           {children}
 
-          {/* Delete */}
-          <div className="flex justify-end pt-2">
+          {/* Pause/resume + delete */}
+          <div className="flex justify-between items-center pt-2">
+            {onPauseResume && (status === 'active' || status === 'paused') ? (
+              <button
+                onClick={onPauseResume}
+                className="flex items-center gap-1 text-[11px] text-text-secondary hover:text-text-primary transition-colors"
+              >
+                {status === 'active' ? <><Pause size={13} /> Pause series</> : <><Play size={13} /> Resume series</>}
+              </button>
+            ) : <span />}
             {confirmingDelete ? (
               <div className="flex items-center gap-2">
                 <span className="text-[11px] text-text-secondary">
