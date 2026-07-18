@@ -305,6 +305,8 @@ export interface DirectorySettingsRow {
   icp_description: string | null;
   icp_verticals: string[];
   icp_keywords: string[];
+  /** Workspace watchlist keywords (Task 6), merged into accelerator classification. */
+  custom_keywords: string[];
   recency_window: string;
   digest_run_hour_local: number;
   digest_timezone: string | null;

@@ -119,13 +119,22 @@ export interface PostScore {
  * accept threshold. The hybrid orchestrator uses the raw score to decide whether
  * a post is an obvious hit, obvious junk, or a borderline case needing the LLM.
  */
-export function scorePost(post: IngestedPost): PostScore {
+export function scorePost(post: IngestedPost, extraKeywords?: string[]): PostScore {
   const text = normalizeText(post.content);
   let bestType: SignalType = 'other';
   let bestScore = 0;
   const matched: string[] = [];
+  // Workspace-specific watchlist keywords (Task 6) only extend the accelerator
+  // pack; funding/launch packs are unaffected. Built per-call rather than
+  // mutating KEYWORD_PACKS so it stays a plain module-level constant.
+  const packs: KeywordPack[] = extraKeywords?.length
+    ? [
+        { type: 'accelerator_join', keywords: ACCELERATOR_KEYWORDS.concat(extraKeywords), weight: 0.9 },
+        ...KEYWORD_PACKS.slice(1),
+      ]
+    : KEYWORD_PACKS;
   if (text.length >= 20) {
-    for (const pack of KEYWORD_PACKS) {
+    for (const pack of packs) {
       for (const kw of pack.keywords) {
         if (text.includes(kw.toLowerCase())) {
           matched.push(kw);
@@ -145,8 +154,8 @@ export function scorePost(post: IngestedPost): PostScore {
  * Rule-based GTM signal classifier (v1).
  * Returns null if confidence is below threshold.
  */
-export function classifyPost(post: IngestedPost): ClassifiedSignal | null {
-  const { bestType, bestScore, matched } = scorePost(post);
+export function classifyPost(post: IngestedPost, extraKeywords?: string[]): ClassifiedSignal | null {
+  const { bestType, bestScore, matched } = scorePost(post, extraKeywords);
   if (bestScore < SIGNAL_CONFIDENCE_THRESHOLD) return null;
 
   const batch = extractBatch(post.content);

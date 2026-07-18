@@ -31,6 +31,7 @@ const DEFAULT_SETTINGS: Omit<DirectorySettingsRow, 'workspace_id' | 'created_at'
   icp_description: null,
   icp_verticals: [],
   icp_keywords: [],
+  custom_keywords: [],
   recency_window: 'current_batch',
   digest_run_hour_local: 6,
   digest_timezone: null,

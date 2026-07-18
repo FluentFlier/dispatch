@@ -69,6 +69,8 @@ export async function processIngestedPosts(
     rules?: SignalRuleRow[];
     /** Workspace ICP description; enables the keyword-match relevance gate. */
     icpDescription?: string | null;
+    /** Workspace watchlist keywords (Task 6); merged into the accelerator pack. */
+    customKeywords?: string[];
   } = {},
 ): Promise<ProcessBatchResult> {
   const result: ProcessBatchResult = {
@@ -140,7 +142,10 @@ export async function processIngestedPosts(
       });
       if (relevanceWillRun) escalated = true;
     } else {
-      ({ signal: classified, escalated } = await classifyPostHybridWithMeta(post, { highValueSource }));
+      ({ signal: classified, escalated } = await classifyPostHybridWithMeta(post, {
+        highValueSource,
+        extraKeywords: opts.customKeywords,
+      }));
     }
     if (escalated) {
       // A real LLM call happened: count it against the cap.
