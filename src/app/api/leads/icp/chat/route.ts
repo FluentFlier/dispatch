@@ -84,12 +84,68 @@ function looksLikeIcpDescription(message: string): boolean {
   return true;
 }
 
+/**
+ * Deterministic monitoring-intent guard. A message that clearly asks to WATCH
+ * entities/programs for events or field changes and be notified must NEVER be
+ * saved as an ICP: the free classifier sometimes mislabels these as ICP
+ * definitions and fabricates a generic profile (the "hallucinated fintech ICP"
+ * bug). This backstop fires independently of the model so a monitoring turn can
+ * never pollute the ICP, even when the classifier returns no `monitor` block.
+ * Needs BOTH a watch verb and a change/event subject so genuine ICP briefs that
+ * merely mention "funding" ("we sell to founders who raised funding") don't trip.
+ */
+const MONITOR_VERB_RE = /\b(track|monitor|watch|notify|alert|keep an eye|updates? on|get updated|let me know when)\b/i;
+const MONITOR_SUBJECT_RE = /\b(chang(?:e|es|ed|ing)|funding|raised|announce\w*|joins?|joined|got into|speedrun|hf0|accelerator|batch|rename\w*|new (?:ceo|founder|name))\b/i;
+function looksLikeMonitorRequest(message: string): boolean {
+  const m = message.trim();
+  return MONITOR_VERB_RE.test(m) && MONITOR_SUBJECT_RE.test(m);
+}
+
+/** A specific company/founder/program the user wants to watch for changes. */
+interface MonitorTarget {
+  name: string;
+  xHandle?: string;
+  linkedinCompanyUrl?: string;
+}
+
 interface ChatIntent {
   reply: string;
   /** Full, merged ICP description when the user is defining or changing it; empty to leave unchanged. */
   icp_description: string;
   /** True when the user asks to search/find leads now. */
   run_discovery: boolean;
+  /**
+   * Set when the user wants to WATCH entities/programs for events or field changes
+   * (funding, accelerator batches, name/CEO/title/description changes) and be
+   * notified - a monitoring request, NOT an ICP definition. Null otherwise.
+   */
+  monitor: { targets: MonitorTarget[]; keywords: string[] } | null;
+}
+
+/** Narrows an unknown to a trimmed non-empty string, else undefined. */
+function optStr(v: unknown): string | undefined {
+  return typeof v === 'string' && v.trim() ? v.trim() : undefined;
+}
+
+/** Parses the optional `monitor` block; returns null unless it names something to watch. */
+function parseMonitor(raw: unknown): ChatIntent['monitor'] {
+  if (!raw || typeof raw !== 'object') return null;
+  const obj = raw as Record<string, unknown>;
+  const targets: MonitorTarget[] = Array.isArray(obj.targets)
+    ? obj.targets
+        .map((t) => (t && typeof t === 'object' ? (t as Record<string, unknown>) : {}))
+        .map((t) => ({
+          name: optStr(t.name) ?? '',
+          xHandle: optStr(t.xHandle),
+          linkedinCompanyUrl: optStr(t.linkedinCompanyUrl),
+        }))
+        .filter((t) => t.name)
+        .slice(0, 20)
+    : [];
+  const keywords = Array.isArray(obj.keywords)
+    ? obj.keywords.map((k) => optStr(k)).filter((k): k is string => Boolean(k)).slice(0, 30)
+    : [];
+  return targets.length || keywords.length ? { targets, keywords } : null;
 }
 
 /** Pull the first JSON object out of an LLM reply, tolerating prose or ``` fences. */
@@ -98,11 +154,12 @@ function extractJson(raw: string): ChatIntent | null {
   const end = raw.lastIndexOf('}');
   if (start === -1 || end <= start) return null;
   try {
-    const obj = JSON.parse(raw.slice(start, end + 1)) as Partial<ChatIntent>;
+    const obj = JSON.parse(raw.slice(start, end + 1)) as Partial<ChatIntent> & { monitor?: unknown };
     return {
       reply: typeof obj.reply === 'string' ? obj.reply : '',
       icp_description: typeof obj.icp_description === 'string' ? obj.icp_description.trim() : '',
       run_discovery: obj.run_discovery === true,
+      monitor: parseMonitor(obj.monitor),
     };
   } catch {
     return null;
@@ -162,18 +219,28 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .join('\n');
 
     const system = [
-      'You help a founder define their Ideal Customer Profile (ICP) for B2B lead discovery.',
-      'Leads come from startup directories (YC, Product Hunt). The ICP is a natural-language brief.',
-      'Given the current ICP and the latest message, decide the intent and reply conversationally.',
+      'You help a founder set up B2B lead discovery AND lead/company monitoring.',
+      'Classify the latest message into one of three intents and reply conversationally:',
+      '  DEFINE ICP - the user describes who they sell to (stage, industry, roles, geography).',
+      '  RUN DISCOVERY - the user asks to find/search/pull leads now.',
+      '  MONITOR/TRACK - the user wants to WATCH specific companies, founders, or programs for',
+      '    events or changes (funding rounds; joining an accelerator/batch such as YC, YC Speedrun,',
+      '    HF0, Techstars; name/title/CEO/description/profile changes; launch or announcement posts)',
+      '    and be notified. A monitoring request is NOT an ICP - never invent customer attributes for it.',
       'Respond with ONLY a JSON object, no prose, with exactly these keys:',
-      '{"reply": string, "icp_description": string, "run_discovery": boolean}',
-      '- reply: 1-3 short sentences to the user, warm and concrete. If run_discovery is true, do',
-      '  NOT say you are searching or that you found leads - you cannot search from here. Instead',
-      '  confirm the ICP looks ready and tell them to hit the "Find leads now" button to start.',
+      '{"reply": string, "icp_description": string, "run_discovery": boolean, "monitor": {"targets": [{"name": string, "xHandle": string, "linkedinCompanyUrl": string}], "keywords": string[]} | null}',
+      '- reply: 1-3 short, warm, concrete sentences. NEVER claim you already searched or found anything,',
+      '  and NEVER state an ICP the user did not give (no made-up stage/industry/geography). If',
+      '  run_discovery is true, tell them to hit the "Find leads now" button to start.',
       '- icp_description: if the user is defining or CHANGING their ICP, return the FULL updated brief',
       '  (merge their change into the current ICP). If they are only asking to search or just chatting,',
-      '  return an empty string so the saved ICP is left unchanged.',
+      '  For a MONITOR or DISCOVERY message, return an empty string - never fabricate an ICP.',
       '- run_discovery: true ONLY if the user asks to find/search/pull/get leads now.',
+      '- monitor: for a MONITOR/TRACK message, extract what to watch, else null.',
+      '    targets = specific named companies/founders/programs. Include xHandle (no @) or',
+      '      linkedinCompanyUrl ONLY if the user gave one; otherwise omit that field.',
+      '    keywords = programs/events/topics to track as keywords (e.g. "YC Speedrun", "HF0",',
+      '      "raised funding", "series a"). Put accelerator, batch, and funding terms here.',
     ].join('\n');
 
     const userPrompt = [
@@ -213,6 +280,77 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         { assistantMessage: 'I could not parse that - try rephrasing your ICP or say "find leads now".' },
         { status: 200 },
       );
+    }
+
+    // MONITOR/TRACK intent: wire the workspace watchlist (X/LinkedIn sources +
+    // keywords) instead of writing an ICP, then return. Field-change diffing and
+    // funding/accelerator detection run automatically on watched sources +
+    // keywords, so "notify me when their name/CEO/description changes" is satisfied
+    // by adding them to the watchlist. Crucially we never invent an ICP here - that
+    // was the bug where a monitoring request produced a hallucinated fintech ICP.
+    if (intent.monitor) {
+      const watchedNames: string[] = [];
+      const needHandle: string[] = [];
+      // Collect keyword topics to arm as VISIBLE, monitored "Topics to monitor"
+      // (signal_sources keyword_search rows - what the Signals setup card shows and
+      // the engine polls). A named target with no handle can only be watched as a
+      // keyword; one WITH a handle gets a real X/LinkedIn source for field-change
+      // diffing (name/CEO/description changes).
+      const topicSeeds: string[] = [];
+      for (const t of intent.monitor.targets) {
+        if (t.xHandle || t.linkedinCompanyUrl) {
+          await addWatchlistEntry(client, workspaceId, {
+            name: t.name,
+            xHandle: t.xHandle,
+            linkedinCompanyUrl: t.linkedinCompanyUrl,
+          });
+          watchedNames.push(t.name);
+        } else {
+          topicSeeds.push(t.name);
+          needHandle.push(t.name);
+        }
+      }
+      topicSeeds.push(...intent.monitor.keywords);
+      const topicsAdded = topicSeeds.length
+        ? await syncIcpKeywordsToTopics(client, workspaceId, topicSeeds)
+        : 0;
+
+      const latest = await getDirectorySettings(client, workspaceId);
+      const watchLine = watchedNames.length
+        ? `Now watching ${watchedNames.join(', ')} on X and LinkedIn for profile, company, and role changes. `
+        : '';
+      const topicLine = topicsAdded > 0
+        ? `Added ${topicsAdded} topic${topicsAdded === 1 ? '' : 's'} to monitor (see Setup > Advanced > Signals). New posts about them surface as leads within the hour. `
+        : '';
+      const nudge = needHandle.length
+        ? `To catch name, CEO, or description changes for ${needHandle.join(', ')}, give me a handle - e.g. "track ${needHandle[0]} @handle".`
+        : '';
+      const assistantMessage =
+        `${watchLine}${topicLine}${nudge}`.trim() ||
+        'Set up monitoring. Tell me a company name plus its X or LinkedIn handle to watch it for changes.';
+      return NextResponse.json({
+        assistantMessage,
+        settings: latest,
+        applied: false,
+        suggestRun: false,
+        monitor: true,
+      });
+    }
+
+    // Deterministic monitoring backstop: the message clearly asks to watch/track
+    // and be notified, but the classifier returned no monitor block (and may have
+    // hallucinated an ICP instead). Never write that ICP - confirm honestly and
+    // guide the user to name specific targets so we can wire the watchlist.
+    if (looksLikeMonitorRequest(parsed.data.message)) {
+      const latest = await getDirectorySettings(client, workspaceId);
+      return NextResponse.json({
+        assistantMessage:
+          'Set up to watch for those signals. To track a specific company for name, CEO, or description changes, name it with a handle - e.g. "track HF0 @hf0" or "track Speedrun https://linkedin.com/company/...".',
+        settings: latest,
+        applied: false,
+        suggestRun: false,
+        monitor: true,
+      });
     }
 
     // Deterministic ICP-setup fallback: if the classifier returned no brief but

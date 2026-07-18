@@ -28,7 +28,7 @@ vi.mock('@/lib/signals/ingest/workspace-account', () => ({
 vi.mock('@/lib/brain/pages', () => ({ putBrainPage: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('@/lib/brain/types', () => ({ BRAIN_SLUG: { gtm: 'gtm' } }));
 vi.mock('@/lib/signals/leads/topic-sync', () => ({
-  syncIcpKeywordsToTopics: vi.fn().mockResolvedValue(undefined),
+  syncIcpKeywordsToTopics: vi.fn().mockResolvedValue(2),
 }));
 vi.mock('@/lib/signals/icp/parse-description', () => ({
   parseIcpDescription: vi.fn().mockResolvedValue({
@@ -53,13 +53,18 @@ vi.mock('@/lib/llm', () => ({
     isQuota = false;
   },
 }));
+vi.mock('@/lib/signals/watchlist', () => ({
+  addWatchlistEntry: vi.fn().mockResolvedValue({ sourcesCreated: [], customKeywords: [] }),
+}));
 
 import { POST } from '@/app/api/leads/icp/chat/route';
 import { updateDirectorySettings } from '@/lib/signals/leads/store';
 import { chatCompletion } from '@/lib/llm';
+import { addWatchlistEntry } from '@/lib/signals/watchlist';
 
 const updateMock = updateDirectorySettings as unknown as ReturnType<typeof vi.fn>;
 const chatMock = chatCompletion as unknown as ReturnType<typeof vi.fn>;
+const addWatchlistMock = addWatchlistEntry as unknown as ReturnType<typeof vi.fn>;
 
 function req(message: string): NextRequest {
   return new NextRequest('http://localhost/api/leads/icp/chat', {
@@ -141,5 +146,75 @@ describe('F2: an ICP brief is saved, never mistaken for discovery', () => {
 
     expect(body.applied).toBe(true);
     expect(body.suggestRun).toBe(false);
+  });
+});
+
+describe('monitor/track intent wires the watchlist and never fabricates an ICP', () => {
+  it('a monitoring request adds watchlist entries and ignores a hallucinated ICP', async () => {
+    // The model both extracts a monitor block AND (wrongly) returns an ICP brief
+    // the user never gave. The monitor branch must win and the ICP must be dropped
+    // - this is the exact "hallucinated fintech ICP" bug the fix targets.
+    chatMock.mockResolvedValue(
+      JSON.stringify({
+        reply: 'Setting up monitoring.',
+        icp_description: 'seed-stage B2B SaaS fintech in the US',
+        run_discovery: false,
+        monitor: {
+          targets: [{ name: 'HF0', xHandle: 'hf0' }],
+          keywords: ['YC Speedrun', 'raised funding'],
+        },
+      }),
+    );
+
+    const res = await POST(
+      req('I want social media tracking to find companies entering YC Speedrun and HF0, notify me on funding or CEO changes'),
+    );
+    const body = await res.json();
+
+    expect(body.monitor).toBe(true);
+    expect(body.applied).toBe(false);
+    expect(body.suggestRun).toBe(false);
+    // Watchlist wired: one call per named target + one keyword bundle.
+    expect(addWatchlistMock).toHaveBeenCalled();
+    // The hallucinated ICP must NOT be persisted.
+    expect(updateMock).not.toHaveBeenCalled();
+    // The reply must not echo the invented ICP.
+    expect(body.assistantMessage).not.toContain('fintech');
+  });
+
+  it('an empty monitor block (no targets, no keywords) falls through and wires nothing', async () => {
+    chatMock.mockResolvedValue(
+      '{"reply":"ok","icp_description":"","run_discovery":false,"monitor":{"targets":[],"keywords":[]}}',
+    );
+
+    const res = await POST(req('hey there'));
+    const body = await res.json();
+
+    expect(body.monitor).toBeUndefined();
+    expect(addWatchlistMock).not.toHaveBeenCalled();
+  });
+
+  it('deterministic backstop: a monitoring message the model MISLABELS as ICP never writes an ICP', async () => {
+    // The classifier flakes: no monitor block, and a hallucinated fintech ICP.
+    // The deterministic guard must catch the monitoring phrasing and suppress the
+    // ICP write entirely - this is the "re-polluted icp_description" regression.
+    chatMock.mockResolvedValue(
+      JSON.stringify({
+        reply: "You're looking for seed-stage B2B SaaS fintech.",
+        icp_description: 'seed-stage B2B SaaS companies in US fintech',
+        run_discovery: false,
+        monitor: null,
+      }),
+    );
+
+    const res = await POST(
+      req('I want social media tracking to find companies raising funding and notify me when their CEO or name changes'),
+    );
+    const body = await res.json();
+
+    expect(body.monitor).toBe(true);
+    // The hallucinated ICP must NOT be persisted.
+    expect(updateMock).not.toHaveBeenCalled();
+    expect(body.assistantMessage).not.toContain('fintech');
   });
 });

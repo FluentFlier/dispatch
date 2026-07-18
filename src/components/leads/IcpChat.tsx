@@ -335,13 +335,11 @@ export function IcpChat({
         <div ref={bottomRef} />
       </div>
 
-      {settings?.icp_description?.trim() && (
-        <div className="px-4 pb-2">
-          <p className="text-[11px] text-text-tertiary line-clamp-2 border-l-2 border-accent-primary/30 pl-2">
-            {settings.icp_description}
-          </p>
-        </div>
-      )}
+      <div className="px-4 pb-2">
+        <p className="text-[11px] text-text-tertiary border-l-2 border-accent-primary/30 pl-2">
+          Tell it who you sell to or who to watch, and it sets up your lead filters and alerts.
+        </p>
+      </div>
 
       <div className="border-t border-border p-3">
         <div className="flex gap-2 items-end rounded-xl border border-border bg-bg-primary px-3 py-2 focus-within:ring-2 focus-within:ring-accent-primary/30">
