@@ -33,6 +33,8 @@ export interface Post {
   variant_group_id: string | null;
   source_platform: string | null;
   is_imported?: boolean;
+  /** Set once the post is published/linked through the app; gates comment sync. */
+  publish_job_id?: string | null;
   scheduled_publish_at: string | null;
   image_url: string | null;
   created_at: string;
