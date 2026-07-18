@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { CopyButton } from '@/components/ui/CopyButton';
 import { SkeletonLines } from '@/components/ui/Skeleton';
@@ -77,6 +78,8 @@ export function HookGenerator() {
   // Live RAG + RL hooks from the intelligence engine (GStack mined + trained)
   const [intelHooks, setIntelHooks] = useState<any[]>([]);
   const [intelLoading, setIntelLoading] = useState(true);
+  const [intelRefreshing, setIntelRefreshing] = useState(false);
+  const [intelError, setIntelError] = useState('');
 
   useEffect(() => {
     fetch('/api/hooks/intelligence?limit=6')
@@ -84,6 +87,23 @@ export function HookGenerator() {
       .then(d => setIntelHooks(d.hooks || []))
       .finally(() => setIntelLoading(false));
   }, []);
+
+  // Re-mine the user's niche for fresh hooks, then swap in the results.
+  const refreshIntel = async () => {
+    if (intelRefreshing) return;
+    setIntelRefreshing(true);
+    setIntelError('');
+    try {
+      const res = await fetchWithAuth('/api/hooks/refresh', { method: 'POST' });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Could not refresh hooks');
+      setIntelHooks(d.hooks || []);
+    } catch (e: unknown) {
+      setIntelError(e instanceof Error ? e.message : 'Could not refresh hooks');
+    } finally {
+      setIntelRefreshing(false);
+    }
+  };
 
   const generate = async () => {
     if (loading) return; // guard against double-submit (React strict-mode / fast double-click)
@@ -164,7 +184,17 @@ Numbered 1-8. One per line. No explanation. No em dashes.`;
         <div className="text-[12px] font-medium text-text-secondary mb-2 flex items-center gap-2">
           Or use live high-converting hooks from your Intelligence (RAG + RL trained)
           {intelLoading && <span className="text-[10px]">(loading...)</span>}
+          <button
+            type="button"
+            onClick={refreshIntel}
+            disabled={intelRefreshing || intelLoading}
+            className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-blue hover:underline disabled:opacity-50"
+          >
+            <RefreshCw className={`h-3 w-3 ${intelRefreshing ? 'animate-spin' : ''}`} />
+            {intelRefreshing ? 'Refreshing...' : 'Refresh'}
+          </button>
         </div>
+        {intelError && <p className="mb-2 text-[11px] text-accent-primary">{intelError}</p>}
         {intelHooks.length > 0 ? (
           <div className="bg-bg-tertiary border border-border rounded-lg p-[13px_14px] space-y-2 text-sm">
             {intelHooks.slice(0, 5).map((h, i) => (
