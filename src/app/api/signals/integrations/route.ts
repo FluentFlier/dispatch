@@ -23,7 +23,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const workspaceId = await getActiveWorkspaceId(user.id);
   if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
 
-  const liveCheck = request.nextUrl.searchParams.get('live') === 'true';
+  // Default to a live ACTIVE-only check against Composio. The DB flag
+  // (connected_by_user_id) is written once at OAuth and never cleared when a
+  // token EXPIRES or is revoked, so trusting it showed dead connections (e.g. an
+  // expired Gmail token) as "connected" while every action failed. Callers that
+  // explicitly want the cheap DB read can pass ?live=false.
+  const liveCheck = request.nextUrl.searchParams.get('live') !== 'false';
   const composioConfigured = isComposioConfigured();
   const composioUserId = toComposioUserId(workspaceId, user.id);
 
