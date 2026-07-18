@@ -2,9 +2,13 @@ import type { createClient } from '@insforge/sdk';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
+/** How far back a lead's last detected signal still counts as "timely". */
+const TOPIC_WINDOW_MS = 7 * 24 * 3_600_000;
+
 /**
- * Pulls recent high-signal topics from the Signals engine into generation context.
- * Bridges GTM listening → content creation ("post about what's trending for you").
+ * Pulls recent high-signal topics into generation context ("post about what's
+ * trending for you"). Signals live ON leads now (intent_flags.last_signal_*,
+ * stamped by the intent bridge) - the standalone signal_events feed is retired.
  */
 export async function getSignalTopicsForGeneration(
   client: InsforgeClient,
@@ -12,21 +16,36 @@ export async function getSignalTopicsForGeneration(
   limit = 3,
 ): Promise<string[]> {
   try {
-    const { data: events } = await client.database
-      .from('signal_events')
-      .select('title, summary, category')
+    // Explicit columns on purpose (InsForge select('*') + .eq() quirk).
+    const { data } = await client.database
+      .from('signal_leads')
+      .select('company_name, intent_flags')
       .eq('workspace_id', workspaceId)
-      .in('status', ['new', 'drafted', 'approved'])
-      .order('created_at', { ascending: false })
-      .limit(limit);
+      .limit(300);
 
-    if (!events?.length) return [];
+    const since = Date.now() - TOPIC_WINDOW_MS;
+    const rows = (data ?? []) as Array<{
+      company_name: string | null;
+      intent_flags: { last_signal_at?: string; last_signal_summary?: string; last_signal_type?: string } | null;
+    }>;
 
-    return events.map((e) => {
-      const row = e as { title?: string; summary?: string; category?: string };
-      const parts = [row.title, row.summary].filter(Boolean);
-      return parts.join(' - ').slice(0, 200);
-    });
+    return rows
+      .filter((r) => {
+        const at = r.intent_flags?.last_signal_at;
+        return at && Date.parse(at) >= since;
+      })
+      .sort(
+        (a, b) =>
+          Date.parse(b.intent_flags?.last_signal_at ?? '') -
+          Date.parse(a.intent_flags?.last_signal_at ?? ''),
+      )
+      .slice(0, limit)
+      .map((r) => {
+        const summary = r.intent_flags?.last_signal_summary;
+        const type = r.intent_flags?.last_signal_type?.replace(/_/g, ' ');
+        const parts = [r.company_name, summary ?? type].filter(Boolean);
+        return parts.join(' - ').slice(0, 200);
+      });
   } catch {
     return [];
   }

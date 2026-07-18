@@ -234,6 +234,7 @@ export function GenerateOutput({
   const [published, setPublished] = useState<{ platform: string; url?: string } | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [quickSaving, setQuickSaving] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
   const [autoPredicted, setAutoPredicted] = useState(false);
 
   // Local copy of the draft so in-place edits (Humanize) are reflected on every
@@ -322,11 +323,19 @@ export function GenerateOutput({
     }
   }
 
-  async function quickSave() {
+  async function quickSave(schedule?: { date: string; time: string }) {
     const firstLine = displayText.split('\n').find((l) => l.trim())?.trim() ?? 'Untitled draft';
     const title = firstLine.replace(/^[#*\->\s]+/, '').slice(0, 120);
     setQuickSaving(true);
     try {
+      // Local wall-clock -> ISO instant, same conversion the calendar uses.
+      const publishAt = schedule
+        ? (() => {
+            const [y, m, d] = schedule.date.split('-').map(Number);
+            const [hh, mm] = schedule.time.split(':').map(Number);
+            return new Date(y, m - 1, d, hh, mm).toISOString();
+          })()
+        : null;
       const res = await fetchWithAuth('/api/posts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -341,13 +350,21 @@ export function GenerateOutput({
           // Persist the evaluation too so quick-saved drafts feed the voice
           // flywheel (workspace_voice_metrics) the same as full saves + cron.
           voice_evaluation: voiceMetrics?.evaluation ?? null,
+          ...(schedule
+            ? { scheduled_date: schedule.date, scheduled_publish_at: publishAt }
+            : {}),
         }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => ({}));
         throw new Error((body as { error?: string }).error ?? 'Failed to save');
       }
-      toast('Saved to Posts');
+      if (schedule) {
+        setScheduleOpen(false);
+        toast(`Scheduled for ${schedule.date} at ${schedule.time}`);
+      } else {
+        toast('Saved to Posts');
+      }
     } catch (e: unknown) {
       toast(e instanceof Error ? e.message : 'Failed to save', 'error');
     } finally {
@@ -452,6 +469,9 @@ export function GenerateOutput({
             <Button variant="secondary" size="sm" onClick={() => void quickSave()} loading={quickSaving}>
               Save
             </Button>
+            <Button variant="secondary" size="sm" onClick={() => setScheduleOpen(true)}>
+              Schedule
+            </Button>
             <CopyButton text={displayText} />
             <Button variant="ghost" size="sm" onClick={handleHumanize} loading={humanizing}>
               Polish
@@ -465,6 +485,9 @@ export function GenerateOutput({
             </Button>
             <Button variant="secondary" size="sm" onClick={() => setShowSave(true)}>
               Save to Library
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => setScheduleOpen(true)}>
+              Schedule
             </Button>
             <Button variant="secondary" size="sm" onClick={handleHumanize} loading={humanizing}>
               Humanize
@@ -503,7 +526,71 @@ export function GenerateOutput({
         platform={sourcePlatform ?? 'linkedin'}
         onPublished={(url) => setPublished({ platform: sourcePlatform ?? 'linkedin', url })}
       />
+
+      <SchedulePostModal
+        open={scheduleOpen}
+        onClose={() => setScheduleOpen(false)}
+        saving={quickSaving}
+        onSchedule={(date, time) => void quickSave({ date, time })}
+      />
     </div>
+  );
+}
+
+/* Schedule modal: saves the draft to the library already placed on the calendar. */
+function SchedulePostModal({
+  open,
+  onClose,
+  onSchedule,
+  saving,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onSchedule: (date: string, time: string) => void;
+  saving: boolean;
+}) {
+  const today = new Date().toISOString().slice(0, 10);
+  const [date, setDate] = useState(today);
+  const [time, setTime] = useState('12:00');
+
+  return (
+    <Modal open={open} onClose={onClose} title="Schedule post">
+      <div className="space-y-3">
+        <p className="text-[13px] text-ink3">
+          Saves this draft to your library and places it on the calendar. It publishes
+          automatically at the chosen time.
+        </p>
+        <div className="flex gap-2">
+          <label className="flex-1 text-[12px] text-ink3">
+            Date
+            <input
+              type="date"
+              value={date}
+              min={today}
+              onChange={(e) => setDate(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-hair bg-paper px-3 py-2 text-[14px] text-ink focus:outline-none"
+            />
+          </label>
+          <label className="w-32 text-[12px] text-ink3">
+            Time
+            <input
+              type="time"
+              value={time}
+              onChange={(e) => setTime(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-hair bg-paper px-3 py-2 text-[14px] text-ink focus:outline-none"
+            />
+          </label>
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={() => onSchedule(date, time)} loading={saving} disabled={!date || !time}>
+            Schedule
+          </Button>
+        </div>
+      </div>
+    </Modal>
   );
 }
 

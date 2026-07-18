@@ -15,11 +15,14 @@ const putSchema = z
   .object({
     timezone: z.string().max(64),
     enabled_sources: z.array(
-      z.enum(['yc_directory', 'yc_launches', 'product_hunt', 'manual']),
+      z.enum(['yc_directory', 'yc_launches', 'product_hunt', 'web_discovery', 'linkedin', 'x', 'manual']),
     ),
     icp_description: z.string().max(4000).nullable(),
     icp_verticals: z.array(z.string()),
     icp_keywords: z.array(z.string()),
+    discovery_goal: z.string().max(2000).nullable(),
+    scrape_frequency: z.enum(['daily', 'every_3_days', 'weekly', 'manual']),
+    meeting_link: z.string().max(500).nullable(),
     recency_window: z.string().max(32),
     digest_run_hour_local: z.number().int().min(0).max(23),
     digest_timezone: z.string().max(64).nullable(),

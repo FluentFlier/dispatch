@@ -8,10 +8,12 @@ export type NurtureStage =
   | 'engaging'
   | 'connect_ready'
   | 'connect_sent'
-  | 'nurturing'
   | 'dm_ready'
   | 'dm_sent'
+  // The prospect replied and is waiting on you (inbound).
   | 'replied'
+  // You replied back; the thread is live (outbound).
+  | 'in_conversation'
   | 'closed';
 
 export interface LeadPlaybook {
@@ -139,6 +141,8 @@ export interface SignalOutreachRow {
   channel: OutreachChannel;
   status: string;
   draft_text: string | null;
+  /** User's autosaved edits; draft_text stays the model original for edit learning. */
+  edited_draft_text?: string | null;
   final_text: string | null;
   template_id: string | null;
   sent_at: string | null;
@@ -214,6 +218,15 @@ export interface LeadIntentFlags {
   raised?: boolean;
   seeking_investors?: boolean;
   seeking_tools?: boolean;
+  /** Ported from the retired Signals feature: monitoring lands on the lead. */
+  accelerator_join?: boolean;
+  launch?: boolean;
+  role_change?: boolean;
+  keyword_match?: boolean;
+  /** Most recent detected signal, surfaced on the lead's feed card. */
+  last_signal_type?: string;
+  last_signal_summary?: string;
+  last_signal_at?: string;
 }
 
 /**
@@ -233,8 +246,10 @@ export interface LeadCompanyDetail {
   fetchedAt?: string;
   /** Where a fallback description came from when one was fetched live. */
   description_source?: 'linkedin' | 'web';
-  /** True once we've tried and failed to fetch a description, so we don't refetch. */
+  /** Legacy permanent latch; superseded by description_checked_at. */
   description_checked?: boolean;
+  /** When we last tried and found nothing; rechecked after a TTL, not latched forever. */
+  description_checked_at?: string;
 }
 
 export interface SignalLeadRow {
@@ -264,6 +279,8 @@ export interface SignalLeadRow {
   unipile_chat_id?: string | null;
   last_inbound_at?: string | null;
   conversion_stage?: ConversionStage | string | null;
+  /** Hide from the feed until this timestamp (null = not snoozed). */
+  snoozed_until?: string | null;
   first_seen_at: string;
   last_seen_at: string;
   digest_date: string | null;
@@ -297,6 +314,9 @@ export interface SignalLeadWithContacts extends SignalLeadRow {
   outreach?: SignalOutreachRow | null;
 }
 
+/** How often the cron may scrape a workspace's directories. */
+export type ScrapeFrequency = 'daily' | 'every_3_days' | 'weekly' | 'manual';
+
 export interface DirectorySettingsRow {
   workspace_id: string;
   enabled_sources: LeadSource[];
@@ -304,6 +324,12 @@ export interface DirectorySettingsRow {
   icp_description: string | null;
   icp_verticals: string[];
   icp_keywords: string[];
+  /** Parsed hunt goal (stage/vertical/geography) consumed by web discovery. */
+  discovery_goal: string | null;
+  /** Cron scrape cadence; 'manual' means only user-triggered scrapes run. */
+  scrape_frequency: ScrapeFrequency;
+  /** Stamped after every directory sync (any trigger); drives the cadence gate. */
+  last_synced_at: string | null;
   recency_window: string;
   digest_run_hour_local: number;
   digest_timezone: string | null;
@@ -375,6 +401,10 @@ export interface IngestedLead {
   tagline?: string;
   /** Longer company description captured at scrape time (seeds company_detail). */
   longDescription?: string;
+  /** Headcount captured at scrape time (seeds company_detail.teamSize). */
+  teamSize?: number;
+  /** HQ location captured at scrape time (seeds company_detail.location). */
+  location?: string;
   /** Provenance URL of the scrape (e.g. LinkedIn company page), stored in source_fact. */
   sourceUrl?: string;
   website?: string;

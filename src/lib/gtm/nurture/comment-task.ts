@@ -1,6 +1,7 @@
 import type { createClient } from '@insforge/sdk';
 import { draftOutboundComment } from '@/lib/engagement/tasks';
 import { connectDueAt } from '@/lib/gtm/nurture/playbook';
+import { markPlaybookStepDone } from '@/lib/gtm/nurture/shared';
 import { draftOutreachForLead } from '@/lib/signals/outreach/draft-lead';
 import { getLead, updateLead } from '@/lib/signals/leads/store';
 import { assertOutreachAllowed } from '@/lib/signals/safety/guard';
@@ -11,13 +12,6 @@ import type { ProspectPost } from '@/lib/gtm/nurture/linkedin-posts';
 import { logError } from '@/lib/logger';
 
 type InsforgeClient = ReturnType<typeof createClient>;
-
-function markStepDone(playbook: LeadPlaybook, type: LeadPlaybook['steps'][number]['type']): LeadPlaybook {
-  return {
-    ...playbook,
-    steps: playbook.steps.map((s) => (s.type === type ? { ...s, status: 'done' as const } : s)),
-  };
-}
 
 /** Drafts a voice comment and inserts one engagement_tasks row for a single post. */
 async function insertCommentTask(
@@ -97,7 +91,7 @@ export async function queueLeadCommentTasks(
   const scheduledAt = firstScheduledIso ?? new Date().toISOString();
   const first = targetPosts[0];
   const updatedPlaybook: LeadPlaybook = {
-    ...markStepDone(playbook, 'research'),
+    ...(markPlaybookStepDone(playbook, 'research') ?? playbook),
     targetPost: {
       id: first.id,
       excerpt: first.excerpt.slice(0, 500),
@@ -225,7 +219,7 @@ export async function advanceLeadAfterComment(
   const pb = (lead.playbook ?? null) as LeadPlaybook | null;
   if (!pb) return;
 
-  const updatedPb = markStepDone(pb, 'comment');
+  const updatedPb = markPlaybookStepDone(pb, 'comment') ?? pb;
   const due = connectDueAt(updatedPb);
 
   await draftOutreachForLead(client, userId, workspaceId, lead, 'linkedin_connect');

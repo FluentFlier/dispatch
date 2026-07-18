@@ -31,6 +31,9 @@ const DEFAULT_SETTINGS: Omit<DirectorySettingsRow, 'workspace_id' | 'created_at'
   icp_description: null,
   icp_verticals: [],
   icp_keywords: [],
+  discovery_goal: null,
+  scrape_frequency: 'daily',
+  last_synced_at: null,
   recency_window: 'current_batch',
   digest_run_hour_local: 6,
   digest_timezone: null,
@@ -137,6 +140,9 @@ export async function listLeads(
 
   return (data ?? [])
     .map((row) => hydrateLead(row))
+    // Snoozed leads stay hidden until their snooze expires. JS-side filter on
+    // purpose: this backend's .or() with null checks is a known quirk trap.
+    .filter((l) => !l.snoozed_until || Date.parse(l.snoozed_until) <= Date.now())
     .sort((a, b) => leadSortScore(b) - leadSortScore(a))
     .slice(0, renderLimit);
 }
@@ -282,6 +288,8 @@ export async function upsertIngestedLeads(
             company_detail: {
               description: lead.longDescription,
               industries: lead.tags?.length ? lead.tags : undefined,
+              teamSize: lead.teamSize,
+              location: lead.location,
             },
             lead_status: 'new',
             digest_date: digestDate,

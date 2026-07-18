@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/components/ui/Toast';
-import { resolveSignalOutreach, isGuardBlock } from '@/components/leads/signal-outreach';
+import { isGuardBlock } from '@/components/leads/signal-outreach';
 import type { FeedFilterState } from '@/components/leads/FeedFilters';
 import type {
   DirectorySettingsRow,
@@ -26,6 +26,7 @@ type ScrapeResultSummary = {
   updated: number;
   resolved: number;
   warnings?: string[];
+  perSource?: Array<{ source: string; count: number; error?: string }>;
 };
 
 /** Initial feed page + how much each "Load more" adds. Capped by the server at 300. */
@@ -56,8 +57,22 @@ export function useLeadsController() {
   const [filters, setFilters] = useState<FeedFilterState>(INITIAL_FILTERS);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
-  // Inline safety-guard notice per signal (expected 422 block: dry-run/cap/hours).
-  const [signalNotices, setSignalNotices] = useState<Record<string, string>>({});
+  // Debounced server autosave of edited draft text, so edits survive
+  // navigation/logout/tab close instead of living only in this state map.
+  const draftSaveTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const autosaveDraft = useCallback((id: string, text: string) => {
+    setDrafts((d) => ({ ...d, [id]: text }));
+    const timers = draftSaveTimers.current;
+    if (timers[id]) clearTimeout(timers[id]);
+    timers[id] = setTimeout(() => {
+      delete timers[id];
+      void fetchWithAuth(`/api/leads/${id}/draft`, {
+        method: 'PATCH',
+        headers: jsonHeaders,
+        body: JSON.stringify({ draftText: text }),
+      }).catch(() => {});
+    }, 800);
+  }, []);
 
   const [loading, setLoading] = useState(true);
   // True when the initial bootstrap fetch FAILED (vs a genuine empty feed), so
@@ -84,9 +99,9 @@ export function useLeadsController() {
   const [feedLimit, setFeedLimit] = useState(FEED_PAGE_SIZE);
   // Bulk lead import drawer (CSV / paste).
   const [importOpen, setImportOpen] = useState(false);
-  // Header toggle: "feed" is the unified lead list (default); "setup" is the
-  // signal + directory configuration surface folded in from the retired /signals page.
-  const [view, setView] = useState<'feed' | 'setup'>('feed');
+  // Header toggle: "feed" is the unified lead list (default); "pipeline" is
+  // the CRM funnel view; "setup" is the configuration surface.
+  const [view, setView] = useState<'feed' | 'pipeline' | 'setup'>('feed');
   const [companyById, setCompanyById] = useState<Record<string, YcCompanyDetail | 'loading' | 'error'>>({});
   // Full engager records, loaded lazily when an engager card is opened.
   const [engagersById, setEngagersById] = useState<Record<string, WarmContactRow | 'loading'>>({});
@@ -107,6 +122,20 @@ export function useLeadsController() {
       setView('setup');
     }
   }, [searchParams]);
+
+  // The pipeline view spans every outreach status, while the feed's default
+  // filter only loads 'new' leads - so entering it loads the full workspace.
+  useEffect(() => {
+    if (view !== 'pipeline') return;
+    void fetchWithAuth('/api/leads?status=all')
+      .then(async (r) => {
+        if (!r.ok) return;
+        const d = await r.json();
+        indexLeads(d.leads ?? []);
+      })
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
 
   // --- Data loading ---
   // Directory-lead detail + settings + watchlist come from bootstrap; the feed
@@ -135,8 +164,8 @@ export function useLeadsController() {
     setSetupMessage(null);
     try {
       const [feedRes, bootRes] = await Promise.all([
-        fetch(`/api/leads/feed?${feedQuery()}`),
-        fetch(`/api/leads/bootstrap?status=${filters.status}`),
+        fetchWithAuth(`/api/leads/feed?${feedQuery()}`),
+        fetchWithAuth(`/api/leads/bootstrap?status=${filters.status}`),
       ]);
       const feed = await feedRes.json().catch(() => ({}));
       const boot = await bootRes.json().catch(() => ({}));
@@ -166,7 +195,7 @@ export function useLeadsController() {
       // a failure here must not surface as a load error (swallow + ignore).
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       if (tz)
-        void fetch('/api/leads/settings', { method: 'PUT', headers: jsonHeaders, body: JSON.stringify({ timezone: tz }) }).catch(
+        void fetchWithAuth('/api/leads/settings', { method: 'PUT', headers: jsonHeaders, body: JSON.stringify({ timezone: tz }) }).catch(
           () => {},
         );
     } catch {
@@ -192,9 +221,11 @@ export function useLeadsController() {
     setListLoading(true);
     try {
       const [feedRes, leadsRes] = await Promise.all([
-        fetch(`/api/leads/feed?${feedQuery()}`),
-        fetch(`/api/leads?status=${filters.status}`),
+        fetchWithAuth(`/api/leads/feed?${feedQuery()}`),
+        fetchWithAuth(`/api/leads?status=${filters.status}`),
       ]);
+      // A non-ok response must not blank the feed to a fake "no leads" state.
+      if (!feedRes.ok || !leadsRes.ok) throw new Error('refresh failed');
       const feed = await feedRes.json();
       const leadsData = await leadsRes.json();
       // Discard if a newer fetch (filter change or bootstrap) started meanwhile.
@@ -224,13 +255,6 @@ export function useLeadsController() {
     );
   }, []);
 
-  // Reflect a signal event's new status on its feed card so a sent signal
-  // leaves the "New" filter, mirroring how mergeLead reflects directory-lead
-  // status changes back to the list.
-  const mergeSignalStatus = useCallback((id: string, status: string) => {
-    setCards((prev) => prev.map((c) => (c.id === id ? { ...c, status } : c)));
-  }, []);
-
   // Fetch rich company info the first time a directory lead is opened.
   useEffect(() => {
     if (!selectedId || companyById[selectedId]) return;
@@ -238,7 +262,7 @@ export function useLeadsController() {
     if (!card || card.kind !== 'directory') return;
     const id = selectedId;
     setCompanyById((m) => ({ ...m, [id]: 'loading' }));
-    fetch(`/api/leads/${id}/company`)
+    fetchWithAuth(`/api/leads/${id}/company`)
       .then((r) => {
         if (!r.ok) throw new Error('company fetch failed');
         return r.json();
@@ -249,13 +273,17 @@ export function useLeadsController() {
       .catch(() => setCompanyById((m) => ({ ...m, [id]: 'error' })));
   }, [selectedId, companyById, cards]);
 
-  // Retry a failed company-info fetch: dropping the entry re-arms the effect.
+  // Retry a failed or empty company-info fetch. ?refresh=1 tells the server to
+  // bypass the "checked, nothing found" TTL and look again right now.
   const retryCompany = useCallback((id: string) => {
-    setCompanyById((m) => {
-      const next = { ...m };
-      delete next[id];
-      return next;
-    });
+    setCompanyById((m) => ({ ...m, [id]: 'loading' }));
+    fetchWithAuth(`/api/leads/${id}/company?refresh=1`)
+      .then((r) => {
+        if (!r.ok) throw new Error('company fetch failed');
+        return r.json();
+      })
+      .then((d) => setCompanyById((m) => ({ ...m, [id]: (d.company as YcCompanyDetail) ?? null })))
+      .catch(() => setCompanyById((m) => ({ ...m, [id]: 'error' })));
   }, []);
 
   // Load the full engager record the first time an engager card is opened, so
@@ -266,8 +294,11 @@ export function useLeadsController() {
     if (!card || card.kind !== 'engager') return;
     const id = selectedId;
     setEngagersById((m) => ({ ...m, [id]: 'loading' }));
-    fetch(`/api/social-graph/warm-contacts/${id}`)
-      .then((r) => r.json())
+    fetchWithAuth(`/api/social-graph/warm-contacts/${id}`)
+      .then((r) => {
+        if (!r.ok) throw new Error('engager fetch failed');
+        return r.json();
+      })
       .then((d) => {
         const contact = (d.contact as WarmContactRow) ?? null;
         setEngagersById((m) => ({ ...m, [id]: contact ?? 'loading' }));
@@ -354,7 +385,7 @@ export function useLeadsController() {
     const worker = async () => {
       for (let lead = queue.shift(); lead; lead = queue.shift()) {
         try {
-          const res = await fetch(`/api/leads/${lead.id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
+          const res = await fetchWithAuth(`/api/leads/${lead.id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
           const data = await res.json();
           if (res.ok) {
             mergeLead(data.lead);
@@ -381,7 +412,7 @@ export function useLeadsController() {
     setScraping(true);
     setScrapeProgress({ pct: 0, label: 'Starting scrape…' });
     try {
-      const res = await fetch('/api/leads/sync', { method: 'POST' });
+      const res = await fetchWithAuth('/api/leads/sync', { method: 'POST' });
       if (!res.ok || !res.body) {
         // Non-stream error path (auth / no-workspace return plain JSON).
         const data = await res.json().catch(() => ({}));
@@ -434,7 +465,13 @@ export function useLeadsController() {
       } else if (warnings.length > 0) {
         toast(`${result.inserted} new, but ${warnings.length} source(s) failed: ${warnings[0]}`, 'error');
       } else {
-        toast(`Scrape done: ${result.inserted} new, ${result.updated} updated, ${result.resolved} resolved.`);
+        // Per-source counts make source health visible right after a run.
+        const perSource = (result.perSource ?? [])
+          .map((p) => `${p.source.replace(/_/g, ' ')} ${p.count}`)
+          .join(' / ');
+        toast(
+          `Scrape done: ${result.inserted} new, ${result.updated} updated, ${result.resolved} resolved${perSource ? ` (${perSource})` : ''}.`,
+        );
       }
       await refetchList();
     } catch (err) {
@@ -451,7 +488,7 @@ export function useLeadsController() {
       const payload: Record<string, unknown> = {};
       if (rewriteInstruction) payload.rewriteInstruction = rewriteInstruction;
       if (polish) payload.polish = true;
-      const res = await fetch(`/api/leads/${id}/draft`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/draft`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify(payload),
@@ -474,7 +511,7 @@ export function useLeadsController() {
     edit: { whyThem?: string; angle?: string; stepLabels?: string[] },
   ) => {
     try {
-      const res = await fetch(`/api/leads/${id}/playbook`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/playbook`, {
         method: 'PATCH',
         headers: jsonHeaders,
         body: JSON.stringify({ edit }),
@@ -495,7 +532,7 @@ export function useLeadsController() {
     setBusy({ id, action: 'approve' });
     try {
       // Send the (possibly edited) draft so the edit-feedback loop can capture it.
-      const res = await fetch(`/api/leads/${id}/approve`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/approve`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ channel, messageText: drafts[id] }),
@@ -517,7 +554,7 @@ export function useLeadsController() {
   const handleCheckConnection = async (id: string) => {
     setBusy({ id, action: 'check' });
     try {
-      const res = await fetch(`/api/leads/${id}/check-connection`, { method: 'POST' });
+      const res = await fetchWithAuth(`/api/leads/${id}/check-connection`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       if (data.connected) {
@@ -538,7 +575,7 @@ export function useLeadsController() {
   const handleMarkStage = async (id: string, stage: 'accepted' | 'replied' | 'closed') => {
     setBusy({ id, action: 'stage' });
     try {
-      const res = await fetch(`/api/leads/${id}/outreach-stage`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/outreach-stage`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ stage }),
@@ -558,7 +595,7 @@ export function useLeadsController() {
   const handleDraftFollowup = async (id: string) => {
     setBusy({ id, action: 'followup' });
     try {
-      const res = await fetch(`/api/leads/${id}/draft`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/draft`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ channel: 'linkedin_dm' }),
@@ -580,7 +617,7 @@ export function useLeadsController() {
   const handleDraftReply = async (id: string) => {
     setBusy({ id, action: 'reply' });
     try {
-      const res = await fetch(`/api/leads/${id}/draft-reply`, { method: 'POST', headers: jsonHeaders, body: '{}' });
+      const res = await fetchWithAuth(`/api/leads/${id}/draft-reply`, { method: 'POST', headers: jsonHeaders, body: '{}' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       mergeLead(data.lead);
@@ -599,7 +636,7 @@ export function useLeadsController() {
   const handleSendReply = async (id: string) => {
     setBusy({ id, action: 'approve' });
     try {
-      const res = await fetch(`/api/leads/${id}/reply`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/reply`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ messageText: drafts[id] }),
@@ -628,7 +665,7 @@ export function useLeadsController() {
     setEmailConfirmId(null);
     setBusy({ id, action: 'email' });
     try {
-      const res = await fetch(`/api/leads/${id}/approve`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/approve`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ channel: 'gmail', emailOptIn: true, messageText: drafts[id] }),
@@ -647,7 +684,7 @@ export function useLeadsController() {
   const handleDismiss = async (id: string) => {
     setBusy({ id, action: 'dismiss' });
     try {
-      const res = await fetch(`/api/leads/${id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ action: 'dismiss' }) });
+      const res = await fetchWithAuth(`/api/leads/${id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ action: 'dismiss' }) });
       if (!res.ok) throw new Error();
       setCards((prev) => prev.filter((c) => c.id !== id));
       setLeadsById((prev) => {
@@ -694,7 +731,7 @@ export function useLeadsController() {
     try {
       const results = await Promise.allSettled(
         ids.map((id) =>
-          fetch(`/api/leads/${id}`, {
+          fetchWithAuth(`/api/leads/${id}`, {
             method: 'PATCH',
             headers: jsonHeaders,
             body: JSON.stringify({ action }),
@@ -745,7 +782,7 @@ export function useLeadsController() {
   // Export a specific id subset (POST, since a GET can't carry many UUIDs).
   const exportSelectedIds = async (ids: string[]) => {
     try {
-      const res = await fetch('/api/leads/export', {
+      const res = await fetchWithAuth('/api/leads/export', {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ ids, status: filters.status }),
@@ -778,7 +815,7 @@ export function useLeadsController() {
     status: 'pending' | 'done',
   ) => {
     try {
-      const res = await fetch(`/api/leads/${id}/playbook`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/playbook`, {
         method: 'PATCH',
         headers: jsonHeaders,
         body: JSON.stringify({ stepIndex, status }),
@@ -791,12 +828,12 @@ export function useLeadsController() {
     }
   };
 
-  const handleSnooze = async (id: string) => {
+  const handleSnooze = async (id: string, days: number = 7) => {
     setBusy({ id, action: 'snooze' });
     try {
-      const res = await fetch(`/api/leads/${id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ action: 'snooze' }) });
+      const res = await fetchWithAuth(`/api/leads/${id}`, { method: 'PATCH', headers: jsonHeaders, body: JSON.stringify({ action: 'snooze', days }) });
       if (!res.ok) throw new Error();
-      // Snoozed leads leave today's surface (digest_date pushed +1); drop from view like dismiss.
+      // Server hides the lead via snoozed_until; drop from view like dismiss.
       setCards((prev) => prev.filter((c) => c.id !== id));
       setLeadsById((prev) => {
         const next = { ...prev };
@@ -804,7 +841,7 @@ export function useLeadsController() {
         return next;
       });
       if (selectedId === id) setSelectedId(null);
-      toast('Snoozed until tomorrow.');
+      toast(days === 1 ? 'Snoozed until tomorrow.' : `Snoozed for ${days} days.`);
     } catch {
       toast('Could not snooze.', 'error');
     } finally {
@@ -815,7 +852,7 @@ export function useLeadsController() {
   const handleResolve = async (id: string, force = false) => {
     setBusy({ id, action: 'resolve' });
     try {
-      const res = await fetch(`/api/leads/${id}/resolve`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/resolve`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ force }),
@@ -833,7 +870,7 @@ export function useLeadsController() {
         return;
       }
       toast('Contact found — drafting…', 'success');
-      const dres = await fetch(`/api/leads/${id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
+      const dres = await fetchWithAuth(`/api/leads/${id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
       const ddata = await dres.json();
       if (dres.ok) {
         mergeLead(ddata.lead);
@@ -871,7 +908,7 @@ export function useLeadsController() {
 
   const handleFollowLead = async (lead: SignalLeadWithContacts) => {
     try {
-      const res = await fetch('/api/leads/followed', {
+      const res = await fetchWithAuth('/api/leads/followed', {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ companyName: lead.company_name, domain: lead.domain, externalId: lead.external_id }),
@@ -885,86 +922,12 @@ export function useLeadsController() {
     }
   };
 
-  // --- Actions (signal cards) ---
-  // Generate (or regenerate) an AI outreach draft for a signal event. The
-  // channel is chosen from the card's reachable contact so the draft is tuned
-  // for the surface it will actually be sent on.
-  const handleSignalDraft = async (card: UnifiedLeadCard) => {
-    const id = card.id;
-    setBusy({ id, action: 'draft' });
-    setSignalNotices((n) => {
-      const next = { ...n };
-      delete next[id];
-      return next;
-    });
-    try {
-      const plan = resolveSignalOutreach(card);
-      const res = await fetch(`/api/signals/${id}/draft`, {
-        method: 'POST',
-        headers: jsonHeaders,
-        body: JSON.stringify({ channel: plan.channel }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'draft failed');
-      setDrafts((d) => ({ ...d, [id]: data.draft?.draftText ?? '' }));
-      mergeSignalStatus(id, 'drafted');
-      toast('Draft ready.');
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not draft.', 'error');
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  // Approve + send a signal draft. An HTTP 422 is the safety guard blocking the
-  // send (dry-run / cap / working hours) — expected, not a crash — so its reason
-  // is surfaced as an inline notice rather than an error toast.
-  const handleSignalSend = async (card: UnifiedLeadCard) => {
-    const id = card.id;
-    const plan = resolveSignalOutreach(card);
-    if (!plan.sendable) {
-      toast('No messaging channel on this signal. Copy the draft to send by hand.', 'error');
-      return;
-    }
-    setBusy({ id, action: 'send' });
-    setSignalNotices((n) => {
-      const next = { ...n };
-      delete next[id];
-      return next;
-    });
-    try {
-      const res = await fetch(`/api/signals/${id}/send`, {
-        method: 'POST',
-        headers: jsonHeaders,
-        body: JSON.stringify({
-          channel: plan.channel,
-          linkedin_identifier: plan.linkedinIdentifier,
-          recipient_email: plan.recipientEmail,
-          message_text: drafts[id] ?? '',
-        }),
-      });
-      const data = await res.json();
-      if (isGuardBlock(res.status)) {
-        // Safety guard blocked the send: show the reason inline, leave the draft.
-        setSignalNotices((n) => ({ ...n, [id]: data.error || 'Sending is blocked by your safety settings right now.' }));
-        return;
-      }
-      if (!res.ok) throw new Error(data.error || 'send failed');
-      mergeSignalStatus(id, 'sent');
-      toast('Sent.');
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not send.', 'error');
-    } finally {
-      setBusy(null);
-    }
-  };
-
   // --- Actions (engager cards) ---
   // Reload one engager's full record and reflect its stage/status on the feed
   // card so the list + detail stay consistent without a full refetch.
   const refreshEngager = useCallback(async (id: string) => {
     try {
-      const res = await fetch(`/api/social-graph/warm-contacts/${id}`);
+      const res = await fetchWithAuth(`/api/social-graph/warm-contacts/${id}`);
       const data = await res.json();
       const contact = (data.contact as WarmContactRow) ?? null;
       if (!contact) return;
@@ -995,7 +958,7 @@ export function useLeadsController() {
       return next;
     });
     try {
-      const res = await fetch(`/api/social-graph/warm-contacts/${id}/plan`, { method: 'POST' });
+      const res = await fetchWithAuth(`/api/social-graph/warm-contacts/${id}/plan`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Plan failed');
       await refreshEngager(id);
@@ -1022,14 +985,14 @@ export function useLeadsController() {
       // Persist any inline edits to the draft before sending.
       const draft = drafts[id];
       if (draft?.trim()) {
-        await fetch(`/api/social-graph/warm-contacts/${id}`, {
+        await fetchWithAuth(`/api/social-graph/warm-contacts/${id}`, {
           method: 'PATCH',
           headers: jsonHeaders,
           body: JSON.stringify({ draft }),
         }).catch(() => {});
       }
       const path = kind === 'connect' ? 'send' : 'send-dm';
-      const res = await fetch(`/api/social-graph/warm-contacts/${id}/${path}`, {
+      const res = await fetchWithAuth(`/api/social-graph/warm-contacts/${id}/${path}`, {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify(kind === 'connect' ? { note: draft } : { message: draft }),
@@ -1055,7 +1018,7 @@ export function useLeadsController() {
   const handleEngagerDismiss = async (id: string) => {
     setBusy({ id, action: 'dismiss' });
     try {
-      const res = await fetch(`/api/social-graph/warm-contacts/${id}/dismiss`, { method: 'POST' });
+      const res = await fetchWithAuth(`/api/social-graph/warm-contacts/${id}/dismiss`, { method: 'POST' });
       if (!res.ok) throw new Error();
       setCards((prev) => prev.filter((c) => c.id !== id));
       if (selectedId === id) setSelectedId(null);
@@ -1093,7 +1056,7 @@ export function useLeadsController() {
     toast, searchParams,
     cards, setCards, leadsById, setLeadsById, settings, setSettings,
     profiles, setProfiles, followed, setFollowed, filters, setFilters,
-    selectedId, setSelectedId, drafts, setDrafts, signalNotices, setSignalNotices,
+    selectedId, setSelectedId, drafts, setDrafts, autosaveDraft,
     loading, setLoading, loadError, setLoadError, setupRequired, setSetupRequired,
     setupMessage, setSetupMessage, listLoading, setListLoading, scraping, setScraping,
     scrapeProgress, setScrapeProgress, busy, setBusy, busyActionFor,
@@ -1101,13 +1064,13 @@ export function useLeadsController() {
     emailConfirmId, setEmailConfirmId, feedLimit, setFeedLimit, importOpen, setImportOpen,
     view, setView, companyById, setCompanyById, engagersById, setEngagersById,
     engagerNotices, setEngagerNotices, draftAll, setDraftAll, demoData, setDemoData,
-    feedQuery, indexLeads, loadBootstrap, refetchList, mergeLead, mergeSignalStatus,
+    feedQuery, indexLeads, loadBootstrap, refetchList, mergeLead,
     retryCompany, refreshEngager, isFollowed, sortedCards, visibleCards,
     handleDraftAll, handleScrape, handleDraft, handleEditPlan, handleApprove,
     handleCheckConnection, handleMarkStage, handleDraftFollowup, handleDraftReply, handleSendReply,
     handleEmail, confirmEmailSend,
     handleDismiss, handleExport, handleTogglePlaybookStep, handleSnooze, handleResolve,
-    handlePlanNurture, handleFollowLead, handleSignalDraft, handleSignalSend,
+    handlePlanNurture, handleFollowLead,
     handleEngagerPlan, handleEngagerSend, handleEngagerDismiss,
     clearSelection, toggleSelect, toggleSelectAll, allVisibleSelected, bulkLeadAction,
     selectedCard, selectedLead,

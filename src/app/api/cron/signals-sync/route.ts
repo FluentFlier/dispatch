@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
-import { isEnabled } from '@/lib/feature-flags';
 import { syncWorkspaceSignals } from '@/lib/signals/sync';
 import { logError, logInfo } from '@/lib/logger';
 
 /**
  * GET /api/cron/signals-sync
- * Poll configured sources, classify posts, create signal events.
+ * Poll tracked sources (accounts/topics), classify posts, and land detected
+ * signals on matching LEADS via the intent bridge. The standalone signals
+ * feature (and its signals_engine flag gate) is retired; this cron now only
+ * powers lead monitoring, so it runs for any workspace with enabled sources.
  * Protected by CRON_SECRET.
  */
 export async function GET(request: NextRequest): Promise<NextResponse> {
@@ -19,10 +21,6 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
 
   try {
     const client = getServiceClient();
-
-    if (!(await isEnabled(client, 'signals_engine'))) {
-      return NextResponse.json({ status: 'disabled', message: 'signals_engine flag off' });
-    }
 
     const { data: sourceRows } = await client.database
       .from('signal_sources')

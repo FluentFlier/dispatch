@@ -3,7 +3,8 @@
  *
  * Headline diffing turns a tracked LinkedIn profile's title/company change into a
  * role_change signal. First sight records a baseline only; a changed headline vs
- * the baseline produces the signal and runs the action pipeline.
+ * the baseline produces the signal and lands it on the matching lead via the
+ * intent bridge.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
@@ -66,19 +67,17 @@ vi.mock('@/lib/signals/profile/store', () => ({
   putProfileSnapshot: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/lib/signals/store', () => ({
-  createSignalEvent: vi.fn(),
-  getEvent: vi.fn(),
   upsertRawPost: vi.fn().mockResolvedValue('rp-1'),
 }));
-vi.mock('@/lib/signals/actions', () => ({ runSignalActions: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('@/lib/signals/leads/intent-bridge', () => ({ applySignalToLeads: vi.fn() }));
 vi.mock('@/lib/signals/safety/audit', () => ({ logSignalAudit: vi.fn().mockResolvedValue(undefined) }));
 
 import { unipileConfigured } from '@/lib/signals/ingest/unipile-fetch';
 import { getWorkspacePollAccount } from '@/lib/signals/ingest/workspace-account';
 import { resolveLinkedInProfile } from '@/lib/signals/outreach/unipile-linkedin';
 import { getProfileSnapshot, putProfileSnapshot } from '@/lib/signals/profile/store';
-import { createSignalEvent, getEvent } from '@/lib/signals/store';
-import { runSignalActions } from '@/lib/signals/actions';
+import { upsertRawPost } from '@/lib/signals/store';
+import { applySignalToLeads } from '@/lib/signals/leads/intent-bridge';
 import { checkProfileChange } from '@/lib/signals/profile/sync';
 import type { SignalSourceRow } from '@/lib/signals/types';
 
@@ -112,7 +111,7 @@ beforeEach(() => {
     lastName: 'Doe',
     headline: 'CEO at NewCo',
   });
-  vi.mocked(getEvent).mockResolvedValue({ id: 'e1' } as never);
+  vi.mocked(applySignalToLeads).mockResolvedValue({ matched: 1, created: 0 });
 });
 
 afterEach(() => vi.clearAllMocks());
@@ -120,31 +119,30 @@ afterEach(() => vi.clearAllMocks());
 describe('Phase: role_change orchestration', () => {
   it('first sight: stores baseline, creates no signal', async () => {
     vi.mocked(getProfileSnapshot).mockResolvedValue(null);
-    const res = await checkProfileChange(client, 'ws', source, []);
+    const res = await checkProfileChange(client, 'ws', source);
     expect(res.signalCreated).toBe(false);
     expect(putProfileSnapshot).toHaveBeenCalledOnce();
-    expect(createSignalEvent).not.toHaveBeenCalled();
+    expect(applySignalToLeads).not.toHaveBeenCalled();
   });
 
-  it('headline change: creates signal, runs pipeline, updates snapshot', async () => {
+  it('headline change: applies the signal to leads and updates the snapshot', async () => {
     vi.mocked(getProfileSnapshot).mockResolvedValue({ profileKey: 'jane-doe', headline: 'CTO at Acme' });
-    vi.mocked(createSignalEvent).mockResolvedValue({ created: true, eventId: 'e1' });
-    const res = await checkProfileChange(client, 'ws', source, []);
+    const res = await checkProfileChange(client, 'ws', source);
     expect(res.signalCreated).toBe(true);
-    expect(createSignalEvent).toHaveBeenCalledOnce();
-    expect(runSignalActions).toHaveBeenCalledOnce();
+    expect(upsertRawPost).toHaveBeenCalledOnce();
+    expect(applySignalToLeads).toHaveBeenCalledOnce();
     expect(putProfileSnapshot).toHaveBeenCalledOnce();
   });
 
   it('no Unipile: skips entirely (no fetch)', async () => {
     vi.mocked(unipileConfigured).mockReturnValue(false);
-    const res = await checkProfileChange(client, 'ws', source, []);
+    const res = await checkProfileChange(client, 'ws', source);
     expect(res.signalCreated).toBe(false);
     expect(resolveLinkedInProfile).not.toHaveBeenCalled();
   });
 
   it('non-person source: no-op', async () => {
-    const res = await checkProfileChange(client, 'ws', { ...source, source_type: 'company_page' }, []);
+    const res = await checkProfileChange(client, 'ws', { ...source, source_type: 'company_page' });
     expect(res.signalCreated).toBe(false);
     expect(resolveLinkedInProfile).not.toHaveBeenCalled();
   });

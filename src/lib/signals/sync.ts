@@ -17,7 +17,6 @@ import {
   ensureDefaultSources,
   listSources,
 } from '@/lib/signals/store';
-import { listRules } from '@/lib/signals/rules/store';
 import { checkProfileChange } from '@/lib/signals/profile/sync';
 import {
   getSafetySettings,
@@ -118,8 +117,6 @@ export async function syncWorkspaceSignals(
   await ensureDefaultSources(client, workspaceId);
   const safety = await getSafetySettings(client, workspaceId);
   const sources = (await listSources(client, workspaceId)).filter((s) => s.enabled);
-  // Load trigger rules once per run; the batch matches each signal against them.
-  const rules = await listRules(client, workspaceId);
 
   const canPoll =
     (unipileConfigured() && mode !== 'apify') || (signalsApifyEnabled() && mode !== 'unipile');
@@ -183,7 +180,6 @@ export async function syncWorkspaceSignals(
     const batch = await processIngestedPosts(client, workspaceId, source, posts, {
       dryRun: opts.dryRun,
       maxItems,
-      rules,
       icpDescription,
     });
     result.postsIngested += batch.postsIngested;
@@ -195,7 +191,7 @@ export async function syncWorkspaceSignals(
     // sources (the helper guards internally).
     if (!opts.dryRun && source.platform === 'linkedin' && source.source_type === 'person_profile') {
       try {
-        const profileResult = await checkProfileChange(client, workspaceId, source, rules);
+        const profileResult = await checkProfileChange(client, workspaceId, source);
         if (profileResult.signalCreated) result.signalsCreated += 1;
       } catch (err) {
         result.errors.push(`profile-change ${source.handle_or_url}: ${String(err)}`);

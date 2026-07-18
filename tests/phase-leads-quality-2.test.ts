@@ -7,8 +7,8 @@
  *
  * Task 2 appends focused regression tests for deferred branches flagged in
  * prior review: the Unipile type filter, the enforce-limit hard-truncate
- * fallback, the normalizeEvent author_name rung, the hybrid LLM-recovery
- * merge precedence, and the icp-score clamp.
+ * fallback, the hybrid LLM-recovery merge precedence, and the icp-score
+ * clamp.
  */
 import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 
@@ -29,13 +29,12 @@ import { unipileJsonPost } from '@/lib/signals/outreach/unipile-client';
 import { searchLinkedInPerson } from '@/lib/signals/outreach/unipile-linkedin';
 import { enrichViaUnipileSearch } from '@/lib/signals/leads/enrich-contact';
 import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
-import { normalizeEvent } from '@/lib/signals/feed/normalize';
 import { classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import { scoreIcpFit } from '@/lib/signals/leads/icp-score';
 import { chatCompletion } from '@/lib/llm';
 import { mapWithConcurrency } from '@/lib/util/concurrency';
 import { mergeFeed, FEED_PAGE_LIMIT } from '@/lib/signals/feed/store';
-import type { IngestedPost, SignalEventWithPost } from '@/lib/signals/types';
+import type { IngestedPost } from '@/lib/signals/types';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 
 beforeAll(() => {
@@ -207,53 +206,6 @@ describe('Phase: Leads quality 2 - enforceConnectLimit hard-truncate fallback', 
     const result = enforceConnectLimit(text);
     expect(result.length).toBeLessThanOrEqual(300);
     expect(result).toBe('Hi.');
-  });
-});
-
-describe('Phase: Leads quality 2 - normalizeEvent author_name rung', () => {
-  function makeEvent(overrides: Partial<SignalEventWithPost>): SignalEventWithPost {
-    return {
-      id: 'evt-1',
-      workspace_id: 'ws-1',
-      raw_post_id: null,
-      signal_type: 'other',
-      company_name: null,
-      person_name: null,
-      accelerator_name: null,
-      batch: null,
-      signal_summary: null,
-      confidence: 0,
-      dedupe_key: null,
-      status: 'pending',
-      created_at: '2026-07-01T00:00:00.000Z',
-      updated_at: '2026-07-01T00:00:00.000Z',
-      raw_post: null,
-      outreach: null,
-      ...overrides,
-    } as SignalEventWithPost;
-  }
-
-  it('falls back to raw_post.author_name (3rd rung) rather than author_handle (4th rung) when both are present', () => {
-    const event = makeEvent({
-      company_name: null,
-      person_name: null,
-      raw_post: {
-        id: 'post-1',
-        workspace_id: 'ws-1',
-        source_id: null,
-        platform: 'x',
-        external_post_id: 'ext-1',
-        author_handle: 'acmehq',
-        author_name: 'Acme Labs',
-        content: 'we joined the accelerator',
-        post_url: null,
-        posted_at: null,
-        raw_payload: null,
-        created_at: '2026-07-01T00:00:00.000Z',
-      },
-    });
-    const card = normalizeEvent(event);
-    expect(card.companyName).toBe('Acme Labs');
   });
 });
 

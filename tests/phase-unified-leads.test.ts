@@ -9,13 +9,12 @@ import { confirmSignalWithLLM } from '@/lib/signals/detect/llm-confirm';
 import { classifyPostHybrid, classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import { scoreIcpFit } from '@/lib/signals/leads/icp-score';
 import { enrichViaUnipileSearch } from '@/lib/signals/leads/enrich-contact';
-import { normalizeEvent, normalizeLead } from '@/lib/signals/feed/normalize';
+import { normalizeLead } from '@/lib/signals/feed/normalize';
 import { mergeFeed, buildUnifiedFeed } from '@/lib/signals/feed/store';
-import { listEventsWithPosts } from '@/lib/signals/store';
 import { isReachable, contactPillLabel } from '@/components/leads/feed-format';
 import { resolveSignalOutreach, isGuardBlock, SIGNAL_CONNECT_LIMIT } from '@/components/leads/signal-outreach';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
-import type { IngestedPost, SignalEventRow, SignalLeadRow } from '@/lib/signals/types';
+import type { IngestedPost, SignalLeadRow } from '@/lib/signals/types';
 
 const post = (content: string): IngestedPost => ({
   platform: 'x',
@@ -246,21 +245,6 @@ describe('Phase: Unified Leads', () => {
   });
 
   describe('Task 5: Feed normalizer', () => {
-    it('maps a signal event to a unified card', () => {
-      const card = normalizeEvent({
-        id: 'e1', workspace_id: 'w', raw_post_id: 'p1', signal_type: 'funding_round',
-        company_name: 'Acme', person_name: 'Jane', accelerator_name: null, batch: null,
-        signal_summary: 'raised', confidence: 0.8, dedupe_key: 'k', status: 'pending',
-        created_at: '2026-07-05T00:00:00Z', updated_at: '2026-07-05T00:00:00Z',
-        raw_post: { post_url: 'https://x.com/1', platform: 'x' } as never,
-      } as never);
-      expect(card.kind).toBe('signal');
-      expect(card.source).toBe('x');
-      expect(card.companyName).toBe('Acme');
-      expect(card.sourceUrl).toBe('https://x.com/1');
-      expect(card.score).toBeCloseTo(0.8);
-    });
-
     it('maps a directory lead to a unified card with contact', () => {
       const card = normalizeLead({
         id: 'l1', workspace_id: 'w', source: 'yc_directory', external_id: 'acme',
@@ -276,53 +260,6 @@ describe('Phase: Unified Leads', () => {
       expect(card.contact?.name).toBe('Sam');
       expect(card.batch).toBe('S24');
       expect(card.score).toBeCloseTo(0.9);
-    });
-
-    it('maps a pending signal event to lead status "new" so it survives the default feed filter (regression: signal cards were hidden from the default view)', () => {
-      const card = normalizeEvent({
-        id: 'e2', workspace_id: 'w', raw_post_id: 'p2', signal_type: 'accelerator_join',
-        company_name: 'Acme', person_name: 'Jane', accelerator_name: null, batch: null,
-        signal_summary: 'joined', confidence: 0.7, dedupe_key: 'k2', status: 'pending',
-        created_at: '2026-07-05T00:00:00Z', updated_at: '2026-07-05T00:00:00Z',
-        raw_post: { post_url: 'https://x.com/2', platform: 'x' } as never,
-      } as never);
-      expect(card.status).toBe('new');
-
-      const directoryCard: UnifiedLeadCard = {
-        id: 'lead-new', kind: 'directory', source: 'yc_directory', companyName: 'Beta',
-        tagline: null, signalType: null, signalSummary: null, sourceUrl: null, batch: null,
-        accelerator: null, contact: null, contactStatus: null, score: 0.5, status: 'new',
-        detectedAt: '2026-07-01T00:00:00Z',
-      };
-
-      const merged = mergeFeed([directoryCard], [card], { status: 'new' });
-      const ids = merged.map((c) => c.id);
-      expect(ids).toContain(card.id);
-      expect(ids).toContain(directoryCard.id);
-    });
-
-    it('maps a failed signal event to lead status "new" so it stays visible (a failed signal still needs attention)', () => {
-      const card = normalizeEvent({
-        id: 'e3', workspace_id: 'w', raw_post_id: 'p3', signal_type: 'launch',
-        company_name: 'Acme', person_name: 'Jane', accelerator_name: null, batch: null,
-        signal_summary: 'launched', confidence: 0.6, dedupe_key: 'k3', status: 'failed',
-        created_at: '2026-07-05T00:00:00Z', updated_at: '2026-07-05T00:00:00Z',
-        raw_post: { post_url: 'https://x.com/3', platform: 'x' } as never,
-      } as never);
-      expect(card.status).toBe('new');
-    });
-
-    it('passes drafted/sent/dismissed signal statuses through unchanged (shared vocabulary with LeadStatus)', () => {
-      const base = {
-        id: 'e4', workspace_id: 'w', raw_post_id: 'p4', signal_type: 'launch' as const,
-        company_name: 'Acme', person_name: 'Jane', accelerator_name: null, batch: null,
-        signal_summary: 'launched', confidence: 0.6, dedupe_key: 'k4',
-        created_at: '2026-07-05T00:00:00Z', updated_at: '2026-07-05T00:00:00Z',
-        raw_post: { post_url: 'https://x.com/4', platform: 'x' } as never,
-      };
-      expect(normalizeEvent({ ...base, status: 'drafted' } as never).status).toBe('drafted');
-      expect(normalizeEvent({ ...base, status: 'sent' } as never).status).toBe('sent');
-      expect(normalizeEvent({ ...base, status: 'dismissed' } as never).status).toBe('dismissed');
     });
   });
 
@@ -468,72 +405,6 @@ describe('Phase: Unified Leads', () => {
     });
   });
 
-  describe('Task 6b: listEventsWithPosts raw_post hydration shape', () => {
-    /**
-     * `signal_events.raw_post_id` is a many-to-one FK into `signal_raw_posts`
-     * (confirmed via the live table schema: the FK column lives on
-     * signal_events, not on signal_raw_posts). On this PostgREST-style
-     * backend, embeds on the "many" side of a FK come back as a single
-     * object, not an array - unlike `signal_lead_contacts`/`signal_outreach`,
-     * which are one-to-many from signal_leads/signal_events and DO need the
-     * `Array.isArray(...) ? arr[0] : ...` unwrap seen in listLeads/listEvents.
-     * This test locks in that `raw_post` is read as an object, matching what
-     * `normalizeEvent` expects (`e.raw_post?.platform`), and would fail if a
-     * future backend change (or a copy-paste of the outreach-unwrap pattern)
-     * turned the embed into an array.
-     */
-    it('hydrates raw_post as a single object (not an array) for downstream normalizeEvent reads', async () => {
-      const rawPost = { id: 'p1', platform: 'x', post_url: 'https://x.com/1' };
-      const eventRow = {
-        id: 'e1', workspace_id: 'ws-1', raw_post_id: 'p1', signal_type: 'funding_round',
-        company_name: 'Acme', person_name: 'Jane', accelerator_name: null, batch: null,
-        signal_summary: 'raised', confidence: 0.8, dedupe_key: 'k', status: 'pending',
-        created_at: '2026-07-05T00:00:00Z', updated_at: '2026-07-05T00:00:00Z',
-        raw_post: rawPost, // object shape, as the backend actually returns it
-      };
-
-      const chain = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValue({ data: [eventRow], error: null }),
-      };
-      const fakeClient = { database: { from: vi.fn().mockReturnValue(chain) } };
-
-      const events = await listEventsWithPosts(
-        fakeClient as unknown as Parameters<typeof listEventsWithPosts>[0],
-        'ws-1',
-      );
-
-      expect(events).toHaveLength(1);
-      // Not an array: plain property access must work directly.
-      expect(Array.isArray(events[0].raw_post)).toBe(false);
-      expect(events[0].raw_post?.platform).toBe('x');
-      expect(events[0].raw_post?.post_url).toBe('https://x.com/1');
-
-      // And the normalizer (which does `e.raw_post?.platform`, not
-      // `e.raw_post?.[0]?.platform`) reads it correctly end to end.
-      const card = normalizeEvent(events[0]);
-      expect(card.source).toBe('x');
-      expect(card.sourceUrl).toBe('https://x.com/1');
-    });
-
-    it('scopes the query to the given workspace_id', async () => {
-      const chain = {
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        limit: vi.fn().mockResolvedValue({ data: [], error: null }),
-      };
-      const fakeClient = { database: { from: vi.fn().mockReturnValue(chain) } };
-
-      await listEventsWithPosts(
-        fakeClient as unknown as Parameters<typeof listEventsWithPosts>[0],
-        'ws-scoped',
-      );
-
-      expect(chain.eq).toHaveBeenCalledWith('workspace_id', 'ws-scoped');
-    });
-  });
-
   describe('Task 8: Unified feed integration', () => {
     /**
      * HTTP-layer note: this repo's established route-test harness (see
@@ -543,7 +414,7 @@ describe('Phase: Unified Leads', () => {
      * pattern is used directly below for the 401/200/workspace-scoping cases
      * against `GET /api/leads/feed`, so no substitution was needed - the
      * store-layer `buildUnifiedFeed` tests further down are an ADDITIONAL
-     * belt-and-suspenders layer (they assert both listers are called
+     * belt-and-suspenders layer (they assert the leads lister is called
      * workspace-scoped without going through Next's request/response glue).
      */
     afterEach(() => {
@@ -560,15 +431,6 @@ describe('Phase: Unified Leads', () => {
       first_seen_at: '2026-07-01T00:00:00Z', last_seen_at: '2026-07-01T00:00:00Z',
       digest_date: '2026-07-01', created_at: '2026-07-01T00:00:00Z', updated_at: '2026-07-01T00:00:00Z',
       contacts: [], outreach: null,
-      ...over,
-    });
-
-    const eventRow = (over: Partial<SignalEventRow> = {}) => ({
-      id: 'evt-1', workspace_id: 'ws-1', raw_post_id: 'post-1', signal_type: 'funding_round',
-      company_name: 'Beta', person_name: 'Sam', accelerator_name: null, batch: null,
-      signal_summary: 'raised a round', confidence: 0.95, dedupe_key: 'dk-1', status: 'pending',
-      created_at: '2026-07-05T00:00:00Z', updated_at: '2026-07-05T00:00:00Z',
-      raw_post: { id: 'post-1', platform: 'x', post_url: 'https://x.com/1' },
       ...over,
     });
 
@@ -626,11 +488,11 @@ describe('Phase: Unified Leads', () => {
       expect(res.status).toBe(401);
     });
 
-    it('GET /api/leads/feed returns 200 with merged, score-then-recency-sorted cards for the active workspace', async () => {
+    it('GET /api/leads/feed returns 200 with directory lead cards for the active workspace', async () => {
       const fakeClient = makeFakeClient({
         'ws-1': {
           leads: [leadRow({ id: 'lead-1', rank_score: 0.4 })],
-          events: [eventRow({ id: 'evt-1', confidence: 0.95 })],
+          events: [],
         },
       });
 
@@ -648,19 +510,17 @@ describe('Phase: Unified Leads', () => {
 
       expect(res.status).toBe(200);
       const body = await res.json();
-      expect(body.cards).toHaveLength(2);
-      // Higher score (signal event, 0.95) sorts before the directory lead (0.4).
-      expect(body.cards.map((c: UnifiedLeadCard) => c.id)).toEqual(['evt-1', 'lead-1']);
-      expect(body.cards[0].kind).toBe('signal');
-      expect(body.cards[1].kind).toBe('directory');
+      expect(body.cards).toHaveLength(1);
+      expect(body.cards.map((c: UnifiedLeadCard) => c.id)).toEqual(['lead-1']);
+      expect(body.cards[0].kind).toBe('directory');
     });
 
     it('GET /api/leads/feed does not return cards from a different workspace', async () => {
       const fakeClient = makeFakeClient({
-        'ws-1': { leads: [leadRow({ id: 'lead-mine' })], events: [eventRow({ id: 'evt-mine' })] },
+        'ws-1': { leads: [leadRow({ id: 'lead-mine' })], events: [] },
         'ws-2': {
           leads: [leadRow({ id: 'lead-other-workspace', workspace_id: 'ws-2' })],
-          events: [eventRow({ id: 'evt-other-workspace', workspace_id: 'ws-2' })],
+          events: [],
         },
       });
 
@@ -679,8 +539,8 @@ describe('Phase: Unified Leads', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       const ids = body.cards.map((c: UnifiedLeadCard) => c.id);
-      expect(ids).toEqual(expect.arrayContaining(['lead-mine', 'evt-mine']));
-      expect(ids).not.toEqual(expect.arrayContaining(['lead-other-workspace', 'evt-other-workspace']));
+      expect(ids).toEqual(expect.arrayContaining(['lead-mine']));
+      expect(ids).not.toEqual(expect.arrayContaining(['lead-other-workspace']));
     });
   });
 
@@ -688,14 +548,18 @@ describe('Phase: Unified Leads', () => {
     /**
      * Belt-and-suspenders coverage at the store layer (see the doc comment on
      * `buildUnifiedFeed` in src/lib/signals/feed/store.ts): asserts the store
-     * calls both the leads lister and the events lister scoped to the given
-     * workspaceId, and that it merges their normalized output.
+     * calls the leads lister scoped to the given workspaceId and returns its
+     * normalized output. (Signal events are retired as a feed source.)
      */
-    it('calls both listers scoped to workspaceId and returns merged cards', async () => {
+    it('calls the leads lister scoped to workspaceId and returns normalized cards', async () => {
+      const eqCalls: Array<[string, string]> = [];
       const from = vi.fn((table: string) => {
         const chain: Record<string, ReturnType<typeof vi.fn>> = {};
         chain.select = vi.fn().mockReturnValue(chain);
-        chain.eq = vi.fn().mockReturnValue(chain);
+        chain.eq = vi.fn((col: string, val: string) => {
+          eqCalls.push([col, val]);
+          return chain;
+        });
         chain.limit = vi.fn().mockImplementation(() => {
           if (table === 'signal_leads') {
             return Promise.resolve({
@@ -707,18 +571,6 @@ describe('Phase: Unified Leads', () => {
                 first_seen_at: '2026-07-01T00:00:00Z', last_seen_at: '2026-07-01T00:00:00Z',
                 digest_date: '2026-07-01', created_at: '2026-07-01T00:00:00Z', updated_at: '2026-07-01T00:00:00Z',
                 contacts: [], outreach: null,
-              }],
-              error: null,
-            });
-          }
-          if (table === 'signal_events') {
-            return Promise.resolve({
-              data: [{
-                id: 'evt-1', workspace_id: 'ws-9', raw_post_id: 'post-1', signal_type: 'launch',
-                company_name: 'Beta', person_name: null, accelerator_name: null, batch: null,
-                signal_summary: 'launched', confidence: 0.6, dedupe_key: 'dk', status: 'pending',
-                created_at: '2026-07-05T00:00:00Z', updated_at: '2026-07-05T00:00:00Z',
-                raw_post: { id: 'post-1', platform: 'linkedin', post_url: 'https://linkedin.com/post/1' },
               }],
               error: null,
             });
@@ -735,10 +587,9 @@ describe('Phase: Unified Leads', () => {
       );
 
       expect(from).toHaveBeenCalledWith('signal_leads');
-      expect(from).toHaveBeenCalledWith('signal_events');
-      expect(cards.map((c) => c.id).sort()).toEqual(['evt-1', 'lead-1']);
-      expect(cards.find((c) => c.id === 'lead-1')?.kind).toBe('directory');
-      expect(cards.find((c) => c.id === 'evt-1')?.kind).toBe('signal');
+      expect(eqCalls).toContainEqual(['workspace_id', 'ws-9']);
+      expect(cards.map((c) => c.id)).toEqual(['lead-1']);
+      expect(cards[0].kind).toBe('directory');
     });
   });
 });

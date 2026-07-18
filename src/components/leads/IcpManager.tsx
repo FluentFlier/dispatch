@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { Check, Loader2, Pencil, Plus, Search, Star, Trash2, X } from 'lucide-react';
 import { IcpChat } from '@/components/leads/IcpChat';
 import { IcpForm } from '@/components/leads/IcpForm';
@@ -79,7 +80,7 @@ export function IcpManager({
     if (!name || !settings) return;
     setSaving(true);
     try {
-      const res = await fetch('/api/leads/icp/profiles', {
+      const res = await fetchWithAuth('/api/leads/icp/profiles', {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({
@@ -105,7 +106,7 @@ export function IcpManager({
   const activate = async (id: string) => {
     setBusyId(id);
     try {
-      const res = await fetch(`/api/leads/icp/profiles/${id}/activate`, { method: 'POST' });
+      const res = await fetchWithAuth(`/api/leads/icp/profiles/${id}/activate`, { method: 'POST' });
       const data = await res.json();
       if (!res.ok) throw new Error('activate failed');
       onProfilesChange(data.profiles as IcpProfileRow[]);
@@ -121,7 +122,7 @@ export function IcpManager({
   const remove = async (id: string) => {
     setBusyId(id);
     try {
-      const res = await fetch(`/api/leads/icp/profiles/${id}`, { method: 'DELETE' });
+      const res = await fetchWithAuth(`/api/leads/icp/profiles/${id}`, { method: 'DELETE' });
       const data = await res.json();
       if (!res.ok) throw new Error('delete failed');
       onProfilesChange(data.profiles as IcpProfileRow[]);
@@ -147,7 +148,7 @@ export function IcpManager({
     }
     setDiscovering(true);
     try {
-      const res = await fetch('/api/leads/icp/discover', {
+      const res = await fetchWithAuth('/api/leads/icp/discover', {
         method: 'POST',
         headers: jsonHeaders,
         body: JSON.stringify({ profileIds: ids }),

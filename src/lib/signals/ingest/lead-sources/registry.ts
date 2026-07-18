@@ -66,6 +66,7 @@ export async function runLeadDiscovery(input: RunLeadDiscoveryInput): Promise<Ru
           icpVerticals: input.icpVerticals,
           icpKeywords: input.icpKeywords,
           icpQuery: input.icpQuery,
+          discoveryGoal: input.discoveryGoal ?? null,
           maxLeads: input.maxLeads,
         });
         return { adapter, leads };

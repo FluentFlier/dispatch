@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
-import { getLead, logLeadEvent, setLeadOutreachStatus } from '@/lib/signals/leads/store';
+import { getLead, logLeadEvent, setLeadOutreachStatus, updateLead } from '@/lib/signals/leads/store';
 import { isLinkedInFirstDegree } from '@/lib/gtm/nurture/connection-check';
 import { errorResponse } from '@/lib/api-errors';
 
@@ -47,6 +47,16 @@ export async function POST(
       // Persist acceptance on the outreach row so the follow-up DM step survives
       // a reload (onlyForward: never downgrade a manual replied/closed).
       await setLeadOutreachStatus(client, workspaceId, params.id, 'accepted', true);
+      // Acceptance advances the funnel: make the follow-up DM step due NOW
+      // instead of waiting out the +5d timer. Stage stays connect_sent so the
+      // DM-prep step (which drafts the DM before flipping to dm_ready) still
+      // runs - jumping straight to dm_ready would let auto-send fire with the
+      // stale connect-note text as the DM.
+      if (lead.nurture_stage === 'connect_sent') {
+        await updateLead(client, workspaceId, params.id, {
+          next_action_at: new Date().toISOString(),
+        });
+      }
     }
 
     return NextResponse.json({ connected });

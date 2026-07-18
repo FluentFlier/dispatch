@@ -2,18 +2,13 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { getLead, updateLead } from '@/lib/signals/leads/store';
-import { resolveLeadDescription } from '@/lib/signals/leads/describe';
+import {
+  descriptionCheckDue,
+  resolveLeadDescription,
+  seededLeadDescription,
+} from '@/lib/signals/leads/describe';
 import { fetchYcCompanyDetail, type YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { errorResponse } from '@/lib/api-errors';
-
-/** The tagline stashed in source_fact, if any (used as a free description fallback). */
-function sourceFactTagline(sourceFact: unknown): string | undefined {
-  if (sourceFact && typeof sourceFact === 'object' && 'tagline' in sourceFact) {
-    const t = (sourceFact as { tagline?: unknown }).tagline;
-    if (typeof t === 'string' && t.trim()) return t.trim();
-  }
-  return undefined;
-}
 
 // Fetching the YC detail page can take ~1-2s; keep the node runtime.
 export const runtime = 'nodejs';
@@ -25,7 +20,7 @@ export const runtime = 'nodejs';
  * fall back to the stored lead fields so the card always renders something.
  */
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: { id: string } },
 ): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
@@ -42,8 +37,7 @@ export async function GET(
     const cd = lead.company_detail;
     // Use the description we already have before anything else: the scraped
     // company_detail, then the tagline, then the tagline stashed in source_fact.
-    const seededDescription =
-      cd?.description || lead.tagline || sourceFactTagline(lead.source_fact) || undefined;
+    const seededDescription = seededLeadDescription(lead);
 
     // Fallback built from what we already store, used for non-YC leads or if the
     // YC fetch fails - the card never renders empty.
@@ -81,12 +75,14 @@ export async function GET(
       if (detail) return NextResponse.json({ company: detail });
     }
 
-    // Still nothing to show and we haven't tried a live lookup yet: fetch a
-    // description from the company's LinkedIn About, then a Google summary
-    // (grounded, never invented). Cache the result - or a "checked, nothing
-    // found" marker - on the lead so this runs at most once. A timeout/error
-    // returns `retry` and persists nothing, so a slow success isn't written off.
-    if (!fallback.description && lead.source !== 'yc_directory' && !cd?.description_checked) {
+    // Still nothing to show and a lookup is due (never tried, TTL expired, or
+    // the user forced a recheck with ?refresh=1): fetch a description from the
+    // company's LinkedIn About, then a Google summary (grounded, never
+    // invented). A genuine miss is cached with a timestamp and rechecked after
+    // the TTL, not latched forever. A timeout/error returns `retry` and
+    // persists nothing, so a slow success isn't written off.
+    const force = request.nextUrl.searchParams.get('refresh') === '1';
+    if (!fallback.description && lead.source !== 'yc_directory' && (force || descriptionCheckDue(cd))) {
       const result = await resolveLeadDescription(lead);
       if (result.status === 'found') {
         fallback.description = result.text;
@@ -95,7 +91,7 @@ export async function GET(
         });
       } else if (result.status === 'none') {
         await updateLead(client, workspaceId, params.id, {
-          company_detail: { ...(cd ?? {}), description_checked: true },
+          company_detail: { ...(cd ?? {}), description_checked_at: new Date().toISOString() },
         });
       }
     }
