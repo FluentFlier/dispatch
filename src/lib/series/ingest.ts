@@ -1,5 +1,6 @@
 import type { createClient } from '@insforge/sdk';
-import { embedBatch, toPgVector } from '@/lib/embeddings';
+import { toPgVector } from '@/lib/embeddings';
+import { embedSeriesBatch } from './embed';
 import { chunkText } from './chunk';
 import type { SourceKind } from './types';
 
@@ -70,7 +71,7 @@ export async function ingestSource(
   }
 
   try {
-    const vectors = await embedBatch(chunks);
+    const vectors = await embedSeriesBatch(chunks);
     const rows = chunks.map((content, i) => ({
       series_id: seriesId,
       source_id: sourceId,

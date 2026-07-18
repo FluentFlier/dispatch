@@ -1,5 +1,6 @@
 import type { createClient } from '@insforge/sdk';
-import { embedText, toPgVector } from '@/lib/embeddings';
+import { toPgVector } from '@/lib/embeddings';
+import { embedSeriesText } from './embed';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -31,7 +32,7 @@ export async function retrieveSeriesGrounding(
 
   let vector: number[];
   try {
-    vector = await embedText(q);
+    vector = await embedSeriesText(q);
   } catch {
     return ''; // no embeddings key -> no source grounding, generation still runs
   }
