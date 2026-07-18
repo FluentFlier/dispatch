@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import type { createClient } from '@insforge/sdk';
-import { isEnabled } from '@/lib/feature-flags';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -148,7 +147,9 @@ export async function checkCoreSchemaSetup(client: InsforgeClient): Promise<{
 }
 
 /**
- * Leads / signals readiness: missing core tables or disabled signals_engine flag.
+ * Leads readiness: only the leads table itself. The retired signals feature
+ * (signal_events + signals_engine flag) must never gate the Leads UI.
+ * flagDisabled is kept (always false) for caller compatibility.
  */
 export async function checkLeadsSetup(client: InsforgeClient): Promise<{
   ok: boolean;
@@ -156,25 +157,8 @@ export async function checkLeadsSetup(client: InsforgeClient): Promise<{
   flagDisabled: boolean;
 }> {
   const missing: string[] = [];
-
   if (await isTableMissing(client, 'signal_leads')) missing.push('signal_leads');
-  if (await isTableMissing(client, 'signal_events')) missing.push('signal_events');
-  if (await isTableMissing(client, 'feature_flags', 'name')) missing.push('feature_flags');
-
-  const flagDisabled =
-    missing.includes('feature_flags')
-      ? true
-      : !(await isEnabled(client, 'signals_engine'));
-
-  if (flagDisabled && !missing.includes('signals_engine')) {
-    missing.push('signals_engine');
-  }
-
-  return {
-    ok: missing.filter((m) => m !== 'signals_engine').length === 0 && !flagDisabled,
-    missing,
-    flagDisabled,
-  };
+  return { ok: missing.length === 0, missing, flagDisabled: false };
 }
 
 /**

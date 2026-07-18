@@ -9,7 +9,6 @@ import { postPillars } from "@/lib/pillars";
 import { usePillars } from "@/hooks/usePillars";
 import CalendarGrid from "@/components/calendar/CalendarGrid";
 import CalendarDayView from "@/components/calendar/CalendarDayView";
-import CalendarScheduleView from "@/components/calendar/CalendarScheduleView";
 import CalendarSidebar from "@/components/calendar/CalendarSidebar";
 import { ScheduleModal, FillWeekModal } from "@/components/calendar/CalendarModals";
 import PostDetailModal from "@/components/calendar/PostDetailModal";
@@ -17,13 +16,12 @@ import { ClientOnly } from "@/components/ClientOnly";
 import { useRouter } from "next/navigation";
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
-type ViewMode = "month" | "week" | "day" | "schedule";
+type ViewMode = "month" | "week" | "day";
 
 const VIEW_LABELS: Record<ViewMode, string> = {
   month: "Month",
   week: "Week",
   day: "Day",
-  schedule: "Schedule",
 };
 
 /* ------------------------------------------------------------------ */
@@ -225,7 +223,6 @@ export default function CalendarPage() {
         weekday: "long", month: "long", day: "numeric", year: "numeric",
       });
     }
-    if (viewMode === "schedule") return "Upcoming";
     const weekDays = getWeekDays(weekBase);
     const start = weekDays[0];
     const end = weekDays[6];
@@ -422,7 +419,6 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
         case "m": case "1": setViewMode("month"); break;
         case "w": case "2": setViewMode("week"); break;
         case "d": case "3": setViewMode("day"); break;
-        case "a": case "4": setViewMode("schedule"); break;
         case "ArrowLeft": case "j": goToPrev(); break;
         case "ArrowRight": case "k": goToNext(); break;
         case "/":
@@ -523,7 +519,7 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
 
               {/* View switcher */}
               <div className="flex border border-hair rounded-md overflow-hidden">
-                {(["month", "week", "day", "schedule"] as ViewMode[]).map((v) => (
+                {(["month", "week", "day"] as ViewMode[]).map((v) => (
                   <button
                     key={v}
                     onClick={() => setViewMode(v)}
@@ -651,12 +647,6 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                   posts={filteredPosts}
                   onPostClick={handlePostClick}
                   onTimeSlotClick={handleTimeSlotClick}
-                />
-              ) : viewMode === "schedule" ? (
-                <CalendarScheduleView
-                  posts={filteredPosts}
-                  today={today}
-                  onPostClick={handlePostClick}
                 />
               ) : (
                 <CalendarGrid

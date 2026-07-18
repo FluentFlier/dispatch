@@ -40,6 +40,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       icp_description: parsed.data.description.trim(),
       icp_verticals: icp.icp_verticals,
       icp_keywords: icp.icp_keywords,
+      discovery_goal: icp.discovery_goal || null,
     });
 
     const ownerId = (await getWorkspaceOwnerUserId(client, workspaceId)) ?? user.id;

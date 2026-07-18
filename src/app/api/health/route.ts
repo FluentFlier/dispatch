@@ -140,6 +140,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         tinyfish: Boolean(process.env.TINYFISH_API_KEY?.trim()), // X + directory scrape
         apify: Boolean(process.env.APIFY_TOKEN?.trim()), // LinkedIn discovery
         serper: Boolean(process.env.SERPER_API_KEY?.trim()), // web-discovery fallback
+        product_hunt: Boolean(process.env.PRODUCT_HUNT_API_TOKEN?.trim()), // PH official API
       },
       provider: socialMode,
       intelligence_health_url: '/api/intelligence/health',

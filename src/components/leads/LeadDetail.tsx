@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import {
   RefreshCw,
   Sparkles,
@@ -120,7 +121,7 @@ interface LeadDetailProps {
   onNeverContact?: () => void;
   onEmail: () => void;
   onDismiss: () => void;
-  onSnooze?: () => void;
+  onSnooze?: (days: number) => void;
   onResolve: (force?: boolean) => void;
   onFollow: () => void;
   onPlanNurture?: () => void;
@@ -142,6 +143,39 @@ interface LeadNote {
   id: string;
   body: string;
   created_at: string;
+}
+
+interface LeadEvent {
+  id: string;
+  event_type: string;
+  detail: Record<string, unknown> | null;
+  created_at: string;
+}
+
+/** Human label for an activity-trail row (detail.action wins over event_type). */
+function leadEventLabel(e: LeadEvent): string {
+  const action = typeof e.detail?.action === 'string' ? (e.detail.action as string) : e.event_type;
+  const labels: Record<string, string> = {
+    new: 'Added to leads',
+    scraped: 'Seen in scrape',
+    renamed: 'Company renamed',
+    pivoted: 'Pivot detected',
+    merged: 'Duplicate merged',
+    reactivated: 'Resurfaced',
+    resolved: 'Contact found',
+    unresolved: 'Contact lookup failed',
+    signal: 'Signal detected',
+    connect_accepted: 'Connection accepted',
+    sent: 'Message sent',
+    reply_sent: 'Reply sent',
+    dm_drafted: 'Follow-up DM drafted',
+    auto_dm_sent: 'Follow-up DM auto-sent',
+    auto_connect_sent: 'Connect request auto-sent',
+    auto_planned: 'Outreach auto-planned',
+    followed: 'Followed on LinkedIn',
+    rescored: 'Updated',
+  };
+  return labels[action] ?? action.replace(/_/g, ' ');
 }
 
 /**
@@ -198,6 +232,22 @@ export function LeadDetail({
   const [notes, setNotes] = useState<LeadNote[]>([]);
   const [noteText, setNoteText] = useState('');
   const [notesLoading, setNotesLoading] = useState(false);
+  // Activity trail, loaded lazily when the user expands the section.
+  const [events, setEvents] = useState<LeadEvent[] | null>(null);
+  const [eventsLoading, setEventsLoading] = useState(false);
+  const loadEvents = useCallback(async () => {
+    if (events !== null || eventsLoading) return;
+    setEventsLoading(true);
+    try {
+      const res = await fetchWithAuth(`/api/leads/${lead.id}/events`);
+      const data = await res.json();
+      if (res.ok) setEvents((data.events as LeadEvent[]) ?? []);
+    } catch {
+      /* leave collapsed-state; reopen retries */
+    } finally {
+      setEventsLoading(false);
+    }
+  }, [lead.id, events, eventsLoading]);
   const [threadMessages, setThreadMessages] = useState<Array<{ id: string; direction: string; body: string; sent_at: string }>>([]);
   const [threadLoading, setThreadLoading] = useState(false);
   // Free-text "how to change it" instruction for a targeted rewrite of the draft.
@@ -206,7 +256,7 @@ export function LeadDetail({
   const loadNotes = useCallback(async () => {
     setNotesLoading(true);
     try {
-      const res = await fetch(`/api/leads/${lead.id}/notes`);
+      const res = await fetchWithAuth(`/api/leads/${lead.id}/notes`);
       const data = await res.json();
       if (res.ok) setNotes(data.notes ?? []);
     } catch {
@@ -221,10 +271,10 @@ export function LeadDetail({
   }, [loadNotes]);
 
   const loadThread = useCallback(async () => {
-    if (!lead.needs_reply && lead.nurture_stage !== 'replied') return;
+    if (!lead.needs_reply && lead.nurture_stage !== 'replied' && lead.nurture_stage !== 'in_conversation') return;
     setThreadLoading(true);
     try {
-      const res = await fetch(`/api/leads/${lead.id}/messages`);
+      const res = await fetchWithAuth(`/api/leads/${lead.id}/messages`);
       const data = await res.json();
       if (res.ok) setThreadMessages(data.messages ?? []);
     } catch {
@@ -241,7 +291,7 @@ export function LeadDetail({
   const addNote = async () => {
     const body = noteText.trim();
     if (!body) return;
-    const res = await fetch(`/api/leads/${lead.id}/notes`, {
+    const res = await fetchWithAuth(`/api/leads/${lead.id}/notes`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ body }),
@@ -261,7 +311,9 @@ export function LeadDetail({
   const overLimit = draft.length > CONNECT_LIMIT;
   const summary = summarizeLead(lead);
   const sourceUrl = leadSourceUrl(lead);
-  const inReplyMode = Boolean(lead.needs_reply || lead.nurture_stage === 'replied');
+  const inReplyMode = Boolean(
+    lead.needs_reply || lead.nurture_stage === 'replied' || lead.nurture_stage === 'in_conversation',
+  );
 
   const detail = company && company !== 'loading' && company !== 'error' ? company : null;
   const loadingCompany = company === 'loading';
@@ -351,7 +403,18 @@ export function LeadDetail({
             {detail?.description ? (
               <AboutText text={detail.description} />
             ) : (
-              <p className="text-sm text-text-tertiary italic">No public description yet.</p>
+              <p className="text-sm text-text-tertiary italic">
+                No public description yet.
+                {onRetryCompany && (
+                  <button
+                    type="button"
+                    onClick={onRetryCompany}
+                    className="ml-2 not-italic text-accent-primary hover:underline cursor-pointer"
+                  >
+                    Look again
+                  </button>
+                )}
+              </p>
             )}
           </div>
           {/* Info box + tags (right) */}
@@ -610,6 +673,34 @@ export function LeadDetail({
         </div>
       </section>
 
+      {/* Activity trail (CRM timeline) - lazy-loaded on expand */}
+      <details
+        className="rounded-lg border border-border bg-bg-secondary/40 px-3 py-2"
+        onToggle={(e) => {
+          if ((e.target as HTMLDetailsElement).open) void loadEvents();
+        }}
+      >
+        <summary className="cursor-pointer text-xs tracking-wide text-text-tertiary flex items-center gap-1.5">
+          <Clock className="h-3.5 w-3.5" /> Activity
+        </summary>
+        {eventsLoading ? (
+          <p className="mt-2 text-xs text-text-tertiary">Loading activity…</p>
+        ) : events && events.length > 0 ? (
+          <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto">
+            {events.map((e) => (
+              <li key={e.id} className="flex items-baseline justify-between gap-3 text-xs">
+                <span className="text-text-secondary">{leadEventLabel(e)}</span>
+                <span className="text-text-tertiary shrink-0">
+                  {new Date(e.created_at).toLocaleDateString()}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : events ? (
+          <p className="mt-2 text-xs text-text-tertiary italic">No activity yet.</p>
+        ) : null}
+      </details>
+
       {/* Lead summary: what this is + why it's worth pursuing (+ source link) */}
       <div className="rounded-md border border-border bg-bg-primary px-3 py-2 space-y-1">
         <p className="text-sm text-text-primary">{summary.what}</p>
@@ -703,9 +794,23 @@ export function LeadDetail({
             </Button>
           )}
           {onSnooze && (
-            <Button variant="ghost" size="sm" onClick={onSnooze} title="Hide until tomorrow's digest">
-              <Clock className="h-4 w-4" /> Snooze
-            </Button>
+            <label className="inline-flex items-center gap-1 text-xs text-text-secondary" title="Hide this lead for a while">
+              <Clock className="h-4 w-4" aria-hidden="true" />
+              <span className="sr-only">Snooze</span>
+              <select
+                value=""
+                onChange={(e) => {
+                  const days = Number(e.target.value);
+                  if (days) onSnooze(days);
+                }}
+                className="rounded-md border border-border bg-bg-secondary px-2 py-1.5 text-xs text-text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+              >
+                <option value="" disabled>Snooze&hellip;</option>
+                <option value="1">1 day</option>
+                <option value="7">7 days</option>
+                <option value="30">30 days</option>
+              </select>
+            </label>
           )}
           <Button variant="ghost" size="sm" onClick={onDismiss}>
             <X className="h-4 w-4" /> Dismiss

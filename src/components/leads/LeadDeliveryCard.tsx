@@ -86,6 +86,7 @@ export function LeadDeliveryCard({ settings, onSettingsSaved, toast }: LeadDeliv
           digest_top_n: draft.digest_top_n,
           digest_channels: draft.digest_channels,
           sender_identity: draft.sender_identity,
+          scrape_frequency: draft.scrape_frequency ?? 'daily',
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -141,6 +142,24 @@ export function LeadDeliveryCard({ settings, onSettingsSaved, toast }: LeadDeliv
             <span className="mt-1 block text-xs text-text-tertiary">We pre-write the top N; the rest draft when you open them.</span>
           </label>
         </div>
+
+        <label className="block text-sm text-text-secondary">
+          Scrape frequency
+          <select
+            value={draft.scrape_frequency ?? 'daily'}
+            onChange={(e) => patch({ scrape_frequency: e.target.value as DirectorySettingsRow['scrape_frequency'] })}
+            className="mt-1 block w-52 rounded-md border border-border bg-bg-primary px-3 py-2 text-sm"
+          >
+            <option value="daily">Daily</option>
+            <option value="every_3_days">Every 3 days</option>
+            <option value="weekly">Weekly</option>
+            <option value="manual">Manual only</option>
+          </select>
+          <span className="mt-1 block text-xs text-text-tertiary">
+            How often we scrape for new leads automatically. Lower it to save credits; &quot;Manual
+            only&quot; means leads arrive only when you hit Scrape or ask the assistant.
+          </span>
+        </label>
 
         <label className="block text-sm text-text-secondary">
           Timezone

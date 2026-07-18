@@ -26,7 +26,6 @@ export default function robots(): MetadataRoute.Robots {
           '/analytics',
           '/ideas',
           '/brain',
-          '/signals',
           '/story-bank',
           '/series',
           '/settings',

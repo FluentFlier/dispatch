@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useRef, useState } from 'react';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { Upload, FileSpreadsheet, X, Download, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Drawer } from '@/components/ui/Drawer';
@@ -44,7 +45,7 @@ export function LeadImportDrawer({ open, onClose, onComplete, toast }: LeadImpor
       const form = new FormData();
       form.append('file', file);
       form.append('resolve', 'true');
-      const res = await fetch('/api/leads/import', { method: 'POST', body: form });
+      const res = await fetchWithAuth('/api/leads/import', { method: 'POST', body: form });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Import failed');
 

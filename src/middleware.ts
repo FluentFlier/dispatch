@@ -16,7 +16,6 @@ const PROTECTED_ROUTES = [
   '/voice-lab',
   '/teleprompter',
   '/video-studio',
-  '/signals',
   '/leads',
   '/event-capture',
   '/onboarding',

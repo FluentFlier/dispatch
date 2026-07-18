@@ -31,18 +31,15 @@ vi.mock('@/lib/signals/profile/store', () => ({
   putProfileSnapshot: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('@/lib/signals/store', () => ({
-  createSignalEvent: vi.fn(),
-  getEvent: vi.fn(),
   upsertRawPost: vi.fn().mockResolvedValue('rp-1'),
 }));
-vi.mock('@/lib/signals/actions', () => ({ runSignalActions: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('@/lib/signals/leads/intent-bridge', () => ({ applySignalToLeads: vi.fn() }));
 vi.mock('@/lib/signals/safety/audit', () => ({ logSignalAudit: vi.fn().mockResolvedValue(undefined) }));
 
 import { createApifyClient } from '@/lib/signals/ingest/apify-fetch';
 import { fetchXProfile } from '@/lib/signals/profile/x-profile';
 import { getProfileSnapshot, putProfileSnapshot } from '@/lib/signals/profile/store';
-import { createSignalEvent, getEvent } from '@/lib/signals/store';
-import { runSignalActions } from '@/lib/signals/actions';
+import { applySignalToLeads } from '@/lib/signals/leads/intent-bridge';
 import { logSignalAudit } from '@/lib/signals/safety/audit';
 import { checkProfileChange } from '@/lib/signals/profile/sync';
 import type { SignalSourceRow } from '@/lib/signals/types';
@@ -68,7 +65,7 @@ beforeEach(() => {
   vi.mocked(createApifyClient).mockReturnValue({ actor, dataset } as never);
   actorCall.mockResolvedValue({ defaultDatasetId: 'ds-1' });
   datasetListItems.mockResolvedValue({ items: [] });
-  vi.mocked(getEvent).mockResolvedValue({ id: 'e1' } as never);
+  vi.mocked(applySignalToLeads).mockResolvedValue({ matched: 1, created: 0 });
   delete process.env.X_PROFILE_APIFY_ACTOR;
 });
 
@@ -123,7 +120,7 @@ describe('fetchXProfile', () => {
 });
 
 describe('checkProfileChange x person_profile', () => {
-  it('creates role_change event when bio changed vs baseline', async () => {
+  it('applies a role_change signal when bio changed vs baseline', async () => {
     vi.mocked(getProfileSnapshot).mockResolvedValue({
       profileKey: 'founderhandle',
       fullName: 'Jane Founder',
@@ -132,15 +129,13 @@ describe('checkProfileChange x person_profile', () => {
     datasetListItems.mockResolvedValue({
       items: [{ name: 'Jane Founder', description: 'New bio' }],
     });
-    vi.mocked(createSignalEvent).mockResolvedValue({ created: true, eventId: 'e1' });
 
-    const res = await checkProfileChange(client, 'ws', xSource, []);
+    const res = await checkProfileChange(client, 'ws', xSource);
 
     expect(res.signalCreated).toBe(true);
-    expect(createSignalEvent).toHaveBeenCalledOnce();
-    const classified = vi.mocked(createSignalEvent).mock.calls[0][3];
+    expect(applySignalToLeads).toHaveBeenCalledOnce();
+    const classified = vi.mocked(applySignalToLeads).mock.calls[0][2];
     expect(classified.signalType).toBe('role_change');
-    expect(runSignalActions).toHaveBeenCalledOnce();
     expect(putProfileSnapshot).toHaveBeenCalledWith(
       client,
       'ws',
@@ -155,17 +150,17 @@ describe('checkProfileChange x person_profile', () => {
       items: [{ name: 'Jane Founder', description: 'Some bio' }],
     });
 
-    const res = await checkProfileChange(client, 'ws', xSource, []);
+    const res = await checkProfileChange(client, 'ws', xSource);
 
     expect(res.signalCreated).toBe(false);
-    expect(createSignalEvent).not.toHaveBeenCalled();
+    expect(applySignalToLeads).not.toHaveBeenCalled();
     expect(putProfileSnapshot).toHaveBeenCalledOnce();
   });
 
   it('logs and skips when fetchXProfile returns null (no APIFY_TOKEN)', async () => {
     vi.mocked(createApifyClient).mockReturnValue(null);
 
-    const res = await checkProfileChange(client, 'ws', xSource, []);
+    const res = await checkProfileChange(client, 'ws', xSource);
 
     expect(res.signalCreated).toBe(false);
     expect(logSignalAudit).toHaveBeenCalledOnce();

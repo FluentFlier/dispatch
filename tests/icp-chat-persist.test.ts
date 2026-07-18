@@ -78,6 +78,7 @@ describe('POST /api/leads/icp/chat - ICP actually persists', () => {
       icp_description: 'Seed fintech founders from YC',
       icp_verticals: ['Fintech'],
       icp_keywords: ['seed', 'YC'],
+      discovery_goal: 'find seed fintech',
     });
     expect(body.applied).toBe(true);
     expect(body.hasIcp).toBe(true);

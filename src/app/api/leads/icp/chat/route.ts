@@ -10,6 +10,7 @@ import { parseIcpDescription } from '@/lib/signals/icp/parse-description';
 import { parseTrackIntent } from '@/lib/signals/icp/parse-track-intent';
 import { syncIcpKeywordsToTopics } from '@/lib/signals/leads/topic-sync';
 import { addWatchlistEntry } from '@/lib/signals/watchlist';
+import { defaultEnabledSources } from '@/lib/signals/leads/directory-defaults';
 import { chatCompletion, LlmError } from '@/lib/llm';
 import { errorResponse } from '@/lib/api-errors';
 
@@ -42,13 +43,32 @@ const bodySchema = z.object({
     .optional(),
 });
 
+/** Nouns a search command can target ("leads", "founders", "companies", ...). */
+const DISCOVERY_NOUN = String.raw`(leads?|founders?|compan(?:y|ies)|startups?|prospects?|customers?|buyers?)`;
+
 /**
- * Deterministic "find leads" intent. Fires discovery even when the LLM misreads
- * the turn OR is over capacity - "find leads now" needs no model, just the saved
- * ICP. Matches "find leads", "find leads now", "search for leads", "pull some
- * leads", "get me leads", "surface leads", etc.
+ * Deterministic discovery intent. Fires even when the LLM misreads the turn OR
+ * is over capacity - a search command needs no model, just the saved ICP.
+ * Matches natural IMPERATIVE phrasings, not only the literal word "leads":
+ * "find leads now", "find me seed-stage fintech founders in NYC", "search for
+ * healthtech companies", "pull startups in Berlin". Descriptive statements that
+ * merely mention the nouns near a verb ("we want to find product-market fit
+ * with founders") must NOT match - a false positive burns a paid scrape - so
+ * the verb has to lead the message or be explicitly requested ("can you find").
  */
-const FIND_LEADS_RE = /\b(find|search|pull|get|show|fetch|surface|source|scan)\b[^.!?]*\bleads?\b/i;
+const IMPERATIVE_DISCOVERY_RE = new RegExp(
+  String.raw`^(?:please\s+|ok(?:ay)?[,\s]+|now\s+)?(?:find|search|pull|get|show|fetch|surface|source|scan)\b[^.!?]*\b${DISCOVERY_NOUN}\b`,
+  'i',
+);
+const REQUESTED_DISCOVERY_RE = new RegExp(
+  String.raw`\b(?:can you|could you|please|go)\s+(?:find|search|pull|get|fetch)\b[^.!?]{0,60}\b${DISCOVERY_NOUN}\b`,
+  'i',
+);
+
+function isDiscoveryCommand(message: string): boolean {
+  const m = message.trim();
+  return IMPERATIVE_DISCOVERY_RE.test(m) || REQUESTED_DISCOVERY_RE.test(m);
+}
 
 /**
  * Deterministic guard: does this message read like an ICP definition rather than
@@ -164,7 +184,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .filter(Boolean)
       .join('\n\n');
 
-    const wantsDiscovery = FIND_LEADS_RE.test(parsed.data.message);
+    const wantsDiscovery = isDiscoveryCommand(parsed.data.message);
 
     // Deterministic discovery response, used whenever the classifier can't run or
     // can't be parsed but the user clearly asked to find leads and an ICP exists.
@@ -214,6 +234,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         icp_description: icpBrief,
         icp_verticals: icp.icp_verticals,
         icp_keywords: icp.icp_keywords,
+        // The hunt goal keeps stage/geography constraints ("seed", "in NYC")
+        // that web discovery consumes verbatim.
+        discovery_goal: icp.discovery_goal || null,
       });
       const ownerId = (await getWorkspaceOwnerUserId(client, workspaceId)) ?? user.id;
       await putBrainPage(client, ownerId, {
@@ -246,13 +269,36 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // this same turn) - searching with an empty ICP returns noise. The regex
     // fallback catches close phrasings the classifier missed.
     const hasIcpNow = Boolean(currentIcp || icpBrief);
-    // Save-only: a turn that creates/changes the ICP never auto-searches - it
-    // saves and lets the user review + edit. Discovery fires only on a pure
-    // "find leads" command (no ICP change) or the explicit "Find leads now"
-    // button. `!applied` is the decoupling guard.
-    const suggestRun = (intent.run_discovery || wantsDiscovery) && hasIcpNow && !applied;
+    // Save-only rule: a turn that merely DESCRIBES an ICP saves it and never
+    // auto-searches, even if the classifier claims run_discovery - the user
+    // reviews first (`!applied` is that decoupling guard). But a turn that is
+    // an explicit search command ("find/search/pull ...") in the user's own
+    // words IS the ask, so it runs whenever an ICP exists.
+    const suggestRun = wantsDiscovery
+      ? hasIcpNow
+      : intent.run_discovery && hasIcpNow && !applied;
 
     const settings = await getDirectorySettings(client, workspaceId);
+
+    // The assistant states its concrete plan: which sources it will search and
+    // when the next automatic run happens, so setup ends with no mystery.
+    const SOURCE_LABELS: Record<string, string> = {
+      yc_directory: 'the YC directory',
+      yc_launches: 'YC launches',
+      web_discovery: 'the open web',
+      linkedin: 'LinkedIn',
+      x: 'X',
+      product_hunt: 'Product Hunt',
+      manual: 'your imports',
+    };
+    const activeSources =
+      settings.enabled_sources?.length ? settings.enabled_sources : defaultEnabledSources();
+    const sourcePlan = activeSources.map((s) => SOURCE_LABELS[s] ?? s).join(', ');
+    const frequency = settings.scrape_frequency ?? 'daily';
+    const cadenceLine =
+      frequency === 'manual'
+        ? 'Automatic scraping is off - say "find leads now" whenever you want a run.'
+        : `It also runs automatically on your ${String(frequency).replace(/_/g, ' ')} schedule.`;
 
     // When discovery is about to run, the client kicks off the streamed
     // /api/leads/sync and shows its own progress, so send a matching "on it"
@@ -261,7 +307,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     const assistantMessage = suggestRun
       ? 'On it - searching for matching leads now. This can take up to a minute.'
       : applied
-        ? intent.reply || 'Saved your ICP - review and edit it below, then hit "Find leads now" to search.'
+        ? `${intent.reply || 'Saved your ICP - review and edit it below.'} I'll search ${sourcePlan} when you say "find leads now". ${cadenceLine}`
         : intent.reply ||
           (wantsDiscovery
             ? 'Tell me who you sell to first, then I can search - e.g. "seed-stage fintech from YC".'

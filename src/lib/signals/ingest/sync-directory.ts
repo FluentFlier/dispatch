@@ -6,10 +6,17 @@ import {
   getDirectorySettings,
   ensureDirectorySourcesEnabled,
   getLead,
+  updateDirectorySettings,
   updateLead,
   upsertIngestedLeads,
 } from '@/lib/signals/leads/store';
 import { resolveLeadContacts } from '@/lib/signals/leads/resolve-contact';
+import {
+  descriptionCheckDue,
+  resolveLeadDescription,
+  seededLeadDescription,
+} from '@/lib/signals/leads/describe';
+import type { SignalLeadWithContacts } from '@/lib/signals/types';
 import { computeFitScore, computeRankScore } from '@/lib/signals/leads/score';
 import { scoreIcpFit } from '@/lib/signals/leads/icp-score';
 import { checkAndIncrementUsage } from '@/lib/ai-budget';
@@ -31,12 +38,18 @@ const MAX_BATCH_RESOLVE = 40;
  */
 const ICP_CONCURRENCY = 5;
 
+/** Cap live description lookups per run (each is a web fetch/search + LLM call). */
+const MAX_DESCRIBE_PER_RUN = 15;
+const DESCRIBE_CONCURRENCY = 3;
+
 export interface DirectorySyncResult {
   inserted: number;
   updated: number;
   renamed: number;
   resolved: number;
   noContact: number;
+  /** Leads that got a company description filled in this run. */
+  described: number;
   perSource: Array<{ source: LeadSource; count: number; error?: string }>;
   /** Human-readable "<source> failed: <reason>" lines for surfacing to the UI. */
   warnings: string[];
@@ -50,6 +63,7 @@ export type SyncPhase =
   | 'resolving'
   | 'scoring'
   | 'ranking'
+  | 'describing'
   | 'done';
 
 /**
@@ -77,7 +91,8 @@ const PCT = {
   savingEnd: 50,
   resolveEnd: 85,
   scoringEnd: 92,
-  rankingEnd: 100,
+  rankingEnd: 96,
+  describeEnd: 100,
 } as const;
 
 /**
@@ -106,6 +121,7 @@ export async function syncWorkspaceDirectory(
     renamed: 0,
     resolved: 0,
     noContact: 0,
+    described: 0,
     perSource: [],
     warnings: [],
   };
@@ -135,6 +151,7 @@ export async function syncWorkspaceDirectory(
     icpVerticals: settings.icp_verticals ?? [],
     icpKeywords: settings.icp_keywords ?? [],
     icpQuery,
+    discoveryGoal: settings.discovery_goal ?? null,
     maxLeads: MAX_LEADS_PER_RUN,
     onAdapterStart: (source, index, total) => {
       emit({
@@ -243,8 +260,80 @@ export async function syncWorkspaceDirectory(
     });
   }
 
+  emit({ phase: 'describing', label: 'Filling company descriptions…', pct: PCT.rankingEnd });
+  result.described = await backfillLeadDescriptions(client, workspaceId, emit);
+
+  // Any completed sync (cron or user-triggered) resets the cadence clock.
+  await updateDirectorySettings(client, workspaceId, {
+    last_synced_at: new Date().toISOString(),
+  }).catch(() => {});
+
   emit({ phase: 'done', label: 'Done', pct: 100 });
   return result;
+}
+
+/**
+ * Fills missing company descriptions for the workspace, oldest debt first:
+ * any non-YC lead with nothing displayable (no description, no tagline) and a
+ * lookup due (never tried, or its "nothing found" marker older than the TTL).
+ * Doubles as the backfill for pre-existing leads - every sync chips away at
+ * the backlog, capped per run so the sync stays inside its time/budget box.
+ */
+async function backfillLeadDescriptions(
+  client: InsforgeClient,
+  workspaceId: string,
+  emit: (p: SyncProgress) => void,
+): Promise<number> {
+  // Explicit column list on purpose: select('*') with .eq() filters silently
+  // returns 0 rows on this backend (see the note in store.ts).
+  const { data, error } = await client.database
+    .from('signal_leads')
+    .select('id, workspace_id, source, company_name, tagline, domain, website, source_fact, company_detail')
+    .eq('workspace_id', workspaceId)
+    .limit(400);
+  if (error || !data) return 0;
+
+  const candidates = (data as unknown as SignalLeadWithContacts[])
+    .filter(
+      (l) =>
+        l.source !== 'yc_directory' &&
+        !seededLeadDescription(l) &&
+        descriptionCheckDue(l.company_detail),
+    )
+    .slice(0, MAX_DESCRIBE_PER_RUN);
+  if (candidates.length === 0) return 0;
+
+  let done = 0;
+  let described = 0;
+  await mapWithConcurrency(candidates, DESCRIBE_CONCURRENCY, async (lead) => {
+    // Same daily AI budget gate as scoring: when blocked, skip quietly - the
+    // on-view fetch and the next sync will pick the lead back up.
+    const budget = await checkAndIncrementUsage(client, workspaceId, 'haiku');
+    if (budget !== 'blocked') {
+      const result = await resolveLeadDescription(lead);
+      const cd = lead.company_detail ?? {};
+      if (result.status === 'found') {
+        await updateLead(client, workspaceId, lead.id, {
+          company_detail: { ...cd, description: result.text, description_source: result.source },
+        });
+        described += 1;
+      } else if (result.status === 'none') {
+        await updateLead(client, workspaceId, lead.id, {
+          company_detail: { ...cd, description_checked_at: new Date().toISOString() },
+        });
+      }
+      // retry: persist nothing; next open or next sync tries again.
+    }
+    done += 1;
+    emit({
+      phase: 'describing',
+      label: `Filling company descriptions (${done}/${candidates.length})…`,
+      pct: phasePct(PCT.rankingEnd, PCT.describeEnd, done, candidates.length),
+      current: done,
+      total: candidates.length,
+    });
+  });
+  return described;
 }
 
 function phasePct(start: number, end: number, i: number, n: number): number {

@@ -7,6 +7,9 @@ import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import { fetchYcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { loadEditStyleGuidance } from '@/lib/signals/outreach/edit-feedback';
 import { detectRelationshipTier, outreachFrameworkBlock } from '@/lib/signals/outreach/framework';
+import { upsertLeadOutreachRow } from '@/lib/gtm/nurture/shared';
+import { getActiveIcpProfile } from '@/lib/signals/leads/icp-profiles';
+import { defaultAgenda, resolveAgenda, type Agenda } from '@/lib/signals/leads/agenda';
 import { withTimeout } from '@/lib/util/timeout';
 import type {
   LeadCompanyDetail,
@@ -96,6 +99,7 @@ function buildLeadPrompt(
   company?: LeadCompanyDetail | null,
   editGuidance?: string[],
   frameworkBlock?: string,
+  agenda?: Agenda | null,
 ): string {
   const sourceLabel = lead.source === 'product_hunt' ? 'Product Hunt' : 'YC';
   const firstName = contact?.name ? contact.name.split(' ')[0] : null;
@@ -131,6 +135,11 @@ function buildLeadPrompt(
     lead.batch ? `- ${sourceLabel} batch: ${lead.batch}` : `- Discovered via ${sourceLabel}`,
     lead.intent_flags?.raised ? '- Signal: recently raised funding' : null,
     '',
+    // Agenda (active ICP profile): the user's outreach goal shapes the angle,
+    // mirroring how the engager engine injects it (engager-nurture.ts).
+    agenda ? `YOUR OUTREACH GOAL / ANGLE: ${agenda.pitchAngle}` : null,
+    agenda?.toneRules ? `TONE RULES: ${agenda.toneRules}` : null,
+    agenda ? '' : null,
     frameworkBlock ?? null,
     frameworkBlock ? '' : null,
     'THE MESSAGE MUST:',
@@ -215,7 +224,7 @@ export async function draftOutreachForLead(
   // edit-style reads rather than stacking on top of them. Each is timed so the
   // dominant contributor is visible in the [latency] log below.
   const loadsStartedAt = Date.now();
-  const [voiceContext, companyDetail, editGuidance] = await Promise.all([
+  const [voiceContext, companyDetail, editGuidance, agenda] = await Promise.all([
     loadCreatorVoiceContext(client, userId, {
       workspaceId,
       platform,
@@ -231,6 +240,11 @@ export async function draftOutreachForLead(
     ensureLeadCompanyDetail(client, workspaceId, lead),
     // Edit-feedback loop: few-shot the prompt on how this workspace rewrites.
     loadEditStyleGuidance(client, workspaceId, 3),
+    // Agenda (goal + tone from the active ICP profile). Best-effort: any
+    // failure falls back to the pre-agenda prompt.
+    getActiveIcpProfile(client, workspaceId)
+      .then((profile) => (profile ? resolveAgenda(profile) : defaultAgenda()))
+      .catch(() => null),
   ]);
   const loadsMs = Date.now() - loadsStartedAt;
 
@@ -243,7 +257,7 @@ export async function draftOutreachForLead(
   const pipe = draftPipelineOptions(opts.polish ?? false);
   const genStartedAt = Date.now();
   const result = await generateWithVoicePipeline({
-    userPrompt: buildLeadPrompt(lead, contact, channel, opts.rewriteInstruction, companyDetail, editGuidance, frameworkBlock),
+    userPrompt: buildLeadPrompt(lead, contact, channel, opts.rewriteInstruction, companyDetail, editGuidance, frameworkBlock, agenda),
     profile: voiceContext.profile,
     contextAdditions: voiceContext.contextAdditions,
     platform,
@@ -260,7 +274,14 @@ export async function draftOutreachForLead(
   // note is guaranteed sendable regardless of what the LLM returned.
   const draftText = channel === 'linkedin_connect' ? enforceConnectLimit(result.text) : result.text;
 
-  await saveLeadDraft(client, workspaceId, lead.id, draftText, channel);
+  await upsertLeadOutreachRow(client, workspaceId, lead.id, {
+    draft_text: draftText,
+    channel,
+    status: 'draft',
+    final_text: null,
+    // A fresh model draft supersedes any autosaved user edits of the old one.
+    edited_draft_text: null,
+  });
   await updateLead(client, workspaceId, lead.id, { lead_status: 'drafted' });
 
   // Instrumentation: wall-clock + per-stage ms so the 10-20s budget can be
@@ -271,33 +292,4 @@ export async function draftOutreachForLead(
   );
 
   return { draftText, voiceMatchScore: result.voice_match_score };
-}
-
-/** Upserts the single outreach draft row for a lead (unique on lead_id). */
-async function saveLeadDraft(
-  client: InsforgeClient,
-  workspaceId: string,
-  leadId: string,
-  draftText: string,
-  channel: OutreachChannel,
-): Promise<void> {
-  const { data: existing } = await client.database
-    .from('signal_outreach')
-    .select('id')
-    .eq('lead_id', leadId)
-    .limit(1);
-
-  if (existing && existing.length > 0) {
-    const { error } = await client.database
-      .from('signal_outreach')
-      .update({ draft_text: draftText, channel, status: 'draft', final_text: null })
-      .eq('id', (existing[0] as { id: string }).id);
-    if (error) throw error;
-    return;
-  }
-
-  const { error } = await client.database.from('signal_outreach').insert([
-    { workspace_id: workspaceId, lead_id: leadId, channel, status: 'draft', draft_text: draftText },
-  ]);
-  if (error) throw error;
 }

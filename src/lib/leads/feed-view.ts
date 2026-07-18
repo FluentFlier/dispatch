@@ -24,6 +24,42 @@ export function feedViewState(opts: {
   return 'list';
 }
 
+/** Columns of the CRM pipeline view, in funnel order. */
+export const PIPELINE_COLUMNS = [
+  { key: 'contacted', label: 'Contacted' },
+  { key: 'in_conversation', label: 'In conversation' },
+  { key: 'meeting_booked', label: 'Meeting booked' },
+  { key: 'closed', label: 'Closed' },
+] as const;
+export type PipelineColumn = (typeof PIPELINE_COLUMNS)[number]['key'];
+
+/**
+ * Which pipeline column a lead belongs to, or null when it has not been
+ * contacted yet (pre-funnel leads live in the feed, not the pipeline).
+ * conversion_stage (explicit user calls) wins over derived outreach state.
+ */
+export function pipelineColumn(lead: {
+  lead_status: string;
+  nurture_stage?: string | null;
+  conversion_stage?: string | null;
+  needs_reply?: boolean;
+}): PipelineColumn | null {
+  const conv = lead.conversion_stage ?? null;
+  if (conv === 'won' || conv === 'lost' || conv === 'not_now') return 'closed';
+  if (conv === 'meeting_booked') return 'meeting_booked';
+  if (
+    lead.needs_reply ||
+    lead.nurture_stage === 'replied' ||
+    lead.nurture_stage === 'in_conversation' ||
+    conv === 'interested'
+  ) {
+    return 'in_conversation';
+  }
+  if (lead.nurture_stage === 'closed') return 'closed';
+  if (lead.lead_status === 'sent') return 'contacted';
+  return null;
+}
+
 export interface DraftAllOutcome {
   message: string;
   type: 'success' | 'error';

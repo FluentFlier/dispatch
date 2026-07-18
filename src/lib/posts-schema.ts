@@ -24,6 +24,8 @@ export const CreatePostSchema = z.object({
   hook: z.string().nullable().optional(),
   notes: z.string().nullable().optional(),
   scheduled_date: z.string().nullable().optional(),
+  /** Exact publish instant for the auto-publish engine (ISO timestamp). */
+  scheduled_publish_at: z.string().nullable().optional(),
   posted_date: z.string().nullable().optional(),
   series_id: z.string().nullable().optional(),
   series_position: z.number().nullable().optional(),

@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { addWatchlistEntry } from '@/lib/signals/watchlist';
 import { classifyPost } from '@/lib/signals/classifier';
-import { SIGNAL_LABELS } from '@/lib/signals/notifications/slack-alert';
+import { signalTypeLabel } from '@/components/leads/feed-format';
 import { parseTrackIntent } from '@/lib/signals/icp/parse-track-intent';
 import type { DirectorySettingsRow, IngestedPost } from '@/lib/signals/types';
 
@@ -33,6 +33,9 @@ function makeClient(initialSettings?: Partial<DirectorySettingsRow>) {
     icp_verticals: [],
     icp_keywords: [],
     custom_keywords: [],
+    discovery_goal: null,
+    scrape_frequency: 'daily',
+    last_synced_at: null,
     recency_window: 'current_batch',
     digest_run_hour_local: 6,
     digest_timezone: null,
@@ -200,9 +203,9 @@ describe('Phase: watchlist keywords - classifier extraKeywords', () => {
   });
 });
 
-describe('Phase: field_change slack label', () => {
-  it('has a non-empty label for field_change', () => {
-    expect(SIGNAL_LABELS.field_change).toBeTruthy();
+describe('Phase: field_change signal label', () => {
+  it('has a non-empty human-readable label for field_change', () => {
+    expect(signalTypeLabel('field_change')).toBeTruthy();
   });
 });
 

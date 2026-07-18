@@ -113,7 +113,7 @@ export function LeadsHeaderActions({
   onExport,
   onImport,
 }: {
-  view: 'feed' | 'setup';
+  view: 'feed' | 'pipeline' | 'setup';
   scraping: boolean;
   listLoading: boolean;
   draftAll: { done: number; total: number } | null;

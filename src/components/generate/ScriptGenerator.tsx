@@ -660,7 +660,6 @@ export function ScriptGenerator({
                     completeness={msg.completeness}
                     onTextUpdate={updateDraft}
                     variant="simple"
-                    savePillar={pillar}
                   />
                 </div>
               ) : (

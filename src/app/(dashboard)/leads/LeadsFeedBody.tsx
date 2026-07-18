@@ -7,7 +7,6 @@ import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { FeedFilters, type FeedFilterState } from '@/components/leads/FeedFilters';
 import { UnifiedFeed } from '@/components/leads/UnifiedFeed';
 import { LeadDetail } from '@/components/leads/LeadDetail';
-import { SignalDetail } from '@/components/leads/SignalDetail';
 import { EngagerDetail, type EngagerDetailAction } from '@/components/leads/EngagerDetail';
 import { SignalsSetup } from '@/components/leads/SignalsSetup';
 import { IcpManager } from '@/components/leads/IcpManager';
@@ -21,8 +20,9 @@ import {
   LeadsFilteredEmptyState,
   ScrapeProgress,
 } from '@/components/leads/LeadsFeedChrome';
-import type { LeadDetailAction, SignalDetailAction } from '@/lib/leads/busy';
-import { feedViewState } from '@/lib/leads/feed-view';
+import type { LeadDetailAction } from '@/lib/leads/busy';
+import { feedViewState, PIPELINE_COLUMNS, pipelineColumn } from '@/lib/leads/feed-view';
+import { nurtureStageLabel } from '@/components/leads/feed-format';
 import { useLeadsController } from './useLeadsController';
 
 /** Initial feed page + how much each "Load more" adds. Capped by the server at 300. */
@@ -65,7 +65,7 @@ export function LeadsFeedBody(props: LeadsController) {
   const {
     toast,
     cards, settings, setSettings, profiles, setProfiles, followed, setFollowed,
-    filters, setFilters, selectedId, setSelectedId, drafts, setDrafts, signalNotices,
+    filters, setFilters, selectedId, setSelectedId, drafts, setDrafts, autosaveDraft, leadsById,
     loading, loadError, setupRequired, setupMessage, listLoading, scraping, scrapeProgress,
     busyActionFor, selectedIds, bulkBusy, acceptedIds, emailConfirmId, setEmailConfirmId,
     feedLimit, setFeedLimit, importOpen, setImportOpen, view, setView,
@@ -76,7 +76,7 @@ export function LeadsFeedBody(props: LeadsController) {
     handleCheckConnection, handleMarkStage, handleDraftFollowup, handleDraftReply, handleSendReply,
     handleEmail, confirmEmailSend,
     handleDismiss, handleExport, handleTogglePlaybookStep, handleSnooze, handleResolve,
-    handlePlanNurture, handleFollowLead, handleSignalDraft, handleSignalSend,
+    handlePlanNurture, handleFollowLead,
     handleEngagerPlan, handleEngagerSend, handleEngagerDismiss,
     clearSelection, toggleSelect, toggleSelectAll, allVisibleSelected, bulkLeadAction,
     selectedCard, selectedLead,
@@ -116,9 +116,9 @@ export function LeadsFeedBody(props: LeadsController) {
         }
       />
 
-      {/* Feed | Setup segmented control */}
+      {/* Feed | Pipeline | Setup segmented control */}
       <div className="inline-flex rounded-md border border-border bg-bg-secondary p-1 gap-1">
-        {(['feed', 'setup'] as const).map((v) => (
+        {(['feed', 'pipeline', 'setup'] as const).map((v) => (
           <button
             key={v}
             type="button"
@@ -128,12 +128,44 @@ export function LeadsFeedBody(props: LeadsController) {
             }`}
             aria-pressed={view === v}
           >
-            {v === 'feed' ? 'Feed' : 'Setup'}
+            {v === 'feed' ? 'Feed' : v === 'pipeline' ? 'Pipeline' : 'Setup'}
           </button>
         ))}
       </div>
 
-      {view === 'setup' ? (
+      {view === 'pipeline' ? (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {PIPELINE_COLUMNS.map((col) => {
+            const items = Object.values(leadsById).filter((l) => pipelineColumn(l) === col.key);
+            return (
+              <div key={col.key} className="rounded-lg border border-border bg-bg-secondary p-3 space-y-2 min-h-[140px]">
+                <p className="text-xs font-semibold text-text-primary">
+                  {col.label} <span className="text-text-tertiary font-normal">({items.length})</span>
+                </p>
+                {items.map((l) => (
+                  <button
+                    key={l.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedId(l.id);
+                      setView('feed');
+                      setFilters((f) => ({ ...f, status: 'all' }));
+                    }}
+                    className="w-full text-left rounded-md border border-border bg-bg-primary px-2.5 py-2 hover:border-accent-primary/40 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
+                  >
+                    <p className="text-sm font-medium text-text-primary truncate">{l.company_name}</p>
+                    <p className="text-xs text-text-tertiary truncate">
+                      {nurtureStageLabel(l.nurture_stage) ?? l.lead_status}
+                      {l.needs_reply ? ' - needs reply' : ''}
+                    </p>
+                  </button>
+                ))}
+                {items.length === 0 && <p className="text-xs text-text-tertiary italic">Empty</p>}
+              </div>
+            );
+          })}
+        </div>
+      ) : view === 'setup' ? (
         <div className="space-y-6">
           {/* Basics — the two things a user must set to get relevant leads: who to
               reach (ICP) and where to look (sources). Everything else is under
@@ -351,9 +383,7 @@ export function LeadsFeedBody(props: LeadsController) {
 
           {/* Detail */}
           <div className="lg:col-span-3 border border-border rounded-lg bg-bg-secondary p-5">
-            {!selectedCard ? (
-              <div className="flex items-center justify-center h-full text-text-tertiary text-sm">Select a lead to review.</div>
-            ) : selectedCard.kind === 'engager' ? (
+            {selectedCard?.kind === 'engager' ? (
               <EngagerDetail
                 card={selectedCard}
                 contact={engagersById[selectedCard.id] ?? null}
@@ -366,15 +396,30 @@ export function LeadsFeedBody(props: LeadsController) {
                 onSendDm={() => handleEngagerSend(selectedCard.id, 'dm')}
                 onDismiss={() => handleEngagerDismiss(selectedCard.id)}
               />
-            ) : selectedCard.kind === 'directory' && selectedLead ? (
+            ) : selectedLead ? (
+              // Keyed by lead id so switching leads remounts the panel (resets
+              // the Activity accordion + textarea state instead of leaking the
+              // previous lead's). Renders off selectedLead, not the card list:
+              // a pipeline click must open even when the lead ranks below the
+              // feed's current page slice.
               <LeadDetail
+                key={selectedLead.id}
                 lead={selectedLead}
                 company={companyById[selectedLead.id]}
                 onRetryCompany={() => retryCompany(selectedLead.id)}
-                draft={drafts[selectedLead.id] ?? selectedLead.outreach?.draft_text ?? ''}
-                onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedLead.id]: v }))}
+                draft={
+                  drafts[selectedLead.id] ??
+                  selectedLead.outreach?.edited_draft_text ??
+                  selectedLead.outreach?.draft_text ??
+                  ''
+                }
+                onDraftChange={(v) => autosaveDraft(selectedLead.id, v)}
                 busyAction={busyActionFor(selectedLead.id) as LeadDetailAction | null}
-                followed={isFollowed(selectedCard)}
+                followed={followed.some(
+                  (f) =>
+                    (selectedLead.domain && f.domain === selectedLead.domain) ||
+                    f.company_name === selectedLead.company_name,
+                )}
                 onDraft={(rewriteInstruction) => handleDraft(selectedLead.id, rewriteInstruction)}
                 onPolish={() => handleDraft(selectedLead.id, undefined, true)}
                 onApprove={(channel) => handleApprove(selectedLead.id, channel)}
@@ -384,7 +429,7 @@ export function LeadsFeedBody(props: LeadsController) {
                 onNeverContact={() => handleNeverContact(selectedLead.id)}
                 onEmail={() => handleEmail(selectedLead.id)}
                 onDismiss={() => handleDismiss(selectedLead.id)}
-                onSnooze={() => handleSnooze(selectedLead.id)}
+                onSnooze={(days) => handleSnooze(selectedLead.id, days)}
                 onResolve={(force?: boolean) => handleResolve(selectedLead.id, force ?? false)}
                 onFollow={() => handleFollowLead(selectedLead)}
                 onPlanNurture={() => handlePlanNurture(selectedLead.id)}
@@ -404,15 +449,9 @@ export function LeadsFeedBody(props: LeadsController) {
                 onMarkClosed={() => handleMarkStage(selectedLead.id, 'closed')}
               />
             ) : (
-              <SignalDetail
-                card={selectedCard}
-                draft={drafts[selectedCard.id] ?? ''}
-                onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedCard.id]: v }))}
-                busyAction={busyActionFor(selectedCard.id) as SignalDetailAction | null}
-                notice={signalNotices[selectedCard.id] ?? null}
-                onDraft={() => handleSignalDraft(selectedCard)}
-                onSend={() => handleSignalSend(selectedCard)}
-              />
+              <div className="flex items-center justify-center h-full text-text-tertiary text-sm">
+                Select a lead to review.
+              </div>
             )}
           </div>
         </div>

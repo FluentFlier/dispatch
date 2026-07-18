@@ -86,7 +86,7 @@ export async function buildGtmTodaySnapshot(
       discovered: countStage('discovered') + countStage('planned'),
       engaging: countStage('engaging'),
       connectReady: countStage('connect_ready'),
-      connectSent: countStage('connect_sent') + countStage('nurturing'),
+      connectSent: countStage('connect_sent'),
       dmReady: countStage('dm_ready'),
       needsReply: stages.filter((r) => r.needs_reply).length,
       sentToday: safety.usage.linkedin_invites_today,

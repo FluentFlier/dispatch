@@ -7,7 +7,7 @@
  * the ICP relevance gate (fail-open), the process-batch keyword branch
  * (GTM classifier bypassed, events typed keyword_match, overlap runs create
  * no duplicates), the sources API topic cap + hourly poll default, and the
- * feed rendering contract (reachable x_handle contact, label coverage).
+ * feed rendering contract (label coverage).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -20,13 +20,13 @@ vi.mock('@/lib/signals/detect/hybrid', () => ({
 }));
 vi.mock('@/lib/signals/store', () => ({
   upsertRawPost: vi.fn().mockResolvedValue('raw-1'),
-  createSignalEvent: vi.fn().mockResolvedValue({ created: true, eventId: 'evt-1' }),
-  // getEvent null → the action pipeline is skipped, keeping the test focused.
-  getEvent: vi.fn().mockResolvedValue(null),
   // Imported by the sources route (GET path); unused in these tests.
   ensureDefaultSources: vi.fn().mockResolvedValue(0),
   ensureGtmPlaybook: vi.fn().mockResolvedValue(false),
   listSources: vi.fn().mockResolvedValue([]),
+}));
+vi.mock('@/lib/signals/leads/intent-bridge', () => ({
+  applySignalToLeads: vi.fn(),
 }));
 vi.mock('@/lib/insforge/server', () => ({
   getAuthenticatedUser: vi.fn(),
@@ -40,7 +40,8 @@ vi.mock('@/lib/workspace', () => ({
 import { NextRequest } from 'next/server';
 import { chatCompletion } from '@/lib/llm';
 import { classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
-import { createSignalEvent, upsertRawPost } from '@/lib/signals/store';
+import { upsertRawPost } from '@/lib/signals/store';
+import { applySignalToLeads } from '@/lib/signals/leads/intent-bridge';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { POST as postSource } from '@/app/api/signals/sources/route';
@@ -56,13 +57,8 @@ import {
   newestPostedAt,
 } from '@/lib/signals/ingest/normalize';
 import { processIngestedPosts } from '@/lib/signals/ingest/process-batch';
-import { normalizeEvent } from '@/lib/signals/feed/normalize';
-import { isReachable, signalTypeLabel } from '@/components/leads/feed-format';
-import type {
-  IngestedPost,
-  SignalEventWithPost,
-  SignalSourceRow,
-} from '@/lib/signals/types';
+import { signalTypeLabel } from '@/components/leads/feed-format';
+import type { IngestedPost, SignalSourceRow } from '@/lib/signals/types';
 
 const keywordSource = (overrides: Partial<SignalSourceRow> = {}): SignalSourceRow => ({
   id: 'src-1',
@@ -122,7 +118,7 @@ function makeClientStub(seenIds: string[] = []) {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(upsertRawPost).mockResolvedValue('raw-1');
-  vi.mocked(createSignalEvent).mockResolvedValue({ created: true, eventId: 'evt-1' });
+  vi.mocked(applySignalToLeads).mockResolvedValue({ matched: 1, created: 0 });
 });
 
 describe('buildKeywordMatchSignal', () => {
@@ -272,7 +268,7 @@ describe('processIngestedPosts keyword branch', () => {
 
     expect(classifyPostHybridWithMeta).not.toHaveBeenCalled();
     expect(result.signalsCreated).toBe(1);
-    const classified = vi.mocked(createSignalEvent).mock.calls[0][3];
+    const classified = vi.mocked(applySignalToLeads).mock.calls[0][2];
     expect(classified.signalType).toBe('keyword_match');
   });
 
@@ -284,7 +280,7 @@ describe('processIngestedPosts keyword branch', () => {
 
     expect(result.signalsCreated).toBe(0);
     expect(upsertRawPost).not.toHaveBeenCalled();
-    expect(createSignalEvent).not.toHaveBeenCalled();
+    expect(applySignalToLeads).not.toHaveBeenCalled();
   });
 
   it('advances a last_seen_posted_at cursor for keyword sources', async () => {
@@ -382,49 +378,6 @@ describe('POST /api/signals/sources - topic cap and poll default', () => {
 });
 
 describe('feed rendering contract', () => {
-  const keywordEvent: SignalEventWithPost = {
-    id: 'evt-1',
-    workspace_id: 'ws-1',
-    raw_post_id: 'raw-1',
-    signal_type: 'keyword_match',
-    company_name: null,
-    person_name: 'Jane Doe',
-    accelerator_name: null,
-    batch: null,
-    signal_summary: '@janedoe just posted about "building in public": Day 30…',
-    confidence: 0.8,
-    dedupe_key: 'keyword_match|building-in-public|janedoe|2026-W28',
-    status: 'pending',
-    created_at: '2026-07-10T12:05:00.000Z',
-    updated_at: '2026-07-10T12:05:00.000Z',
-    raw_post: {
-      id: 'raw-1',
-      workspace_id: 'ws-1',
-      source_id: 'src-1',
-      platform: 'x',
-      external_post_id: 'p-1',
-      author_handle: 'janedoe',
-      author_name: 'Jane Doe',
-      content: 'Day 30 of building in public…',
-      post_url: 'https://x.com/janedoe/status/p-1',
-      posted_at: '2026-07-10T12:00:00.000Z',
-      raw_payload: null,
-      created_at: '2026-07-10T12:05:00.000Z',
-    },
-  };
-
-  it('keyword_match cards carry the author x_handle and are reachable', () => {
-    const card = normalizeEvent(keywordEvent);
-    expect(card.contact?.x_handle).toBe('janedoe');
-    expect(isReachable(card)).toBe(true);
-  });
-
-  it('non-keyword signal cards keep the name-only (unreachable) contact', () => {
-    const card = normalizeEvent({ ...keywordEvent, signal_type: 'funding_round' });
-    expect(card.contact?.x_handle).toBeUndefined();
-    expect(isReachable(card)).toBe(false);
-  });
-
   it('signalTypeLabel covers keyword_match', () => {
     expect(signalTypeLabel('keyword_match')).toBe('Posted about topic');
   });

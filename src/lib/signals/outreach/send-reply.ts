@@ -12,6 +12,7 @@ import {
   sendLinkedInDirectMessage,
 } from '@/lib/signals/outreach/unipile-linkedin';
 import { recordOutreachEdit } from '@/lib/signals/outreach/edit-feedback';
+import { upsertLeadOutreachRow } from '@/lib/gtm/nurture/shared';
 import type { SignalLeadWithContacts } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -113,19 +114,18 @@ export async function sendLeadReply(
   });
 
   const nowIso = new Date().toISOString();
-  await client.database
-    .from('signal_outreach')
-    .update({
-      final_text: messageText,
-      status: 'sent',
-      sent_at: nowIso,
-      draft_text: messageText,
-    })
-    .eq('lead_id', leadId);
+  // Bookkeeping after a real provider send: a DB write failure must not turn
+  // an already-sent reply into an error (pre-refactor behavior).
+  await upsertLeadOutreachRow(client, workspaceId, leadId, {
+    final_text: messageText,
+    status: 'sent',
+    sent_at: nowIso,
+    draft_text: messageText,
+  }).catch(() => undefined);
 
   await updateLead(client, workspaceId, leadId, {
     needs_reply: false,
-    nurture_stage: 'replied',
+    nurture_stage: 'in_conversation',
     lead_status: 'sent',
   });
 

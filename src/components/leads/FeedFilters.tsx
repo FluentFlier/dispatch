@@ -5,7 +5,7 @@ import { Search, ArrowUpDown, SlidersHorizontal } from 'lucide-react';
 import type { LeadStatus, SignalType } from '@/lib/signals/types';
 
 /** Sort orders the feed list supports. */
-export type FeedSort = 'score' | 'warm' | 'recency';
+export type FeedSort = 'score' | 'recency';
 
 /** Every filter the feed UI can drive. `status`/`source`/`signalType` map to feed query params; the rest are client-side. */
 export interface FeedFilterState {
@@ -173,19 +173,15 @@ export function FeedFilters({ state, onChange, verticals }: FeedFiltersProps) {
             </>
           )}
 
-          {/* Sort toggle: score → warm → recency */}
+          {/* Sort toggle: score / recency */}
           <button
             type="button"
-            onClick={() =>
-              set({
-                sort: state.sort === 'score' ? 'warm' : state.sort === 'warm' ? 'recency' : 'score',
-              })
-            }
+            onClick={() => set({ sort: state.sort === 'score' ? 'recency' : 'score' })}
             aria-label={`Sort by ${state.sort}, click to change`}
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-secondary px-2.5 py-1.5 text-xs text-text-secondary cursor-pointer hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
           >
             <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
-            {state.sort === 'score' ? 'Score' : state.sort === 'warm' ? 'Warm' : 'Recent'}
+            {state.sort === 'score' ? 'Score' : 'Recent'}
           </button>
         </div>
       )}

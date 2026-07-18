@@ -7,6 +7,12 @@ export interface DiscoveryContext {
   icpKeywords: string[];
   /** Space-joined verticals + keywords (+ description fallback). */
   icpQuery: string;
+  /**
+   * Parsed natural-language hunt goal (stage, vertical, geography, signals).
+   * Preferred by web discovery when present, so constraints like "in NYC"
+   * survive instead of being flattened into keywords.
+   */
+  discoveryGoal?: string | null;
   maxLeads: number;
 }
 

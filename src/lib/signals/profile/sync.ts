@@ -9,18 +9,18 @@ import { unipileConfigured } from '@/lib/signals/ingest/unipile-fetch';
 import { detectFieldChanges, type ProfileState } from '@/lib/signals/profile/detect';
 import { getProfileSnapshot, putProfileSnapshot } from '@/lib/signals/profile/store';
 import { fetchXProfile } from '@/lib/signals/profile/x-profile';
-import { createSignalEvent, getEvent, upsertRawPost } from '@/lib/signals/store';
-import { runSignalActions } from '@/lib/signals/actions';
-import { resolveRuleAction } from '@/lib/signals/rules/match';
+import { upsertRawPost } from '@/lib/signals/store';
+import { applySignalToLeads } from '@/lib/signals/leads/intent-bridge';
 import { logSignalAudit } from '@/lib/signals/safety/audit';
-import type { IngestedPost, SignalRuleRow, SignalSourceRow } from '@/lib/signals/types';
+import type { IngestedPost, SignalSourceRow } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
 /**
  * Detects field changes (role/tagline/name/description) on a tracked LinkedIn
- * person/company page or X person profile and, for each change found,
- * creates a signal event and runs the action pipeline for it.
+ * person/company page or X person profile and, for each change found, lands the
+ * signal on the matching lead (intent flag + Slack) via applySignalToLeads -
+ * NOT the retired signal-events feed.
  *
  * LinkedIn person_profile / company_page sources require a connected Unipile
  * account (profile lookup goes through Unipile). X person_profile sources go
@@ -34,7 +34,6 @@ export async function checkProfileChange(
   client: InsforgeClient,
   workspaceId: string,
   source: SignalSourceRow,
-  rules: SignalRuleRow[],
 ): Promise<{ signalCreated: boolean }> {
   const isLinkedIn =
     source.platform === 'linkedin' &&
@@ -109,10 +108,10 @@ export async function checkProfileChange(
       ? `https://www.linkedin.com/company/${profileKey}/`
       : `https://www.linkedin.com/in/${profileKey}/`;
 
-  let anyCreated = false;
+  let anyApplied = false;
   for (const classified of classifiedList) {
     // Change detected: synthesize a raw post capturing the change so the
-    // event carries context for drafting, then classify + run actions.
+    // downstream draft has context, then land the signal on the matching lead.
     const post: IngestedPost = {
       platform: source.platform,
       externalPostId: `profile-change:${profileKey}:${classified.dedupeKey}`,
@@ -122,31 +121,19 @@ export async function checkProfileChange(
       postUrl: profileUrl,
     };
 
-    const rawPostId = await upsertRawPost(client, workspaceId, source.id, post);
-    const { created, eventId } = await createSignalEvent(client, workspaceId, rawPostId, classified);
+    await upsertRawPost(client, workspaceId, source.id, post);
 
-    if (created && eventId) {
-      const event = await getEvent(client, workspaceId, eventId);
-      if (event) {
-        const resolution = resolveRuleAction(
-          rules,
-          { platform: source.platform, sourceType: source.source_type },
-          classified,
-        );
-        await runSignalActions(client, workspaceId, event, {
-          platform: source.platform,
-          sourceType: source.source_type,
-          actionMode: resolution.actionMode ?? undefined,
-          channels: resolution.channels,
-        });
-      }
-      anyCreated = true;
-    }
+    // The change lands on the matching lead (intent flag + Slack), not in the
+    // retired signal-events feed.
+    const bridge = await applySignalToLeads(client, workspaceId, classified, {
+      sourceUrl: profileUrl,
+    });
+    if (bridge.matched + bridge.created > 0) anyApplied = true;
   }
 
   // Record the current state as the new baseline - once, after all signals
   // for this poll have been processed (first sight or no change: same call).
   await putProfileSnapshot(client, workspaceId, source.platform, current);
 
-  return { signalCreated: anyCreated };
+  return { signalCreated: anyApplied };
 }
