@@ -84,7 +84,17 @@ describe('fetchXProfile', () => {
     expect(actorCall).not.toHaveBeenCalled();
   });
 
-  it('maps the first dataset item, defaulting missing fields to undefined', async () => {
+  it('maps the first dataset item from description field (Apify standard), defaulting missing fields to undefined', async () => {
+    datasetListItems.mockResolvedValue({
+      items: [{ name: 'Jane Founder', description: 'Building the future' }],
+    });
+
+    const result = await fetchXProfile('@founderhandle');
+
+    expect(result).toEqual({ handle: 'founderhandle', name: 'Jane Founder', bio: 'Building the future' });
+  });
+
+  it('falls back to bio field when description is missing', async () => {
     datasetListItems.mockResolvedValue({
       items: [{ name: 'Jane Founder', bio: 'Building the future' }],
     });
@@ -120,7 +130,7 @@ describe('checkProfileChange x person_profile', () => {
       headline: 'Old bio',
     });
     datasetListItems.mockResolvedValue({
-      items: [{ name: 'Jane Founder', bio: 'New bio' }],
+      items: [{ name: 'Jane Founder', description: 'New bio' }],
     });
     vi.mocked(createSignalEvent).mockResolvedValue({ created: true, eventId: 'e1' });
 
@@ -142,7 +152,7 @@ describe('checkProfileChange x person_profile', () => {
   it('baselines silently on first sight', async () => {
     vi.mocked(getProfileSnapshot).mockResolvedValue(null);
     datasetListItems.mockResolvedValue({
-      items: [{ name: 'Jane Founder', bio: 'Some bio' }],
+      items: [{ name: 'Jane Founder', description: 'Some bio' }],
     });
 
     const res = await checkProfileChange(client, 'ws', xSource, []);

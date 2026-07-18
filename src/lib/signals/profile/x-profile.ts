@@ -29,6 +29,6 @@ export async function fetchXProfile(handle: string): Promise<XProfileState | nul
   return {
     handle: target,
     name: item.name ? String(item.name) : undefined,
-    bio: item.bio ? String(item.bio) : undefined,
+    bio: (item.description ?? item.bio) ? String(item.description ?? item.bio) : undefined,
   };
 }
