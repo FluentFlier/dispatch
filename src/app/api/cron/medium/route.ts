@@ -9,6 +9,8 @@ import { logCronRun, cronStatusFromResults } from '@/lib/admin/cron-log';
  * Hourly (:00):  calendar-sync
  * Every 6h (:00): metrics-sync (post analytics refresh)
  * Daily 8 AM UTC (:00): auto-generate
+ * Daily 6 AM UTC (:00): trends-refresh (active users)
+ * Weekly Mon 4 AM UTC (:00): hooks-refresh (niche mining)
  * Daily 2 AM UTC (:00): intelligence-sync
  *
  * Time-gating absorbs former Vercel crons into one slot,
@@ -32,6 +34,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   const now = new Date();
   const minute = now.getUTCMinutes();
   const hour = now.getUTCHours();
+  const dow = now.getUTCDay(); // 0=Sun .. 1=Mon
 
   const call = async (
     name: string,
@@ -78,6 +81,16 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   // Daily 2 AM UTC
   if (hour === 2 && minute === 0) {
     jobs.push(call('intelligenceSync', '/api/cron/intelligence-sync'));
+  }
+
+  // Daily 6 AM UTC: refresh "today's trend" for active users (per user+workspace).
+  if (hour === 6 && minute === 0) {
+    jobs.push(call('trendsRefresh', '/api/cron/trends-refresh'));
+  }
+
+  // Weekly Mon 4 AM UTC: mine fresh niche hooks (budget-capped inside the route).
+  if (dow === 1 && hour === 4 && minute === 0) {
+    jobs.push(call('hooksRefresh', '/api/cron/hooks-refresh'));
   }
 
   // Daily 3 AM UTC: social listening + Apify mining (POST-only route)

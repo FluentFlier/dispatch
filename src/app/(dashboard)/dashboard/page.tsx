@@ -107,6 +107,9 @@ export default async function DashboardPage() {
   const today = new Date().toISOString().slice(0, 10);
   // Two-day lookback so the morning brief can isolate "yesterday" regardless of tz.
   const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  // Only trends detected in the last 3 days count as "today's trend" - keeps stale
+  // (e.g. year-old) rows from surfacing when the scrape hasn't run recently.
+  const trendsSince = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
   const workspaceId = await getActiveWorkspaceId(uid);
   // Scope content queries to the active workspace (rows are backfilled).
   // creator_profile stays user-scoped until per-workspace voice ships.
@@ -132,18 +135,23 @@ export default async function DashboardPage() {
         .order('updated_at', { ascending: false })
         .limit(5)),
       getUserEntitlements(uid),
-      // Morning brief: recent trends (detected_trends is user-scoped, no workspace col)
-      client.database.from('detected_trends')
+      // Morning brief: recent trends, scoped to the active workspace and the last
+      // 3 days so an entrepreneur's brief never shows a different workspace's (or a
+      // year-old) trend.
+      scoped(client.database.from('detected_trends')
         .select('topic, angle, draft_hook, best_platform, urgency, confidence, detected_at')
         .eq('user_id', uid)
+        .gte('detected_at', trendsSince)
         .order('detected_at', { ascending: false })
-        .limit(8),
-      // Morning brief: most recent published posts (any date) — the composer
-      // derives both the "yesterday" summary and the latest-post snapshot from these.
+        .limit(8)),
+      // Morning brief: most recent GENUINELY-published posts — posted_date must be
+      // set, so a queued/draft post (status can flip to 'posted' before the publish
+      // job runs) never surfaces as the latest-post snapshot.
       scoped(client.database.from('posts')
         .select('id, title, posted_date, views, saves')
         .eq('user_id', uid)
         .eq('status', 'posted')
+        .not('posted_date', 'is', null)
         .order('posted_date', { ascending: false })
         .limit(20)),
     ]);

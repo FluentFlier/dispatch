@@ -55,11 +55,17 @@ export function MorningBriefStrip({ brief }: { brief: MorningBrief }) {
         <div>
           <div className="flex items-center gap-1.5 text-sm font-medium text-ink2">
             <BarChart3 className="h-4 w-4" />
-            {latestPost?.isYesterday ? 'Yesterday' : 'Latest post'}
+            {latestPost?.isPerforming ? 'Performing well' : latestPost?.isYesterday ? 'Yesterday' : 'Latest post'}
           </div>
           {latestPost ? (
             <div className="mt-2">
-              <p className="text-base font-medium text-ink leading-snug line-clamp-1">{latestPost.title}</p>
+              {latestPost.isPerforming ? (
+                <p className="text-base font-medium text-ink leading-snug line-clamp-2">
+                  Your post &ldquo;{latestPost.title}&rdquo; has been gaining good views
+                </p>
+              ) : (
+                <p className="text-base font-medium text-ink leading-snug line-clamp-1">{latestPost.title}</p>
+              )}
               <p className="mt-1 text-sm text-ink3">
                 <span className="font-medium text-ink2">{latestPost.views.toLocaleString()}</span> views ·{' '}
                 <span className="font-medium text-ink2">{latestPost.saves.toLocaleString()}</span> saves
