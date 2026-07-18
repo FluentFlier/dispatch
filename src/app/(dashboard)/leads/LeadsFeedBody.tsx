@@ -72,6 +72,7 @@ export function LeadsFeedBody(props: LeadsController) {
     companyById, engagersById, engagerNotices, draftAll, demoData,
     loadBootstrap, refetchList, retryCompany, isFollowed, visibleCards,
     handleDraftAll, handleScrape, handleDraft, handleEditPlan, handleApprove,
+    duplicateWarning, handleSendDuplicateAnyway, handleCancelDuplicate, handleNeverContact,
     handleCheckConnection, handleMarkStage, handleDraftFollowup, handleDraftReply, handleSendReply,
     handleEmail, confirmEmailSend,
     handleDismiss, handleExport, handleTogglePlaybookStep, handleSnooze, handleResolve,
@@ -377,6 +378,10 @@ export function LeadsFeedBody(props: LeadsController) {
                 onDraft={(rewriteInstruction) => handleDraft(selectedLead.id, rewriteInstruction)}
                 onPolish={() => handleDraft(selectedLead.id, undefined, true)}
                 onApprove={(channel) => handleApprove(selectedLead.id, channel)}
+                duplicateWarning={duplicateWarning[selectedLead.id] ?? null}
+                onSendDuplicateAnyway={() => handleSendDuplicateAnyway(selectedLead.id)}
+                onCancelDuplicate={() => handleCancelDuplicate(selectedLead.id)}
+                onNeverContact={() => handleNeverContact(selectedLead.id)}
                 onEmail={() => handleEmail(selectedLead.id)}
                 onDismiss={() => handleDismiss(selectedLead.id)}
                 onSnooze={() => handleSnooze(selectedLead.id)}

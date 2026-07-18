@@ -17,6 +17,13 @@ import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { busyActionFor as deriveBusyAction, type LeadBusy } from '@/lib/leads/busy';
 import { draftAllOutcome } from '@/lib/leads/feed-view';
+import { buildApproveBody, parseDuplicateResponse, type DuplicateWarningState } from '@/lib/leads/duplicate-warning';
+
+/** v1 lead channels approve() can send on. Mirrors LeadChannel in send-lead.ts. */
+type ApproveChannel = 'linkedin_connect' | 'linkedin_dm' | 'x_dm' | 'gmail';
+
+/** Duplicate-warning state plus the retry parameters needed for "Send anyway". */
+type LeadDuplicateWarning = DuplicateWarningState & { attemptChannel: ApproveChannel; emailOptIn?: boolean };
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
 
@@ -58,6 +65,8 @@ export function useLeadsController() {
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   // Inline safety-guard notice per signal (expected 422 block: dry-run/cap/hours).
   const [signalNotices, setSignalNotices] = useState<Record<string, string>>({});
+  // Inline duplicate-contact warning per lead, from a 409 on approve (Task 11).
+  const [duplicateWarning, setDuplicateWarning] = useState<Record<string, LeadDuplicateWarning>>({});
 
   const [loading, setLoading] = useState(true);
   // True when the initial bootstrap fetch FAILED (vs a genuine empty feed), so
@@ -488,26 +497,96 @@ export function useLeadsController() {
     }
   };
 
-  const handleApprove = async (
+  // Shared by handleApprove and confirmEmailSend so the duplicate-contact 409
+  // (Task 10's guard) is handled once, not per caller: on a duplicate block the
+  // draft stays put and an inline warning offers "Send anyway" (retries with
+  // overrideDuplicate: true) or Cancel, instead of surfacing as an error toast.
+  const submitApprove = async (
     id: string,
-    channel: 'linkedin_connect' | 'linkedin_dm' | 'x_dm' = 'linkedin_connect',
+    channel: ApproveChannel,
+    opts: { emailOptIn?: boolean; overrideDuplicate?: boolean; busyAction?: 'approve' | 'email' } = {},
   ) => {
-    setBusy({ id, action: 'approve' });
+    setBusy({ id, action: opts.busyAction ?? 'approve' });
+    setDuplicateWarning((w) => {
+      if (!(id in w)) return w;
+      const next = { ...w };
+      delete next[id];
+      return next;
+    });
     try {
       // Send the (possibly edited) draft so the edit-feedback loop can capture it.
-      const res = await fetch(`/api/leads/${id}/approve`, {
+      const res = await fetchWithAuth(`/api/leads/${id}/approve`, {
         method: 'POST',
         headers: jsonHeaders,
-        body: JSON.stringify({ channel, messageText: drafts[id] }),
+        body: JSON.stringify(buildApproveBody(channel, drafts[id], opts)),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'blocked');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const duplicate = res.status === 409 ? parseDuplicateResponse(data) : null;
+        if (duplicate) {
+          setDuplicateWarning((w) => ({
+            ...w,
+            [id]: { ...duplicate, attemptChannel: channel, emailOptIn: opts.emailOptIn },
+          }));
+          return;
+        }
+        throw new Error(data.error || 'blocked');
+      }
       mergeLead(data.lead);
       toast(
-        channel === 'x_dm' ? 'X DM sent.' : channel === 'linkedin_dm' ? 'Follow-up DM sent.' : 'LinkedIn invite sent.',
+        channel === 'x_dm'
+          ? 'X DM sent.'
+          : channel === 'linkedin_dm'
+            ? 'Follow-up DM sent.'
+            : channel === 'gmail'
+              ? 'Email sent.'
+              : 'LinkedIn invite sent.',
       );
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not approve.', 'error');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const handleApprove = (
+    id: string,
+    channel: 'linkedin_connect' | 'linkedin_dm' | 'x_dm' = 'linkedin_connect',
+  ) => submitApprove(id, channel);
+
+  // "Send anyway" on the inline duplicate warning: retries the same approve
+  // call with overrideDuplicate: true (never overrides a do_not_contact block -
+  // the approve route re-checks and 409s again if it's a DNC match).
+  const handleSendDuplicateAnyway = (id: string) => {
+    const warning = duplicateWarning[id];
+    if (!warning) return;
+    void submitApprove(id, warning.attemptChannel, {
+      overrideDuplicate: true,
+      emailOptIn: warning.emailOptIn,
+      busyAction: warning.attemptChannel === 'gmail' ? 'email' : 'approve',
+    });
+  };
+
+  const handleCancelDuplicate = (id: string) => {
+    setDuplicateWarning((w) => {
+      const next = { ...w };
+      delete next[id];
+      return next;
+    });
+  };
+
+  // "Never contact again": adds the lead's identity to the workspace
+  // do-not-contact list, so future sends to that person hard-block instead of
+  // just warning (Task 9's checkPriorContact treats do_not_contact as absolute).
+  const handleNeverContact = async (id: string) => {
+    setBusy({ id, action: 'dnc' });
+    try {
+      const res = await fetchWithAuth(`/api/leads/${id}/do-not-contact`, { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not update.');
+      toast(data.skipped ? 'No contact identity to block yet.' : 'Added to do-not-contact list.');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not add to do-not-contact list.', 'error');
     } finally {
       setBusy(null);
     }
@@ -626,22 +705,7 @@ export function useLeadsController() {
     const id = emailConfirmId;
     if (!id) return;
     setEmailConfirmId(null);
-    setBusy({ id, action: 'email' });
-    try {
-      const res = await fetch(`/api/leads/${id}/approve`, {
-        method: 'POST',
-        headers: jsonHeaders,
-        body: JSON.stringify({ channel: 'gmail', emailOptIn: true, messageText: drafts[id] }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'blocked');
-      mergeLead(data.lead);
-      toast('Email sent.');
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not email.', 'error');
-    } finally {
-      setBusy(null);
-    }
+    await submitApprove(id, 'gmail', { emailOptIn: true, busyAction: 'email' });
   };
 
   const handleDismiss = async (id: string) => {
@@ -1094,6 +1158,7 @@ export function useLeadsController() {
     cards, setCards, leadsById, setLeadsById, settings, setSettings,
     profiles, setProfiles, followed, setFollowed, filters, setFilters,
     selectedId, setSelectedId, drafts, setDrafts, signalNotices, setSignalNotices,
+    duplicateWarning, setDuplicateWarning,
     loading, setLoading, loadError, setLoadError, setupRequired, setSetupRequired,
     setupMessage, setSetupMessage, listLoading, setListLoading, scraping, setScraping,
     scrapeProgress, setScrapeProgress, busy, setBusy, busyActionFor,
@@ -1104,6 +1169,7 @@ export function useLeadsController() {
     feedQuery, indexLeads, loadBootstrap, refetchList, mergeLead, mergeSignalStatus,
     retryCompany, refreshEngager, isFollowed, sortedCards, visibleCards,
     handleDraftAll, handleScrape, handleDraft, handleEditPlan, handleApprove,
+    handleSendDuplicateAnyway, handleCancelDuplicate, handleNeverContact,
     handleCheckConnection, handleMarkStage, handleDraftFollowup, handleDraftReply, handleSendReply,
     handleEmail, confirmEmailSend,
     handleDismiss, handleExport, handleTogglePlaybookStep, handleSnooze, handleResolve,
