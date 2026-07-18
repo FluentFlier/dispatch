@@ -121,7 +121,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         .filter((p): p is { name: string } => Boolean(p?.name));
       const classified = await classifyPostPillar(client, workspaceId, contentForPillar, existing);
       ({ pillar, pillars, pillar_weights } = normalizePillars({ pillars: [classified.pillar] }));
-      if (classified.isNew) await appendEmergentPillar(client, user.id, classified.pillar);
+      if (classified.isNew) await appendEmergentPillar(client, user.id, classified.pillar, workspaceId);
     } catch {
       /* keep the 'general' fallback if classification setup fails */
     }

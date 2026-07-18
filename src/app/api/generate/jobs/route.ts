@@ -7,6 +7,7 @@ import { errorResponse } from '@/lib/api-errors';
 import { guardAiRequest } from '@/lib/ai-guard';
 import { LlmError } from '@/lib/llm';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
+import { ensurePillarBriefs } from '@/lib/pillars/briefs-generate';
 import { classifyPromptForMemory } from '@/lib/memory/classify-prompt';
 import { runContentPipeline, type PipelineStage } from '@/lib/content-pipeline';
 import { streamCreatorDraft } from '@/lib/content-pipeline/stream';
@@ -125,6 +126,10 @@ async function runGenerationJob(job: JobPayload, userId: string, workspaceId: st
         : null;
 
     const profile = cached ? cached.profile : voiceContext?.profile ?? null;
+    // Gradually backfill generation briefs onto custom pillars that predate them
+    // (a couple per run), so every pillar eventually steers drafting like a
+    // built-in. Fire-and-forget: never blocks or breaks generation.
+    if (workspaceId) void ensurePillarBriefs(client, userId, workspaceId).catch(() => {});
     const contextAdditions = cached ? cached.contextAdditions ?? '' : voiceContext?.contextAdditions ?? '';
     const vocabulary = cached ? cached.vocabulary : voiceContext?.vocabulary;
     const structural = cached ? cached.structural : voiceContext?.structural;

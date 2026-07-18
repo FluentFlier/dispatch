@@ -123,7 +123,7 @@ Return ONLY the post text, ready to publish.`;
     if (workspaceId) {
       const classified = await classifyPostPillar(client, workspaceId, content, existingPillars);
       autoPillar = classified.pillar;
-      if (classified.isNew) await appendEmergentPillar(client, user.id, classified.pillar);
+      if (classified.isNew) await appendEmergentPillar(client, user.id, classified.pillar, workspaceId);
     }
 
     // Store in auto_generated_posts queue
