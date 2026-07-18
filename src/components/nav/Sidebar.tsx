@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, LogOut, PanelLeft, PanelLeftOpen, SlidersHorizontal } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { getInsforgeClient } from '@/lib/insforge/client';
 import { PRODUCT_NAME, PRODUCT_LOGO } from '@/lib/brand';
@@ -121,7 +121,7 @@ export default function Sidebar() {
           aria-label={expanded ? 'Minimize menu' : 'Expand menu'}
           className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink transition-colors hover:bg-white/70 ${FOCUS}`}
         >
-          {expanded ? <PanelLeftClose className="h-5 w-5" strokeWidth={2.5} /> : <PanelLeftOpen className="h-5 w-5" strokeWidth={2.5} />}
+          {expanded ? <PanelLeft className="h-5 w-5" strokeWidth={2.5} /> : <PanelLeftOpen className="h-5 w-5" strokeWidth={2.5} />}
         </button>
       </div>
 
