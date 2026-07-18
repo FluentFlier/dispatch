@@ -128,6 +128,7 @@ export async function autoSendDueDms(
       userId,
       leadId,
       channel: 'linkedin_dm',
+      mode: 'auto',
     });
 
     if (!result.success) {

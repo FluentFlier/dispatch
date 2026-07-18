@@ -19,6 +19,7 @@ import { getXUnipileAccountId, resolveXProfile, sendXDirectMessage } from '@/lib
 import { sendGmailEmail } from '@/lib/composio/actions/gmail';
 import { getIntegration } from '@/lib/signals/integrations/store';
 import { recordOutreachEdit } from '@/lib/signals/outreach/edit-feedback';
+import { checkPriorContact, type ContactIdentity, type PriorContactResult } from '@/lib/signals/outreach/prior-contact';
 import type { LeadPlaybook, OutreachChannel, SignalLeadWithContacts } from '@/lib/signals/types';
 
 type InsforgeClient = ReturnType<typeof createClient>;
@@ -58,6 +59,10 @@ export interface SendLeadInput {
   /** Required true to send a cold email (per-lead compliance opt-in). */
   emailOptIn?: boolean;
   now?: Date;
+  /** 'auto' (cron/nurture sends) always blocks a duplicate; 'manual' (user-approved) warns and can be overridden. */
+  mode: 'auto' | 'manual';
+  /** Manual-mode only: proceed despite a prior-contact match. Never overrides a do_not_contact block. */
+  overrideDuplicate?: boolean;
 }
 
 export interface SendLeadResult {
@@ -67,6 +72,7 @@ export interface SendLeadResult {
   externalId?: string;
   providerId?: string;
   lead?: SignalLeadWithContacts | null;
+  duplicate?: PriorContactResult;
 }
 
 /**
@@ -81,27 +87,66 @@ export async function sendLeadOutreach(
   client: InsforgeClient,
   input: SendLeadInput,
 ): Promise<SendLeadResult> {
-  const { workspaceId, userId, leadId } = input;
+  const { workspaceId, userId, leadId, mode } = input;
   const channel: LeadChannel = input.channel ?? 'linkedin_connect';
+
+  const lead = await getLead(client, workspaceId, leadId);
+  if (!lead) return { success: false, error: 'Lead not found.' };
+
+  // Duplicate/do-not-contact guard (Task 10). Runs BEFORE assertOutreachAllowed
+  // so a blocked send never touches the cooldown/cap counters. A prior contact
+  // on THIS SAME lead is exempt - that's the connect -> DM follow-up sequence,
+  // not a re-contact, and is already governed by the signal_outreach_lead_unique
+  // DB constraint.
+  const contact = lead.primary_contact ?? lead.contacts?.[0] ?? null;
+  const identity: ContactIdentity = {
+    linkedinProviderId: contact?.provider_id ?? undefined,
+    linkedinUrl: contact?.linkedin_url ?? undefined,
+    xHandle: contact?.x_handle ?? undefined,
+    email: contact?.email ?? undefined,
+  };
+  const duplicate = await checkPriorContact(client, workspaceId, identity);
+  const contactedElsewhere = duplicate.contacted && duplicate.leadId !== leadId;
+
+  if (duplicate.blockedByDnc) {
+    await logSignalAudit(client, {
+      workspace_id: workspaceId,
+      action: 'outreach_blocked',
+      channel,
+      lead_id: leadId,
+      blocked_reason: 'do_not_contact',
+    });
+    return { success: false, error: 'duplicate_contact', duplicate };
+  }
+
+  const duplicateOverride = contactedElsewhere && mode === 'manual' && input.overrideDuplicate === true;
+  if (contactedElsewhere && !duplicateOverride) {
+    await logSignalAudit(client, {
+      workspace_id: workspaceId,
+      action: 'outreach_blocked',
+      channel,
+      lead_id: leadId,
+      blocked_reason: 'duplicate_contact',
+    });
+    return { success: false, error: 'duplicate_contact', duplicate };
+  }
 
   const guard = await assertOutreachAllowed(client, workspaceId, channel, { leadId, now: input.now });
   if (!guard.allowed) {
     return { success: false, error: guard.reason, retryAfterSeconds: guard.retryAfterSeconds };
   }
 
-  const lead = await getLead(client, workspaceId, leadId);
-  if (!lead) return { success: false, error: 'Lead not found.' };
   if (lead.contact_status === 'no_contact') {
     return { success: false, error: 'No reachable contact for this lead.' };
   }
 
   const result = await (channel === 'gmail'
-    ? sendLeadEmail(client, input, lead)
+    ? sendLeadEmail(client, input, lead, duplicateOverride)
     : channel === 'x_dm'
-      ? sendLeadX(client, input, lead)
+      ? sendLeadX(client, input, lead, duplicateOverride)
       : channel === 'linkedin_dm'
-        ? sendLeadLinkedInDm(client, input, lead)
-        : sendLeadLinkedIn(client, input, lead));
+        ? sendLeadLinkedInDm(client, input, lead, duplicateOverride)
+        : sendLeadLinkedIn(client, input, lead, duplicateOverride));
 
   // Edit-feedback loop: when the user rewrote the model draft before sending,
   // capture the model -> edited pair (workspace-scoped) so future drafts learn
@@ -119,6 +164,7 @@ async function sendLeadLinkedIn(
   client: InsforgeClient,
   input: SendLeadInput,
   lead: SignalLeadWithContacts,
+  duplicateOverride = false,
 ): Promise<SendLeadResult> {
   const { workspaceId, userId, leadId } = input;
   const contact = lead.primary_contact ?? lead.contacts?.[0] ?? null;
@@ -199,7 +245,11 @@ async function sendLeadLinkedIn(
     channel: 'linkedin_connect',
     lead_id: leadId,
     social_account_id: accountId,
-    metadata: { external_id: sendResult.externalId, provider_id: profile.providerId },
+    metadata: {
+      external_id: sendResult.externalId,
+      provider_id: profile.providerId,
+      ...(duplicateOverride ? { duplicate_override: true } : {}),
+    },
   });
 
   await markLeadOutreachSent(client, workspaceId, leadId, 'linkedin_connect', messageText, {
@@ -228,6 +278,7 @@ async function sendLeadLinkedInDm(
   client: InsforgeClient,
   input: SendLeadInput,
   lead: SignalLeadWithContacts,
+  duplicateOverride = false,
 ): Promise<SendLeadResult> {
   const { workspaceId, userId, leadId } = input;
   const contact = lead.primary_contact ?? lead.contacts?.[0] ?? null;
@@ -316,7 +367,11 @@ async function sendLeadLinkedInDm(
     channel: 'linkedin_dm',
     lead_id: leadId,
     social_account_id: accountId,
-    metadata: { external_id: sendResult.externalId, provider_id: profile.providerId },
+    metadata: {
+      external_id: sendResult.externalId,
+      provider_id: profile.providerId,
+      ...(duplicateOverride ? { duplicate_override: true } : {}),
+    },
   });
 
   await markLeadOutreachSent(client, workspaceId, leadId, 'linkedin_dm', messageText, {
@@ -351,6 +406,7 @@ async function sendLeadX(
   client: InsforgeClient,
   input: SendLeadInput,
   lead: SignalLeadWithContacts,
+  duplicateOverride = false,
 ): Promise<SendLeadResult> {
   const { workspaceId, userId, leadId } = input;
   const contact = lead.primary_contact ?? lead.contacts?.[0] ?? null;
@@ -401,7 +457,11 @@ async function sendLeadX(
     channel: 'x_dm',
     lead_id: leadId,
     social_account_id: accountId,
-    metadata: { external_id: sendResult.externalId, provider_id: profile.providerId },
+    metadata: {
+      external_id: sendResult.externalId,
+      provider_id: profile.providerId,
+      ...(duplicateOverride ? { duplicate_override: true } : {}),
+    },
   });
 
   await markLeadOutreachSent(client, workspaceId, leadId, 'x_dm', messageText, {
@@ -422,6 +482,7 @@ async function sendLeadEmail(
   client: InsforgeClient,
   input: SendLeadInput,
   lead: SignalLeadWithContacts,
+  duplicateOverride = false,
 ): Promise<SendLeadResult> {
   const { workspaceId, leadId } = input;
 
@@ -473,7 +534,11 @@ async function sendLeadEmail(
     action: 'outreach_send_success',
     channel: 'gmail',
     lead_id: leadId,
-    metadata: { external_id: sendResult.messageId, recipient_email: to },
+    metadata: {
+      external_id: sendResult.messageId,
+      recipient_email: to,
+      ...(duplicateOverride ? { duplicate_override: true } : {}),
+    },
   });
 
   await markLeadOutreachSent(client, workspaceId, leadId, 'gmail', body, { identifier: to, externalId: sendResult.messageId });

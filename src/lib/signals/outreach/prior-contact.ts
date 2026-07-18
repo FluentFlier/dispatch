@@ -130,7 +130,7 @@ async function findLatestSentOutreach(
     .eq('workspace_id', workspaceId)
     .in('lead_id', leadIds)
     .eq('status', 'sent')
-    .order('sent_at', { ascending: false })
+    .order('sent_at', { ascending: false, nullsFirst: false })
     .limit(1);
   const rows = (data ?? []) as SignalOutreachSentRow[];
   return rows[0] ?? null;
