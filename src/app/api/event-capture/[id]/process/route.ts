@@ -8,6 +8,7 @@ import { getBestHooksForContext } from '@/lib/hooks-intelligence';
 import { PILLAR_TO_VERTICAL } from '@/lib/hooks-intelligence/types';
 import { profilePillarWeights } from '@/lib/pillars';
 import { buildQuestionsAndAnswers, resolvePostPillar } from '@/lib/event-capture/draft-context';
+import { classifyPostPillar } from '@/lib/pillars/classify';
 
 interface RouteParams {
   params: { id: string };
@@ -268,15 +269,20 @@ Return ONLY the post text.`;
     .filter((r): r is PromiseFulfilledResult<PlatformDraft> => r.status === 'fulfilled')
     .map((r) => r.value);
 
-  const postInserts = successfulDrafts.map(({ platform, result }) => ({
+  const existingPillars = (profile?.content_pillars ?? []).filter(
+    (p): p is { name: string } => Boolean(p?.name),
+  );
+  const postInserts = await Promise.all(successfulDrafts.map(async ({ platform, result }) => ({
       workspace_id: capture.workspace_id,
       user_id: capture.user_id,
       event_capture_id: params.id,
       platform,
-      // posts.pillar is NOT NULL - use the creator's first content pillar, else
-      // 'general'. Without this the insert 23502-fails and no draft ever reaches
-      // the Write section.
-      pillar: resolvePostPillar(profile),
+      // posts.pillar is NOT NULL. Classify from THIS draft's content (each
+      // platform draft can be about a different angle) rather than always the
+      // creator's first pillar; falls back to first pillar / 'general'.
+      pillar: capture.workspace_id
+        ? (await classifyPostPillar(client, capture.workspace_id, result.text, existingPillars)).pillar
+        : resolvePostPillar(profile),
       script: result.text,
       caption: result.text,
       hook: result.text.split('\n')[0].slice(0, 200),
@@ -293,7 +299,7 @@ Return ONLY the post text.`;
       }),
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
-    }));
+    })));
 
   let insertedPosts: Array<{ id: string; platform: string }> = [];
   if (postInserts.length > 0) {

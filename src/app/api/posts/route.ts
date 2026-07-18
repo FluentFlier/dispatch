@@ -4,6 +4,7 @@ import { triggerAutoOptimize } from '@/lib/auto-optimize';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { errorResponse } from '@/lib/api-errors';
 import { normalizePillars } from '@/lib/pillars';
+import { classifyPostPillar, appendEmergentPillar } from '@/lib/pillars/classify';
 import { CreatePostSchema } from '@/lib/posts-schema';
 import {
   checkCoreSchemaSetup,
@@ -101,7 +102,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const workspaceId = await getActiveWorkspaceId(user.id);
   // Keep pillar (primary), pillars[], and weights in sync so legacy readers keep
   // working and the primary is always the highest-weight pillar.
-  const { pillar, pillars, pillar_weights } = normalizePillars(parsed.data);
+  let { pillar, pillars, pillar_weights } = normalizePillars(parsed.data);
+
+  // Content-driven pillar: when the caller didn't tag a real pillar (the
+  // 'general' sentinel, e.g. a generated draft), classify the post from its own
+  // text instead of stamping the profile's first pillar on everything. Grows the
+  // profile taxonomy when the post is about a genuinely new theme.
+  const contentForPillar = (parsed.data.script || parsed.data.caption || '').trim();
+  if (pillar === 'general' && contentForPillar && workspaceId) {
+    try {
+      const { data: profRows } = await client
+        .database.from('creator_profile')
+        .select('content_pillars')
+        .eq('user_id', user.id)
+        .limit(1);
+      const existing = ((profRows?.[0] as { content_pillars?: Array<{ name?: string }> } | undefined)
+        ?.content_pillars ?? [])
+        .filter((p): p is { name: string } => Boolean(p?.name));
+      const classified = await classifyPostPillar(client, workspaceId, contentForPillar, existing);
+      ({ pillar, pillars, pillar_weights } = normalizePillars({ pillars: [classified.pillar] }));
+      if (classified.isNew) await appendEmergentPillar(client, user.id, classified.pillar);
+    } catch {
+      /* keep the 'general' fallback if classification setup fails */
+    }
+  }
   // Drop ephemeral display-only fields that have no column on `posts`.
   const { hook_explanations: _hookExplanations, humanize_passes: _humanizePasses, ...insertable } = parsed.data;
   const { data, error } = await client

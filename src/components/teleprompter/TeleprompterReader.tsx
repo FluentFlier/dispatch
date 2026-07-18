@@ -148,7 +148,8 @@ export default function TeleprompterReader({ script, onExit }: TeleprompterReade
           className="font-display mx-auto max-w-[720px] whitespace-pre-wrap"
           style={{
             fontSize: `${fontSize}px`,
-            color: '#09090B',
+            // White on the black backdrop; the near-black value was invisible.
+            color: '#FFFFFF',
             lineHeight: 1.7,
           }}
         >
