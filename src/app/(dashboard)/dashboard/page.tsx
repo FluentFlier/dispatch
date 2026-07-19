@@ -28,6 +28,7 @@ import { getUserEntitlements } from '@/lib/entitlements';
 import { SectionHeader } from '@/components/layout/SectionHeader';
 import { PRODUCT_NAME } from '@/lib/brand';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { onlyPublished } from '@/lib/posts/published';
 import {
   composeMorningBrief,
   type TrendRow,
@@ -120,8 +121,8 @@ export default async function DashboardPage() {
     await Promise.all([
       scoped(client.database.from('posts').select('id').eq('user_id', uid).eq('status', 'posted').gte('posted_date', start).lte('posted_date', end)),
       scoped(client.database.from('posts').select('id').eq('user_id', uid).neq('status', 'posted').neq('status', 'idea')),
-      scoped(client.database.from('posts').select('id').eq('user_id', uid).eq('status', 'posted')),
-      scoped(client.database.from('posts').select('posted_date').eq('user_id', uid).not('posted_date', 'is', null).order('posted_date', { ascending: false })),
+      scoped(onlyPublished(client.database.from('posts').select('id').eq('user_id', uid))),
+      scoped(onlyPublished(client.database.from('posts').select('posted_date').eq('user_id', uid)).order('posted_date', { ascending: false })),
       scoped(client.database.from('posts').select('*').eq('user_id', uid).gte('scheduled_date', today).neq('status', 'posted').order('scheduled_date', { ascending: true }).limit(3)),
       scoped(client.database.from('posts').select('*').eq('user_id', uid).order('updated_at', { ascending: false }).limit(5)),
       scoped(client.database.from('content_ideas').select('*').eq('user_id', uid).eq('converted', false).order('priority', { ascending: true }).limit(3)),
@@ -147,11 +148,9 @@ export default async function DashboardPage() {
       // Morning brief: most recent GENUINELY-published posts — posted_date must be
       // set, so a queued/draft post (status can flip to 'posted' before the publish
       // job runs) never surfaces as the latest-post snapshot.
-      scoped(client.database.from('posts')
+      scoped(onlyPublished(client.database.from('posts')
         .select('id, title, posted_date, views, saves')
-        .eq('user_id', uid)
-        .eq('status', 'posted')
-        .not('posted_date', 'is', null)
+        .eq('user_id', uid))
         .order('posted_date', { ascending: false })
         .limit(20)),
     ]);

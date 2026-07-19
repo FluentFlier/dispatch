@@ -3,6 +3,7 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { getBrainStatus } from '@/lib/brain/pages';
 import { getSafetyStatus } from '@/lib/signals/safety/guard';
+import { onlyPublished } from '@/lib/posts/published';
 
 export interface LoopReadinessStep {
   id: string;
@@ -38,11 +39,10 @@ export async function GET(): Promise<NextResponse> {
       .from('social_accounts')
       .select('platform, health_status')
       .eq('user_id', user.id),
-    client.database
+    onlyPublished(client.database
       .from('posts')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .eq('status', 'posted'),
+      .eq('user_id', user.id)),
     workspaceId
       ? getSafetyStatus(client, workspaceId).catch(() => null)
       : Promise.resolve(null),

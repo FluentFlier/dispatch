@@ -19,10 +19,14 @@ describe('Phase: Loop readiness', () => {
               };
             }
             if (table === 'posts') {
+              // Published posts are counted as status='posted' AND posted_date
+              // NOT NULL, so the chain ends on .not().
               return {
                 select: () => ({
                   eq: () => ({
-                    eq: () => Promise.resolve({ count: 0, error: null }),
+                    eq: () => ({
+                      not: () => Promise.resolve({ count: 0, error: null }),
+                    }),
                   }),
                 }),
               };

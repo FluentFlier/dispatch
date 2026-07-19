@@ -8,14 +8,12 @@ import {
   Hash,
   Layers,
   MessageSquare,
-  Mic,
   Recycle,
   TrendingUp,
   Zap,
 } from "lucide-react";
 import { SkeletonLines } from "@/components/ui/Skeleton";
 import { ScriptGenerator } from "@/components/generate/ScriptGenerator";
-import { VoiceCapture } from "@/components/generate/VoiceCapture";
 import { StoryMine } from "@/components/generate/StoryMine";
 import { CaptionHashtags } from "@/components/generate/CaptionHashtags";
 import { HookGenerator } from "@/components/generate/HookGenerator";
@@ -28,7 +26,6 @@ import { normalizeDashboardPlatform, type DashboardPlatform } from "@/lib/consta
 
 type TabId =
   | "script"
-  | "voice-note"
   | "story-mine"
   | "caption"
   | "hooks"
@@ -39,7 +36,6 @@ type TabId =
 
 function isTabId(value: string | null): value is TabId {
   return value === "script"
-    || value === "voice-note"
     || value === "story-mine"
     || value === "caption"
     || value === "hooks"
@@ -60,7 +56,6 @@ const SECONDARY_TOOLS: {
   hint: string;
   icon: ComponentType<{ className?: string }>;
 }[] = [
-  { id: "voice-note", label: "Voice note", hint: "Talk it out, we transcribe", icon: Mic },
   { id: "story-mine", label: "Story mine", hint: "Turn experiences into posts", icon: BookOpen },
   { id: "caption", label: "Caption & hashtags", hint: "Captions for a video", icon: Hash },
   { id: "hooks", label: "Hooks", hint: "Scroll-stopping first lines", icon: Zap },
@@ -139,8 +134,6 @@ function GeneratePageInner() {
             onSelectTool={(id) => setActiveTab(id as TabId)}
           />
         );
-      case "voice-note":
-        return <VoiceCapture />;
       case "story-mine":
         return <StoryMine />;
       case "caption":

@@ -7,6 +7,7 @@ import { computeBestTimes, type TimingPost } from '@/lib/analytics/timing';
 import { enrichPostsWithSyncCounts, postEngagementScore, resolvePublishedAt, countPostsWithMetrics } from '@/lib/analytics/post-metrics';
 import { syncUserPostMetrics } from '@/lib/analytics/sync-user-metrics';
 import { getAlgorithmInsights, normalizeInsightPlatform, type InsightPlatform } from '@/lib/analytics/algorithm-insights';
+import { onlyPublished } from '@/lib/posts/published';
 import type { Post } from '@/lib/types';
 
 const POSTED_POSTS_LIMIT = 100;
@@ -53,10 +54,12 @@ export async function GET(): Promise<NextResponse> {
   const client = getServerClient();
   const workspaceId = await getActiveWorkspaceId(user.id);
 
-  let postsQuery = client.database.from('posts')
+  // Genuinely-published only: a bare status='posted' row with no posted_date is
+  // a draft the creator never put live, and it would sort to the top here
+  // (Postgres orders NULLs first on DESC) as their "latest post".
+  let postsQuery = onlyPublished(client.database.from('posts')
     .select('*')
-    .eq('user_id', user.id)
-    .eq('status', 'posted')
+    .eq('user_id', user.id))
     .order('posted_date', { ascending: false })
     .limit(POSTED_POSTS_LIMIT);
   postsQuery = applyWorkspaceScope(postsQuery, workspaceId);
@@ -117,10 +120,9 @@ export async function GET(): Promise<NextResponse> {
         : client;
       const syncResult = await syncUserPostMetrics(syncClient, user.id);
       if (syncResult.updated > 0) {
-        let refetchQuery = client.database.from('posts')
+        let refetchQuery = onlyPublished(client.database.from('posts')
           .select('*')
-          .eq('user_id', user.id)
-          .eq('status', 'posted')
+          .eq('user_id', user.id))
           .order('posted_date', { ascending: false })
           .limit(POSTED_POSTS_LIMIT);
         refetchQuery = applyWorkspaceScope(refetchQuery, workspaceId);
