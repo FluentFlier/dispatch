@@ -85,8 +85,9 @@ export default function OnboardingWizard() {
   }, [step, ready]);
 
   useEffect(() => {
+    if (!ready) return;
     writeDraft({ displayName, focus });
-  }, [displayName, focus]);
+  }, [ready, displayName, focus]);
 
   const goToStep = useCallback(
     (next: StepKey) => {
@@ -98,6 +99,7 @@ export default function OnboardingWizard() {
   );
 
   const handleNext = useCallback(async () => {
+    if (busy) return;
     setError('');
     if (step === 'you') {
       if (!displayName.trim()) {
@@ -115,7 +117,7 @@ export default function OnboardingWizard() {
         setBusy(false);
       }
     }
-  }, [step, displayName, focus, goToStep]);
+  }, [step, displayName, focus, goToStep, busy]);
 
   const stepIndex = STEP_ORDER.indexOf(step);
 
@@ -124,8 +126,7 @@ export default function OnboardingWizard() {
     (e: React.KeyboardEvent) => {
       if (e.key !== 'Enter') return;
       const target = e.target as HTMLElement;
-      const tag = target.tagName.toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || target.isContentEditable) return;
+      if (target.closest('button, a, [role="button"], input, textarea, select, [contenteditable="true"]')) return;
       e.preventDefault();
       void handleNext();
     },
