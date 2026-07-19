@@ -58,7 +58,7 @@ export function parseDerivedPillars(raw: string): ContentPillarConfig[] {
 
     // Only accept string names; non-strings are treated as absent
     if (typeof record.name !== 'string') continue;
-    const name = Array.from(record.name)
+    const name = Array.from(record.name.trim())
       .slice(0, MAX_NAME_LENGTH)
       .join('')
       .trim();

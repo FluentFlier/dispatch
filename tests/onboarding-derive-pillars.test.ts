@@ -68,15 +68,13 @@ describe('parseDerivedPillars', () => {
   });
 
   it('does not end in a lone surrogate when truncating an emoji-heavy name', () => {
-    // 25 emoji truncated to 24 codepoints. Each emoji is 2 UTF-16 units, so result is 48 units.
-    // The risk with naive .slice() is cutting between the high and low surrogates.
-    // Array.from() handles this correctly by working with codepoints.
-    const emoji = '😀'.repeat(25);
-    const out = parseDerivedPillars(`[{"name":"${emoji}","description":"x"}]`);
+    // 23 single-byte A's (23 UTF-16 units) + 5 emoji (10 UTF-16 units = 33 total).
+    // Naive .slice(0, 24) cuts the first emoji in half, leaving a lone high surrogate.
+    // Correct codepoint-based truncation keeps 23 A + 1 complete emoji.
+    const input = 'A'.repeat(23) + '\u{1F600}'.repeat(5);
+    const out = parseDerivedPillars(`[{"name":"${input}","description":"x"}]`);
     const name = out[0].name;
-    // Should be 24 complete emoji = 48 UTF-16 units
-    expect(name.length).toBe(48);
-    // Verify it's valid by checking it doesn't have a lone high surrogate at the end
+    // Must not end in a lone high surrogate (surrogate range U+D800 to U+DBFF)
     expect(/[\uD800-\uDBFF]$/.test(name)).toBe(false);
   });
 
@@ -88,5 +86,15 @@ describe('parseDerivedPillars', () => {
     const out = parseDerivedPillars(`[{"name":"${name}","description":"x"}]`);
     expect(out[0].name).toBe('A'.repeat(24));
     expect(!/\s$/.test(out[0].name)).toBe(true);
+  });
+
+  it('preserves real content when leading whitespace would consume budget', () => {
+    // 24 spaces followed by "GTM". Without trimming before truncation, these spaces
+    // consume the entire 24-codepoint budget and the row is dropped.
+    // Trimming first ensures leading whitespace doesn't waste budget.
+    const name = ' '.repeat(24) + 'GTM';
+    const out = parseDerivedPillars(`[{"name":"${name}","description":"x"}]`);
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe('GTM');
   });
 });
