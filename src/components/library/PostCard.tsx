@@ -19,7 +19,7 @@ export default function PostCard({ post, selected, onSelect, onClick }: PostCard
   const platformLabel = post.platform
     ? PLATFORM_LABELS[post.platform as keyof typeof PLATFORM_LABELS] ?? post.platform
     : '';
-  // The 'general' fallback pillar isn't a real pillar — never show it as a tag.
+  // The 'general' fallback pillar isn't a real pillar - never show it as a tag.
   const realPillars = postPillars(post).filter((p) => p !== 'general');
   const dateStr = post.scheduled_date ?? post.posted_date ?? null;
 

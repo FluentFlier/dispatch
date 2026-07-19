@@ -8,7 +8,7 @@
 -- daily_connect_limit, daily_comment_limit, sources) onto any existing install,
 -- then enables workspace-scoped RLS to match signals-leads-rls.sql.
 --
--- Apply after signals-leads.sql. Idempotent — safe to run repeatedly.
+-- Apply after signals-leads.sql. Idempotent - safe to run repeatedly.
 
 create table if not exists signal_icp_profiles (
   id uuid primary key default gen_random_uuid(),

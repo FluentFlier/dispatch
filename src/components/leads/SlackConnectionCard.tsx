@@ -183,7 +183,7 @@ export function SlackConnectionCard({ refreshKey = 0 }: SlackConnectionCardProps
               </select>
               {!config.slack_channel_id && !channelsLoading && (
                 <span className="mt-1 block text-xs text-coral">
-                  Pick a channel — until you do, no Slack message is sent.
+                  Pick a channel - until you do, no Slack message is sent.
                 </span>
               )}
             </label>

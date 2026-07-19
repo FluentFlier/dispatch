@@ -30,9 +30,9 @@ export interface StreamDraftResult {
   usedHookIds: string[];
 }
 
-/** Em dashes render badly on social and read as AI — normalize to hyphens. */
+/** Em dashes render badly on social and read as AI - normalize to hyphens. */
 function stripEmDashes(text: string): string {
-  return text.replace(/—/g, ' - ').replace(/–/g, '-');
+  return text.replace(/\u2014/g, ' - ').replace(/\u2013/g, '-');
 }
 
 /**
@@ -60,7 +60,7 @@ function topWeightedVertical(profile: CreatorProfileForPrompt | null): HookVerti
 /**
  * Interactive, low-latency generation for the Write chat.
  *
- * WHY separate from runContentPipeline: the full pipeline runs 6–10 sequential
+ * WHY separate from runContentPipeline: the full pipeline runs 6-10 sequential
  * LLM calls (base → hooks → humanize → voice → evaluate → revise) which is great
  * for one-shot quality but terrible for a chat where the creator iterates. Here
  * we merge voice + hook guidance + platform format into ONE streamed call so

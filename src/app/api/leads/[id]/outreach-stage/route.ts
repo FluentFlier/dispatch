@@ -12,7 +12,7 @@ const postSchema = z.object({
 /**
  * POST /api/leads/:id/outreach-stage
  *
- * Manually advance a directory lead's outreach lifecycle past "sent" — the
+ * Manually advance a directory lead's outreach lifecycle past "sent" - the
  * stages the data model already supports (accepted → replied → closed) but the
  * UI previously couldn't reach, so outreach dead-ended at "sent". Persists on
  * the outreach row and logs an audit event. Returns the refreshed lead.

@@ -28,7 +28,7 @@ export { default as PillarBadge } from '@/components/ui/PillarBadge';
 // exported so page previews can wrap themselves in it).
 export { PreviewShell, registerFetchMock } from './preview-shell';
 
-// Full-page screens — every client-component page in the app, importable so
+// Full-page screens - every client-component page in the app, importable so
 // whole pages can be opened and reworked in claude.ai/design. Server pages
 // (admin, dashboard home, brain, signals, landing) cannot ship: they import
 // server-only code.

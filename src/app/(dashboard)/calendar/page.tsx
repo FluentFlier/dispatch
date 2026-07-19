@@ -228,7 +228,7 @@ export default function CalendarPage() {
     const end = weekDays[6];
     const startStr = start.toLocaleDateString("en-US", { month: "short", day: "numeric" });
     const endStr = end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-    return `${startStr} – ${endStr}`;
+    return `${startStr} - ${endStr}`;
   }, [viewMode, currentMonth, currentYear, weekBase, selectedDay]);
 
   /* ---- Platform filter toggle ---- */

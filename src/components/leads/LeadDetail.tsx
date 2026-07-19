@@ -547,7 +547,7 @@ export function LeadDetail({
           <div className="mt-1 flex items-center justify-between gap-2 rounded-md border border-border bg-bg-secondary/40 px-3 py-2">
             <span className="text-xs text-text-secondary flex items-center gap-1.5">
               {(isReplied || isClosed) && <Check className="h-3.5 w-3.5 text-accent-secondary" />}
-              {isClosed ? 'Closed out.' : isReplied ? 'They replied — keep the conversation going.' : 'Sent. Log the outcome when they respond.'}
+              {isClosed ? 'Closed out.' : isReplied ? 'They replied - keep the conversation going.' : 'Sent. Log the outcome when they respond.'}
             </span>
             {!isClosed && (
               <div className="flex items-center gap-1.5">

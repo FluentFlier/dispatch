@@ -36,7 +36,7 @@ describe('styleRulesFromChecks', () => {
   });
 
   it('contains no em dash characters itself', () => {
-    expect(rules).not.toMatch(/[—–]/);
+    expect(rules).not.toMatch(/[\u2014\u2013]/);
   });
 
   it('hygiene rules (markdown/em dash/slop) reach non-prose text outputs like hooks and caption', () => {

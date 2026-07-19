@@ -79,7 +79,7 @@ export async function awaitEngagementGap(
 
 /**
  * Pick a pseudo-random future time for a queued engagement task. Adds a random
- * delay (default 12–55 min) and, when working_hours_only is on, shifts the slot
+ * delay (default 12-55 min) and, when working_hours_only is on, shifts the slot
  * into the next in-window period with a random minute offset so posts do not
  * land at robotic fixed times.
  */

@@ -48,7 +48,7 @@ export async function generateEventQuestions(
 - Specific to THIS event (use the actual event name, topics, people)
 - 8-12 words each (short, conversational, not formal)
 - No corporate language, no "please describe" or "could you explain"
-- No em dashes — use hyphens or rewrite
+- No em dashes - use hyphens or rewrite
 - Varied: mix takeaways, personal reactions, specific moments, actionable insights
 - Appropriate for ${ctx.eventType} type events
 Return EXACTLY 5 questions, one per line, no numbering, no extra text.`;

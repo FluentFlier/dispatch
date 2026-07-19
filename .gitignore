@@ -10,7 +10,7 @@ node_modules/
 .vercel
 .gstack/
 
-# AI agent tool folders — never expose these in repo
+# AI agent tool folders - never expose these in repo
 .insforge
 .agent
 .agents
@@ -48,7 +48,7 @@ graphify-out/
 .codegraph/
 .antigravity/
 
-# QA screenshots and root-level images — never commit
+# QA screenshots and root-level images - never commit
 /*.png
 /*.jpg
 /*.jpeg
@@ -66,11 +66,11 @@ tsconfig.tsbuildinfo
 .graphify_uncached.txt
 graphify-out/
 
-# markdown files — never commit (README.md is the only exception)
+# markdown files - never commit (README.md is the only exception)
 *.md
 !README.md
 
-# local planning docs — never commit
+# local planning docs - never commit
 md_files/
 docs/superpowers/
 docs/*.pdf

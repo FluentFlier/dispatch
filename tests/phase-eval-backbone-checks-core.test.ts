@@ -32,7 +32,7 @@ describe('checks: framework', () => {
   });
 
   it('every check has id, severity, and a fixHint on failure results', () => {
-    const dirty = 'Short one — with em dash.';
+    const dirty = 'Short one \u2014 with em dash.';
     for (const r of runChecks(dirty, ctx())) {
       expect(r.id.length).toBeGreaterThan(0);
       if (!r.pass) expect((r.fixHint ?? '').length).toBeGreaterThan(0);
@@ -42,7 +42,7 @@ describe('checks: framework', () => {
 
 describe('check: em_dash (hard)', () => {
   it('fails on em and en dashes with evidence', () => {
-    const r = runChecks('Great work — truly great.', ctx()).find((x) => x.id === 'em_dash')!;
+    const r = runChecks('Great work \u2014 truly great.', ctx()).find((x) => x.id === 'em_dash')!;
     expect(r.pass).toBe(false);
     expect(r.severity).toBe('hard');
   });

@@ -97,7 +97,7 @@ function extractAuthorHandle(sourceUrl: string | null): string | null {
  *
  * The two send backends diverge on the code they return for the same block: the
  * signals endpoint uses HTTP 422, the warm-contact (engager) send/send-dm
- * endpoints use 429. Accept both here so every send flow behaves identically —
+ * endpoints use 429. Accept both here so every send flow behaves identically -
  * this is the single source of truth for guard-block detection.
  */
 export function isGuardBlock(status: number): boolean {

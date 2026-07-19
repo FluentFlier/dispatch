@@ -56,7 +56,7 @@ async function resolveSearchTerms(
       .map((p: { name?: string }) => (p?.name ?? '').trim())
       .filter(Boolean);
   } catch {
-    // No profile / unparseable pillars — caller handles the empty-terms case.
+    // No profile / unparseable pillars - caller handles the empty-terms case.
   }
 
   const keywords = new Set(pillarNames);

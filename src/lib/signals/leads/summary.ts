@@ -35,11 +35,11 @@ export function summarizeLead(lead: SignalLeadWithContacts): LeadSummary {
   const detail = lead.company_detail as LeadCompanyDetail | undefined;
   const blurb = lead.tagline?.trim() || firstSentence(detail?.description) || null;
 
-  // Avoid "Grand Ventures — Grand Ventures is…" when the blurb already leads with
+  // Avoid "Grand Ventures - Grand Ventures is…" when the blurb already leads with
   // the company name.
   const name = lead.company_name.trim();
   const startsWithName = blurb ? blurb.toLowerCase().startsWith(name.toLowerCase()) : false;
-  const what = blurb ? (startsWithName ? blurb : `${name} — ${blurb}`) : name;
+  const what = blurb ? (startsWithName ? blurb : `${name} - ${blurb}`) : name;
 
   const intent = intentSummary(lead.intent_flags);
   const space =

@@ -23,7 +23,7 @@ interface LeadSourcesCardProps {
 }
 
 /**
- * "Where to look" — the lead-source toggles and company watchlist. Folded in
+ * "Where to look" - the lead-source toggles and company watchlist. Folded in
  * from the retired Advanced drawer so all lead configuration lives on one Setup
  * surface. ICP description now has a single home (the ICP chat above), so the
  * drawer's duplicate ICP inputs are gone.

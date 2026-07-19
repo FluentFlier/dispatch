@@ -120,7 +120,7 @@ describe('Phase: Guardrail Consolidation - forced-failure event chain (spec 3.5.
     evaluateDraft.mockResolvedValue(pass);
     // Every generation call keeps returning em-dash text - Gate A revise and
     // Gate B escalation both fail to clean it, forcing the full chain.
-    chatCompletion.mockResolvedValue('bad — text with an em dash every single time, long enough to pass length checks. '.repeat(3));
+    chatCompletion.mockResolvedValue('bad \u2014 text with an em dash every single time, long enough to pass length checks. '.repeat(3));
 
     const { runContentPipeline } = await import('@/lib/content-pipeline');
     const result = await runContentPipeline({
