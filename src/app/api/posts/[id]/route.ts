@@ -20,6 +20,7 @@ const UpdatePostSchema = z.object({
   posted_date: z.string().nullable().optional(),
   series_id: z.string().nullable().optional(),
   series_position: z.number().nullable().optional(),
+  series_approved: z.boolean().optional(),
   views: z.number().nullable().optional(),
   likes: z.number().nullable().optional(),
   saves: z.number().nullable().optional(),

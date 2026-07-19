@@ -254,6 +254,11 @@ select:focus {
   .empty-state {
     @apply rounded-card border border-dashed border-hair bg-white/60 p-5 text-sm text-ink2;
   }
+
+  /* Standard form field - single source of truth for text/select/textarea inputs. */
+  .input {
+    @apply w-full bg-bg-tertiary border border-border rounded-md px-4 py-3 font-body text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover transition-colors duration-100;
+  }
 }
 
 @keyframes slide-in-right {

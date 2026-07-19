@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Layers, Plus } from "lucide-react";
 import { getInsforge } from "@/lib/insforge/client";
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 import type { Series, Post } from "@/lib/types";
 import type { Status } from "@/lib/constants";
 import SeriesCard from "@/components/series/SeriesCard";
@@ -212,6 +213,19 @@ export default function SeriesPage() {
     }
   }
 
+  async function pauseResumeSeries(series: Series) {
+    const action = series.status === 'active' ? 'pause' : 'resume';
+    const nextStatus = action === 'pause' ? 'paused' : 'active';
+    // Optimistic status flip; revert on failure.
+    setSeriesList((prev) => prev.map((s) => (s.id === series.id ? { ...s, status: nextStatus } : s)));
+    try {
+      const res = await fetchWithAuth(`/api/series/${series.id}/${action}`, { method: 'POST' });
+      if (!res.ok) throw new Error('failed');
+    } catch {
+      setSeriesList((prev) => prev.map((s) => (s.id === series.id ? { ...s, status: series.status } : s)));
+    }
+  }
+
   function addPostToPart(series: Series, position: number) {
     const params = new URLSearchParams({
       series_id: series.id,
@@ -231,7 +245,7 @@ export default function SeriesPage() {
         subtitle="Plan a multi-part arc, produce each part, then publish when it's ready."
         action={
           <button
-            onClick={() => router.push("/generate?tab=series")}
+            onClick={() => router.push("/series/new")}
             className="btn-primary"
           >
             <Plus className="h-4 w-4" />
@@ -259,7 +273,7 @@ export default function SeriesPage() {
             ready. Nothing gets scheduled until you say so.
           </p>
           <button
-            onClick={() => router.push("/generate?tab=series")}
+            onClick={() => router.push("/series/new")}
             className="btn-primary mt-6"
           >
             <Plus className="h-4 w-4" />
@@ -287,6 +301,7 @@ export default function SeriesPage() {
                 confirmingDelete={confirmDeleteId === series.id}
                 onConfirmDelete={() => setConfirmDeleteId(series.id)}
                 onCancelDelete={() => setConfirmDeleteId(null)}
+                onPauseResume={() => pauseResumeSeries(series)}
               >
                 {userId && (
                   <SeriesParts

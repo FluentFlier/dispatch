@@ -38,9 +38,18 @@ export async function PATCH(
   const SeriesUpdateSchema = z.object({
     name: z.string().min(1).max(200).optional(),
     description: z.string().max(2000).optional(),
-    cadence: z.string().max(100).optional(),
-    platform: z.string().max(50).optional(),
-    status: z.enum(['active', 'paused', 'completed']).optional(),
+    pillar: z.string().max(50).optional(),
+    total_parts: z.number().int().min(2).max(20).optional(),
+    platform: z.enum(['twitter', 'linkedin', 'instagram', 'threads']).optional(),
+    cadence: z.object({
+      days: z.array(z.string()).max(7),
+      time: z.string().regex(/^\d{1,2}:\d{2}$/),
+      tz: z.string().max(64).optional(),
+      start_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      interval_weeks: z.number().int().min(1).max(8).optional(),
+    }).optional(),
+    auto_publish: z.boolean().optional(),
+    status: z.enum(['draft', 'active', 'paused', 'completed']).optional(),
   });
 
   const parsed = SeriesUpdateSchema.safeParse(body);
