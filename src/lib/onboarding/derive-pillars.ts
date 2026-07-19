@@ -55,10 +55,19 @@ export function parseDerivedPillars(raw: string): ContentPillarConfig[] {
     if (!row || typeof row !== 'object') continue;
 
     const record = row as Record<string, unknown>;
-    const name = String(record.name ?? '').trim().slice(0, MAX_NAME_LENGTH);
+
+    // Only accept string names; non-strings are treated as absent
+    if (typeof record.name !== 'string') continue;
+    const name = Array.from(record.name)
+      .slice(0, MAX_NAME_LENGTH)
+      .join('')
+      .trim();
     if (!name) continue;
 
-    const description = String(record.description ?? '').trim();
+    // Only accept string descriptions; non-strings are treated as absent
+    const description = typeof record.description === 'string'
+      ? record.description.trim()
+      : '';
     pillars.push({
       name,
       color: PILLAR_COLORS[pillars.length % PILLAR_COLORS.length],

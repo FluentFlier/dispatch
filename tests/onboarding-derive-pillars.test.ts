@@ -54,4 +54,39 @@ describe('parseDerivedPillars', () => {
       expect(() => parseDerivedPillars(raw)).not.toThrow();
     }
   });
+
+  it('skips rows where name is an object instead of a string', () => {
+    const out = parseDerivedPillars('[{"name":{"nested":"x"},"description":"x"},{"name":"GTM","description":"y"}]');
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe('GTM');
+  });
+
+  it('skips rows where name is an array instead of a string', () => {
+    const out = parseDerivedPillars('[{"name":["a","b"],"description":"x"},{"name":"GTM","description":"y"}]');
+    expect(out).toHaveLength(1);
+    expect(out[0].name).toBe('GTM');
+  });
+
+  it('does not end in a lone surrogate when truncating an emoji-heavy name', () => {
+    // 25 emoji truncated to 24 codepoints. Each emoji is 2 UTF-16 units, so result is 48 units.
+    // The risk with naive .slice() is cutting between the high and low surrogates.
+    // Array.from() handles this correctly by working with codepoints.
+    const emoji = '😀'.repeat(25);
+    const out = parseDerivedPillars(`[{"name":"${emoji}","description":"x"}]`);
+    const name = out[0].name;
+    // Should be 24 complete emoji = 48 UTF-16 units
+    expect(name.length).toBe(48);
+    // Verify it's valid by checking it doesn't have a lone high surrogate at the end
+    expect(/[\uD800-\uDBFF]$/.test(name)).toBe(false);
+  });
+
+  it('does not end in whitespace when a space falls at the truncation boundary', () => {
+    // 24 A's followed by a space, which will be at position 24
+    // After truncating to 24 codepoints, we'll have 24 A's + space
+    // The second trim() should remove that trailing space
+    const name = 'A'.repeat(24) + ' ';
+    const out = parseDerivedPillars(`[{"name":"${name}","description":"x"}]`);
+    expect(out[0].name).toBe('A'.repeat(24));
+    expect(!/\s$/.test(out[0].name)).toBe(true);
+  });
 });
