@@ -1,4 +1,4 @@
-# design-sync notes — content-os
+# design-sync notes - content-os
 
 Repo-specific gotchas for future syncs. Read before running the converter.
 
@@ -11,21 +11,21 @@ Repo-specific gotchas for future syncs. Read before running the converter.
   `--content` glob covers all of `src/**` and `.design-sync/previews/**`.
 - Playwright for the render check: `.ds-sync/node_modules` carries playwright
   1.61.1 pinning chromium 1228, which is cached in `~/Library/Caches/ms-playwright`
-  (macOS path — not `~/.cache`).
+  (macOS path - not `~/.cache`).
 
 ## Pages (added 2026-07-14)
 
 - All 16 client-component pages (dashboard + login) are synced as full-page
   components grouped under "Pages", each `cardMode: single` at 1280x800.
   Server-component pages CANNOT ship: admin/*, dashboard home, brain, signals,
-  get-started, landing/legal — they import `next/headers` / DB clients.
+  get-started, landing/legal - they import `next/headers` / DB clients.
 - Pages need `PreviewShell` (`.design-sync/preview-shell.tsx`, exported from
   the entry, excluded from the component list via `componentSrcMap: null`).
   It mocks the Next app-router contexts (Next 14 shared-runtime context
   modules), wraps ToastProvider, and stubs `window.fetch` for `/api/*` URLs
   (registered mocks or `{}`), installed lazily on first render so real
   designs importing the bundle keep native fetch. Page previews wrap
-  themselves in it — deliberately NOT `cfg.provider`, so the 17 UI primitives'
+  themselves in it - deliberately NOT `cfg.provider`, so the 17 UI primitives'
   cards stay byte-identical and skip re-verification on anchored re-syncs.
 - Page code (or a dep) reads `process.env.*` at module scope; esbuild only
   defines NODE_ENV, so a bare `process` reference threw at bundle init and
@@ -35,7 +35,7 @@ Repo-specific gotchas for future syncs. Read before running the converter.
   `/index.ts` (its extension list tries `''` first), so alias imports that
   point at directories (`@/components/video-studio`, `@/lib/social`, …) fail
   with "is a directory". All directory-style aliases are pinned to their
-  index files in `.design-sync/tsconfig.json` — add new ones there.
+  index files in `.design-sync/tsconfig.json` - add new ones there.
 - `OnboardingPage` imports its server-actions file, which drags
   `@/lib/insforge/server` → `lib/admin/impersonation.ts` → node `crypto` into
   the browser bundle. Fixed by `cfg.tsconfig = .design-sync/tsconfig.json`,
@@ -46,10 +46,10 @@ Repo-specific gotchas for future syncs. Read before running the converter.
 
 ## Known render warns (triaged legitimate)
 
-- `ErrorBoundary` — [RENDER_ERRORS] "Simulated render failure": the authored
+- `ErrorBoundary` - [RENDER_ERRORS] "Simulated render failure": the authored
   preview deliberately throws inside the boundary to show the fallback UI.
   The card renders the fallback correctly (~25KB png).
-- `SkeletonLines` — [RENDER_THIN] maxHeight ~128px: skeleton line placeholders
+- `SkeletonLines` - [RENDER_THIN] maxHeight ~128px: skeleton line placeholders
   genuinely are that short; variants are gray bars by design.
 
 ## Preview fetch mocks
@@ -57,10 +57,10 @@ Repo-specific gotchas for future syncs. Read before running the converter.
 - `PreviewShell` ships default mocks for endpoints whose consumers crash on
   `{}`: `/api/loop/readiness` → `{complete:true}`, `/api/voice-drift` →
   zeroed report, `/api/engagement/inbox` → `{groups:[]}`. New unguarded
-  fetches in page code will surface as [RENDER] card crashes — add the
+  fetches in page code will surface as [RENDER] card crashes - add the
   endpoint's empty shape to the defaults in `.design-sync/preview-shell.tsx`.
 - `process-shim.ts` fakes `NEXT_PUBLIC_INSFORGE_URL`/`_ANON_KEY` (the browser
-  insforge client throws at construction without them — LoginPage).
+  insforge client throws at construction without them - LoginPage).
 
 ## Re-sync risks
 
@@ -71,9 +71,9 @@ Repo-specific gotchas for future syncs. Read before running the converter.
 - Page previews render zero-data states via the fetch stub. If a page's
   empty state changes (or it starts requiring seeded data to look sensible),
   add mock payloads via the `mocks` prop of `PreviewShell` in that page's
-  preview — payloads live inline in `.design-sync/previews/<Name>Page.tsx`
+  preview - payloads live inline in `.design-sync/previews/<Name>Page.tsx`
   and can silently drift from the API's real response shapes.
 - PreviewShell imports Next 14 internals
   (`next/dist/shared/lib/app-router-context.shared-runtime`,
   `hooks-client-context.shared-runtime`). A Next major upgrade may move these
-  — check first if page cards suddenly all fail with router/context errors.
+  - check first if page cards suddenly all fail with router/context errors.

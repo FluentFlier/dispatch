@@ -6,8 +6,8 @@
 // with registered mock payloads (default: empty object) so pages render
 // their real zero-data states instead of crashing.
 //
-// The fetch stub is installed lazily on first PreviewShell render — never
-// at module load — so importing the design-system bundle in a real design
+// The fetch stub is installed lazily on first PreviewShell render - never
+// at module load - so importing the design-system bundle in a real design
 // leaves window.fetch untouched.
 import React from 'react';
 import { AppRouterContext } from 'next/dist/shared/lib/app-router-context.shared-runtime';
@@ -83,7 +83,7 @@ export function PreviewShell({
   mocks,
 }: {
   children: React.ReactNode;
-  /** Pathname reported to usePathname() — set per page so nav state looks right. */
+  /** Pathname reported to usePathname() - set per page so nav state looks right. */
   pathname?: string;
   /** Query string reported to useSearchParams(). */
   search?: string;

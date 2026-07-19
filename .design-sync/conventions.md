@@ -1,4 +1,4 @@
-# Content OS — build conventions
+# Content OS - build conventions
 
 ## Setup
 
@@ -19,7 +19,7 @@ An unwrapped `*Page` throws router/context errors. Non-page components never nee
 
 ## Styling idiom
 
-Tailwind utility classes over a custom token palette (light, warm-paper UI; default font is DM Sans). Color via these token families — never raw hex, never default Tailwind palette names like `gray-500`:
+Tailwind utility classes over a custom token palette (light, warm-paper UI; default font is DM Sans). Color via these token families - never raw hex, never default Tailwind palette names like `gray-500`:
 
 | Family | Classes |
 |---|---|

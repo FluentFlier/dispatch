@@ -8,7 +8,7 @@ if (typeof globalThis.process === 'undefined') {
     env: {
       // Placeholder insforge credentials: the browser client throws at
       // construction without them (LoginPage). No request ever succeeds
-      // against this host — previews stub /api/* and designs have no backend.
+      // against this host - previews stub /api/* and designs have no backend.
       NEXT_PUBLIC_INSFORGE_URL: 'https://preview-insforge.invalid',
       NEXT_PUBLIC_INSFORGE_ANON_KEY: 'preview-anon-key',
     },
