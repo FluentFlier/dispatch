@@ -334,7 +334,10 @@ export default function OnboardingWizard() {
             pillars: profilePillars,
           });
         } else {
-          await completeOnboardingMinimal(displayName, profilePillars);
+          await completeOnboardingMinimal(displayName, profilePillars, {
+            description: voiceDescription,
+            rules: voiceRules,
+          });
         }
 
         void trackOnboardingEvent('onboarding_complete', {

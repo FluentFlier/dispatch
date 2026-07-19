@@ -101,6 +101,42 @@ describe('completeOnboardingMinimal', () => {
     const profile = captured.find((c) => c.table === 'creator_profile');
     expect((profile!.payload.content_pillars as unknown[]).length).toBeGreaterThan(0);
   });
+
+  it('persists a supplied voice description and voice rules instead of discarding them', async () => {
+    const captured: Captured[] = [];
+    vi.mocked(getServerClient).mockReturnValue(stubClient(captured));
+
+    await completeOnboardingMinimal('Alex', undefined, {
+      description: 'VERIFY-EDIT voice description',
+      rules: 'Keep it short.\nNo jargon.',
+    });
+
+    const profile = captured.find((c) => c.table === 'creator_profile');
+    expect(profile!.payload.voice_description).toBe('VERIFY-EDIT voice description');
+    expect(profile!.payload.voice_rules).toBe('Keep it short.\nNo jargon.');
+  });
+
+  it('does not include a bio_facts key in the upsert payload', async () => {
+    const captured: Captured[] = [];
+    vi.mocked(getServerClient).mockReturnValue(stubClient(captured));
+
+    await completeOnboardingMinimal('Alex');
+
+    const profile = captured.find((c) => c.table === 'creator_profile');
+    expect(profile!.payload).not.toHaveProperty('bio_facts');
+  });
+
+  it('writes empty strings for voice fields and still succeeds when voice is omitted', async () => {
+    const captured: Captured[] = [];
+    vi.mocked(getServerClient).mockReturnValue(stubClient(captured));
+
+    const result = await completeOnboardingMinimal('Alex');
+
+    const profile = captured.find((c) => c.table === 'creator_profile');
+    expect(profile!.payload.voice_description).toBe('');
+    expect(profile!.payload.voice_rules).toBe('');
+    expect(result).toEqual({ success: true });
+  });
 });
 
 describe('completeOnboardingFromBaseline', () => {

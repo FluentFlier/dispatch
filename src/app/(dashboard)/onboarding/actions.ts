@@ -59,6 +59,7 @@ export async function completeOnboardingFromBaseline(baseline: CreatorBaseline) 
 export async function completeOnboardingMinimal(
   displayName: string,
   pillars?: ContentPillarConfig[],
+  voice?: { description?: string; rules?: string },
 ) {
   const user = await getAuthenticatedUser();
   if (!user) throw new Error('Not logged in');
@@ -87,9 +88,11 @@ export async function completeOnboardingMinimal(
         user_id: user.id,
         workspace_id: workspaceId,
         display_name: name,
-        bio_facts: '',
-        voice_description: '',
-        voice_rules: '',
+        // bio_facts deliberately omitted: this is a NOT NULL DEFAULT '' column, so leaving
+        // it out defaults it to '' on INSERT and preserves the existing value on UPDATE,
+        // instead of wiping real background facts when a user re-runs onboarding.
+        voice_description: (voice?.description ?? '').trim(),
+        voice_rules: voice?.rules ?? '',
         content_pillars: resolvedPillars,
         onboarding_complete: true,
         updated_at: new Date().toISOString(),
