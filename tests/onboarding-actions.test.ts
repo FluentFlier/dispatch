@@ -10,9 +10,27 @@ vi.mock('@/lib/user-display-name', () => ({
 }));
 
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { completeOnboardingMinimal } from '@/app/(dashboard)/onboarding/actions';
+import {
+  completeOnboardingFromBaseline,
+  completeOnboardingMinimal,
+} from '@/app/(dashboard)/onboarding/actions';
+import type { CreatorBaseline } from '@/lib/onboarding/baseline';
 
 interface Captured { table: string; payload: Record<string, unknown> }
+
+const BASELINE: CreatorBaseline = {
+  voiceSummary: 'Direct, no-fluff, technical founder voice.',
+  voiceRules: ['Keep sentences short.', 'No corporate jargon.'],
+  themes: ['Fintech'],
+  hookPattern: 'Opens with a bold claim',
+  tone: 'Conversational and direct',
+  postsAnalyzed: 10,
+  emailsAnalyzed: 5,
+  platforms: ['linkedin'],
+  displayName: 'Alex',
+  suggestedTopic: 'A lesson about fintech',
+  pillars: [{ name: 'Fintech', color: '#E07A5F', description: 'Content about fintech' }],
+};
 
 /** InsForge stub that records upserts and returns one workspace membership. */
 function stubClient(captured: Captured[]) {
@@ -82,5 +100,21 @@ describe('completeOnboardingMinimal', () => {
 
     const profile = captured.find((c) => c.table === 'creator_profile');
     expect((profile!.payload.content_pillars as unknown[]).length).toBeGreaterThan(0);
+  });
+});
+
+describe('completeOnboardingFromBaseline', () => {
+  it('does not overwrite bio_facts, but still writes voice_description, voice_rules, and content_pillars', async () => {
+    const captured: Captured[] = [];
+    vi.mocked(getServerClient).mockReturnValue(stubClient(captured));
+
+    await completeOnboardingFromBaseline(BASELINE);
+
+    const profile = captured.find((c) => c.table === 'creator_profile');
+    expect(profile).toBeDefined();
+    expect(profile!.payload).not.toHaveProperty('bio_facts');
+    expect(profile!.payload.voice_description).toBe(BASELINE.voiceSummary.trim());
+    expect(profile!.payload.voice_rules).toBe(BASELINE.voiceRules.join('\n'));
+    expect(profile!.payload.content_pillars).toEqual(BASELINE.pillars);
   });
 });

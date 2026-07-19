@@ -34,7 +34,9 @@ export async function completeOnboardingFromBaseline(baseline: CreatorBaseline) 
         user_id: user.id,
         workspace_id: workspaceId,
         display_name: baseline.displayName.trim(),
-        bio_facts: baseline.voiceSummary.trim(),
+        // bio_facts deliberately omitted: /api/onboarding/ingest already wrote the real
+        // background-facts value for this row, and CreatorBaseline has no bio_facts field
+        // to overwrite it with, so leave the existing column value untouched here.
         voice_description: baseline.voiceSummary.trim(),
         voice_rules: baseline.voiceRules.join('\n'),
         content_pillars: pillars,
