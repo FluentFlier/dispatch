@@ -60,8 +60,12 @@ export async function applySignalToLeads(
 ): Promise<SignalBridgeResult> {
   const result: SignalBridgeResult = { matched: 0, created: 0 };
   const company = classified.companyName?.trim();
-  if (!company) return result;
-  const lower = company.toLowerCase();
+  const person = classified.personName?.trim();
+  // A signal attributed only to a PERSON used to be dropped here, so every
+  // person-attributed signal was silently discarded. It now routes through the
+  // lead's contacts instead. It still never CREATES a lead: writing a person's
+  // name into company_name is the corruption path we refuse to introduce.
+  if (!company && !person) return result;
 
   const { data, error } = await client.database
     .from('signal_leads')
@@ -70,9 +74,16 @@ export async function applySignalToLeads(
     .limit(500);
   if (error) return result;
 
-  let targets = ((data ?? []) as unknown as BridgeLeadRow[]).filter(
-    (l) => l.company_name?.trim().toLowerCase() === lower,
-  );
+  const leads = (data ?? []) as unknown as BridgeLeadRow[];
+
+  if (!company) {
+    const personTargets = await findLeadsByContactName(client, leads, person!);
+    if (personTargets.length === 0) return result;
+    return stampSignalOnLeads(client, workspaceId, classified, personTargets, result);
+  }
+
+  const lower = company.toLowerCase();
+  let targets = leads.filter((l) => l.company_name?.trim().toLowerCase() === lower);
 
   if (targets.length === 0) {
     // A watched company without a lead row gets one, so the signal has a home.
@@ -115,6 +126,46 @@ export async function applySignalToLeads(
     ];
   }
 
+  return stampSignalOnLeads(client, workspaceId, classified, targets, result);
+}
+
+/**
+ * Finds workspace leads whose CONTACT matches a person name. This is how a
+ * person-attributed signal reaches a lead without inventing a company row.
+ */
+export async function findLeadsByContactName(
+  client: InsforgeClient,
+  leads: BridgeLeadRow[],
+  personName: string,
+): Promise<BridgeLeadRow[]> {
+  const lower = personName.trim().toLowerCase();
+  if (!lower || leads.length === 0) return [];
+
+  // Array.from, not [...set] - the build target makes set spread a TS2802.
+  const leadIds = Array.from(new Set(leads.map((l) => l.id)));
+  const { data, error } = await client.database
+    .from('signal_lead_contacts')
+    .select('lead_id, name')
+    .in('lead_id', leadIds)
+    .limit(1000);
+  if (error) return [];
+
+  const matched = new Set(
+    ((data ?? []) as { lead_id: string; name: string | null }[])
+      .filter((c) => c.name?.trim().toLowerCase() === lower)
+      .map((c) => c.lead_id),
+  );
+  return leads.filter((l) => matched.has(l.id));
+}
+
+/** Stamps the signal onto each target lead, then fires the Slack alert once. */
+async function stampSignalOnLeads(
+  client: InsforgeClient,
+  workspaceId: string,
+  classified: ClassifiedSignal,
+  targets: BridgeLeadRow[],
+  result: SignalBridgeResult,
+): Promise<SignalBridgeResult> {
   const flag = FLAG_FOR_SIGNAL[classified.signalType];
   const nowIso = new Date().toISOString();
   for (const lead of targets) {
@@ -165,7 +216,9 @@ async function notifySlackForLeadSignal(
     channelId,
     title: `New ${classified.signalType.replace(/_/g, ' ')} signal`,
     summary: classified.signalSummary ?? 'Review this lead in Content OS.',
-    company: classified.companyName,
+    // Person-attributed signals have no company; name the person so the alert
+    // is not blank.
+    company: classified.companyName ?? classified.personName,
     batch: classified.batch,
     signalUrl: `${appBaseUrl()}/leads`,
   });

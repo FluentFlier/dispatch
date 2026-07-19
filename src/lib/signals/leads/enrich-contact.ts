@@ -60,7 +60,7 @@ export interface EnrichedContact {
  * as it degrades when no LinkedIn account is connected.
  */
 export async function enrichFounderContact(
-  lead: Pick<SignalLeadWithContacts, 'source' | 'external_id' | 'company_name' | 'website' | 'contacts'>,
+  lead: Pick<SignalLeadWithContacts, 'source' | 'external_id' | 'company_name' | 'domain' | 'website' | 'contacts'>,
   opts: { fastOnly?: boolean; client?: InsforgeClient; workspaceId?: string } = {},
 ): Promise<EnrichedContact | null> {
   // YC leads: the YC company detail page reliably lists founders + LinkedIn (fast).
@@ -227,7 +227,7 @@ export function parseLinkedInProfileUrl(text: string): string | null {
  * for batch sync. Returns null when Serper is unconfigured or nothing matches.
  */
 export async function enrichViaSerperFounder(
-  lead: Pick<SignalLeadWithContacts, 'company_name'>,
+  lead: Pick<SignalLeadWithContacts, 'company_name' | 'domain'>,
   deps: { search?: typeof serperSearch } = {},
 ): Promise<EnrichedContact | null> {
   const company = lead.company_name?.trim();
@@ -236,23 +236,34 @@ export async function enrichViaSerperFounder(
   const results = await search(`${company} founder CEO linkedin`, 8);
   if (results.length === 0) return null;
 
+  const domain = lead.domain?.trim().toLowerCase() || null;
+
+  // Corroboration is REQUIRED. This profile is written to the contact row and
+  // used for real outreach sends, so an uncorroborated match means messaging a
+  // stranger. The previous version accepted any `linkedin.com/in/` link (which
+  // is every candidate here, since the URL was already matched as a personal
+  // profile) and then fell back to "any profile in the result set" - together
+  // that returned the first LinkedIn profile Google happened to rank.
   for (const row of results) {
     const blob = `${row.link ?? ''} ${row.title ?? ''} ${row.snippet ?? ''}`;
     const linkedinUrl = parseLinkedInProfileUrl(blob);
     if (!linkedinUrl) continue;
-    // Prefer results that mention the company in the snippet (reduces wrong-person hits).
-    const companyHit = new RegExp(company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(blob);
-    if (companyHit || row.link?.includes('linkedin.com/in/')) {
-      return { linkedinUrl, via: 'serper', role: 'Founder/CEO' };
+
+    // The domain is the strong anchor: when the lead has one, require it.
+    if (domain) {
+      if (blob.toLowerCase().includes(domain)) {
+        return { linkedinUrl, via: 'serper', role: 'Founder/CEO' };
+      }
+      continue;
     }
+
+    // No domain: the name is all we have. Weak, but strictly better than
+    // accepting an unrelated profile.
+    const nameHit = new RegExp(company.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i').test(blob);
+    if (nameHit) return { linkedinUrl, via: 'serper', role: 'Founder/CEO' };
   }
 
-  // Last resort: any personal profile in the result set.
-  for (const row of results) {
-    const blob = `${row.link ?? ''} ${row.snippet ?? ''}`;
-    const linkedinUrl = parseLinkedInProfileUrl(blob);
-    if (linkedinUrl) return { linkedinUrl, via: 'serper', role: 'Founder/CEO' };
-  }
+  // Nothing corroborated: leave the contact unresolved rather than guessing.
   return null;
 }
 

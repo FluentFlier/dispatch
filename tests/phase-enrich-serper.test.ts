@@ -15,7 +15,7 @@ describe('Phase: Serper + Unipile batch enrichment', () => {
 
   it('enrichViaSerperFounder extracts a profile from organic snippets', async () => {
     const got = await enrichViaSerperFounder(
-      { company_name: 'Acme Robotics' },
+      { company_name: 'Acme Robotics', domain: null },
       {
         search: async () => [
           {
