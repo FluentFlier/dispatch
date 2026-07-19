@@ -1,0 +1,86 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+vi.mock('@/lib/insforge/server', () => ({
+  getServerClient: vi.fn(),
+  getAuthenticatedUser: vi.fn(),
+}));
+vi.mock('@/lib/user-display-name', () => ({
+  displayNameFromAuthUser: () => '',
+  resolveDisplayName: ({ fallback }: { fallback: string }) => fallback,
+}));
+
+import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { completeOnboardingMinimal } from '@/app/(dashboard)/onboarding/actions';
+
+interface Captured { table: string; payload: Record<string, unknown> }
+
+/** InsForge stub that records upserts and returns one workspace membership. */
+function stubClient(captured: Captured[]) {
+  const chain = (table: string): Record<string, unknown> => {
+    const self: Record<string, unknown> = {};
+    self.select = () => self;
+    self.eq = () => self;
+    self.limit = () => self;
+    self.maybeSingle = () => Promise.resolve({ data: null });
+    self.then = undefined;
+    self.upsert = (payload: Record<string, unknown>) => {
+      captured.push({ table, payload });
+      return Promise.resolve({ error: null });
+    };
+    return self;
+  };
+
+  return {
+    database: {
+      from: (table: string) => {
+        if (table === 'workspace_members') {
+          return {
+            select: () => ({ eq: () => Promise.resolve({ data: [{ workspace_id: 'ws-1' }] }) }),
+          };
+        }
+        return chain(table);
+      },
+    },
+  } as unknown as ReturnType<typeof getServerClient>;
+}
+
+beforeEach(() => {
+  vi.mocked(getAuthenticatedUser).mockResolvedValue({ id: 'user-1' } as never);
+});
+
+describe('completeOnboardingMinimal', () => {
+  it('stores derived pillars when they are supplied', async () => {
+    const captured: Captured[] = [];
+    vi.mocked(getServerClient).mockReturnValue(stubClient(captured));
+
+    await completeOnboardingMinimal('Alex', [
+      { name: 'GTM', color: '#E07A5F', description: 'Sales' },
+      { name: 'Fintech', color: '#D4A054', description: 'Treasury' },
+    ]);
+
+    const profile = captured.find((c) => c.table === 'creator_profile');
+    expect(profile).toBeDefined();
+    expect(profile!.payload.onboarding_complete).toBe(true);
+    expect(profile!.payload.content_pillars).toHaveLength(2);
+  });
+
+  it('falls back to a single default pillar when none are supplied', async () => {
+    const captured: Captured[] = [];
+    vi.mocked(getServerClient).mockReturnValue(stubClient(captured));
+
+    await completeOnboardingMinimal('Alex');
+
+    const profile = captured.find((c) => c.table === 'creator_profile');
+    expect(profile!.payload.content_pillars).toHaveLength(1);
+  });
+
+  it('never stores an empty pillar list', async () => {
+    const captured: Captured[] = [];
+    vi.mocked(getServerClient).mockReturnValue(stubClient(captured));
+
+    await completeOnboardingMinimal('Alex', []);
+
+    const profile = captured.find((c) => c.table === 'creator_profile');
+    expect((profile!.payload.content_pillars as unknown[]).length).toBeGreaterThan(0);
+  });
+});
