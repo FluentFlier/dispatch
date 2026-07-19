@@ -73,6 +73,7 @@ describe('Phase 3: enrichment ladder gating', () => {
       source: 'product_hunt',
       external_id: null,
       company_name: 'Flux Labs',
+      domain: null,
       website: 'https://fluxlabs.ai',
       contacts: [],
     });
