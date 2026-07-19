@@ -3,15 +3,15 @@
  *
  * The old syncUnipileAccountsForUser claimed EVERY unclaimed account returned
  * by Unipile's shared-key GET /accounts for whoever pressed "Sync from
- * Unipile" — assigning strangers' LinkedIn/X accounts (and importing their
+ * Unipile" - assigning strangers' LinkedIn/X accounts (and importing their
  * posts) to the wrong user. PR #193 fixed the binding logic going forward;
  * this script repairs the rows and content the old code already poisoned.
  *
  * Classification per social_accounts row (unipile_account_id not null):
- *   OK         — Unipile account.name === row.user_id (hosted-auth stamp)
- *   MISMATCH   — account.name is a DIFFERENT known user id (provably stolen)
- *   STALE      — unipile_account_id no longer exists in Unipile (rotated id)
- *   UNVERIFIED — account.name is not a user id (legacy connect); needs a
+ *   OK         - Unipile account.name === row.user_id (hosted-auth stamp)
+ *   MISMATCH   - account.name is a DIFFERENT known user id (provably stolen)
+ *   STALE      - unipile_account_id no longer exists in Unipile (rotated id)
+ *   UNVERIFIED - account.name is not a user id (legacy connect); needs a
  *                human eyeball: does the profile name match the user?
  *
  * Dry-run by default: prints the report and what WOULD change.
@@ -23,7 +23,7 @@
  *   3. Clears imported voice samples (user_settings sample_posts/voice_source
  *      when voice_source='imported')
  * With --apply --unlink-stale, STALE rows are unlinked too (step 1 only).
- * UNVERIFIED rows are NEVER mutated — review them manually.
+ * UNVERIFIED rows are NEVER mutated - review them manually.
  *
  * Prerequisites:
  *   NEXT_PUBLIC_INSFORGE_URL, INSFORGE_SERVICE_ROLE_KEY,
@@ -136,7 +136,7 @@ async function purgeImportedContent(row: SocialAccountRow): Promise<{ posts: num
 
   const postIds = jobRows.map((j) => j.post_id).filter(Boolean) as string[];
 
-  // Only posts created BY the import (pillar 'general' + already 'posted') —
+  // Only posts created BY the import (pillar 'general' + already 'posted') -
   // posts the user authored and published through the app keep their pillar.
   const { data: importedPosts } = postIds.length
     ? await client.database
@@ -195,7 +195,7 @@ async function main() {
     console.log(
       '⚠️  NO accounts carry a user-id name stamp. Either Unipile does not preserve the\n' +
       '   hosted-auth name, or all accounts predate the stamp. MISMATCH detection is\n' +
-      '   impossible — every linked row will classify as UNVERIFIED. Do not --apply;\n' +
+      '   impossible - every linked row will classify as UNVERIFIED. Do not --apply;\n' +
       '   review manually.\n',
     );
   }
@@ -251,7 +251,7 @@ async function main() {
   if (!APPLY && toUnlink.length > 0) {
     console.log('\nRe-run with --apply to make these changes.');
   }
-  console.log('\nDone. UNVERIFIED rows need manual review — compare profile name to the user.');
+  console.log('\nDone. UNVERIFIED rows need manual review - compare profile name to the user.');
 }
 
 main().catch((err) => {

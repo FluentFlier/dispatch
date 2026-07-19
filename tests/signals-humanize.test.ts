@@ -31,7 +31,7 @@ describe('signal safety humanize', () => {
   });
 
   it('shifts scheduled time into working hours when required', () => {
-    const now = new Date('2026-07-07T23:30:00Z'); // outside 14–22 UTC window
+    const now = new Date('2026-07-07T23:30:00Z'); // outside 14-22 UTC window
     const settings = {
       ...DEFAULT_SAFETY_SETTINGS,
       workspace_id: 'ws',

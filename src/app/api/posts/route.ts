@@ -24,7 +24,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (!setup.ok) {
       return setupRequiredResponse(setup.missing, {
         error: 'Content OS database is not provisioned on this InsForge project',
-        detail: 'Link a clean project and apply db/APPLY_ORDER.md (core steps 1–10)',
+        detail: 'Link a clean project and apply db/APPLY_ORDER.md (core steps 1-10)',
       });
     }
 
@@ -32,7 +32,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const params = request.nextUrl.searchParams;
 
     // Newest post first. Imported posts all share one import-batch created_at, so
-    // ordering by created_at alone scrambles their real chronology — sort by the
+    // ordering by created_at alone scrambles their real chronology - sort by the
     // actual publish date first (nulls last so drafts/scheduled fall below), then
     // created_at as the tiebreaker for same-day posts and undated drafts.
     let query = client
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
       if (isMissingRelationError(error) || isSchemaMismatchError(error)) {
         return setupRequiredResponse(['posts'], {
           error: 'Content OS database is not provisioned on this InsForge project',
-          detail: 'Link a clean project and apply db/APPLY_ORDER.md (core steps 1–10)',
+          detail: 'Link a clean project and apply db/APPLY_ORDER.md (core steps 1-10)',
         });
       }
       return errorResponse('Could not load posts.', 500, error);
@@ -81,7 +81,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     if (isMissingRelationError(err) || isSchemaMismatchError(err)) {
       return setupRequiredResponse(['posts'], {
         error: 'Content OS database is not provisioned on this InsForge project',
-        detail: 'Link a clean project and apply db/APPLY_ORDER.md (core steps 1–10)',
+        detail: 'Link a clean project and apply db/APPLY_ORDER.md (core steps 1-10)',
       });
     }
     return errorResponse('Could not load posts.', 500, err);

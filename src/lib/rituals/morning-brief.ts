@@ -78,7 +78,7 @@ export interface MorningBrief {
   dateLabel: string;
   topTrend: MorningBriefTrend | null;
   yesterday: MorningBriefYesterday | null;
-  /** Most recent published post + metrics — shown even when nothing went out yesterday. */
+  /** Most recent published post + metrics - shown even when nothing went out yesterday. */
   latestPost: MorningBriefRecentPost | null;
   ideas: MorningBriefIdea[];
   /** True when the brief has at least one of: trend, recent post, idea. */

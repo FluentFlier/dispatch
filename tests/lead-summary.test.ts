@@ -18,7 +18,7 @@ function lead(partial: Partial<SignalLeadWithContacts>): SignalLeadWithContacts 
 describe('summarizeLead', () => {
   it('prefixes company name when the blurb does not start with it', () => {
     expect(summarizeLead(lead({ tagline: 'early-stage VC fund' })).what).toBe(
-      'Acme — early-stage VC fund',
+      'Acme - early-stage VC fund',
     );
   });
 
@@ -30,7 +30,7 @@ describe('summarizeLead', () => {
 
   it('falls back to the first sentence of company_detail.description', () => {
     const l = lead({ company_detail: { description: 'Builds payroll tools. More text.' } } as Partial<SignalLeadWithContacts>);
-    expect(summarizeLead(l).what).toBe('Acme — Builds payroll tools.');
+    expect(summarizeLead(l).what).toBe('Acme - Builds payroll tools.');
   });
 
   it('builds a why line from ICP fit + intent + space', () => {

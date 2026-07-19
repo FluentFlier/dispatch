@@ -99,7 +99,7 @@ export function HeaderBtn({
 /**
  * Header action cluster for the leads page. In the Feed view it exposes the
  * scrape / draft-all / refresh / export controls; in the Setup view there are no
- * header actions — all configuration lives on the Setup surface itself. Kept out
+ * header actions - all configuration lives on the Setup surface itself. Kept out
  * of the page so the page file stays under the 500-line limit.
  */
 export function LeadsHeaderActions({

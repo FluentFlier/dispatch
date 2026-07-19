@@ -76,7 +76,7 @@ describe('Phase: Guardrail Consolidation - enforce.ts core', () => {
       chatCompletion.mockResolvedValue('fixed draft text');
       const { targetedRevise } = await import('@/lib/content-pipeline/enforce');
       const ctx = { contentType: 'post', userPrompt: 'x' } as const;
-      const result = await targetedRevise('bad — draft with an em dash', ctx, undefined, 'req_test', 'test-stage');
+      const result = await targetedRevise('bad \u2014 draft with an em dash', ctx, undefined, 'req_test', 'test-stage');
       expect(chatCompletion).toHaveBeenCalledTimes(1);
       expect(result.revisedForChecks).toBe(true);
       expect(result.text).toBe('fixed draft text');
@@ -88,9 +88,9 @@ describe('Phase: Guardrail Consolidation - enforce.ts core', () => {
       chatCompletion.mockRejectedValue(new Error('provider 500'));
       const { targetedRevise } = await import('@/lib/content-pipeline/enforce');
       const ctx = { contentType: 'post', userPrompt: 'x' } as const;
-      const result = await targetedRevise('bad — draft with an em dash', ctx, undefined, 'req_test', 'test-stage');
+      const result = await targetedRevise('bad \u2014 draft with an em dash', ctx, undefined, 'req_test', 'test-stage');
       expect(result.revisedForChecks).toBe(false);
-      expect(result.text).toBe('bad — draft with an em dash'); // original, unrevised
+      expect(result.text).toBe('bad \u2014 draft with an em dash'); // original, unrevised
     });
   });
 
@@ -191,11 +191,11 @@ describe('Phase: Guardrail Consolidation - full pipeline enforcement wiring', ()
   it('a draft with an em dash triggers exactly one targeted revise call (Gate A)', async () => {
     evaluateDraft.mockResolvedValue(pass);
     chatCompletion
-      .mockResolvedValueOnce('bad — draft with an em dash, otherwise long enough to pass length checks easily today. '.repeat(3))
+      .mockResolvedValueOnce('bad \u2014 draft with an em dash, otherwise long enough to pass length checks easily today. '.repeat(3))
       .mockResolvedValue(CLEAN); // every subsequent call (targeted revise, voice) returns clean text
     const { runContentPipeline } = await import('@/lib/content-pipeline');
     const result = await runContentPipeline({ userPrompt: 'write about onboarding', profile: PROFILE, platform: 'linkedin' });
-    expect(result.text).not.toMatch(/[—–]/);
+    expect(result.text).not.toMatch(/[\u2014\u2013]/);
     expect(result.flags).not.toContain('hard_check_failed');
   });
 
@@ -272,12 +272,12 @@ describe('Phase: Guardrail Consolidation - compact pipeline enforcement wiring',
     evaluateDraft.mockResolvedValue(pass);
     chatCompletion
       .mockResolvedValueOnce(CLEAN) // call 1: draft
-      .mockResolvedValueOnce('bad — text with an em dash, still long enough otherwise to pass every length floor easily. '.repeat(3)) // call 2: edit pass (broken)
+      .mockResolvedValueOnce('bad \u2014 text with an em dash, still long enough otherwise to pass every length floor easily. '.repeat(3)) // call 2: edit pass (broken)
       .mockResolvedValue(CLEAN); // call 3: targeted revise (fixed)
     const { runContentPipeline } = await import('@/lib/content-pipeline');
     const result = await runContentPipeline({ userPrompt: 'x', profile: PROFILE, platform: 'linkedin', model: '8b-model' });
     expect(chatCompletion).toHaveBeenCalledTimes(3);
-    expect(result.text).not.toMatch(/[—–]/);
+    expect(result.text).not.toMatch(/[\u2014\u2013]/);
   });
 
   it('escalates once and ships best-of when still failing after targeted revise, flags hard_check_failed if unresolved', async () => {

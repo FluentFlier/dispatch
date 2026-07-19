@@ -15,7 +15,7 @@ interface LeadDeliveryCardProps {
 }
 
 /**
- * "Delivery" — when the morning list is assembled and how it's delivered.
+ * "Delivery" - when the morning list is assembled and how it's delivered.
  * Folded in from the retired /leads/settings page so all lead configuration
  * lives on one Setup surface.
  */
@@ -66,7 +66,7 @@ export function LeadDeliveryCard({ settings, onSettingsSaved, toast }: LeadDeliv
         slack ? `slack: ${reasonLabel(slack.reason)}` : null,
       ].filter(Boolean);
       const anySent = Boolean(email?.sent || slack?.sent);
-      toast(`Test digest — ${parts.join(' · ')}`, anySent ? 'success' : 'error');
+      toast(`Test digest - ${parts.join(' · ')}`, anySent ? 'success' : 'error');
     } catch {
       toast('Could not run test digest.', 'error');
     } finally {
@@ -177,7 +177,7 @@ export function LeadDeliveryCard({ settings, onSettingsSaved, toast }: LeadDeliv
             <label
               key={ch}
               className="flex items-center gap-2 text-sm capitalize text-text-secondary"
-              title={ch === 'today' ? 'The in-app Today tab is always on — it is where leads land.' : undefined}
+              title={ch === 'today' ? 'The in-app Today tab is always on - it is where leads land.' : undefined}
             >
               <input
                 type="checkbox"

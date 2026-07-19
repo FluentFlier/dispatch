@@ -14,7 +14,7 @@ export default function SchemaSetupRequired() {
         <h1 className="text-xl font-semibold tracking-tight">Database not provisioned</h1>
         <p className="text-sm leading-relaxed text-ink2">
           {PRODUCT_NAME} database is not provisioned on this InsForge project. Link a clean project and
-          apply db/APPLY_ORDER.md (core steps 1–10).
+          apply db/APPLY_ORDER.md (core steps 1-10).
         </p>
       </div>
     </div>

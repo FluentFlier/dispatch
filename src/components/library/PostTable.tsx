@@ -51,7 +51,7 @@ export default function PostTable({ posts, selected, onSelect, onSelectAll, onCl
         case 'platform': av = a.platform; bv = b.platform; break;
         case 'status': av = STATUSES.indexOf(a.status); bv = STATUSES.indexOf(b.status); break;
         case 'scheduled_date': {
-          // posted_date is a full ISO timestamp, scheduled_date a plain DATE — a
+          // posted_date is a full ISO timestamp, scheduled_date a plain DATE - a
           // string compare of the two mixed formats scrambles order, so compare by
           // numeric time. Posted date wins (the "when did this go live" date).
           const ad = a.posted_date ?? a.scheduled_date;

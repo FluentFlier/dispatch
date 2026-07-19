@@ -2,7 +2,7 @@ import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 import type { ContentPipelineResult, PipelineStage } from './index';
 
 export function stripEmDashes(text: string): string {
-  return text.replace(/—/g, ' - ').replace(/–/g, '-');
+  return text.replace(/\u2014/g, ' - ').replace(/\u2013/g, '-');
 }
 
 /**

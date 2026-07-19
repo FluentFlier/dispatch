@@ -78,7 +78,7 @@ export const moreNav = navItems.filter(
   (item) => item.section === 'more' && !item.hidden && item.href !== '/settings',
 );
 
-/** Settings — rendered on its own outside the Advanced dropdown. */
+/** Settings - rendered on its own outside the Advanced dropdown. */
 export const settingsNav = navItems.find((item) => item.href === '/settings')!;
 
 /**

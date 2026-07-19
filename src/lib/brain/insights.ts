@@ -15,7 +15,7 @@ export interface BrainDecision {
 }
 
 export interface BrainInsightsSummary {
-  /** 0–100: how much of the brain namespace is populated with real learning. */
+  /** 0-100: how much of the brain namespace is populated with real learning. */
   coverage: number;
   postCount: number;
   storyCount: number;

@@ -10,7 +10,7 @@ echo "Checking InsForge CLI context..."
 npx @insforge/cli current
 
 echo ""
-echo "Applying core schema (steps 1–10 from db/APPLY_ORDER.md)..."
+echo "Applying core schema (steps 1-10 from db/APPLY_ORDER.md)..."
 
 CORE_FILES=(
   db/schema.sql
