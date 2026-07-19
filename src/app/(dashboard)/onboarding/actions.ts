@@ -52,36 +52,6 @@ export async function completeOnboardingFromBaseline(baseline: CreatorBaseline) 
 }
 
 /**
- * Completes onboarding when ingest already ran but the user never clicked through
- * (e.g. interrupted session or older funnel).
- */
-export async function completeOnboardingFromStoredBaseline() {
-  const user = await getAuthenticatedUser();
-  if (!user) throw new Error('Not logged in');
-
-  const client = getServerClient();
-  const { data: setting } = await client.database
-    .from('user_settings')
-    .select('value')
-    .eq('user_id', user.id)
-    .eq('key', 'onboarding_baseline')
-    .maybeSingle();
-
-  if (!setting?.value) {
-    throw new Error('No saved baseline found');
-  }
-
-  let baseline: CreatorBaseline;
-  try {
-    baseline = JSON.parse(setting.value) as CreatorBaseline;
-  } catch {
-    throw new Error('Saved baseline is invalid');
-  }
-
-  return completeOnboardingFromBaseline(baseline);
-}
-
-/**
  * Completes onboarding without an ingest baseline: the user skipped connect, or
  * ingest failed or timed out. Pillars are derived from the setup one-liner when
  * available, so a skipping user still gets a usable profile.

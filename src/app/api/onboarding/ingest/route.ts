@@ -406,8 +406,8 @@ async function persistOnboardingVoice(
       bio: bioFacts,
     }))().catch((e) => console.warn('[niche-resolver] resolution skipped:', e));
 
-  // onboarding_baseline + suggested_topic FIRST: these are what the resume path
-  // (completeOnboardingFromStoredBaseline) needs, so if this write loop is cut
+  // onboarding_baseline + suggested_topic FIRST: these are what /api/onboarding/status
+  // (and resolveStep's resume check) need, so if this write loop is cut
   // short (e.g. the function hits its time limit mid-way) a reload can still
   // finish onboarding instead of looping. The rest are enrichment.
   const settings = [
