@@ -78,7 +78,7 @@ export function StepConnect({
               {connected ? (
                 <span className="flex items-center gap-1.5 text-xs text-ink">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  {connected.account_name ?? 'Connected'}
+                  {connected.account_name ?? copy.connectedLabel}
                 </span>
               ) : (
                 <span className="text-xs text-ink3">{copy.notConnected}</span>
@@ -95,7 +95,7 @@ export function StepConnect({
           {gmailConnected ? (
             <span className="flex items-center gap-1.5 text-xs text-ink">
               <CheckCircle2 className="h-3.5 w-3.5" />
-              Connected
+              {copy.connectedLabel}
             </span>
           ) : (
             <button

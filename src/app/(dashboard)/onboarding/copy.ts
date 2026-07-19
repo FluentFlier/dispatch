@@ -28,6 +28,7 @@ export const COPY = {
       gmailLabel: 'Gmail',
       gmailHint: 'Optional. Sent emails make your 1:1 voice sharper.',
       notConnected: 'Not connected',
+      connectedLabel: 'Connected',
       connect: 'Connect',
       connecting: 'Connecting...',
       connectCta: 'Connect LinkedIn or X',

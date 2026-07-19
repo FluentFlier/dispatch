@@ -8,7 +8,13 @@ import { resolveStep, STEP_ORDER, type StepKey } from './resolve-step';
 import { WizardFooter } from './WizardFooter';
 import { StepYou } from './steps/StepYou';
 import { StepConnect, type ConnectedAccount } from './steps/StepConnect';
-import { saveOnboardingContext, trackOnboardingEvent } from './actions';
+import { StepProfile } from './steps/StepProfile';
+import {
+  saveOnboardingContext,
+  trackOnboardingEvent,
+  completeOnboardingFromBaseline,
+  completeOnboardingMinimal,
+} from './actions';
 import type { CreatorBaseline } from '@/lib/onboarding/baseline';
 import type { ContentPillarConfig } from '@/types/database';
 
@@ -60,6 +66,9 @@ export default function OnboardingWizard() {
   const [buildingLine, setBuildingLine] = useState<string>(COPY.building.lines[0]);
   const [baseline, setBaseline] = useState<CreatorBaseline | null>(null);
   const [derivedPillars, setDerivedPillars] = useState<ContentPillarConfig[]>([]);
+  const [voiceDescription, setVoiceDescription] = useState('');
+  const [voiceRules, setVoiceRules] = useState('');
+  const [profilePillars, setProfilePillars] = useState<ContentPillarConfig[]>([]);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const resumed = useRef(false);
 
@@ -104,6 +113,17 @@ export default function OnboardingWizard() {
     if (!ready) return;
     writeDraft({ displayName, focus });
   }, [ready, displayName, focus]);
+
+  // Prefill the profile step from whichever source produced it.
+  useEffect(() => {
+    if (baseline) {
+      setVoiceDescription(baseline.voiceSummary);
+      setVoiceRules(baseline.voiceRules.join('\n'));
+      setProfilePillars(baseline.pillars);
+      return;
+    }
+    if (derivedPillars.length > 0) setProfilePillars(derivedPillars);
+  }, [baseline, derivedPillars]);
 
   const goToStep = useCallback(
     (next: StepKey) => {
@@ -294,6 +314,50 @@ export default function OnboardingWizard() {
     goToStep('profile');
   }, [step, derivePillars, goToStep, busy, building]);
 
+  /**
+   * Terminal action. Writes onboarding_complete exactly once, then routes. The
+   * dashboard layout guard bounces completed users off /onboarding, so the
+   * handoff must complete before navigating.
+   */
+  const finish = useCallback(
+    async (destination: 'leads' | 'dashboard') => {
+      if (busy) return;
+      setBusy(true);
+      setError('');
+      try {
+        if (baseline) {
+          await completeOnboardingFromBaseline({
+            ...baseline,
+            displayName: displayName.trim() || baseline.displayName,
+            voiceSummary: voiceDescription,
+            voiceRules: voiceRules.split('\n').map((r) => r.trim()).filter(Boolean),
+            pillars: profilePillars,
+          });
+        } else {
+          await completeOnboardingMinimal(displayName, profilePillars);
+        }
+
+        void trackOnboardingEvent('onboarding_complete', {
+          path: baseline ? 'connected' : 'skipped',
+          destination,
+        });
+
+        try {
+          window.sessionStorage.removeItem(DRAFT_KEY);
+        } catch {
+          // best effort
+        }
+
+        void fetch('/api/brain/sync', { method: 'POST' }).catch(() => undefined);
+        router.push(destination === 'leads' ? '/leads' : '/dashboard?welcome=1');
+      } catch {
+        setError(COPY.errors.saveFailed);
+        setBusy(false);
+      }
+    },
+    [busy, baseline, displayName, voiceDescription, voiceRules, profilePillars, router],
+  );
+
   const stepIndex = STEP_ORDER.indexOf(step);
 
   // Enter advances only outside text controls, so multi-line fields still work.
@@ -384,14 +448,35 @@ export default function OnboardingWizard() {
               buildingLine={buildingLine}
             />
           )}
+
+          {step === 'profile' && (
+            <StepProfile
+              voiceDescription={voiceDescription}
+              onVoiceDescriptionChange={setVoiceDescription}
+              voiceRules={voiceRules}
+              onVoiceRulesChange={setVoiceRules}
+              pillars={profilePillars}
+              onPillarsChange={setProfilePillars}
+            />
+          )}
         </div>
       </div>
 
       <WizardFooter
         onBack={stepIndex > 0 && !building ? () => goToStep(STEP_ORDER[stepIndex - 1]) : undefined}
-        onNext={() => void handleNext()}
-        onSkip={step === 'connect' && !building ? () => void handleSkip() : undefined}
-        canAdvance={step === 'you' ? displayName.trim().length > 0 : step === 'connect'}
+        onNext={step === 'profile' ? () => void finish('leads') : () => void handleNext()}
+        nextLabel={step === 'profile' ? COPY.footer.finishToLeads : undefined}
+        onSkip={
+          building
+            ? undefined
+            : step === 'connect'
+              ? () => void handleSkip()
+              : step === 'profile'
+                ? () => void finish('dashboard')
+                : undefined
+        }
+        skipLabel={step === 'profile' ? COPY.footer.finishToDashboard : undefined}
+        canAdvance={step !== 'you' || displayName.trim().length > 0}
         busy={busy || building}
       />
     </div>
