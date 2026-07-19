@@ -1,12 +1,18 @@
 'use client';
 
-import { ChevronDown, ChevronUp, Pause, Play, Trash2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Layers, Pause, Play, Trash2 } from 'lucide-react';
 import type { Series } from '@/lib/types';
 import { usePillars } from '@/hooks/usePillars';
 
+interface SeriesProgressSummary {
+  posted: number;
+  inProduction: number;
+  total: number;
+}
+
 interface SeriesCardProps {
   series: Series;
-  completedParts: number;
+  progress: SeriesProgressSummary;
   isExpanded: boolean;
   onToggleExpand: () => void;
   onDelete: () => void;
@@ -26,7 +32,7 @@ const STATUS_STYLE: Record<string, string> = {
 
 export default function SeriesCard({
   series,
-  completedParts,
+  progress,
   isExpanded,
   onToggleExpand,
   onDelete,
@@ -37,35 +43,25 @@ export default function SeriesCard({
   children,
 }: SeriesCardProps) {
   const { getColor, getLabel } = usePillars();
-  const total = series.total_parts;
-  const progress = total > 0 ? (completedParts / total) * 100 : 0;
+  const { posted, inProduction, total } = progress;
+  const pct = total > 0 ? (posted / total) * 100 : 0;
   const pillarColor = getColor(series.pillar);
   const status = series.status ?? 'draft';
 
   return (
-    <div
-      className={`bg-bg-secondary border border-border rounded-lg transition-all ${
-        isExpanded ? 'md:col-span-2' : ''
-      }`}
-    >
-      {/* Card header */}
+    <div className="card-surface overflow-hidden p-0">
+      {/* Header */}
       <button
         onClick={onToggleExpand}
-        className="w-full text-left p-[13px_14px] hover:bg-bg-tertiary rounded-t-[12px] transition-colors"
+        className="w-full rounded-t-surface p-5 text-left transition-colors hover:bg-paper2/50 md:p-6"
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="text-[18px] font-normal tracking-[-0.02em] text-ink truncate">
-                {series.name}
-              </h3>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h2 className="text-title text-ink">{series.name}</h2>
               <span
-                className="inline-flex items-center px-[7px] py-[2px] rounded-[3px] text-[10px] font-medium shrink-0 tracking-[0.01em]"
-                style={{
-                  backgroundColor: `${pillarColor}20`,
-                  color: pillarColor,
-                  fontFamily: "'Space Grotesk', sans-serif",
-                }}
+                className="inline-flex items-center rounded-badge px-2.5 py-1 text-[12px] font-medium"
+                style={{ backgroundColor: `${pillarColor}1f`, color: pillarColor }}
               >
                 {getLabel(series.pillar)}
               </span>
@@ -76,38 +72,44 @@ export default function SeriesCard({
               )}
             </div>
 
-            {series.description && (
-              <p className="text-[13px] text-text-tertiary line-clamp-2 mb-3 leading-[1.55]">
+            {series.description && !isExpanded && (
+              <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-ink2">
                 {series.description}
               </p>
             )}
 
-            {/* Progress bar */}
-            <div className="space-y-1.5">
-              <div className="h-1.5 bg-bg-tertiary rounded-full overflow-hidden">
+            {/* Progress */}
+            <div className="mt-4 max-w-xl space-y-2">
+              <div className="h-2 overflow-hidden rounded-full bg-paper2">
                 <div
-                  className="h-full bg-accent-primary rounded-full transition-all duration-300"
-                  style={{ width: `${progress}%` }}
+                  className="h-full rounded-full bg-ink transition-all duration-300"
+                  style={{ width: `${pct}%` }}
                 />
               </div>
-              <p className="text-[11px] tracking-[0.08em] text-ink3">
-                {completedParts} of {total} parts complete
+              <p className="text-[13px] text-ink3">
+                <span className="font-medium text-ink2">{posted}</span> of {total} posted
+                {inProduction > 0 && <> · {inProduction} in production</>}
               </p>
             </div>
           </div>
 
-          <div className="shrink-0 mt-1 text-text-secondary">
-            {isExpanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
-          </div>
+          <span className="mt-1 shrink-0 text-ink3">
+            {isExpanded ? <ChevronUp className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+          </span>
         </div>
       </button>
 
-      {/* Expanded view */}
+      {/* Expanded */}
       {isExpanded && (
-        <div className="border-t border-hair p-[13px_14px] space-y-4">
+        <div className="border-t border-hair p-5 md:p-6">
           {series.description && (
-            <p className="text-[13px] text-text-tertiary leading-[1.55]">{series.description}</p>
+            <p className="mb-5 max-w-3xl text-sm leading-relaxed text-ink2">{series.description}</p>
           )}
+
+          <div className="mb-5 flex items-center gap-2 text-ink3">
+            <Layers className="h-4 w-4" />
+            <span className="section-label">Parts</span>
+          </div>
 
           {children}
 
@@ -122,19 +124,17 @@ export default function SeriesCard({
               </button>
             ) : <span />}
             {confirmingDelete ? (
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-text-secondary">
-                  Delete this series?
-                </span>
+              <div className="flex items-center gap-3 text-sm">
+                <span className="text-ink2">Delete this series?</span>
                 <button
                   onClick={onDelete}
-                  className="px-3 py-1 rounded-[3px] text-[10px] font-medium bg-coral-light text-accent-primary hover:opacity-80 transition-opacity"
+                  className="rounded-control bg-flame/10 px-3 py-1.5 font-medium text-flame transition-opacity hover:opacity-80"
                 >
                   Confirm
                 </button>
                 <button
                   onClick={onCancelDelete}
-                  className="px-3 py-1 rounded-[3px] text-[10px] font-medium text-text-secondary hover:text-text-primary transition-colors"
+                  className="px-2 py-1.5 text-ink3 transition-colors hover:text-ink"
                 >
                   Cancel
                 </button>
@@ -142,10 +142,10 @@ export default function SeriesCard({
             ) : (
               <button
                 onClick={onConfirmDelete}
-                className="flex items-center gap-1 text-[11px] text-text-secondary hover:text-accent-primary transition-colors"
+                className="inline-flex items-center gap-1.5 text-sm text-ink3 transition-colors hover:text-flame"
               >
-                <Trash2 size={13} />
-                Delete Series
+                <Trash2 className="h-4 w-4" />
+                Delete series
               </button>
             )}
           </div>

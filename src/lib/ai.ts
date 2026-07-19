@@ -1,4 +1,5 @@
 import { chatCompletion } from '@/lib/llm';
+import { resolvePillarBrief } from '@/lib/pillars/briefs';
 import { voiceEvidenceOnly, stripSections, VOICE_EVIDENCE_HEADERS } from '@/lib/content-pipeline/context-split';
 
 /**
@@ -89,6 +90,10 @@ export function buildSystemPrompt(
       let line = `- ${p.name}`;
       if (typeof p.weight === 'number') line += ` [importance ${p.weight}/100]`;
       if (p.description) line += `: ${p.description}`;
+      // The pillar's generation brief (custom promptTemplate or a built-in one)
+      // so a custom/emergent pillar steers the draft as much as a built-in.
+      const brief = resolvePillarBrief(p.name, p.promptTemplate);
+      if (brief) line += `\n    How to write it: ${brief}`;
       return line;
     });
     parts.push(

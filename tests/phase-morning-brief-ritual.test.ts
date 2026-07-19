@@ -31,36 +31,98 @@ function trend(partial: Partial<TrendRow>): TrendRow {
 
 describe('Phase: Morning-Brief Ritual', () => {
   describe('trend selection', () => {
-    it('picks the highest-confidence trend', () => {
+    it('picks the freshest trend, not the highest-confidence one', () => {
+      // A fresh low-confidence trend must beat an older high-confidence one -
+      // "today's trend" is about recency, not raw confidence.
       const brief = composeMorningBrief({
         now: NOW,
         trends: [
-          trend({ topic: 'low', confidence: 0.3 }),
-          trend({ topic: 'high', confidence: 0.9 }),
-          trend({ topic: 'mid', confidence: 0.6 }),
+          trend({ topic: 'stale-strong', confidence: 0.9, detected_at: '2026-06-29T00:00:00Z' }),
+          trend({ topic: 'fresh-weak', confidence: 0.3, detected_at: '2026-06-30T09:00:00Z' }),
         ],
         recentPosts: [],
         ideas: [],
       });
-      expect(brief.topTrend?.topic).toBe('high');
+      expect(brief.topTrend?.topic).toBe('fresh-weak');
     });
 
-    it('breaks confidence ties by most recent detection', () => {
+    it('breaks freshness ties by confidence', () => {
       const brief = composeMorningBrief({
         now: NOW,
         trends: [
-          trend({ topic: 'older', confidence: 0.5, detected_at: '2026-06-28T00:00:00Z' }),
-          trend({ topic: 'newer', confidence: 0.5, detected_at: '2026-06-29T00:00:00Z' }),
+          trend({ topic: 'lower', confidence: 0.4, detected_at: '2026-06-30T09:00:00Z' }),
+          trend({ topic: 'higher', confidence: 0.8, detected_at: '2026-06-30T09:00:00Z' }),
         ],
         recentPosts: [],
         ideas: [],
       });
-      expect(brief.topTrend?.topic).toBe('newer');
+      expect(brief.topTrend?.topic).toBe('higher');
+    });
+
+    it('excludes stale trends older than the 3-day window', () => {
+      const brief = composeMorningBrief({
+        now: NOW,
+        trends: [trend({ topic: 'last-year', confidence: 0.99, detected_at: '2025-06-30T00:00:00Z' })],
+        recentPosts: [],
+        ideas: [],
+      });
+      expect(brief.topTrend).toBeNull();
+    });
+
+    it('excludes trends with no detection timestamp', () => {
+      const brief = composeMorningBrief({
+        now: NOW,
+        trends: [trend({ topic: 'undated', confidence: 0.9, detected_at: null })],
+        recentPosts: [],
+        ideas: [],
+      });
+      expect(brief.topTrend).toBeNull();
     });
 
     it('returns null trend when none exist', () => {
       const brief = composeMorningBrief({ now: NOW, trends: [], recentPosts: [], ideas: [] });
       expect(brief.topTrend).toBeNull();
+    });
+  });
+
+  describe('latest-post snapshot', () => {
+    it('never surfaces a post with no publish date (draft / not-yet-uploaded)', () => {
+      const brief = composeMorningBrief({
+        now: NOW,
+        trends: [],
+        recentPosts: [{ title: 'Queued but not live', posted_date: null, views: 0, saves: 0 }],
+        ideas: [],
+      });
+      expect(brief.latestPost).toBeNull();
+    });
+
+    it('flags a post out-performing the recent average as performing', () => {
+      const brief = composeMorningBrief({
+        now: NOW,
+        trends: [],
+        recentPosts: [
+          { title: 'Breakout', posted_date: '2026-06-29', views: 1000, saves: 20 },
+          { title: 'Older 1', posted_date: '2026-06-20', views: 100, saves: 2 },
+          { title: 'Older 2', posted_date: '2026-06-18', views: 200, saves: 3 },
+        ],
+        ideas: [],
+      });
+      expect(brief.latestPost?.title).toBe('Breakout');
+      expect(brief.latestPost?.isPerforming).toBe(true);
+    });
+
+    it('does not flag an average post as performing', () => {
+      const brief = composeMorningBrief({
+        now: NOW,
+        trends: [],
+        recentPosts: [
+          { title: 'Meh', posted_date: '2026-06-29', views: 100, saves: 1 },
+          { title: 'Older 1', posted_date: '2026-06-20', views: 100, saves: 2 },
+          { title: 'Older 2', posted_date: '2026-06-18', views: 120, saves: 3 },
+        ],
+        ideas: [],
+      });
+      expect(brief.latestPost?.isPerforming).toBe(false);
     });
   });
 
