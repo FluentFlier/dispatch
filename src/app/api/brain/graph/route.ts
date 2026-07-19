@@ -10,6 +10,7 @@ import {
   type LearningPost,
 } from '@/lib/brain/learnings';
 import { getActiveWorkspaceId } from '@/lib/workspace';
+import { onlyPublished } from '@/lib/posts/published';
 
 /**
  * Returns the creator's brain as a node/edge graph for visualization.
@@ -29,13 +30,12 @@ export async function GET(): Promise<NextResponse> {
 
     // Content-intelligence learnings need richer per-post metrics than the brain
     // pages carry, so pull posted rows straight from `posts`.
-    let postsQuery = client.database
+    let postsQuery = onlyPublished(client.database
       .from('posts')
       .select(
         'id, pillar, platform, hook, views, likes, comments, shares, saves, follows_gained, voice_match_score, posted_date',
       )
-      .eq('user_id', user.id)
-      .eq('status', 'posted')
+      .eq('user_id', user.id))
       .order('posted_date', { ascending: false })
       .limit(500);
     if (workspaceId) postsQuery = postsQuery.eq('workspace_id', workspaceId);

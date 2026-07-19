@@ -6,6 +6,7 @@ import { BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import type { Post } from '@/lib/types';
 import { PLATFORM_LABELS } from '@/lib/constants';
 import { getPostDisplayTitle, hasPostMetrics } from '@/lib/analytics/post-metrics';
+import { publishedAt } from '@/lib/posts/published';
 import PillarDot from '@/components/PillarDot';
 import { formatDateShort } from '@/lib/utils';
 
@@ -20,9 +21,12 @@ export default function PostPerformanceTable({ posts }: PostPerformanceTableProp
 
   const sorted = useMemo(
     () =>
+      // Rank by when the post actually went live. Falling back to updated_at
+      // put the most recently *edited* row on top, so an unpublished draft
+      // outranked real posts and read as the creator's latest post.
       [...posts].sort((a, b) => {
-        const aDate = a.posted_date ?? a.updated_at ?? '';
-        const bDate = b.posted_date ?? b.updated_at ?? '';
+        const aDate = publishedAt(a) ?? '';
+        const bDate = publishedAt(b) ?? '';
         return new Date(bDate).getTime() - new Date(aDate).getTime();
       }),
     [posts]
@@ -136,7 +140,7 @@ export default function PostPerformanceTable({ posts }: PostPerformanceTableProp
                     {(post.shares ?? 0).toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right text-[11px] text-ink3 tabular-nums hidden lg:table-cell">
-                    {formatDateShort(post.posted_date ?? post.updated_at)}
+                    {publishedAt(post) ? formatDateShort(publishedAt(post)!) : '—'}
                   </td>
                 </tr>
               ))}

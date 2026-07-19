@@ -1,6 +1,7 @@
 import type { createClient } from '@insforge/sdk';
 import type { BrainGraph } from './graph';
 import { deriveContentLearnings, type ContentLearning, type LearningPost } from './learnings';
+import { onlyPublished } from '@/lib/posts/published';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -55,13 +56,12 @@ export async function getBrainGuidanceForGeneration(
   workspaceId?: string,
 ): Promise<string> {
   try {
-    let query = client.database
+    let query = onlyPublished(client.database
       .from('posts')
       .select(
         'id, pillar, platform, hook, views, likes, comments, shares, saves, follows_gained, voice_match_score, posted_date',
       )
-      .eq('user_id', userId)
-      .eq('status', 'posted')
+      .eq('user_id', userId))
       .order('posted_date', { ascending: false })
       .limit(500);
     if (workspaceId) query = query.eq('workspace_id', workspaceId);

@@ -1,6 +1,7 @@
 import type { createClient } from '@insforge/sdk';
 import { BRAIN_SLUG, type BrainProvisionResult } from './types';
 import { getBrainPage, listBrainPages, putBrainPage } from './pages';
+import { onlyPublished } from '@/lib/posts/published';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -259,11 +260,10 @@ async function syncBrainWins(
   userId: string,
   workspaceId?: string,
 ): Promise<void> {
-  const { data: topPosts } = await client.database
+  const { data: topPosts } = await onlyPublished(client.database
     .from('posts')
     .select('id, title, platform, pillar, caption, script, hook, views, likes, posted_date')
-    .eq('user_id', userId)
-    .eq('status', 'posted')
+    .eq('user_id', userId))
     .order('views', { ascending: false, nullsFirst: false })
     .limit(5);
 
@@ -358,11 +358,10 @@ export async function syncCreatorBrainFull(
   await provisionCreatorBrain(client, userId, workspaceId);
   await syncBrainFromProfile(client, userId, workspaceId);
 
-  const { data: recentPosted } = await client.database
+  const { data: recentPosted } = await onlyPublished(client.database
     .from('posts')
     .select('id')
-    .eq('user_id', userId)
-    .eq('status', 'posted')
+    .eq('user_id', userId))
     .order('posted_date', { ascending: false })
     .limit(20);
 

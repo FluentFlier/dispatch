@@ -5,7 +5,7 @@ import type { ContentLearning } from '@/lib/brain/learnings';
 /** Minimal chainable, awaitable query-builder mock resolving to { data }. */
 function mockClient(posts: unknown[]) {
   const builder: Record<string, unknown> = {};
-  for (const m of ['select', 'eq', 'order', 'limit']) builder[m] = () => builder;
+  for (const m of ['select', 'eq', 'not', 'order', 'limit']) builder[m] = () => builder;
   builder.then = (resolve: (v: { data: unknown[] }) => void) => resolve({ data: posts });
   return { database: { from: () => builder } } as never;
 }
