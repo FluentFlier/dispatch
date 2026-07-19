@@ -140,7 +140,7 @@ export default function PostPerformanceTable({ posts }: PostPerformanceTableProp
                     {(post.shares ?? 0).toLocaleString()}
                   </td>
                   <td className="px-4 py-3 text-right text-[11px] text-ink3 tabular-nums hidden lg:table-cell">
-                    {publishedAt(post) ? formatDateShort(publishedAt(post)!) : '—'}
+                    {publishedAt(post) ? formatDateShort(publishedAt(post)!) : '-'}
                   </td>
                 </tr>
               ))}
