@@ -7,7 +7,10 @@ import { COPY, stepProgressLabel } from './copy';
 import { resolveStep, STEP_ORDER, type StepKey } from './resolve-step';
 import { WizardFooter } from './WizardFooter';
 import { StepYou } from './steps/StepYou';
+import { StepConnect, type ConnectedAccount } from './steps/StepConnect';
 import { saveOnboardingContext, trackOnboardingEvent } from './actions';
+import type { CreatorBaseline } from '@/lib/onboarding/baseline';
+import type { ContentPillarConfig } from '@/types/database';
 
 const DRAFT_KEY = 'onboarding-draft';
 
@@ -47,6 +50,16 @@ export default function OnboardingWizard() {
   const [error, setError] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [focus, setFocus] = useState('');
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [unipileReady, setUnipileReady] = useState<boolean | null>(null);
+  const [composioReady, setComposioReady] = useState<boolean | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [connectingGmail, setConnectingGmail] = useState(false);
+  const [building, setBuilding] = useState(false);
+  const [buildingLine, setBuildingLine] = useState<string>(COPY.building.lines[0]);
+  const [baseline, setBaseline] = useState<CreatorBaseline | null>(null);
+  const [derivedPillars, setDerivedPillars] = useState<ContentPillarConfig[]>([]);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const resumed = useRef(false);
 
@@ -70,6 +83,9 @@ export default function OnboardingWizard() {
           },
           requested,
         );
+        setUnipileReady(Boolean(data?.unipileConfigured));
+        setComposioReady(Boolean(data?.composioConfigured));
+        setGmailConnected(Boolean(data?.gmailConnected));
         setStep(next);
       })
       .catch(() => setStep(resolveStep({ connectedCount: 0, hasBaseline: false }, requested)))
@@ -98,9 +114,147 @@ export default function OnboardingWizard() {
     [router],
   );
 
-  const handleNext = useCallback(async () => {
-    if (busy) return;
+  const refreshAccounts = useCallback(async (): Promise<ConnectedAccount[]> => {
+    try {
+      const res = await fetch('/api/social-accounts');
+      const data = await res.json();
+      const connected = (data.accounts ?? []).filter(
+        (a: ConnectedAccount) =>
+          ['linkedin', 'twitter'].includes(a.platform) && Boolean(a.unipile_account_id),
+      ) as ConnectedAccount[];
+      setAccounts(connected);
+      return connected;
+    } catch {
+      setAccounts([]);
+      return [];
+    }
+  }, []);
+
+  const handleConnectSocial = useCallback(() => {
+    setConnecting(true);
+    window.location.href = '/api/social-accounts/connect/unipile?return=onboarding';
+  }, []);
+
+  const handleConnectGmail = useCallback(async () => {
+    setConnectingGmail(true);
     setError('');
+    try {
+      const res = await fetch('/api/integrations/composio/link?toolkit=gmail&return=onboarding');
+      const data = await res.json();
+      if (!res.ok || !data.redirect_url) {
+        setError(COPY.steps.connect.composioUnavailable);
+        setConnectingGmail(false);
+        return;
+      }
+      window.location.href = data.redirect_url as string;
+    } catch {
+      setError(COPY.steps.connect.composioUnavailable);
+      setConnectingGmail(false);
+    }
+  }, []);
+
+  /** Derives pillars from the one-liner for users with no ingest baseline. */
+  const derivePillars = useCallback(async (): Promise<ContentPillarConfig[]> => {
+    try {
+      const res = await fetch('/api/onboarding/derive-pillars', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ description: focus }),
+      });
+      const data = await res.json();
+      const pillars = (data?.pillars ?? []) as ContentPillarConfig[];
+      if (pillars.length === 0) {
+        void trackOnboardingEvent('onboarding_pillars_derived_fallback', {});
+      }
+      return pillars;
+    } catch {
+      void trackOnboardingEvent('onboarding_pillars_derived_fallback', {});
+      return [];
+    }
+  }, [focus]);
+
+  /**
+   * Runs ingest with a hard 90s ceiling. Whatever happens - success, failure, or
+   * timeout - the user ends up on the profile step with a usable profile.
+   */
+  const runIngest = useCallback(async () => {
+    setBuilding(true);
+    setError('');
+    void trackOnboardingEvent('onboarding_ingest_started', {});
+
+    let lineIndex = 0;
+    const ticker = window.setInterval(() => {
+      lineIndex = Math.min(lineIndex + 1, COPY.building.lines.length - 1);
+      setBuildingLine(COPY.building.lines[lineIndex]);
+    }, 3000);
+
+    const timeout = new Promise<'timeout'>((resolve) => {
+      window.setTimeout(() => resolve('timeout'), 90_000);
+    });
+
+    try {
+      const outcome = await Promise.race([
+        fetch('/api/onboarding/ingest', { method: 'POST' }).then(async (res) => {
+          const data = await res.json().catch(() => null);
+          return res.ok && data?.baseline ? (data.baseline as CreatorBaseline) : 'failed';
+        }),
+        timeout,
+      ]);
+
+      if (outcome === 'timeout') {
+        void trackOnboardingEvent('onboarding_ingest_timeout', {});
+        setError(COPY.building.timeout);
+        setDerivedPillars(await derivePillars());
+      } else if (outcome === 'failed') {
+        void trackOnboardingEvent('onboarding_ingest_failed', {});
+        setError(COPY.errors.ingestFailed);
+        setDerivedPillars(await derivePillars());
+      } else {
+        setBaseline(outcome);
+      }
+    } catch {
+      void trackOnboardingEvent('onboarding_ingest_failed', {});
+      setError(COPY.errors.ingestFailed);
+      setDerivedPillars(await derivePillars());
+    } finally {
+      window.clearInterval(ticker);
+      setBuilding(false);
+      goToStep('profile');
+    }
+  }, [derivePillars, goToStep]);
+
+  // Returning from Unipile or Composio: land on connect, sync, and refresh.
+  useEffect(() => {
+    if (!ready) return;
+    const connected = searchParams.get('connected') === 'true';
+    const gmailReturn = searchParams.get('gmail_connected') === 'true';
+    const failed = searchParams.get('error') ?? searchParams.get('outreach_error');
+
+    if (!connected && !gmailReturn && !failed) return;
+
+    if (failed) setError(COPY.steps.connect.oauthFailed);
+    if (gmailReturn) setGmailConnected(true);
+
+    void (async () => {
+      if (connected) {
+        await fetch('/api/social-accounts/sync', { method: 'POST' }).catch(() => undefined);
+        await refreshAccounts();
+      }
+      router.replace('/onboarding?step=connect', { scroll: false });
+      setStep('connect');
+    })();
+  }, [ready, searchParams, refreshAccounts, router]);
+
+  // Keep the account list fresh whenever the connect step is shown.
+  useEffect(() => {
+    if (!ready || step !== 'connect') return;
+    void refreshAccounts();
+  }, [ready, step, refreshAccounts]);
+
+  const handleNext = useCallback(async () => {
+    if (busy || building) return;
+    setError('');
+
     if (step === 'you') {
       if (!displayName.trim()) {
         setError(COPY.errors.nameRequired);
@@ -109,15 +263,36 @@ export default function OnboardingWizard() {
       setBusy(true);
       try {
         await saveOnboardingContext(displayName, focus);
-        goToStep('connect');
       } catch {
-        // Context is a convenience, never a gate. Advance regardless.
-        goToStep('connect');
+        // Context is a convenience, never a gate.
       } finally {
         setBusy(false);
       }
+      goToStep('connect');
+      return;
     }
-  }, [step, displayName, focus, goToStep, busy]);
+
+    if (step === 'connect') {
+      if (accounts.length > 0) {
+        await runIngest();
+        return;
+      }
+      setBusy(true);
+      setDerivedPillars(await derivePillars());
+      setBusy(false);
+      goToStep('profile');
+    }
+  }, [step, displayName, focus, accounts.length, runIngest, derivePillars, goToStep, busy, building]);
+
+  /** Skip on connect: no ingest, pillars come from the one-liner. */
+  const handleSkip = useCallback(async () => {
+    if (busy || building) return;
+    void trackOnboardingEvent('onboarding_step_skipped', { step });
+    setBusy(true);
+    setDerivedPillars(await derivePillars());
+    setBusy(false);
+    goToStep('profile');
+  }, [step, derivePillars, goToStep, busy, building]);
 
   const stepIndex = STEP_ORDER.indexOf(step);
 
@@ -194,14 +369,30 @@ export default function OnboardingWizard() {
               onFocusChange={setFocus}
             />
           )}
+
+          {step === 'connect' && (
+            <StepConnect
+              accounts={accounts}
+              gmailConnected={gmailConnected}
+              unipileReady={unipileReady}
+              composioReady={composioReady}
+              connecting={connecting}
+              connectingGmail={connectingGmail}
+              onConnectSocial={handleConnectSocial}
+              onConnectGmail={() => void handleConnectGmail()}
+              building={building}
+              buildingLine={buildingLine}
+            />
+          )}
         </div>
       </div>
 
       <WizardFooter
-        onBack={stepIndex > 0 ? () => goToStep(STEP_ORDER[stepIndex - 1]) : undefined}
+        onBack={stepIndex > 0 && !building ? () => goToStep(STEP_ORDER[stepIndex - 1]) : undefined}
         onNext={() => void handleNext()}
-        canAdvance={step !== 'you' || displayName.trim().length > 0}
-        busy={busy}
+        onSkip={step === 'connect' && !building ? () => void handleSkip() : undefined}
+        canAdvance={step === 'you' ? displayName.trim().length > 0 : step === 'connect'}
+        busy={busy || building}
       />
     </div>
   );
