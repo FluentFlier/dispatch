@@ -265,7 +265,7 @@ export default function SeriesPage() {
           ))}
         </div>
       ) : seriesList.length === 0 ? (
-        <div className="empty-state flex flex-col items-center justify-center py-20 text-center">
+        <div className="empty-state flex min-h-[calc(100vh-220px)] flex-col items-center justify-center py-20 text-center">
           <Layers className="mb-4 h-12 w-12 text-ink3" />
           <h2 className="text-title text-ink">No series yet</h2>
           <p className="mx-auto mt-2 max-w-md text-sm text-ink2">
