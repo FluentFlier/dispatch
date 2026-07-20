@@ -20,7 +20,13 @@ export type AnalyticsEvent =
   | 'edit_feedback_submitted'
   | 'rl_hooks_updated'
   | 'voice_drift_detected'
-  | 'canary_alarm';
+  | 'canary_alarm'
+  | 'onboarding_step_viewed'
+  | 'onboarding_step_skipped'
+  | 'onboarding_ingest_started'
+  | 'onboarding_ingest_failed'
+  | 'onboarding_ingest_timeout'
+  | 'onboarding_pillars_derived_fallback';
 
 export async function trackEvent(
   event: AnalyticsEvent,
