@@ -11,6 +11,9 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
+  ThumbsUp,
+  MessageSquare,
+  CornerDownLeft,
 } from 'lucide-react';
 import type { EngagementInboxResult, InboxComment, InboxPostGroup } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
@@ -35,6 +38,10 @@ function shortAge(iso: string): string {
   if (months < 12) return `${months}mo`;
   return `${Math.round(days / 365)}y`;
 }
+
+/** Comments rendered before the "Load more" button appears, then per click. */
+const INITIAL_COMMENTS = 3;
+const LOAD_MORE_STEP = 10;
 
 function authorLabel(comment: InboxComment): string {
   const c = comment.comment;
@@ -455,6 +462,12 @@ function PostCommentGroup({
   selected: Set<string>;
   onToggleSelect: (commentId: string) => void;
 }) {
+  // Feeds show a couple of comments and let you ask for the rest; dumping
+  // every one of them turns a busy post into an unreadable wall.
+  const [shown, setShown] = useState(INITIAL_COMMENTS);
+  const visible = group.comments.slice(0, shown);
+  const remaining = group.comments.length - visible.length;
+
   const needs = group.stats.needs_reply;
   const drafted = group.stats.drafted;
 
@@ -475,7 +488,7 @@ function PostCommentGroup({
       </div>
 
       <ul className={`divide-y divide-hair ${compact ? '' : ''}`}>
-        {group.comments.map((item) => (
+        {visible.map((item) => (
           <CommentRow
             key={item.comment.id}
             item={item}
@@ -489,6 +502,17 @@ function PostCommentGroup({
           />
         ))}
       </ul>
+
+      {remaining > 0 && (
+        <button
+          type="button"
+          onClick={() => setShown((n) => n + LOAD_MORE_STEP)}
+          className="flex w-full min-h-[44px] cursor-pointer items-center gap-2 px-4 py-3 text-[14px] font-semibold text-ink3 transition-colors hover:bg-bg-tertiary/60 hover:text-ink"
+        >
+          <CornerDownLeft className="h-4 w-4 rotate-90" aria-hidden />
+          Load more comments
+        </button>
+      )}
     </section>
   );
 }
@@ -553,6 +577,12 @@ function CommentRow({
   const draftKey = queue?.id ?? comment.id;
   const draftValue = draftEdits[draftKey] ?? queue?.draft_reply ?? '';
 
+  // The reply box opens on Reply, the way it does in the feed. Leaving one open
+  // under every comment turned three comments into a full screen and buried the
+  // rest of the thread. A drafted or half-typed reply keeps it open.
+  const [replying, setReplying] = useState(false);
+  const replyOpen = replying || draftValue.trim().length > 0;
+
   const isX = normalizeDashboardPlatform(platform) === 'twitter';
   const name = authorLabel(item);
   const handle = comment.author_handle?.replace(/^@/, '');
@@ -616,20 +646,31 @@ function CommentRow({
             {comment.comment_text}
           </p>
 
-          <p className="mt-1.5 flex items-center gap-2 text-[12px] font-semibold text-ink3">
-            <span>Like</span>
-            <span aria-hidden className="text-hair">|</span>
-            <span>Reply</span>
+          {/* Icon-only, the way both feeds render it now - the word buttons
+              were the older LinkedIn. */}
+          <div className="mt-1.5 flex items-center gap-4 text-ink3">
+            <ThumbsUp className="h-[18px] w-[18px]" aria-label="Like" />
+            {!isSent && (
+              <button
+                type="button"
+                onClick={() => setReplying((open) => !open)}
+                aria-label="Reply"
+                aria-expanded={replyOpen}
+                className="cursor-pointer transition-colors hover:text-ink"
+              >
+                <MessageSquare className="h-[18px] w-[18px]" />
+              </button>
+            )}
             {isX && (
               <span
-                className={`ml-1 inline-flex items-center gap-1 rounded-badge px-2 py-0.5 text-[11px] font-medium ${statusTone(queue, item.answered_natively)}`}
+                className={`inline-flex items-center gap-1 rounded-badge px-2 py-0.5 text-[11px] font-medium ${statusTone(queue, item.answered_natively)}`}
               >
                 {statusLabel(queue, item.answered_natively)}
               </span>
             )}
-          </p>
+          </div>
 
-      {!isSent && (
+      {!isSent && replyOpen && (
         <div className="mt-3 space-y-2">
           <label className="block">
             <span className="section-label">{isX ? 'Post your reply' : 'Add a comment'}</span>
