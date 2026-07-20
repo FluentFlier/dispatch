@@ -60,7 +60,16 @@ export async function GET(): Promise<NextResponse> {
   let baseline: CreatorBaseline | null = null;
   if (typeof baselineSetting?.value === 'string' && baselineSetting.value.trim().length > 2) {
     try {
-      baseline = JSON.parse(baselineSetting.value) as CreatorBaseline;
+      const parsed: unknown = JSON.parse(baselineSetting.value);
+      // Shape-check, not just JSON-valid: a corrupt row (e.g. `12345` or `{"foo":1}`) would
+      // otherwise parse fine and pass a non-baseline object to the wizard, which crashes
+      // calling .join()/.map() on missing array fields during resume hydration.
+      baseline =
+        parsed && typeof parsed === 'object'
+        && Array.isArray((parsed as CreatorBaseline).voiceRules)
+        && Array.isArray((parsed as CreatorBaseline).pillars)
+          ? (parsed as CreatorBaseline)
+          : null;
     } catch {
       // Malformed stored value: treat as no baseline rather than failing the route.
       baseline = null;

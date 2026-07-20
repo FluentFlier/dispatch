@@ -394,6 +394,10 @@ export default function OnboardingWizard() {
     [handleNext],
   );
 
+  // Load-bearing: gates all step rendering until the resume fetch has hydrated
+  // `baseline`. Do not remove or bypass this - rendering the profile step early
+  // would let a null baseline reach the terminal action and clobber a real
+  // stored ingest result with empty values.
   if (!ready) {
     return (
       <div className="flex h-[100dvh] items-center justify-center">

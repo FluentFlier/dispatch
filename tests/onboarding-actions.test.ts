@@ -5,11 +5,12 @@ vi.mock('@/lib/insforge/server', () => ({
   getAuthenticatedUser: vi.fn(),
 }));
 vi.mock('@/lib/user-display-name', () => ({
-  displayNameFromAuthUser: () => '',
-  resolveDisplayName: ({ fallback }: { fallback: string }) => fallback,
+  displayNameFromAuthUser: vi.fn(() => ''),
+  resolveDisplayName: vi.fn(({ fallback }: { fallback: string }) => fallback),
 }));
 
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
+import { displayNameFromAuthUser, resolveDisplayName } from '@/lib/user-display-name';
 import {
   completeOnboardingFromBaseline,
   completeOnboardingMinimal,
@@ -173,5 +174,19 @@ describe('completeOnboardingFromBaseline', () => {
 
     const profile = captured.find((c) => c.table === 'creator_profile');
     expect(profile!.payload.display_name).toBeTruthy();
+  });
+
+  it('prefers the OAuth display name over the fallback when the baseline name is empty', async () => {
+    const captured: Captured[] = [];
+    vi.mocked(getServerClient).mockReturnValue(stubClient(captured));
+    vi.mocked(displayNameFromAuthUser).mockReturnValueOnce('Oauth Name');
+    vi.mocked(resolveDisplayName).mockImplementationOnce(
+      ({ oauthName, fallback }) => oauthName?.trim() || fallback?.trim() || 'Creator',
+    );
+
+    await completeOnboardingFromBaseline({ ...BASELINE, displayName: '' });
+
+    const profile = captured.find((c) => c.table === 'creator_profile');
+    expect(profile!.payload.display_name).toBe('Oauth Name');
   });
 });
