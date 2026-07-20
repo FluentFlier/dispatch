@@ -305,26 +305,16 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
           </button>
         </div>
 
-        {/* Preview-first for a published post: show it as it looks on the
-            platform, so the user recognizes their post at a glance before the
-            edit fields / comments / stats tabs below. */}
-        {isPosted && (
-          <div className="shrink-0 px-4 pt-4 bg-bg-secondary border-b border-border">
-            <PostSocialPreview
-              platform={normalizeDashboardPlatform(form.platform)}
-              name={author.name}
-              headline={author.headline}
-              text={form.script || form.caption || form.hook || ''}
-              imageUrl={form.image_url || null}
-            />
-          </div>
-        )}
-
         <div className="shrink-0 px-4 pt-3 bg-bg-secondary border-b border-border">
           <Tabs tabs={[...DRAWER_TABS]} activeTab={activeTab} onChange={(id) => setActiveTab(id as DrawerTab)} />
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-bg-primary">
+        {/* `min-h-0` is load-bearing: a flex item defaults to `min-height: auto`,
+            so without it this pane refuses to shrink below its content height.
+            The pane then overflowed the `max-h-[90vh]` shell, `overflow-hidden`
+            clipped the excess, and `overflow-y-auto` was left scrolling a sliver
+            a couple of lines tall. */}
+        <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4 bg-bg-primary">
           {activeTab === 'write' && (
             <>
               <label className="block">
@@ -406,17 +396,20 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                 </div>
               )}
 
-              {isLinkedIn && (
-                <div>
-                  <span className={labelClass}>LinkedIn preview</span>
-                  <LinkedInPostPreview
-                    name={author.name}
-                    headline={author.headline}
-                    text={form.script || form.caption || ''}
-                    imageUrl={form.image_url || null}
-                  />
-                </div>
-              )}
+              {/* The one preview in the modal. A published post used to also get a
+                  pinned copy above the tab bar, so a posted LinkedIn item rendered
+                  the identical card twice while the pinned copy ate the height the
+                  scrollable pane needed. */}
+              <div>
+                <span className={labelClass}>Preview</span>
+                <PostSocialPreview
+                  platform={normalizeDashboardPlatform(form.platform)}
+                  name={author.name}
+                  headline={author.headline}
+                  text={form.script || form.caption || form.hook || ''}
+                  imageUrl={form.image_url || null}
+                />
+              </div>
 
               {!isLinkedIn && (
                 <label className="block">
