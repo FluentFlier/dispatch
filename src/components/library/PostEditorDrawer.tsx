@@ -84,6 +84,9 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   // Bumped after linking a live post URL, to remount EngagementInbox so it
   // re-fetches (its auto-sync fires on an empty, now-linked post).
   const [inboxKey, setInboxKey] = useState(0);
+  // Footer slot the Comments tab portals its Sync/Draft/Send row into, so those
+  // actions sit beside the status pipeline instead of scrolling with the list.
+  const [commentActionsSlot, setCommentActionsSlot] = useState<HTMLDivElement | null>(null);
   // Author identity for the LinkedIn-style preview (LinkedIn posts only).
   const [author, setAuthor] = useState<{ name: string; headline: string | null }>({ name: 'You', headline: null });
 
@@ -698,7 +701,12 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                   }}
                 />
               )}
-              <EngagementInbox key={inboxKey} postId={post.id} compact />
+              <EngagementInbox
+                key={inboxKey}
+                postId={post.id}
+                compact
+                actionsPortal={commentActionsSlot}
+              />
             </>
           )}
 
@@ -791,8 +799,11 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
           )}
         </div>
 
-        <div className="shrink-0 border-t border-border p-4 bg-bg-secondary">
-          <StatusPipeline current={form.status} onChange={handleStatusChange} />
+        <div className="shrink-0 border-t border-border p-4 bg-bg-secondary flex items-center justify-between gap-3">
+          <div className="min-w-0 overflow-x-auto">
+            <StatusPipeline current={form.status} onChange={handleStatusChange} />
+          </div>
+          <div ref={setCommentActionsSlot} />
         </div>
         </div>
       </div>

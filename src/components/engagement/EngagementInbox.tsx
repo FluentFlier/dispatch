@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
   MessageCircle,
@@ -47,9 +48,15 @@ function statusTone(queue: InboxComment['queue'], answeredNatively = false): str
 interface EngagementInboxProps {
   postId?: string;
   compact?: boolean;
+  /**
+   * Render the Sync / Draft / Send row into this element instead of inline.
+   * The editor puts it in the modal footer next to the status pipeline, where
+   * it stays put while the list below it reloads.
+   */
+  actionsPortal?: HTMLElement | null;
 }
 
-export default function EngagementInbox({ postId, compact = false }: EngagementInboxProps) {
+export default function EngagementInbox({ postId, compact = false, actionsPortal }: EngagementInboxProps) {
   const { toast } = useToast();
   const [data, setData] = useState<EngagementInboxResult | null>(null);
   const [loading, setLoading] = useState(true);
@@ -253,29 +260,59 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, connected, isEmptyNow]);
 
-  // Keep the skeleton up through the auto-sync too. The fetch settles fast with
-  // nothing in it, then the Unipile sync above fills the list seconds later - so
-  // gating on `loading` alone flashed "No comments yet" and then popped the real
-  // comments in unannounced.
-  if (loading || (syncing && isEmptyNow)) {
-    return (
-      <div className={compact ? 'space-y-3' : 'space-y-6'}>
-        {!compact && (
-          <div className="space-y-2">
-            <div className="h-8 w-48 bg-bg-tertiary rounded-md animate-pulse" />
-            <div className="h-4 w-full max-w-md bg-bg-tertiary rounded animate-pulse" />
-          </div>
-        )}
-        <div className="rounded-lg border border-border bg-bg-secondary p-6 shadow-card">
-          <SkeletonLines count={4} />
-        </div>
-      </div>
-    );
-  }
+  // Any fetch OR sync counts as busy. Gating the skeleton on `loading` alone
+  // left the previous list on screen while Unipile was still being read, so new
+  // comments appeared out of nowhere with nothing to say they were coming.
+  const busy = loading || syncing;
 
   const groups = data?.groups ?? [];
   const summary = data?.summary;
   const isEmpty = groups.length === 0;
+
+  // In the portal (the editor footer) the row shares one line with the status
+  // pipeline, so the labels shorten to keep it from wrapping underneath. Inline
+  // - the full-page inbox - there is room for the long labels.
+  const actionLabels = actionsPortal
+    ? { sync: 'Sync', draft: 'Draft', send: 'Send' }
+    : { sync: 'Sync comments', draft: 'Draft replies', send: 'Send approved' };
+
+  const actions = (
+    <div className="flex shrink-0 items-center justify-end gap-2">
+      <Button
+        variant="secondary"
+        size="md"
+        loading={syncing}
+        onClick={handleSync}
+        title="Sync comments"
+        className="min-h-[44px]"
+      >
+        <RefreshCw className="h-4 w-4" />
+        {actionLabels.sync}
+      </Button>
+      <Button
+        variant="secondary"
+        size="md"
+        loading={drafting}
+        onClick={handleDraftReplies}
+        title="Draft replies in your voice"
+        className="min-h-[44px]"
+      >
+        <Sparkles className="h-4 w-4" />
+        {actionLabels.draft}
+      </Button>
+      <Button
+        variant="primary"
+        size="md"
+        loading={sendingBulk}
+        onClick={handleSendApproved}
+        title="Send approved replies"
+        className="min-h-[44px]"
+      >
+        <Send className="h-4 w-4" />
+        {actionLabels.send}
+      </Button>
+    </div>
+  );
 
   return (
     <div className={compact ? 'space-y-4' : 'space-y-6'}>
@@ -288,40 +325,16 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
         </p>
       )}
 
-      <div className={`flex flex-wrap gap-2 ${compact ? '' : ''}`}>
-        <Button
-          variant="secondary"
-          size="md"
-          loading={syncing}
-          onClick={handleSync}
-          className="min-h-[44px]"
-        >
-          <RefreshCw className="h-4 w-4" />
-          Sync comments
-        </Button>
-        <Button
-          variant="secondary"
-          size="md"
-          loading={drafting}
-          onClick={handleDraftReplies}
-          className="min-h-[44px]"
-        >
-          <Sparkles className="h-4 w-4" />
-          Draft replies
-        </Button>
-        <Button
-          variant="primary"
-          size="md"
-          loading={sendingBulk}
-          onClick={handleSendApproved}
-          className="min-h-[44px]"
-        >
-          <Send className="h-4 w-4" />
-          Send approved
-        </Button>
-      </div>
+      {actionsPortal ? createPortal(actions, actionsPortal) : actions}
 
-      {isEmpty ? (
+      {busy ? (
+        <div className="rounded-lg border border-border bg-bg-secondary p-6 shadow-card">
+          <p className="mb-3 text-[12px] text-text-secondary">
+            {syncing ? 'Pulling comments from LinkedIn…' : 'Loading comments…'}
+          </p>
+          <SkeletonLines count={4} />
+        </div>
+      ) : isEmpty ? (
         <div className="rounded-lg border border-border bg-bg-secondary p-8 md:p-10 text-center shadow-card">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-md bg-coral-light text-accent-primary mb-5">
             <MessageCircle className="h-7 w-7" strokeWidth={1.75} />
