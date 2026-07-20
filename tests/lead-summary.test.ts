@@ -34,11 +34,21 @@ describe('summarizeLead', () => {
   });
 
   it('builds a why line from ICP fit + intent + space', () => {
-    const why = summarizeLead(lead({ batch: 'W24', intent_flags: { raised: true }, tags: ['Fintech'] })).why;
-    expect(why).toContain('Fits your ICP');
+    // fit_score is required for the ICP claim now: the line used to hardcode
+    // "Fits your ICP" for every lead regardless of the saved ICP.
+    const why = summarizeLead(
+      lead({ batch: 'W24', intent_flags: { raised: true }, tags: ['Fintech'], fit_score: 0.9 }),
+    ).why;
+    expect(why).toContain('Strong ICP match');
     expect(why).toContain('W24');
     expect(why).toContain('recently raised');
     expect(why).toContain('Fintech');
+  });
+
+  it('omits the ICP claim entirely for an unscored lead', () => {
+    const why = summarizeLead(lead({ batch: 'W24', tags: ['Fintech'] })).why;
+    expect(why).not.toMatch(/ICP/i);
+    expect(why).toContain('W24');
   });
 
   it('falls back to just the company name when there is no blurb', () => {
