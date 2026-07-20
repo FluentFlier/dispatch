@@ -20,7 +20,9 @@ import { fetchWithAuth } from '@/lib/fetch-with-auth';
 const EngagementInbox = dynamic(() => import('@/components/engagement/EngagementInbox'), {
   ssr: false,
   loading: () => (
-    <div className="rounded-lg border border-border bg-bg-secondary p-4 animate-pulse h-24" />
+    // Matches the inbox's own skeleton height so the chunk load and the data
+    // load read as one continuous "loading", not two different placeholders.
+    <div className="rounded-lg border border-border bg-bg-secondary p-4 animate-pulse h-40" />
   ),
 });
 import { useToast } from '@/components/ui/Toast';
@@ -322,6 +324,21 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
         <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4 bg-bg-primary">
           {activeTab === 'write' && (
             <>
+              {/* Preview leads the tab - it's what the post actually looks like.
+                  It is a normal block in the scroll flow, not a pinned header:
+                  the old pinned copy ate the height the scroll pane needed and
+                  left the fields unreachable. */}
+              <div>
+                <span className={labelClass}>Preview</span>
+                <PostSocialPreview
+                  platform={normalizeDashboardPlatform(form.platform)}
+                  name={author.name}
+                  headline={author.headline}
+                  text={form.script || form.caption || form.hook || ''}
+                  imageUrl={form.image_url || null}
+                />
+              </div>
+
               <label className="block">
                 <span className={labelClass}>Title</span>
                 <input
@@ -453,21 +470,6 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                   </label>
                 </>
               )}
-
-              {/* The one preview in the modal, and it sits *after* the fields it
-                  mirrors: opening a post used to land on a preview card that
-                  filled the pane, so the editable fields were off-screen. It
-                  scrolls with everything else - nothing here is pinned. */}
-              <div>
-                <span className={labelClass}>Preview</span>
-                <PostSocialPreview
-                  platform={normalizeDashboardPlatform(form.platform)}
-                  name={author.name}
-                  headline={author.headline}
-                  text={form.script || form.caption || form.hook || ''}
-                  imageUrl={form.image_url || null}
-                />
-              </div>
 
               <label className="block">
                 <span className={labelClass}>Notes</span>

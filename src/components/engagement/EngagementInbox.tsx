@@ -249,7 +249,11 @@ export default function EngagementInbox({ postId, compact = false }: EngagementI
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loading, connected, isEmptyNow]);
 
-  if (loading) {
+  // Keep the skeleton up through the auto-sync too. The fetch settles fast with
+  // nothing in it, then the Unipile sync above fills the list seconds later - so
+  // gating on `loading` alone flashed "No comments yet" and then popped the real
+  // comments in unannounced.
+  if (loading || (syncing && isEmptyNow)) {
     return (
       <div className={compact ? 'space-y-3' : 'space-y-6'}>
         {!compact && (
