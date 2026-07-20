@@ -1,15 +1,8 @@
 'use client';
 
-import { Pin, Radio, FolderOpen } from 'lucide-react';
-import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
-import {
-  sourceBadge,
-  signalTypeLabel,
-  contactPillLabel,
-  isReachable,
-  scoreChip,
-  importedLabel,
-} from './feed-format';
+import { FolderOpen, Pin, Radio } from 'lucide-react';
+import type { LeadQualityBreakdown, UnifiedLeadCard } from '@/lib/signals/feed/normalize';
+import { importedLabel, signalTypeLabel, sourceBadge } from './feed-format';
 
 interface LeadCardProps {
   card: UnifiedLeadCard;
@@ -23,25 +16,52 @@ interface LeadCardProps {
   onToggleSelect?: () => void;
 }
 
+function qualityTone(card: UnifiedLeadCard): string {
+  switch (card.quality?.tier) {
+    case 'urgent':
+      return 'bg-coral-light text-coral-dark';
+    case 'high':
+      return 'bg-sage-light text-accent-secondary';
+    case 'needs_contact':
+      return 'bg-amber-100 text-amber-800';
+    default:
+      return 'bg-bg-tertiary text-text-secondary';
+  }
+}
+
 /**
- * A single row in the unified leads feed. Renders one `UnifiedLeadCard`
- * regardless of whether it originated as a directory lead or a live signal
- * event: a source badge (live post vs directory), company name, a signal chip
- * or tagline, batch, a contact-status pill, and the score. Followed companies
- * get a pin marker. The whole row is a button so it is keyboard-focusable and
- * announces itself via `aria-label` for screen readers.
+ * Engager cards come from a different normalizer and carry no quality
+ * breakdown. Reads `fitScore` only, never `score` (which bakes in the warm
+ * boost), so an unscored card claims no ICP match rather than inventing one.
+ */
+function fallbackQuality(card: UnifiedLeadCard): LeadQualityBreakdown {
+  const fit = card.fitScore ?? 0;
+  const fitLabel = fit >= 0.7 ? 'Strong ICP match' : fit >= 0.4 ? 'Partial ICP match' : fit > 0 ? 'Weak ICP match' : 'Not scored';
+  return {
+    tier: fit >= 0.7 ? 'high' : fit >= 0.4 ? 'medium' : fit > 0 ? 'low' : 'needs_review',
+    label: fit > 0 ? fitLabel.replace(' ICP', '') : 'Needs review',
+    fitLabel,
+    reachabilityLabel: card.contact ? 'Contact ready' : 'Needs contact',
+    timingLabel: 'In backlog',
+    reasons: [card.tagline || card.signalSummary].filter(Boolean) as string[],
+    blockers: card.contact ? [] : ['No reachable contact yet'],
+  };
+}
+
+/**
+ * A single row in the unified leads feed. The row is deliberately compact:
+ * verdict, evidence, reachability, and next action. The rich company context
+ * stays in the right-side viewer after selection.
  */
 export function LeadCard({ card, selected, followed, onSelect, onKeyDown, checked, onToggleSelect }: LeadCardProps) {
   const badge = sourceBadge(card);
-  const reachable = isReachable(card);
-  const pill = contactPillLabel(card);
-  // Prefer the signal chip when present; fall back to the tagline for directory rows.
   const signal = card.signalType ? signalTypeLabel(card.signalType) : null;
   const summary = card.tagline || card.signalSummary || null;
-  // Hidden (null) for near-zero ICP scores so a wall of "0.00" doesn't read as broken.
-  const scoreLabel = scoreChip(card.score);
-  // Import date + how long ago we pulled it (freshness at a glance).
   const imported = importedLabel(card.firstSeenAt);
+  const quality = card.quality ?? fallbackQuality(card);
+  const reachabilityScore = card.reachabilityScore ?? (card.contact ? 1 : 0);
+  const primaryReason = quality.reasons[0] ?? summary;
+  const secondaryReason = quality.reasons.find((r) => r !== primaryReason) ?? null;
 
   return (
     <div className={`flex items-stretch border-b border-border last:border-0 ${followed ? 'bg-sage-light/40' : ''}`}>
@@ -59,95 +79,89 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown, checke
           />
         </label>
       )}
-    <button
-      type="button"
-      id={card.id}
-      role="option"
-      aria-selected={selected}
-      aria-label={`${card.companyName ?? 'Unknown company'}, ${badge.label} ${
-        badge.live ? 'live signal' : 'directory'
-      }${signal ? `, ${signal}` : ''}, ${pill}${scoreLabel ? `, score ${scoreLabel}` : ''}`}
-      onClick={onSelect}
-      onKeyDown={onKeyDown}
-      className={`flex-1 min-w-0 text-left px-4 py-3 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-inset ${
-        selected
-          ? 'bg-bg-primary border-l-2 border-l-accent-primary'
-          : 'hover:bg-bg-tertiary'
-      }`}
-    >
-      {/* Top line: source badge + score */}
-      <div className="flex items-center justify-between gap-2">
-        <span
-          className={`inline-flex items-center gap-1 text-[10px] tracking-wide px-1.5 py-0.5 rounded ${
-            badge.live
-              ? 'bg-coral-light text-coral-dark'
-              : 'bg-accent-light text-accent-primary'
-          }`}
-        >
-          {badge.live ? (
-            <Radio className="h-3 w-3" aria-hidden="true" />
-          ) : (
-            <FolderOpen className="h-3 w-3" aria-hidden="true" />
-          )}
-          {badge.label}
-          {card.batch ? ` · ${card.batch}` : ''}
-        </span>
-        <span className="text-xs text-text-tertiary shrink-0 flex items-center gap-1">
-          {followed && <Pin className="h-3 w-3 text-accent-secondary" aria-hidden="true" />}
-          {scoreLabel}
-        </span>
-      </div>
+      <button
+        type="button"
+        id={card.id}
+        role="option"
+        aria-selected={selected}
+        aria-label={`${card.companyName ?? 'Unknown company'}, ${badge.label} ${
+          badge.live ? 'live signal' : 'directory'
+        }${signal ? `, ${signal}` : ''}, ${quality.label}, ${quality.reachabilityLabel}`}
+        onClick={onSelect}
+        onKeyDown={onKeyDown}
+        className={`flex-1 min-w-0 text-left px-4 py-3 cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary focus-visible:ring-inset ${
+          selected
+            ? 'bg-bg-primary border-l-2 border-l-accent-primary'
+            : 'hover:bg-bg-tertiary'
+        }`}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span
+            className={`inline-flex items-center gap-1 text-[10px] tracking-wide px-1.5 py-0.5 rounded ${
+              badge.live
+                ? 'bg-coral-light text-coral-dark'
+                : 'bg-accent-light text-accent-primary'
+            }`}
+          >
+            {badge.live ? (
+              <Radio className="h-3 w-3" aria-hidden="true" />
+            ) : (
+              <FolderOpen className="h-3 w-3" aria-hidden="true" />
+            )}
+            {badge.label}
+            {card.batch ? ` - ${card.batch}` : ''}
+          </span>
+          <span className="inline-flex min-w-0 items-center gap-1 text-[10px] text-text-tertiary">
+            {followed && <Pin className="h-3 w-3 shrink-0 text-accent-secondary" aria-hidden="true" />}
+            {imported && <span className="truncate">{imported}</span>}
+          </span>
+        </div>
 
-      {/* Company name */}
-      <p className="text-sm font-medium text-text-primary line-clamp-1 mt-1">
-        {card.companyName ?? 'Unknown company'}
-      </p>
-
-      {/* Signal chip or tagline */}
-      {signal ? (
-        <span className="inline-block text-[11px] px-1.5 py-0.5 rounded bg-sage-light text-accent-secondary mt-1">
-          {signal}
-        </span>
-      ) : summary ? (
-        <p className="text-xs text-text-tertiary line-clamp-1 mt-0.5">{summary}</p>
-      ) : null}
-
-      {/* Founder + their exact title (as they list it: Founder, CEO, Co-founder…).
-          Shown explicitly so it's clear WHO the outreach targets and their role. */}
-      {card.contact?.name && (
-        <p className="text-[11px] text-text-secondary line-clamp-1 mt-1">
-          {card.contact.name}
-          {card.contact.role ? (
-            <span className="text-text-tertiary"> · {card.contact.role}</span>
-          ) : (
-            <span className="text-amber-600"> · role unknown</span>
-          )}
+        <p className="text-sm font-medium text-text-primary line-clamp-1 mt-1">
+          {card.companyName ?? 'Unknown company'}
         </p>
-      )}
 
-      {/* Contact-status pill */}
-      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-        <span
-          className={`text-[10px] px-1.5 py-0.5 rounded ${
-            reachable
-              ? 'bg-sage-light text-accent-secondary'
-              : 'bg-bg-tertiary text-text-tertiary'
-          }`}
-        >
-          {pill}
-        </span>
-        {card.needsReply && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-coral-light text-coral-dark font-medium">
-            Needs reply
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${qualityTone(card)}`}>
+            {quality.label}
           </span>
+          {signal && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-tertiary text-text-secondary">
+              {signal}
+            </span>
+          )}
+        </div>
+
+        {primaryReason && (
+          <p className="text-xs text-text-secondary line-clamp-1 mt-1">{primaryReason}</p>
         )}
-        {imported && (
-          <span className="text-[10px] text-text-tertiary ml-auto shrink-0" title={imported}>
-            {imported}
+        {secondaryReason && (
+          <p className="text-[11px] text-text-tertiary line-clamp-1 mt-0.5">{secondaryReason}</p>
+        )}
+
+        {card.contact?.name && (
+          <p className="text-[11px] text-text-secondary line-clamp-1 mt-1">
+            {card.contact.name}
+            {card.contact.role ? (
+              <span className="text-text-tertiary"> - {card.contact.role}</span>
+            ) : (
+              <span className="text-amber-600"> - role unknown</span>
+            )}
+          </p>
+        )}
+
+        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+          <span
+            className={`text-[10px] px-1.5 py-0.5 rounded ${
+              reachabilityScore > 0
+                ? 'bg-sage-light text-accent-secondary'
+                : 'bg-bg-tertiary text-text-tertiary'
+            }`}
+          >
+            {quality.reachabilityLabel}
           </span>
-        )}
-      </div>
-    </button>
+        </div>
+      </button>
     </div>
   );
 }

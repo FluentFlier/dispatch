@@ -31,7 +31,7 @@ function firstSentence(text?: string | null): string | null {
  * import or a row predating scoring) says nothing about fit rather than
  * inventing a match.
  */
-function icpFitPhrase(fitScore: number | null | undefined): string | null {
+export function icpFitPhrase(fitScore: number | null | undefined): string | null {
   if (typeof fitScore !== 'number' || !Number.isFinite(fitScore) || fitScore <= 0) return null;
   if (fitScore >= 0.7) return 'Strong ICP match';
   if (fitScore >= 0.4) return 'Partial ICP match';

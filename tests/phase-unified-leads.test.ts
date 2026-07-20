@@ -13,6 +13,7 @@ import { normalizeLead } from '@/lib/signals/feed/normalize';
 import { mergeFeed, buildUnifiedFeed } from '@/lib/signals/feed/store';
 import { isReachable, contactPillLabel } from '@/components/leads/feed-format';
 import { resolveSignalOutreach, isGuardBlock, SIGNAL_CONNECT_LIMIT } from '@/components/leads/signal-outreach';
+import { compareFeedCards } from '@/lib/leads/feed-sort';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import type { IngestedPost, SignalLeadRow } from '@/lib/signals/types';
 
@@ -260,6 +261,41 @@ describe('Phase: Unified Leads', () => {
       expect(card.contact?.name).toBe('Sam');
       expect(card.batch).toBe('S24');
       expect(card.score).toBeCloseTo(0.9);
+      expect(card.fitScore).toBeCloseTo(0.9);
+      expect(card.reachabilityScore).toBe(1);
+      expect(card.quality?.label).toBe('Strong match');
+      expect(card.quality?.reasons.join(' ')).toContain('Strong ICP match');
+      expect(card.nextActionLabel).toBe('Draft message');
+    });
+
+    it('makes no ICP claim and flags the blocker for an unscored, unreachable lead', () => {
+      const card = normalizeLead({
+        id: 'l2', workspace_id: 'w', source: 'manual', external_id: 'nofit',
+        company_name: 'Nofit', tagline: null, website: null, domain: null,
+        batch: null, tags: [], intent_flags: {}, source_fact: {}, name_history: [],
+        fit_score: 0, rank_score: 0, contact_status: 'no_contact', lead_status: 'new',
+        first_seen_at: 'x', last_seen_at: 'x', digest_date: '2026-07-05',
+        contacts: [],
+      } as never);
+      expect(card.quality?.reasons.join(' ')).not.toMatch(/ICP match/);
+      expect(card.quality?.label).toBe('Needs review');
+      expect(card.reachabilityScore).toBe(0);
+      expect(card.quality?.blockers).toContain('No reachable contact yet');
+      expect(card.nextActionLabel).toBe('Resolve contact');
+    });
+
+    it('treats a contact with no messaging channel as unreachable', () => {
+      const card = normalizeLead({
+        id: 'l3', workspace_id: 'w', source: 'yc_directory', external_id: 'namesonly',
+        company_name: 'NamesOnly', tagline: null, website: null, domain: null,
+        batch: null, tags: [], intent_flags: {}, source_fact: {}, name_history: [],
+        fit_score: 0.8, rank_score: 0.8, contact_status: 'resolved', lead_status: 'new',
+        first_seen_at: 'x', last_seen_at: 'x', digest_date: '2026-07-05',
+        contacts: [{ name: 'Sam', is_primary: true }],
+        primary_contact: { name: 'Sam' },
+      } as never);
+      expect(card.reachabilityScore).toBe(0);
+      expect(card.quality?.tier).toBe('needs_contact');
     });
   });
 
@@ -278,6 +314,16 @@ describe('Phase: Unified Leads', () => {
         {},
       );
       expect(out.map((c) => c.id)).toEqual(['b', 'a']);
+    });
+
+    it('sorts best-fit separately from warm urgency', () => {
+      // score carries the warm boost, so sorting on it alone put the warm
+      // lukewarm-ICP lead above the cold strong-ICP one under "Best fit".
+      const highFitCold = card({ id: 'high-fit-cold', score: 0.9, fitScore: 0.9, urgencyScore: 0.1, reachabilityScore: 1 });
+      const lowerFitWarm = card({ id: 'lower-fit-warm', score: 60, fitScore: 0.6, urgencyScore: 1, reachabilityScore: 1 });
+
+      expect(compareFeedCards(highFitCold, lowerFitWarm, 'score')).toBeLessThan(0);
+      expect(compareFeedCards(highFitCold, lowerFitWarm, 'warm')).toBeGreaterThan(0);
     });
 
     it('filters by status', () => {

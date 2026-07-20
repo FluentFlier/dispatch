@@ -17,6 +17,7 @@ import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { busyActionFor as deriveBusyAction, type LeadBusy } from '@/lib/leads/busy';
 import { draftAllOutcome } from '@/lib/leads/feed-view';
+import { compareFeedCards } from '@/lib/leads/feed-sort';
 import { buildApproveBody, parseDuplicateResponse, type DuplicateWarningState } from '@/lib/leads/duplicate-warning';
 
 /** v1 lead channels approve() can send on. Mirrors LeadChannel in send-lead.ts. */
@@ -356,10 +357,7 @@ export function useLeadsController() {
       }
       return true;
     });
-    const sorted = filtered.slice().sort((a, b) => {
-      if (filters.sort === 'recency') return Date.parse(b.detectedAt) - Date.parse(a.detectedAt);
-      return b.score - a.score;
-    });
+    const sorted = filtered.slice().sort((a, b) => compareFeedCards(a, b, filters.sort));
     // Followed companies pinned on top (stable within each group).
     return sorted.sort((a, b) => Number(isFollowed(b)) - Number(isFollowed(a)));
   }, [cards, filters.search, filters.vertical, filters.sort, isFollowed, leadsById]);
