@@ -39,6 +39,11 @@ interface BulkPublishPanelProps {
   caption?: string;
   imageUrl?: string;
   onPublishSuccess?: () => void;
+  /**
+   * The platform this post is already live on. Cross-posting is the point of
+   * this panel; offering to publish a LinkedIn post back to LinkedIn is not.
+   */
+  publishedTo?: string | null;
 }
 
 const PLATFORM_CONFIG: Record<
@@ -55,6 +60,7 @@ export default function BulkPublishPanel({
   caption,
   imageUrl,
   onPublishSuccess,
+  publishedTo = null,
 }: BulkPublishPanelProps) {
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
@@ -68,7 +74,7 @@ export default function BulkPublishPanel({
       if (res.ok) {
         const data = await res.json();
         const accs: SocialAccount[] = (data.accounts ?? []).filter(
-          (a: SocialAccount) => isDashboardPlatform(a.platform),
+          (a: SocialAccount) => isDashboardPlatform(a.platform) && a.platform !== publishedTo,
         );
         setAccounts(accs);
         // Initialize platform states
@@ -86,7 +92,7 @@ export default function BulkPublishPanel({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [publishedTo]);
 
   useEffect(() => {
     fetchAccounts();
@@ -218,6 +224,16 @@ export default function BulkPublishPanel({
         <Loader2 size={14} className="animate-spin text-text-secondary" />
         <span className="text-[11px] text-text-secondary">Loading accounts...</span>
       </div>
+    );
+  }
+
+  if (accounts.length === 0 && publishedTo) {
+    return (
+      <p className="py-3 text-[11px] text-text-secondary">
+        Already live on {PLATFORM_CONFIG[publishedTo]?.label ?? publishedTo}, and no other account is
+        connected to cross-post to. Connect one in Settings, then use Generate Variants on the Write
+        tab to adapt this post for it.
+      </p>
     );
   }
 

@@ -31,6 +31,11 @@ interface PublishPanelProps {
    * the character counters and the connect-accounts empty state.
    */
   compact?: boolean;
+  /**
+   * The platform this post is already live on - excluded from the targets, so
+   * a published LinkedIn post is never offered back to LinkedIn.
+   */
+  publishedTo?: string | null;
 }
 
 const PLATFORM_CONFIG: Record<string, { label: string; color: string; charLimit: number; icon: string }> = {
@@ -38,7 +43,7 @@ const PLATFORM_CONFIG: Record<string, { label: string; color: string; charLimit:
   linkedin: { label: 'LinkedIn', color: '#0A66C2', charLimit: 3000, icon: 'in' },
 };
 
-export default function PublishPanel({ postId, content, caption, onPublishSuccess, compact = false }: PublishPanelProps) {
+export default function PublishPanel({ postId, content, caption, onPublishSuccess, compact = false, publishedTo = null }: PublishPanelProps) {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState<Record<string, boolean>>({});
@@ -108,7 +113,9 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
 
   const publishText = caption || content;
 
-  const visibleAccounts = accounts.filter((a) => isDashboardPlatform(a.platform));
+  const visibleAccounts = accounts.filter(
+    (a) => isDashboardPlatform(a.platform) && a.platform !== publishedTo,
+  );
 
   if (compact) {
     if (loading || visibleAccounts.length === 0) return null;
@@ -152,6 +159,15 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
         <Loader2 size={14} className="animate-spin text-text-secondary" />
         <span className="text-[11px] text-text-secondary">Loading accounts...</span>
       </div>
+    );
+  }
+
+  if (visibleAccounts.length === 0 && publishedTo) {
+    return (
+      <p className="py-2 text-[11px] text-text-secondary">
+        This post is already live on {PLATFORM_CONFIG[publishedTo]?.label ?? publishedTo}. Connect
+        another account to cross-post it.
+      </p>
     );
   }
 

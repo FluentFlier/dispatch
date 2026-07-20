@@ -645,6 +645,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </div>
 
               <PublishPanel
+                publishedTo={isPosted ? form.platform : null}
                 postId={post.id}
                 content={form.script || form.hook || form.title}
                 caption={form.caption}
@@ -662,6 +663,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </div>
 
               <BulkPublishPanel
+                publishedTo={isPosted ? form.platform : null}
                 postId={post.id}
                 content={form.script || form.hook || form.title}
                 caption={form.caption}
