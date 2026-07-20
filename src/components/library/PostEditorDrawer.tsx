@@ -354,6 +354,8 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                   headline={author.headline}
                   text={form.script || form.caption || form.hook || ''}
                   imageUrl={form.image_url || null}
+                  imageUrls={(post.images ?? []).map((i) => i.url)}
+                  videoUrl={post.video_url ?? null}
                   reactions={form.likes}
                   comments={form.comments}
                   reposts={form.shares}
@@ -883,6 +885,8 @@ function PostSocialPreview({
   headline,
   text,
   imageUrl,
+  imageUrls,
+  videoUrl,
   reactions,
   comments,
   reposts,
@@ -893,6 +897,8 @@ function PostSocialPreview({
   headline?: string | null;
   text: string;
   imageUrl?: string | null;
+  imageUrls?: string[];
+  videoUrl?: string | null;
   reactions?: number;
   comments?: number;
   reposts?: number;
@@ -905,6 +911,8 @@ function PostSocialPreview({
         headline={headline}
         text={text}
         imageUrl={imageUrl}
+        imageUrls={imageUrls}
+        videoUrl={videoUrl}
         reactions={reactions}
         comments={comments}
         reposts={reposts}

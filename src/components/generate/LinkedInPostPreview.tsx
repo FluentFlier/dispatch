@@ -9,6 +9,10 @@ interface LinkedInPostPreviewProps {
   headline?: string | null;
   text: string;
   imageUrl?: string | null;
+  /** Every image on the post. Falls back to imageUrl when not supplied. */
+  imageUrls?: string[];
+  /** Video attachment, for a post whose media is a video rather than photos. */
+  videoUrl?: string | null;
   /** Timestamp label shown under the author (e.g. "Now", "2d"). */
   timeLabel?: string;
   /** Real engagement, when the post has already gone live. */
@@ -21,6 +25,56 @@ interface LinkedInPostPreviewProps {
     author?: { name?: string; public_identifier?: string } | null;
     date?: string;
   } | null;
+}
+
+/**
+ * A post's media, laid out the way the LinkedIn feed lays it out: a video plays
+ * on its own, one photo runs full width, two split the row, three put a tall
+ * one beside a stacked pair, and four or more become a 2x2 with the overflow
+ * counted on the last tile. Rendering only the first photo made a carousel look
+ * like a single-image post.
+ */
+function PostMedia({ images, videoUrl }: { images: string[]; videoUrl?: string | null }) {
+  if (videoUrl) {
+    return (
+      // eslint-disable-next-line jsx-a11y/media-has-caption
+      <video src={videoUrl} controls preload="metadata" className="max-h-96 w-full bg-black object-contain" />
+    );
+  }
+  if (images.length === 0) return null;
+
+  if (images.length === 1) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={images[0]} alt="Post attachment" className="max-h-96 w-full object-cover" />;
+  }
+
+  const tiles = images.slice(0, 4);
+  const overflow = images.length - tiles.length;
+  const layout =
+    tiles.length === 2
+      ? 'grid-cols-2 grid-rows-1'
+      : tiles.length === 3
+        ? 'grid-cols-2 grid-rows-2'
+        : 'grid-cols-2 grid-rows-2';
+
+  return (
+    <div className={`grid ${layout} h-72 gap-0.5`}>
+      {tiles.map((url, i) => (
+        <div
+          key={url}
+          className={`relative overflow-hidden ${tiles.length === 3 && i === 0 ? 'row-span-2' : ''}`}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={url} alt={`Post attachment ${i + 1}`} className="h-full w-full object-cover" />
+          {overflow > 0 && i === tiles.length - 1 && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/55 text-[20px] font-semibold text-white">
+              +{overflow}
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 const ACTIONS = [
@@ -46,6 +100,8 @@ export function LinkedInPostPreview({
   headline,
   text,
   imageUrl,
+  imageUrls,
+  videoUrl,
   timeLabel = 'Now',
   reactions = 0,
   comments = 0,
@@ -57,6 +113,9 @@ export function LinkedInPostPreview({
   const isLong = text.length > SEE_MORE_AT;
   const previewText = !expanded && isLong ? text.slice(0, SEE_MORE_AT) : text;
   const hasProof = reactions > 0 || comments > 0 || reposts > 0;
+  // imageUrls is the full set; imageUrl is the single-image callers (composer)
+  // and the legacy first-image-only shape.
+  const images = imageUrls?.length ? imageUrls : imageUrl ? [imageUrl] : [];
 
   return (
     <div className="overflow-hidden rounded-lg border border-hair bg-paper shadow-sm">
@@ -115,11 +174,8 @@ export function LinkedInPostPreview({
         </div>
       )}
 
-      {/* Attachment - full-bleed, the way the feed renders it */}
-      {imageUrl && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={imageUrl} alt="Preview attachment" className="max-h-96 w-full object-cover" />
-      )}
+      {/* Attachments - full-bleed, the way the feed renders them */}
+      <PostMedia images={images} videoUrl={videoUrl} />
 
       {/* Social proof */}
       {hasProof && (

@@ -33,6 +33,10 @@ export interface Post {
   variant_group_id: string | null;
   source_platform: string | null;
   is_imported?: boolean;
+  /** Every image on the post, each with a cached vision description. */
+  images?: Array<{ url: string; description: string | null }> | null;
+  /** Video attachment, when the post's media is a video rather than photos. */
+  video_url?: string | null;
   /** For an imported repost: the post it reshares (Unipile `repost_content`). */
   reposted_content?: {
     text?: string;

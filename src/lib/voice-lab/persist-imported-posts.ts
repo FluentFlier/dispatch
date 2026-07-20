@@ -125,6 +125,21 @@ export function allImageUrls(item: UnipileItem): string[] {
 }
 
 /**
+ * The post's video attachment URL, or null.
+ *
+ * Only images were ever captured, so a post whose media was a video imported as
+ * bare text. LinkedIn posts carry either one video or a set of images, never
+ * both, so a single url is enough. Provider type strings vary
+ * ('video', 'linkedin_video', 'video/mp4'), hence the substring test.
+ */
+export function videoUrl(item: UnipileItem): string | null {
+  const video = item.attachments?.find(
+    (a) => typeof a.type === 'string' && a.type.toLowerCase().includes('video') && Boolean(a.url),
+  );
+  return video?.url ?? null;
+}
+
+/**
  * Describes every image on a post (bounded by MAX_IMAGES_DESCRIBED, run
  * concurrently so total latency is ~one vision call, not the sum). Best-effort:
  * describeImage never throws, so a failed/unsupported vision call just leaves
@@ -214,7 +229,7 @@ export async function persistImportedPosts({
     if (existingJob?.post_id) {
       const { data: existingPost } = await client.database
         .from('posts')
-        .select('id, views, likes, saves, comments, shares, images, reposted_content')
+        .select('id, views, likes, saves, comments, shares, images, video_url, reposted_content')
         .eq('id', existingJob.post_id)
         .eq('user_id', userId)
         .maybeSingle();
@@ -236,9 +251,13 @@ export async function persistImportedPosts({
         // Backfill images on posts imported before multi-image capture existed
         // (firstImageUrl() used to be the only thing kept - the rest of a
         // post's photos were silently discarded).
+        //
+        // The test is "fewer than the provider has", not "none at all": those
+        // older rows kept exactly one image, so an is-it-empty check declared
+        // them healthy and a five-image carousel stayed a single photo forever.
         const existingImages = (existingPost as { images?: ImportedImage[] }).images ?? [];
         const availableUrls = allImageUrls(item);
-        if (existingImages.length === 0 && availableUrls.length > 0) {
+        if (existingImages.length < availableUrls.length) {
           const images = await describeImages(availableUrls);
           await client.database.from('posts').update({ images }).eq('id', existingJob.post_id);
           repaired = true;
@@ -247,6 +266,17 @@ export async function persistImportedPosts({
           pushImageMemoryWrites(memoryWrites, client, images, {
             userId, workspaceId, platform, postId: existingJob.post_id, postedDate,
           });
+        }
+
+        // Same for video, which was never captured at all.
+        const existingVideo = (existingPost as { video_url?: string | null }).video_url ?? null;
+        const availableVideo = videoUrl(item);
+        if (!existingVideo && availableVideo) {
+          await client.database
+            .from('posts')
+            .update({ video_url: availableVideo })
+            .eq('id', existingJob.post_id);
+          repaired = true;
         }
 
         // Reposts imported before the original was captured are commentary with
@@ -309,6 +339,7 @@ export async function persistImportedPosts({
       // one-time vision description so generation can reference what was
       // actually in the photo without re-analyzing it on every draft.
       images,
+      video_url: videoUrl(item),
       platform,
       // The post this one reshares, when it is a repost. Commentary alone reads
       // as a reaction to nothing ("congrats for pulling this off" - pulling
