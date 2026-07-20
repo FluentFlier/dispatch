@@ -16,6 +16,9 @@ import type { EngagementInboxResult, InboxComment, InboxPostGroup } from '@/lib/
 import { Button } from '@/components/ui/Button';
 import { Textarea } from '@/components/ui/Textarea';
 import { SkeletonLines } from '@/components/ui/Skeleton';
+import { getInitials } from '@/lib/compose-preview';
+import { normalizeDashboardPlatform } from '@/lib/constants';
+import { formatRelative } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
 
 function authorLabel(comment: InboxComment): string {
@@ -467,6 +470,7 @@ function PostCommentGroup({
             onApproveSend={onApproveSend}
             selected={selected.has(item.comment.id)}
             onToggleSelect={onToggleSelect}
+            platform={group.post_platform}
           />
         ))}
       </ul>
@@ -516,6 +520,7 @@ function CommentRow({
   onApproveSend,
   selected,
   onToggleSelect,
+  platform,
 }: {
   item: InboxComment;
   draftEdits: Record<string, string>;
@@ -524,6 +529,7 @@ function CommentRow({
   onApproveSend: (item: InboxComment) => void;
   selected: boolean;
   onToggleSelect: (commentId: string) => void;
+  platform: string;
 }) {
   const { comment, queue } = item;
   const isSent = queue?.status === 'sent' || Boolean(item.answered_natively);
@@ -532,6 +538,11 @@ function CommentRow({
   const draftKey = queue?.id ?? comment.id;
   const draftValue = draftEdits[draftKey] ?? queue?.draft_reply ?? '';
 
+  const isX = normalizeDashboardPlatform(platform) === 'twitter';
+  const name = authorLabel(item);
+  const handle = comment.author_handle?.replace(/^@/, '');
+  const when = comment.commented_at ? formatRelative(comment.commented_at) : null;
+
   return (
     <li className="flex gap-3 p-4">
       {!isSent && (
@@ -539,20 +550,63 @@ function CommentRow({
           type="checkbox"
           checked={selected}
           onChange={() => onToggleSelect(comment.id)}
-          aria-label={`Select reply to ${authorLabel(item)}`}
-          className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-accent-primary"
+          aria-label={`Select reply to ${name}`}
+          className="mt-4 h-4 w-4 shrink-0 cursor-pointer accent-accent-primary"
         />
       )}
       <div className="min-w-0 flex-1 space-y-3">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-[13px] font-medium text-ink">{authorLabel(item)}</p>
-          {comment.author_headline && (
-            <p className="text-[11px] text-ink3 mt-0.5 line-clamp-1">{comment.author_headline}</p>
+      {/* The comment itself is drawn the way its own platform draws it, so this
+          reads as the feed the creator already knows rather than a third UI they
+          have to learn before they trust it: LinkedIn's grey bubble with the
+          name and headline inside and Like/Reply underneath, X's flat row with
+          name, @handle and time on one line above the text. */}
+      <div className="flex gap-2">
+        <div
+          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-[12px] font-semibold text-text-secondary`}
+        >
+          {getInitials(name)}
+        </div>
+
+        <div className="min-w-0 flex-1">
+          {isX ? (
+            <>
+              <p className="flex flex-wrap items-center gap-x-1.5 text-[14px] leading-tight">
+                <span className="font-bold text-ink">{name}</span>
+                {handle && <span className="text-ink3">@{handle}</span>}
+                {when && <span className="text-ink3">· {when}</span>}
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-[14px] leading-[1.4] text-text-primary">
+                {comment.comment_text}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="rounded-lg rounded-tl-none bg-bg-tertiary px-3 py-2">
+                <p className="text-[14px] font-semibold leading-tight text-ink">{name}</p>
+                {comment.author_headline && (
+                  <p className="mt-0.5 line-clamp-1 text-[12px] text-ink3">{comment.author_headline}</p>
+                )}
+                <p className="mt-1.5 whitespace-pre-wrap text-[14px] leading-[1.43] text-text-primary">
+                  {comment.comment_text}
+                </p>
+              </div>
+              <p className="mt-1 flex items-center gap-2 px-1 text-[12px] font-semibold text-ink3">
+                <span>Like</span>
+                <span aria-hidden>·</span>
+                <span>Reply</span>
+                {when && (
+                  <>
+                    <span aria-hidden>·</span>
+                    <span className="font-normal">{when}</span>
+                  </>
+                )}
+              </p>
+            </>
           )}
         </div>
+
         <span
-          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-badge text-xs font-medium ${statusTone(queue, item.answered_natively)}`}
+          className={`inline-flex h-fit shrink-0 items-center gap-1 rounded-badge px-2.5 py-1 text-xs font-medium ${statusTone(queue, item.answered_natively)}`}
         >
           {isSent ? (
             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -565,19 +619,15 @@ function CommentRow({
         </span>
       </div>
 
-      <blockquote className="text-[15px] text-text-primary leading-relaxed border-l-2 border-coral pl-3">
-        {comment.comment_text}
-      </blockquote>
-
       {!isSent && (
         <div className="space-y-2">
           <label className="block">
-            <span className="section-label">Your reply</span>
+            <span className="section-label">{isX ? 'Post your reply' : 'Add a comment'}</span>
             {/* No longer gated on an AI draft existing: you can type a reply and
                 send it, and the server creates the queue row on the way through. */}
             <AutoGrowReply
               value={draftValue}
-              placeholder="Write a reply, or tap “Draft” for one in your voice…"
+              placeholder={isX ? 'Post your reply…' : 'Add a comment…'}
               onChange={(text) => onDraftChange(draftKey, text)}
             />
           </label>
