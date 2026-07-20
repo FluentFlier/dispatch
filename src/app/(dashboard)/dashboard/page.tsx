@@ -23,6 +23,7 @@ import NeedsAttention, { type AttentionItem } from '@/components/dashboard/Needs
 import { QuickActions } from '@/components/dashboard/QuickActions';
 import { MorningBriefStrip } from '@/components/dashboard/MorningBriefCard';
 import { GtmCommandCenter } from '@/components/dashboard/GtmCommandCenter';
+import { RecentActivityFeed } from '@/components/dashboard/RecentActivityFeed';
 import { DashboardWelcomeBanner } from '@/components/dashboard/DashboardWelcomeBanner';
 import { getUserEntitlements } from '@/lib/entitlements';
 import { SectionHeader } from '@/components/layout/SectionHeader';
@@ -425,7 +426,9 @@ export default async function DashboardPage() {
         <GtmCommandCenter />
 
         <aside className="space-y-6">
-          <section className="card-surface p-5">
+          {/* h-full so the rail matches the outreach card's height; the feed
+              inside flexes to fill whatever height that turns out to be. */}
+          <section className="card-surface flex h-full flex-col p-5">
             <p className="section-label">Recent activity</p>
             {recentActivity.length === 0 ? (
               <div className="mt-3">
@@ -435,22 +438,15 @@ export default async function DashboardPage() {
                 />
               </div>
             ) : (
-              <ul className="mt-3 space-y-3">
-                {recentActivity.map((post) => (
-                  <li key={post.id}>
-                    <Link href={`/library?post=${post.id}`} className="flex items-start gap-3 rounded-lg p-1 -m-1 hover:bg-paper2/60 transition-colors">
-                      <span
-                        className="mt-1 inline-block w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: getPillarColor(post.pillar) }}
-                      />
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-medium text-ink">{post.title}</p>
-                        <p className="mt-0.5 text-xs text-ink3">{STATUS_LABELS[post.status]} · {formatRelative(post.updated_at)}</p>
-                      </div>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+              <RecentActivityFeed
+                items={recentActivity.map((post) => ({
+                  id: post.id,
+                  title: post.title,
+                  meta: `${STATUS_LABELS[post.status]} · ${formatRelative(post.updated_at)}`,
+                  color: getPillarColor(post.pillar),
+                  href: `/library?post=${post.id}`,
+                }))}
+              />
             )}
           </section>
         </aside>

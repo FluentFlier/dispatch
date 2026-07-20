@@ -68,6 +68,7 @@ export function LeadsFeedBody(props: LeadsController) {
     filters, setFilters, selectedId, setSelectedId, drafts, setDrafts, autosaveDraft, leadsById,
     loading, loadError, setupRequired, setupMessage, listLoading, scraping, scrapeProgress,
     busyActionFor, selectedIds, bulkBusy, acceptedIds, emailConfirmId, setEmailConfirmId,
+    planConfirmId, setPlanConfirmId, confirmPlanNurture,
     feedLimit, setFeedLimit, importOpen, setImportOpen, view, setView,
     companyById, engagersById, engagerNotices, draftAll, demoData,
     loadBootstrap, refetchList, retryCompany, isFollowed, visibleCards,
@@ -467,6 +468,15 @@ export function LeadsFeedBody(props: LeadsController) {
           void refetchList();
         }}
         toast={toast}
+      />
+
+      <ConfirmModal
+        open={planConfirmId !== null}
+        title="Plan outreach"
+        message="This researches them and drafts AI comments on their recent posts. Nothing is posted - drafts wait for your approval in Comments to approve."
+        confirmLabel="Draft the plan"
+        onConfirm={() => void confirmPlanNurture()}
+        onClose={() => setPlanConfirmId(null)}
       />
 
       <ConfirmModal
