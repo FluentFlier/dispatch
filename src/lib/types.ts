@@ -33,6 +33,12 @@ export interface Post {
   variant_group_id: string | null;
   source_platform: string | null;
   is_imported?: boolean;
+  /** For an imported repost: the post it reshares (Unipile `repost_content`). */
+  reposted_content?: {
+    text?: string;
+    date?: string;
+    author?: { name?: string; public_identifier?: string } | null;
+  } | null;
   /** Set once the post is published/linked through the app; gates comment sync. */
   publish_job_id?: string | null;
   scheduled_publish_at: string | null;

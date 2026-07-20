@@ -14,6 +14,24 @@ export interface VoiceSample {
   sourceUrl?: string;
 }
 
+
+/**
+ * The post a repost was built on. Unipile nests it under `repost_content`;
+ * without it an imported repost is the creator's commentary with no subject.
+ */
+export interface UnipileRepostContent {
+  id?: string;
+  text?: string;
+  date?: string;
+  parsed_datetime?: string;
+  author?: {
+    name?: string;
+    public_identifier?: string;
+    id?: string;
+    is_company?: boolean;
+  };
+}
+
 interface UnipilePostItem {
   id?: string;
   text?: string;
@@ -27,6 +45,7 @@ interface UnipilePostItem {
     type?: string;
     url?: string;
   }>;
+  repost_content?: UnipileRepostContent;
 }
 
 interface UnipilePostsResponse {

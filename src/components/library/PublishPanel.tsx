@@ -25,6 +25,12 @@ interface PublishPanelProps {
   content: string;
   caption: string;
   onPublishSuccess?: () => void;
+  /**
+   * Tight single-row form for the editor's header, where publishing has to be
+   * reachable without scrolling to the Schedule tab. Same publish call, minus
+   * the character counters and the connect-accounts empty state.
+   */
+  compact?: boolean;
 }
 
 const PLATFORM_CONFIG: Record<string, { label: string; color: string; charLimit: number; icon: string }> = {
@@ -32,7 +38,7 @@ const PLATFORM_CONFIG: Record<string, { label: string; color: string; charLimit:
   linkedin: { label: 'LinkedIn', color: '#0A66C2', charLimit: 3000, icon: 'in' },
 };
 
-export default function PublishPanel({ postId, content, caption, onPublishSuccess }: PublishPanelProps) {
+export default function PublishPanel({ postId, content, caption, onPublishSuccess, compact = false }: PublishPanelProps) {
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState<Record<string, boolean>>({});
@@ -103,6 +109,42 @@ export default function PublishPanel({ postId, content, caption, onPublishSucces
   const publishText = caption || content;
 
   const visibleAccounts = accounts.filter((a) => isDashboardPlatform(a.platform));
+
+  if (compact) {
+    if (loading || visibleAccounts.length === 0) return null;
+    return (
+      <div className="flex items-center gap-1.5">
+        {visibleAccounts.map((account) => {
+          const config = PLATFORM_CONFIG[account.platform];
+          if (!config) return null;
+          const result = results[account.platform];
+          const isPublishing = publishing[account.platform];
+          const overLimit = publishText.length > config.charLimit;
+          return (
+            <button
+              key={account.id}
+              type="button"
+              disabled={isPublishing || result?.success || overLimit || !publishText.trim()}
+              onClick={() => handlePublish(account.platform)}
+              title={
+                overLimit
+                  ? `Too long for ${config.label} (${publishText.length}/${config.charLimit})`
+                  : `Publish to ${config.label}`
+              }
+              className="flex min-h-[36px] items-center gap-1.5 rounded-md bg-accent-primary px-3 text-[12px] font-medium text-text-inverse transition-opacity hover:opacity-90 disabled:opacity-50"
+            >
+              {isPublishing ? (
+                <Loader2 size={12} className="animate-spin" />
+              ) : result?.success ? (
+                <Check size={12} />
+              ) : null}
+              {result?.success ? 'Posted' : `Publish to ${config.label}`}
+            </button>
+          );
+        })}
+      </div>
+    );
+  }
 
   if (loading) {
     return (

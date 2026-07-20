@@ -312,8 +312,26 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
           </button>
         </div>
 
-        <div className="shrink-0 px-4 pt-3 bg-bg-secondary border-b border-border">
+        {/* Publish sits in the tab row, not buried in the Schedule tab: it is
+            the action people come here to take, and it used to be a scroll away
+            inside another tab. Hidden once the post is live. */}
+        <div className="shrink-0 flex items-end justify-between gap-3 px-4 pt-3 bg-bg-secondary border-b border-border">
           <Tabs tabs={[...DRAWER_TABS]} activeTab={activeTab} onChange={(id) => setActiveTab(id as DrawerTab)} />
+          {!isPosted && (
+            <div className="pb-2">
+              <PublishPanel
+                compact
+                postId={post.id}
+                content={form.script || form.hook || form.title}
+                caption={form.caption}
+                onPublishSuccess={() => {
+                  setForm((f) => ({ ...f, status: 'posted' }));
+                  toast('Published! Post status updated.');
+                  onSave();
+                }}
+              />
+            </div>
+          )}
         </div>
 
         {/* `min-h-0` is load-bearing: a flex item defaults to `min-height: auto`,
@@ -339,6 +357,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                   reactions={form.likes}
                   comments={form.comments}
                   reposts={form.shares}
+                  repost={post.reposted_content ?? null}
                 />
               </div>
 
@@ -354,21 +373,30 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className="block">
+                {/* Where a live post went out is a fact, not a setting. Offering
+                    "X" on a post that was published to LinkedIn invited an edit
+                    that would make the row lie about its own history. */}
+                <div className="block">
                   <span className={labelClass}>Platform</span>
-                  <select
-                    value={form.platform}
-                    onChange={(e) => update('platform', e.target.value)}
-                    onBlur={autoSave}
-                    className={inputClass}
-                  >
-                    {PLATFORMS.map((p) => (
-                      <option key={p} value={p}>
-                        {PLATFORM_LABELS[p]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  {isPosted ? (
+                    <p className={`${inputClass} flex items-center bg-bg-tertiary text-text-secondary`}>
+                      {PLATFORM_LABELS[normalizeDashboardPlatform(form.platform)]}
+                    </p>
+                  ) : (
+                    <select
+                      value={form.platform}
+                      onChange={(e) => update('platform', e.target.value)}
+                      onBlur={autoSave}
+                      className={inputClass}
+                    >
+                      {PLATFORMS.map((p) => (
+                        <option key={p} value={p}>
+                          {PLATFORM_LABELS[p]}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
                 <label className="block">
                   <span className={labelClass}>Status</span>
                   <select
@@ -848,6 +876,7 @@ function PostSocialPreview({
   reactions,
   comments,
   reposts,
+  repost,
 }: {
   platform: DashboardPlatform;
   name: string;
@@ -857,6 +886,7 @@ function PostSocialPreview({
   reactions?: number;
   comments?: number;
   reposts?: number;
+  repost?: Post['reposted_content'];
 }) {
   if (platform === 'linkedin') {
     return (
@@ -868,6 +898,7 @@ function PostSocialPreview({
         reactions={reactions}
         comments={comments}
         reposts={reposts}
+        repost={repost}
       />
     );
   }

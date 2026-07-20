@@ -6,6 +6,7 @@ import {
   extractUnipilePostMetrics,
   extractUnipilePublishedAt,
 } from '@/lib/platforms/linkedin-metrics';
+import type { UnipileRepostContent } from '@/lib/onboarding/import-posts';
 import { writeToMemory, buildPostMemoryCustomId, buildImageMemoryCustomId } from '@/lib/memory/write';
 import { describeImage, chatCompletion, isLlmConfigured } from '@/lib/llm';
 
@@ -66,6 +67,7 @@ export interface UnipileItem {
   is_repost?: boolean;
   is_reply?: boolean;
   attachments?: UnipileAttachment[];
+  repost_content?: UnipileRepostContent;
 }
 
 export interface ImportedImage {
@@ -212,7 +214,7 @@ export async function persistImportedPosts({
     if (existingJob?.post_id) {
       const { data: existingPost } = await client.database
         .from('posts')
-        .select('id, views, likes, saves, comments, shares, images')
+        .select('id, views, likes, saves, comments, shares, images, reposted_content')
         .eq('id', existingJob.post_id)
         .eq('user_id', userId)
         .maybeSingle();
@@ -245,6 +247,19 @@ export async function persistImportedPosts({
           pushImageMemoryWrites(memoryWrites, client, images, {
             userId, workspaceId, platform, postId: existingJob.post_id, postedDate,
           });
+        }
+
+        // Reposts imported before the original was captured are commentary with
+        // no subject. A re-import carries repost_content, so heal them.
+        const hasReposted = Boolean(
+          (existingPost as { reposted_content?: unknown }).reposted_content,
+        );
+        if (!hasReposted && item.repost_content) {
+          await client.database
+            .from('posts')
+            .update({ reposted_content: item.repost_content })
+            .eq('id', existingJob.post_id);
+          repaired = true;
         }
 
         if (repaired) {
@@ -295,6 +310,10 @@ export async function persistImportedPosts({
       // actually in the photo without re-analyzing it on every draft.
       images,
       platform,
+      // The post this one reshares, when it is a repost. Commentary alone reads
+      // as a reaction to nothing ("congrats for pulling this off" - pulling
+      // what off?), so the original travels with it and the preview quotes it.
+      reposted_content: item.repost_content ?? null,
       status: 'posted',
       posted_date: importedPublishedAt?.split('T')[0] ?? new Date().toISOString().split('T')[0],
       ...importedMetrics,

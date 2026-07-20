@@ -261,14 +261,26 @@ export default function LibraryPage() {
     }
   };
 
-  // The header import button targets the active platform tab; on "All" it pulls both.
+  // The header import button targets the active platform tab; on "All" it pulls
+  // every CONNECTED platform. It used to call both unconditionally, so a
+  // LinkedIn-only user got "No connected X account found" every single import -
+  // a reminder about a feature they had not asked for.
   const runImport = async () => {
-    if (platformFilter === 'all') {
-      await handleReimport('linkedin');
-      await handleReimport('twitter');
-    } else {
+    if (platformFilter !== 'all') {
       await handleReimport(platformFilter);
+      return;
     }
+    const connected = await fetchWithAuth('/api/social-accounts')
+      .then((r) => (r.ok ? r.json() : { accounts: [] }))
+      .then((d) => new Set(((d.accounts ?? []) as Array<{ platform: string }>).map((a) => a.platform)))
+      .catch(() => new Set<string>());
+
+    const targets = (['linkedin', 'twitter'] as const).filter((p) => connected.has(p));
+    if (targets.length === 0) {
+      setImportError('Connect LinkedIn or X in Settings to import posts.');
+      return;
+    }
+    for (const platform of targets) await handleReimport(platform);
   };
 
   // Load more pagination

@@ -15,6 +15,12 @@ interface LinkedInPostPreviewProps {
   reactions?: number;
   comments?: number;
   reposts?: number;
+  /** The post being reshared, for a repost. Rendered as a quoted card. */
+  repost?: {
+    text?: string;
+    author?: { name?: string; public_identifier?: string } | null;
+    date?: string;
+  } | null;
 }
 
 const ACTIONS = [
@@ -44,6 +50,7 @@ export function LinkedInPostPreview({
   reactions = 0,
   comments = 0,
   reposts = 0,
+  repost = null,
 }: LinkedInPostPreviewProps) {
   const [expanded, setExpanded] = useState(false);
   const initials = getInitials(name);
@@ -85,6 +92,28 @@ export function LinkedInPostPreview({
           </button>
         )}
       </div>
+
+      {/* The reshared post, quoted inside the card the way LinkedIn nests it. */}
+      {repost && (repost.text || repost.author?.name) && (
+        <div className="mx-3 mb-3 overflow-hidden rounded-lg border border-hair">
+          <div className="flex items-center gap-2 px-3 pt-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-[12px] font-semibold text-ink2">
+              {getInitials(repost.author?.name ?? '?')}
+            </div>
+            <div className="min-w-0 leading-tight">
+              <p className="truncate text-[13px] font-semibold text-ink">
+                {repost.author?.name ?? 'Someone'}
+              </p>
+              {repost.date && <p className="text-[11px] text-ink3">{repost.date}</p>}
+            </div>
+          </div>
+          {repost.text && (
+            <p className="line-clamp-6 whitespace-pre-wrap px-3 pb-3 pt-2 font-body text-[13px] leading-[1.43] text-ink2">
+              {repost.text}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Attachment - full-bleed, the way the feed renders it */}
       {imageUrl && (
