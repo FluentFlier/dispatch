@@ -367,17 +367,30 @@ export async function deleteUnipileAccount(unipileAccountId: string): Promise<bo
  * the account cross-wire. After an authoritative bind, delete the person's OTHER
  * boxes (same stable publicIdentifier, different id), keeping only `keepId`.
  * Matching on publicIdentifier only — never deletes a different person's box.
+ *
+ * DANGER, and why `knownOwnIds` exists: one Unipile API key covers dev AND
+ * production, so "the person's other boxes" spans environments. Connecting the
+ * same LinkedIn from a dev machine used to delete the LIVE production box;
+ * Unipile then emitted a delete event and the account showed as disconnected
+ * although the user never disconnected anything. Callers now pass the ids that
+ * account has actually held for THIS user (from their own row), and anything
+ * not on that list is left alone — an unrecognised box may well be another
+ * environment's live session.
  */
 export async function pruneDuplicateUnipileAccounts(
   keepId: string,
   publicIdentifier: string | null,
+  knownOwnIds: string[] = [],
 ): Promise<number> {
   if (!publicIdentifier) return 0;
+  const deletable = new Set(knownOwnIds.filter((id) => id && id !== keepId));
+  if (deletable.size === 0) return 0;
   let removed = 0;
   try {
     const all = await listUnipileAccounts();
     for (const account of all) {
       if (account.id === keepId) continue;
+      if (!deletable.has(account.id)) continue;
       const pid = account.connection_params?.im?.publicIdentifier ?? null;
       if (pid && pid === publicIdentifier) {
         if (await deleteUnipileAccount(account.id)) removed++;
