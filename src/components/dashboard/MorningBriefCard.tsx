@@ -41,7 +41,7 @@ export function MorningBriefStrip({ brief }: { brief: MorningBrief }) {
               >
                 Draft on this <ArrowRight className="h-3 w-3" />
               </Link>
-              <TrendDetectAction hasTrend showWhenEmpty={false} />
+              <TrendDetectAction hasTrend />
             </div>
           ) : (
             <>

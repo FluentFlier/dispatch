@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 interface TrendDetectActionProps {
   /** When true, show the refresh control even if trends exist. */
@@ -25,7 +26,7 @@ export function TrendDetectAction({ showWhenEmpty = true, hasTrend = false }: Tr
     setLoading(true);
     setError('');
     try {
-      const res = await fetch('/api/trends/detect', {
+      const res = await fetchWithAuth('/api/trends/detect', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({}),
