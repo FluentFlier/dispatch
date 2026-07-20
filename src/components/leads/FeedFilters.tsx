@@ -59,7 +59,7 @@ const selectCls =
 
 /**
  * The feed's control bar: a status segmented row, source/signal/ICP-vertical
- * selects, a search box, and a score/recency sort toggle. Status, source, and
+ * selects, a search box, and a fit/warm/recent sort toggle. Status, source, and
  * signal type drive the `/api/leads/feed` query; vertical, search, and sort are
  * applied client-side. Everything is a native form control so keyboard users
  * and screen readers get correct semantics for free; each control carries an
@@ -173,7 +173,7 @@ export function FeedFilters({ state, onChange, verticals }: FeedFiltersProps) {
             </>
           )}
 
-          {/* Sort toggle: score → warm → recency */}
+          {/* Sort toggle: best fit -> warm -> recent */}
           <button
             type="button"
             onClick={() =>
@@ -185,7 +185,7 @@ export function FeedFilters({ state, onChange, verticals }: FeedFiltersProps) {
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-secondary px-2.5 py-1.5 text-xs text-text-secondary cursor-pointer hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
           >
             <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
-            {state.sort === 'score' ? 'Score' : state.sort === 'warm' ? 'Warm' : 'Recent'}
+            {state.sort === 'score' ? 'Best fit' : state.sort === 'warm' ? 'Warm' : 'Recent'}
           </button>
         </div>
       )}

@@ -180,7 +180,7 @@ export function GtmCommandCenter() {
             <p className="text-xs text-ink2">Sent today</p>
             <p className="text-2xl font-semibold text-flame tabular-nums">{pipeline.sentToday}</p>
           </div>
-          <div className="min-w-[240px] flex-1">
+          <div className="w-[220px]">
             <LimitBar
               label="LinkedIn invites today"
               used={safety.usage.linkedin_invites_today}

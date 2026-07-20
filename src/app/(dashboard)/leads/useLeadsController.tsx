@@ -16,6 +16,7 @@ import type { WarmContactRow } from '@/lib/social-graph/types';
 import type { YcCompanyDetail } from '@/lib/signals/ingest/yc-algolia';
 import { busyActionFor as deriveBusyAction, type LeadBusy } from '@/lib/leads/busy';
 import { draftAllOutcome } from '@/lib/leads/feed-view';
+import { compareFeedCards } from '@/lib/leads/feed-sort';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
 
@@ -311,8 +312,7 @@ export function useLeadsController() {
       return true;
     });
     const sorted = filtered.slice().sort((a, b) => {
-      if (filters.sort === 'recency') return Date.parse(b.detectedAt) - Date.parse(a.detectedAt);
-      return b.score - a.score;
+      return compareFeedCards(a, b, filters.sort);
     });
     // Followed companies pinned on top (stable within each group).
     return sorted.sort((a, b) => Number(isFollowed(b)) - Number(isFollowed(a)));

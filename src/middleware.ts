@@ -64,7 +64,11 @@ export function middleware(request: NextRequest): NextResponse {
 
   if (pathname === '/login' && token) {
     const { searchParams } = request.nextUrl;
-    if (searchParams.get('expired') === '1' || searchParams.has('error')) {
+    if (
+      searchParams.get('expired') === '1' ||
+      searchParams.has('error') ||
+      searchParams.has('insforge_code')
+    ) {
       return NextResponse.next({ request: { headers: requestHeaders } });
     }
     // A returning user can land on /login holding an EXPIRED access token (the

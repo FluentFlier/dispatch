@@ -25,6 +25,21 @@ describe('auth-cookies', () => {
 });
 
 describe('middleware - expired JWT refresh redirect', () => {
+  it('allows the Google OAuth callback on /login to render even when an old token cookie exists', async () => {
+    const { middleware } = await import('@/middleware');
+    const { NextRequest } = await import('next/server');
+    const valid = makeJwt(Math.floor(Date.now() / 1000) + 3600);
+
+    const request = new NextRequest('http://localhost/login?insforge_code=oauth-code', {
+      headers: {
+        cookie: `content-os-token=${valid}; content-os-refresh=rt_abc`,
+      },
+    });
+
+    const response = await middleware(request);
+    expect(response.status).not.toBe(307);
+  });
+
   it('redirects protected routes with expired JWT + refresh cookie to /api/auth/refresh', async () => {
     const { middleware } = await import('@/middleware');
     const { NextRequest } = await import('next/server');

@@ -21,6 +21,19 @@ export interface UnifiedContact {
   email?: string | null;
 }
 
+export type LeadQualityTier = 'urgent' | 'high' | 'medium' | 'low' | 'needs_contact' | 'needs_review';
+
+/** Human-readable explanation of why a feed card is worth reviewing. */
+export interface LeadQualityBreakdown {
+  tier: LeadQualityTier;
+  label: string;
+  fitLabel: string;
+  reachabilityLabel: string;
+  timingLabel: string;
+  reasons: string[];
+  blockers: string[];
+}
+
 /** Common shape both signal events and directory leads are normalized into for the feed. */
 export interface UnifiedLeadCard {
   id: string;
@@ -35,7 +48,15 @@ export interface UnifiedLeadCard {
   accelerator: string | null;
   contact: UnifiedContact | null;
   contactStatus: string | null;
+  /** ICP/signal fit without urgency boosts. Used for "Best fit" sorting. */
+  fitScore?: number;
+  /** Time/reply urgency, separated from fit so warm leads do not masquerade as better ICP matches. */
+  urgencyScore?: number;
+  /** Reachability from 0-1 based on usable channels, not just a contact name. */
+  reachabilityScore?: number;
   score: number;
+  quality?: LeadQualityBreakdown;
+  nextActionLabel?: string;
   status: string;
   detectedAt: string;
   /** When this lead was first pulled into the workspace (import date shown on the card). */
@@ -89,6 +110,141 @@ function firstValidName(...candidates: Array<string | undefined>): string | unde
   return undefined;
 }
 
+function clamp01(n: number | null | undefined): number {
+  if (typeof n !== 'number' || Number.isNaN(n)) return 0;
+  return Math.max(0, Math.min(1, n));
+}
+
+function contactReachability(contact: UnifiedContact | null, contactStatus?: string | null): number {
+  if (contactStatus === 'no_contact' || !contact) return 0;
+  if (contact.linkedin_url || contact.x_handle || contact.email) return 1;
+  return 0;
+}
+
+function sourceReason(source: UnifiedLeadCard['source'], batch?: string | null): string {
+  if (source === 'yc_directory' || source === 'yc_launches') return batch ? `YC ${batch}` : 'YC company';
+  if (source === 'product_hunt') return batch ? `Product Hunt ${batch}` : 'Product Hunt listing';
+  if (source === 'web_discovery') return 'Found from ICP web discovery';
+  if (source === 'manual') return 'Imported lead';
+  if (source === 'linkedin') return 'LinkedIn signal';
+  return 'X signal';
+}
+
+function fitLabel(score: number, signal = false): string {
+  if (score >= 0.75) return signal ? 'High-confidence signal' : 'Strong ICP fit';
+  if (score >= 0.45) return signal ? 'Possible signal' : 'Possible ICP fit';
+  if (score > 0) return signal ? 'Low-confidence signal' : 'Weak ICP fit';
+  return 'Unscored';
+}
+
+function reachabilityLabel(score: number): string {
+  return score > 0 ? 'Contact ready' : 'Needs contact';
+}
+
+function directoryUrgency(l: SignalLeadWithContacts): number {
+  if (l.needs_reply || l.nurture_stage === 'replied') return 1;
+  if (l.nurture_stage === 'connect_sent' || l.nurture_stage === 'dm_sent') return 0.75;
+  if (l.lead_status === 'drafted' || l.lead_status === 'approved') return 0.65;
+  if (l.last_inbound_at) {
+    const ageHours = (Date.now() - Date.parse(l.last_inbound_at)) / 3_600_000;
+    if (ageHours < 48) return 0.85;
+  }
+  return l.digest_date === new Date().toISOString().slice(0, 10) ? 0.45 : 0.2;
+}
+
+function directoryTimingLabel(l: SignalLeadWithContacts): string {
+  if (l.needs_reply || l.nurture_stage === 'replied') return 'Needs reply';
+  if (l.nurture_stage === 'connect_sent' || l.nurture_stage === 'dm_sent') return 'Sequence active';
+  if (l.lead_status === 'drafted') return 'Draft ready';
+  if (l.digest_date === new Date().toISOString().slice(0, 10)) return 'New today';
+  return 'In backlog';
+}
+
+function intentReasons(flags: SignalLeadWithContacts['intent_flags']): string[] {
+  const out: string[] = [];
+  if (flags?.raised) out.push('Raised-funding intent');
+  if (flags?.hiring) out.push('Hiring signal');
+  if (flags?.seeking_investors) out.push('Seeking investors');
+  if (flags?.seeking_tools) out.push('Seeking tools');
+  return out;
+}
+
+function directoryNextAction(l: SignalLeadWithContacts, reachable: number): string {
+  if (l.needs_reply || l.nurture_stage === 'replied') return 'Reply';
+  if (l.lead_status === 'sent') return 'Track reply';
+  if (l.lead_status === 'drafted' || l.outreach?.draft_text) return 'Review draft';
+  if (reachable <= 0) return 'Resolve contact';
+  return 'Draft message';
+}
+
+function directoryQuality(l: SignalLeadWithContacts, reachable: number, urgency: number): LeadQualityBreakdown {
+  const fit = clamp01(l.fit_score ?? l.rank_score);
+  const reasons: string[] = [];
+  const blockers: string[] = [];
+  const neutralFit = Math.abs(fit - 0.5) < 0.001;
+
+  if (neutralFit) reasons.push('Neutral ICP score - review fit or refine ICP');
+  else reasons.push(`${fitLabel(fit)} (${fit.toFixed(2)})`);
+
+  reasons.push(sourceReason(l.source, l.batch));
+  const tags = (l.tags ?? []).slice(0, 2).filter(Boolean);
+  if (tags.length > 0) reasons.push(`Tags: ${tags.join(', ')}`);
+  reasons.push(...intentReasons(l.intent_flags));
+  if (reachable <= 0) blockers.push('No reachable contact yet');
+
+  let tier: LeadQualityTier = 'low';
+  let label = 'Needs review';
+  if (l.needs_reply || l.nurture_stage === 'replied') {
+    tier = 'urgent';
+    label = 'Needs reply';
+  } else if (reachable <= 0 && fit >= 0.55) {
+    tier = 'needs_contact';
+    label = 'Good fit - needs contact';
+  } else if (fit >= 0.75) {
+    tier = 'high';
+    label = 'Strong fit';
+  } else if (fit >= 0.45) {
+    tier = 'medium';
+    label = 'Possible fit';
+  } else {
+    tier = 'needs_review';
+    label = 'Needs review';
+  }
+
+  if (urgency >= 0.65 && label !== 'Needs reply') reasons.push(directoryTimingLabel(l));
+
+  return {
+    tier,
+    label,
+    fitLabel: fitLabel(fit),
+    reachabilityLabel: reachabilityLabel(reachable),
+    timingLabel: directoryTimingLabel(l),
+    reasons: Array.from(new Set(reasons)).slice(0, 4),
+    blockers,
+  };
+}
+
+function signalQuality(e: SignalEventWithPost, reachable: number): LeadQualityBreakdown {
+  const confidence = clamp01(e.confidence ?? 0);
+  const reasons = [
+    fitLabel(confidence, true),
+    sourceReason((e.raw_post?.platform === 'linkedin' ? 'linkedin' : 'x'), e.batch),
+  ];
+  if (e.signal_summary) reasons.push(e.signal_summary);
+  if (e.batch) reasons.push(e.batch);
+  const blockers = reachable > 0 ? [] : ['No direct messaging channel yet'];
+
+  return {
+    tier: reachable > 0 ? (confidence >= 0.75 ? 'high' : 'medium') : 'needs_contact',
+    label: reachable > 0 ? 'Live signal' : 'Signal - needs contact',
+    fitLabel: fitLabel(confidence, true),
+    reachabilityLabel: reachabilityLabel(reachable),
+    timingLabel: 'New signal',
+    reasons: Array.from(new Set(reasons.filter(Boolean))).slice(0, 4),
+    blockers,
+  };
+}
+
 /**
  * Maps a real-time signal event (a detected X/LinkedIn post) into a unified
  * feed card. Falls back to 'x' when the source platform is unknown so the
@@ -107,6 +263,18 @@ export function normalizeEvent(e: SignalEventWithPost): UnifiedLeadCard {
     e.raw_post?.author_name ?? undefined,
     e.raw_post?.author_handle?.replace(/^@/, ''),
   ) || 'Unknown company';
+  const contact =
+    e.signal_type === 'keyword_match' && e.raw_post?.author_handle
+      ? {
+          name: e.person_name ?? e.raw_post.author_name ?? e.raw_post.author_handle,
+          x_handle: e.raw_post.author_handle,
+        }
+      : e.person_name
+        ? { name: e.person_name }
+        : null;
+  const fitScore = clamp01(e.confidence ?? 0);
+  const reachabilityScore = contactReachability(contact, null);
+  const urgencyScore = 0.5;
   return {
     id: e.id,
     kind: 'signal',
@@ -121,17 +289,14 @@ export function normalizeEvent(e: SignalEventWithPost): UnifiedLeadCard {
     // Keyword matches carry the author's X handle as a real messaging channel:
     // the poster IS the lead, so the card should be contact-ready for the X-DM
     // flow. Other signal types keep the name-only contact (no channel implied).
-    contact:
-      e.signal_type === 'keyword_match' && e.raw_post?.author_handle
-        ? {
-            name: e.person_name ?? e.raw_post.author_name ?? e.raw_post.author_handle,
-            x_handle: e.raw_post.author_handle,
-          }
-        : e.person_name
-          ? { name: e.person_name }
-          : null,
+    contact,
     contactStatus: null,
-    score: e.confidence ?? 0,
+    fitScore,
+    urgencyScore,
+    reachabilityScore,
+    score: fitScore,
+    quality: signalQuality(e, reachabilityScore),
+    nextActionLabel: reachabilityScore > 0 ? 'Draft message' : 'Review signal',
     status: SIGNAL_STATUS_TO_LEAD_STATUS[e.status],
     detectedAt: e.created_at,
     firstSeenAt: e.created_at,
@@ -165,6 +330,13 @@ export function normalizeLead(l: SignalLeadWithContacts): UnifiedLeadCard {
   // signal types stay exclusive to the live Signal engine (normalizeEvent).
   const signalType: SignalType | null =
     l.source === 'product_hunt' || l.source === 'yc_launches' ? 'launch' : null;
+  const contact = pc
+    ? { name: pc.name, role: pc.role, linkedin_url: pc.linkedin_url, x_handle: pc.x_handle, email: pc.email }
+    : null;
+  const fitScore = clamp01(l.fit_score ?? l.rank_score ?? 0);
+  const urgencyScore = directoryUrgency(l);
+  const reachabilityScore = contactReachability(contact, l.contact_status);
+  const quality = directoryQuality(l, reachabilityScore, urgencyScore);
   return {
     id: l.id,
     kind: 'directory',
@@ -176,11 +348,14 @@ export function normalizeLead(l: SignalLeadWithContacts): UnifiedLeadCard {
     sourceUrl: l.website,
     batch: l.batch,
     accelerator: l.source === 'yc_directory' || l.source === 'yc_launches' ? 'Y Combinator' : null,
-    contact: pc
-      ? { name: pc.name, role: pc.role, linkedin_url: pc.linkedin_url, x_handle: pc.x_handle, email: pc.email }
-      : null,
+    contact,
     contactStatus: l.contact_status,
+    fitScore,
+    urgencyScore,
+    reachabilityScore,
     score: (l.rank_score ?? l.fit_score ?? 0) + warmFeedBoost(l),
+    quality,
+    nextActionLabel: directoryNextAction(l, reachabilityScore),
     status: l.needs_reply ? 'needs_reply' : l.lead_status,
     detectedAt: l.last_inbound_at ?? l.last_seen_at ?? l.first_seen_at,
     firstSeenAt: l.first_seen_at ?? null,

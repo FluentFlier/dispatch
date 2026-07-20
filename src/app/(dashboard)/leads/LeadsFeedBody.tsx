@@ -77,7 +77,6 @@ export function LeadsFeedBody(props: LeadsController) {
     selectedCard, selectedLead,
     icpConfigured, verticals, filtersActive,
   } = props;
-
   return (
     <div className="max-w-6xl mx-auto space-y-6">
       <PageHeader
@@ -343,6 +342,7 @@ export function LeadsFeedBody(props: LeadsController) {
               <LeadDetail
                 lead={selectedLead}
                 company={companyById[selectedLead.id]}
+                quality={selectedCard.quality}
                 onRetryCompany={() => retryCompany(selectedLead.id)}
                 draft={drafts[selectedLead.id] ?? selectedLead.outreach?.draft_text ?? ''}
                 onDraftChange={(v) => setDrafts((d) => ({ ...d, [selectedLead.id]: v }))}

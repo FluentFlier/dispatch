@@ -14,6 +14,7 @@ import { mergeFeed, buildUnifiedFeed } from '@/lib/signals/feed/store';
 import { listEventsWithPosts } from '@/lib/signals/store';
 import { isReachable, contactPillLabel } from '@/components/leads/feed-format';
 import { resolveSignalOutreach, isGuardBlock, SIGNAL_CONNECT_LIMIT } from '@/components/leads/signal-outreach';
+import { compareFeedCards } from '@/lib/leads/feed-sort';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import type { IngestedPost, SignalEventRow, SignalLeadRow } from '@/lib/signals/types';
 
@@ -276,6 +277,11 @@ describe('Phase: Unified Leads', () => {
       expect(card.contact?.name).toBe('Sam');
       expect(card.batch).toBe('S24');
       expect(card.score).toBeCloseTo(0.9);
+      expect(card.fitScore).toBeCloseTo(0.9);
+      expect(card.reachabilityScore).toBe(1);
+      expect(card.quality?.label).toBe('Strong fit');
+      expect(card.quality?.reasons.join(' ')).toContain('Strong ICP fit');
+      expect(card.nextActionLabel).toBe('Draft message');
     });
 
     it('maps a pending signal event to lead status "new" so it survives the default feed filter (regression: signal cards were hidden from the default view)', () => {
@@ -341,6 +347,26 @@ describe('Phase: Unified Leads', () => {
         {},
       );
       expect(out.map((c) => c.id)).toEqual(['b', 'a']);
+    });
+
+    it('sorts best-fit separately from warm urgency', () => {
+      const highFitCold = card({
+        id: 'high-fit-cold',
+        score: 0.9,
+        fitScore: 0.9,
+        urgencyScore: 0.1,
+        reachabilityScore: 1,
+      });
+      const lowerFitWarm = card({
+        id: 'lower-fit-warm',
+        score: 0.6,
+        fitScore: 0.6,
+        urgencyScore: 1,
+        reachabilityScore: 1,
+      });
+
+      expect(compareFeedCards(highFitCold, lowerFitWarm, 'score')).toBeLessThan(0);
+      expect(compareFeedCards(highFitCold, lowerFitWarm, 'warm')).toBeGreaterThan(0);
     });
 
     it('filters by status', () => {
