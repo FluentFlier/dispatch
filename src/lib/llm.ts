@@ -43,6 +43,17 @@ const MIN_BACKOFF_MS = 1_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
+ * App-wide standing rule: no em dashes in ANY model output, ever. Prompts ask for
+ * it and models still emit them, so this is the guarantee, applied at the single
+ * point every provider response passes through (primary, role endpoint, fallback)
+ * rather than per feature. Safe on JSON replies: it only rewrites characters
+ * inside string values, never JSON structure.
+ */
+export function stripEmDashes(text: string): string {
+  return text.replace(/\s*—\s*/g, ' - ').replace(/–/g, '-');
+}
+
+/**
  * OpenAI reasoning models (o-series and the GPT-5 family, e.g. gpt-5.4-mini)
  * change the chat-completions contract: they reject the classic `max_tokens`
  * param (require `max_completion_tokens`) and only accept the default
@@ -264,8 +275,12 @@ async function callProvider(
     ],
   };
   if (isReasoningModel(provider.model)) {
-    // Reasoning models: new token param, and no custom temperature.
-    body.max_completion_tokens = maxTokens;
+    // Reasoning models: new token param, and no custom temperature. The cap
+    // covers hidden reasoning + visible content, so a caller's small explicit
+    // budget (e.g. 600) is spent entirely on reasoning and the reply comes back
+    // finish_reason:"length" with truncated/empty content. Floor it at the
+    // reasoning default - a ceiling, not spend; billing counts emitted tokens.
+    body.max_completion_tokens = Math.max(maxTokens, REASONING_DEFAULT_MAX_TOKENS);
   } else {
     body.max_tokens = maxTokens;
     body.temperature = options.temperature ?? DEFAULT_TEMPERATURE;
@@ -299,7 +314,7 @@ async function callProvider(
       };
       const content = data.choices?.[0]?.message?.content;
       if (!content) throw new LlmError('Empty response from LLM provider', 502);
-      return content;
+      return stripEmDashes(content);
     }
 
     const bodyText = await response.text().catch(() => '');
@@ -390,7 +405,7 @@ export async function chatCompletion(
   const primary = resolvePrimary(options);
   if (!primary) {
     // No provider configured -> legacy HuggingFace SDK path (last resort).
-    return generateContentHF(systemPrompt, userPrompt);
+    return stripEmDashes(await generateContentHF(systemPrompt, userPrompt));
   }
 
   const fallback = getFallbackProvider(primary);
