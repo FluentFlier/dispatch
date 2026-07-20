@@ -413,22 +413,30 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                 </label>
               </div>
 
-              <div>
-                <span className={labelClass}>Image</span>
-                <ImageUpload
-                  imageUrl={form.image_url || null}
-                  onUpload={(url) => {
-                    update('image_url', url);
-                    setTimeout(autoSave, 100);
-                  }}
-                  onRemove={() => {
-                    update('image_url', '');
-                    setTimeout(autoSave, 100);
-                  }}
-                />
-              </div>
+              {/* Media and its limits only matter while the post can still
+                  change. On a live post, swapping the image would update our
+                  row and nothing on LinkedIn, and the media is already visible
+                  in the preview above - so there is nothing to show here. */}
+              {!isPosted && (
+                <>
+                  <div>
+                    <span className={labelClass}>Image</span>
+                    <ImageUpload
+                      imageUrl={form.image_url || null}
+                      onUpload={(url) => {
+                        update('image_url', url);
+                        setTimeout(autoSave, 100);
+                      }}
+                      onRemove={() => {
+                        update('image_url', '');
+                        setTimeout(autoSave, 100);
+                      }}
+                    />
+                  </div>
 
-              <PlatformConstraints platform={form.platform} hasImage={Boolean(form.image_url)} compact />
+                  <PlatformConstraints platform={form.platform} hasImage={Boolean(form.image_url)} compact />
+                </>
+              )}
 
               {(form.voice_match_score != null || form.ai_score != null) && (
                 <div className="rounded-md border border-border bg-bg-secondary p-3 text-[13px]">
