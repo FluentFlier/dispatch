@@ -73,6 +73,16 @@ See [`.env.example`](.env.example). Required for core functionality:
 
 Optional: Stripe keys, platform OAuth keys (direct mode), `CRON_SECRET`, Unipile (`UNIPILE_API_KEY` + `UNIPILE_DSN`).
 
+### Notion context (hosted MCP)
+
+Settings → Connections → Knowledge connects directly to Notion's hosted MCP at
+`https://mcp.notion.com/mcp`; it does not use Composio. The user completes Notion
+OAuth, adds up to eight page/database URLs, and syncs them into workspace-scoped
+Brain pages. Apply `migrations/20260719120000_add-notion-mcp-connections.sql`
+before connecting. `TOKEN_ENCRYPTION_KEY` and an HTTPS `NEXT_PUBLIC_APP_URL` are
+required in deployed environments; no Notion client secret is configured because
+the MCP flow uses PKCE and dynamic client registration.
+
 **Apply schema in order** - see [`db/APPLY_ORDER.md`](db/APPLY_ORDER.md). Do not apply only `schema.sql`; Leads, engagement, and event capture need additional SQL files.
 
 ## Project layout
