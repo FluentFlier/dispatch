@@ -300,7 +300,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
           role="dialog"
           aria-modal="true"
           onClick={(e) => e.stopPropagation()}
-          className="relative w-full max-w-3xl max-h-full rounded-2xl bg-bg-primary border border-border shadow-2xl overflow-hidden flex flex-col"
+          className="relative w-full max-w-5xl max-h-full rounded-2xl bg-bg-primary border border-border shadow-2xl overflow-hidden flex flex-col"
         >
         <div className="flex items-center justify-between p-4 border-b border-border shrink-0 bg-bg-secondary">
           <h2 className="font-heading text-lg font-bold text-text-primary truncate pr-2">

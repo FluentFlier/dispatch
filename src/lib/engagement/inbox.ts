@@ -449,13 +449,48 @@ export async function sendEngagementReplies(
     );
   }
 
+  // Hand-written replies arrive without a queue row - give them one (reusing
+  // any unsent row for the same comment) so the rest of this function, which is
+  // entirely queue-driven, can send them like any other reply.
+  const manualQueueIds: string[] = [];
+  for (const [postCommentId, text] of Object.entries(input.manualDrafts ?? {})) {
+    if (!text.trim()) continue;
+    const { data: existing } = await client.database
+      .from('comment_reply_queue')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('post_comment_id', postCommentId)
+      .neq('status', 'sent')
+      .limit(1);
+
+    const hit = (existing?.[0] as { id: string } | undefined)?.id;
+    if (hit) {
+      await client.database
+        .from('comment_reply_queue')
+        .update({ draft_reply: text, status: 'approved', updated_at: new Date().toISOString() })
+        .eq('id', hit)
+        .eq('user_id', userId);
+      manualQueueIds.push(hit);
+      continue;
+    }
+
+    const { data: created } = await client.database
+      .from('comment_reply_queue')
+      .insert([{ user_id: userId, post_comment_id: postCommentId, draft_reply: text, status: 'approved' }])
+      .select('id');
+    const createdId = (created?.[0] as { id: string } | undefined)?.id;
+    if (createdId) manualQueueIds.push(createdId);
+  }
+
+  const queueIds = [...(input.queueIds ?? []), ...manualQueueIds];
+
   let queueQuery = client.database
     .from('comment_reply_queue')
     .select('*')
     .eq('user_id', userId);
 
-  if (input.queueIds?.length) {
-    queueQuery = queueQuery.in('id', input.queueIds);
+  if (queueIds.length) {
+    queueQuery = queueQuery.in('id', queueIds);
   } else if (input.approveFirst) {
     queueQuery = queueQuery.eq('status', 'draft');
   } else {

@@ -145,6 +145,14 @@ export interface SendRepliesInput {
   approveFirst?: boolean;
   /** Override draft text before send (queue id → reply text) */
   draftOverrides?: Record<string, string>;
+  /**
+   * Replies the creator wrote themselves (post_comment id → reply text).
+   *
+   * comment_reply_queue is only ever written by the AI drafting step, so a
+   * hand-written reply had no row to send and the send button stayed disabled
+   * until you asked for a draft you did not want. These get a row on the way in.
+   */
+  manualDrafts?: Record<string, string>;
 }
 
 export interface SendRepliesResult {

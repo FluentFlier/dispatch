@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
@@ -66,6 +66,17 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
   const [sendingBulk, setSendingBulk] = useState(false);
   const [draftEdits, setDraftEdits] = useState<Record<string, string>>({});
   const [sendingId, setSendingId] = useState<string | null>(null);
+  // Comment ids ticked for a batch send from the footer button.
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+
+  const toggleSelect = useCallback((commentId: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(commentId)) next.delete(commentId);
+      else next.add(commentId);
+      return next;
+    });
+  }, []);
 
   const inboxUrl = useMemo(() => {
     const params = new URLSearchParams();
@@ -172,12 +183,33 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
   };
 
   const handleSendApproved = async () => {
+    // With rows ticked, send exactly those - with whatever is in each box,
+    // typed or drafted. With nothing ticked, fall back to every approved draft.
+    const picked = (data?.groups ?? [])
+      .flatMap((g) => g.comments)
+      .filter((item) => selected.has(item.comment.id));
+
+    const manualDrafts: Record<string, string> = {};
+    for (const item of picked) {
+      const text = draftEdits[item.queue?.id ?? item.comment.id] ?? item.queue?.draft_reply ?? '';
+      if (text.trim()) manualDrafts[item.comment.id] = text;
+    }
+
+    if (picked.length > 0 && Object.keys(manualDrafts).length === 0) {
+      toast('Write a reply for the selected comments first', 'error');
+      return;
+    }
+
     setSendingBulk(true);
     try {
       const res = await fetch('/api/engagement/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approveFirst: true }),
+        body: JSON.stringify(
+          Object.keys(manualDrafts).length > 0
+            ? { approveFirst: true, manualDrafts }
+            : { approveFirst: true },
+        ),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Send failed');
@@ -191,6 +223,7 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
       } else {
         toast('No approved drafts to send');
       }
+      setSelected(new Set());
       await loadInbox();
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Send failed', 'error');
@@ -200,26 +233,23 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
   };
 
   const handleApproveSend = async (item: InboxComment) => {
-    if (!item.queue?.id) {
-      toast('Draft a reply first', 'error');
-      return;
-    }
-    const queueId = item.queue.id;
-    const draftText = draftEdits[queueId] ?? item.queue.draft_reply;
+    // Keyed by comment, not queue: a hand-written reply has no queue row yet
+    // and the server creates one. Sending no longer requires an AI draft first.
+    const draftKey = item.queue?.id ?? item.comment.id;
+    const draftText = draftEdits[draftKey] ?? item.queue?.draft_reply ?? '';
     if (!draftText.trim()) {
       toast('Write a reply before sending', 'error');
       return;
     }
 
-    setSendingId(queueId);
+    setSendingId(draftKey);
     try {
       const res = await fetch('/api/engagement/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          queueIds: [queueId],
           approveFirst: true,
-          draftOverrides: { [queueId]: draftText },
+          manualDrafts: { [item.comment.id]: draftText },
         }),
       });
       const result = await res.json();
@@ -309,7 +339,7 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
         className="min-h-[44px]"
       >
         <Send className="h-4 w-4" />
-        {actionLabels.send}
+        {selected.size > 0 ? `Send ${selected.size}` : actionLabels.send}
       </Button>
     </div>
   );
@@ -378,6 +408,8 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
               sendingId={sendingId}
               onDraftChange={updateDraft}
               onApproveSend={handleApproveSend}
+              selected={selected}
+              onToggleSelect={toggleSelect}
             />
           ))}
         </div>
@@ -393,6 +425,8 @@ function PostCommentGroup({
   sendingId,
   onDraftChange,
   onApproveSend,
+  selected,
+  onToggleSelect,
 }: {
   group: InboxPostGroup;
   compact: boolean;
@@ -400,15 +434,21 @@ function PostCommentGroup({
   sendingId: string | null;
   onDraftChange: (queueId: string, text: string) => void;
   onApproveSend: (item: InboxComment) => void;
+  selected: Set<string>;
+  onToggleSelect: (commentId: string) => void;
 }) {
   const needs = group.stats.needs_reply;
   const drafted = group.stats.drafted;
 
   return (
     <section className="rounded-lg border border-border bg-bg-secondary shadow-card overflow-hidden">
+      {/* The post title is dropped in the editor: you got here by opening that
+          exact post, and its title is already the modal heading. */}
       <div className="px-4 py-3 border-b border-hair bg-bg-tertiary/60">
-        <h2 className="font-normal tracking-[-0.025em] text-ink text-[18px] leading-tight">{group.post_title}</h2>
-        <p className="mt-1.5 text-[11px] tracking-[0.08em] text-ink3">
+        {!compact && (
+          <h2 className="font-normal tracking-[-0.025em] text-ink text-[18px] leading-tight">{group.post_title}</h2>
+        )}
+        <p className={`text-[11px] tracking-[0.08em] text-ink3 ${compact ? '' : 'mt-1.5'}`}>
           {group.post_platform} · {group.stats.total} comment
           {group.stats.total === 1 ? '' : 's'}
           {needs > 0 && ` · ${needs} waiting for you`}
@@ -425,10 +465,46 @@ function PostCommentGroup({
             sendingId={sendingId}
             onDraftChange={onDraftChange}
             onApproveSend={onApproveSend}
+            selected={selected.has(item.comment.id)}
+            onToggleSelect={onToggleSelect}
           />
         ))}
       </ul>
     </section>
+  );
+}
+
+/**
+ * Grows with what you type, from one line up to a cap, then scrolls. A fixed
+ * three-row box wasted space on a one-line reply and hid the end of a long one.
+ */
+function AutoGrowReply({
+  value,
+  placeholder,
+  onChange,
+}: {
+  value: string;
+  placeholder: string;
+  onChange: (text: string) => void;
+}) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${Math.min(el.scrollHeight, 160)}px`;
+  }, [value]);
+
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={value}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value)}
+      className="mt-1.5 block max-h-40 w-full resize-none overflow-y-auto rounded-md border border-border bg-bg-primary px-3 py-2 text-[13px] leading-[1.5] text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-border-hover"
+    />
   );
 }
 
@@ -438,23 +514,36 @@ function CommentRow({
   sendingId,
   onDraftChange,
   onApproveSend,
+  selected,
+  onToggleSelect,
 }: {
   item: InboxComment;
   draftEdits: Record<string, string>;
   sendingId: string | null;
   onDraftChange: (queueId: string, text: string) => void;
   onApproveSend: (item: InboxComment) => void;
+  selected: boolean;
+  onToggleSelect: (commentId: string) => void;
 }) {
   const { comment, queue } = item;
   const isSent = queue?.status === 'sent' || Boolean(item.answered_natively);
-  const queueId = queue?.id;
-  const draftValue =
-    queueId != null
-      ? (draftEdits[queueId] ?? queue?.draft_reply ?? '')
-      : '';
+  // Drafts are keyed by queue id when the AI wrote one, and by comment id when
+  // the reply is hand-written and has no queue row yet.
+  const draftKey = queue?.id ?? comment.id;
+  const draftValue = draftEdits[draftKey] ?? queue?.draft_reply ?? '';
 
   return (
-    <li className="p-4 space-y-3">
+    <li className="flex gap-3 p-4">
+      {!isSent && (
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={() => onToggleSelect(comment.id)}
+          aria-label={`Select reply to ${authorLabel(item)}`}
+          className="mt-1 h-4 w-4 shrink-0 cursor-pointer accent-accent-primary"
+        />
+      )}
+      <div className="min-w-0 flex-1 space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-[13px] font-medium text-ink">{authorLabel(item)}</p>
@@ -483,36 +572,31 @@ function CommentRow({
       {!isSent && (
         <div className="space-y-2">
           <label className="block">
-            <span className="section-label">
-              Your reply
-            </span>
-            <Textarea
-              rows={3}
+            <span className="section-label">Your reply</span>
+            {/* No longer gated on an AI draft existing: you can type a reply and
+                send it, and the server creates the queue row on the way through. */}
+            <AutoGrowReply
               value={draftValue}
-              disabled={!queueId}
-              placeholder={
-                queueId
-                  ? 'Edit the draft reply…'
-                  : 'Tap “Draft replies” to generate a reply in your voice'
-              }
-              onChange={(e) => queueId && onDraftChange(queueId, e.target.value)}
-              className="mt-1.5 min-h-[44px]"
+              placeholder="Write a reply, or tap “Draft” for one in your voice…"
+              onChange={(text) => onDraftChange(draftKey, text)}
             />
           </label>
           {queue?.last_error && (
             <p className="text-xs text-accent-dark">{queue.last_error}</p>
           )}
-          <Button
-            variant="primary"
-            size="md"
-            className="w-full sm:w-auto min-h-[44px]"
-            disabled={!queueId || !draftValue.trim()}
-            loading={sendingId === queueId}
-            onClick={() => onApproveSend(item)}
-          >
-            <Send className="h-4 w-4" />
-            Approve &amp; Send
-          </Button>
+          <div className="flex justify-end">
+            <Button
+              variant="primary"
+              size="sm"
+              className="min-h-[36px]"
+              disabled={!draftValue.trim()}
+              loading={sendingId === draftKey}
+              onClick={() => onApproveSend(item)}
+            >
+              <Send className="h-4 w-4" />
+              Send
+            </Button>
+          </div>
         </div>
       )}
 
@@ -522,6 +606,7 @@ function CommentRow({
           {queue.draft_reply}
         </p>
       )}
+      </div>
     </li>
   );
 }

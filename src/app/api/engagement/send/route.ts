@@ -9,6 +9,7 @@ const SendSchema = z
     queueIds: z.array(z.string().uuid()).optional(),
     approveFirst: z.boolean().optional(),
     draftOverrides: z.record(z.string().uuid(), z.string()).optional(),
+    manualDrafts: z.record(z.string().uuid(), z.string()).optional(),
   })
   .strict();
 
