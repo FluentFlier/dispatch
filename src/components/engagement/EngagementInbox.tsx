@@ -21,6 +21,21 @@ import { normalizeDashboardPlatform } from '@/lib/constants';
 import { formatRelative } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
 
+/** LinkedIn/X-style age: 31m, 5h, 2d, 3mo, 1y. */
+function shortAge(iso: string): string {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.round(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.round(hours / 24);
+  if (days < 7) return `${days}d`;
+  const weeks = Math.round(days / 7);
+  if (days < 30) return `${weeks}w`;
+  const months = Math.round(days / 30);
+  if (months < 12) return `${months}mo`;
+  return `${Math.round(days / 365)}y`;
+}
+
 function authorLabel(comment: InboxComment): string {
   const c = comment.comment;
   if (c.author_name) return c.author_name;
@@ -541,7 +556,7 @@ function CommentRow({
   const isX = normalizeDashboardPlatform(platform) === 'twitter';
   const name = authorLabel(item);
   const handle = comment.author_handle?.replace(/^@/, '');
-  const when = comment.commented_at ? formatRelative(comment.commented_at) : null;
+  const when = comment.commented_at ? shortAge(comment.commented_at) : null;
 
   return (
     <li className="flex gap-3 p-4">
@@ -554,73 +569,68 @@ function CommentRow({
           className="mt-4 h-4 w-4 shrink-0 cursor-pointer accent-accent-primary"
         />
       )}
-      <div className="min-w-0 flex-1 space-y-3">
-      {/* The comment itself is drawn the way its own platform draws it, so this
-          reads as the feed the creator already knows rather than a third UI they
-          have to learn before they trust it: LinkedIn's grey bubble with the
-          name and headline inside and Like/Reply underneath, X's flat row with
-          name, @handle and time on one line above the text. */}
-      <div className="flex gap-2">
-        <div
-          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-[12px] font-semibold text-text-secondary`}
-        >
+      {/* Drawn the way its own platform draws it, so this reads as the feed the
+          creator already knows. LinkedIn: name and headline stacked, the age
+          right-aligned on the name line, flat text (no bubble - LinkedIn
+          dropped that), then Like | Reply. X: name, @handle and age on one
+          line with the text under it. */}
+      <div className="flex min-w-0 flex-1 gap-2">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-[12px] font-semibold text-text-secondary">
           {getInitials(name)}
         </div>
 
         <div className="min-w-0 flex-1">
           {isX ? (
-            <>
-              <p className="flex flex-wrap items-center gap-x-1.5 text-[14px] leading-tight">
-                <span className="font-bold text-ink">{name}</span>
-                {handle && <span className="text-ink3">@{handle}</span>}
-                {when && <span className="text-ink3">· {when}</span>}
-              </p>
-              <p className="mt-1 whitespace-pre-wrap text-[14px] leading-[1.4] text-text-primary">
-                {comment.comment_text}
-              </p>
-            </>
+            <p className="flex flex-wrap items-center gap-x-1.5 text-[14px] leading-tight">
+              <span className="font-bold text-ink">{name}</span>
+              {handle && <span className="text-ink3">@{handle}</span>}
+              {when && <span className="text-ink3">· {when}</span>}
+            </p>
           ) : (
-            <>
-              <div className="rounded-lg rounded-tl-none bg-bg-tertiary px-3 py-2">
-                <p className="text-[14px] font-semibold leading-tight text-ink">{name}</p>
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-[14px] font-semibold leading-tight text-ink">{name}</p>
                 {comment.author_headline && (
                   <p className="mt-0.5 line-clamp-1 text-[12px] text-ink3">{comment.author_headline}</p>
                 )}
-                <p className="mt-1.5 whitespace-pre-wrap text-[14px] leading-[1.43] text-text-primary">
-                  {comment.comment_text}
-                </p>
               </div>
-              <p className="mt-1 flex items-center gap-2 px-1 text-[12px] font-semibold text-ink3">
-                <span>Like</span>
-                <span aria-hidden>·</span>
-                <span>Reply</span>
-                {when && (
-                  <>
-                    <span aria-hidden>·</span>
-                    <span className="font-normal">{when}</span>
-                  </>
-                )}
-              </p>
-            </>
+              <div className="flex shrink-0 items-center gap-2">
+                {when && <span className="text-[12px] text-ink3">{when}</span>}
+                <span
+                  className={`inline-flex items-center gap-1 rounded-badge px-2 py-0.5 text-[11px] font-medium ${statusTone(queue, item.answered_natively)}`}
+                >
+                  {isSent ? (
+                    <CheckCircle2 className="h-3 w-3" />
+                  ) : queue?.status === 'failed' ? (
+                    <AlertCircle className="h-3 w-3" />
+                  ) : (
+                    <Clock className="h-3 w-3" />
+                  )}
+                  {statusLabel(queue, item.answered_natively)}
+                </span>
+              </div>
+            </div>
           )}
-        </div>
 
-        <span
-          className={`inline-flex h-fit shrink-0 items-center gap-1 rounded-badge px-2.5 py-1 text-xs font-medium ${statusTone(queue, item.answered_natively)}`}
-        >
-          {isSent ? (
-            <CheckCircle2 className="h-3.5 w-3.5" />
-          ) : queue?.status === 'failed' ? (
-            <AlertCircle className="h-3.5 w-3.5" />
-          ) : (
-            <Clock className="h-3.5 w-3.5" />
-          )}
-          {statusLabel(queue, item.answered_natively)}
-        </span>
-      </div>
+          <p className="mt-1.5 whitespace-pre-wrap text-[14px] leading-[1.43] text-text-primary">
+            {comment.comment_text}
+          </p>
+
+          <p className="mt-1.5 flex items-center gap-2 text-[12px] font-semibold text-ink3">
+            <span>Like</span>
+            <span aria-hidden className="text-hair">|</span>
+            <span>Reply</span>
+            {isX && (
+              <span
+                className={`ml-1 inline-flex items-center gap-1 rounded-badge px-2 py-0.5 text-[11px] font-medium ${statusTone(queue, item.answered_natively)}`}
+              >
+                {statusLabel(queue, item.answered_natively)}
+              </span>
+            )}
+          </p>
 
       {!isSent && (
-        <div className="space-y-2">
+        <div className="mt-3 space-y-2">
           <label className="block">
             <span className="section-label">{isX ? 'Post your reply' : 'Add a comment'}</span>
             {/* No longer gated on an AI draft existing: you can type a reply and
@@ -651,11 +661,12 @@ function CommentRow({
       )}
 
       {isSent && queue?.draft_reply && (
-        <p className="text-sm text-text-secondary bg-bg-tertiary rounded-md px-3 py-2">
+        <p className="mt-2 rounded-md bg-bg-tertiary px-3 py-2 text-[13px] text-text-secondary">
           <span className="font-medium text-text-primary">You replied: </span>
           {queue.draft_reply}
         </p>
       )}
+        </div>
       </div>
     </li>
   );
