@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ArrowUp, Loader2, Sparkles, Target } from 'lucide-react';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
-import type { DirectorySettingsRow } from '@/lib/signals/types';
+import type { DirectorySettingsRow, IcpProfileRow } from '@/lib/signals/types';
 
 export interface IcpChatMessage {
   id: string;
@@ -27,6 +27,8 @@ function welcomeMessage(hasIcp: boolean): string {
 interface IcpChatProps {
   settings: DirectorySettingsRow | null;
   onSettingsSaved?: (s: DirectorySettingsRow) => void;
+  /** Fires when the assistant saved an ICP, so the Saved ICPs list stays live. */
+  onProfilesChange?: (profiles: IcpProfileRow[]) => void;
   onDiscoveryComplete?: () => void;
   toast?: (message: string, type?: 'success' | 'error') => void;
   /** Tighter layout for the advanced drawer. */
@@ -39,6 +41,7 @@ interface IcpChatProps {
 export function IcpChat({
   settings,
   onSettingsSaved,
+  onProfilesChange,
   onDiscoveryComplete,
   toast,
   compact = false,
@@ -99,10 +102,9 @@ export function IcpChat({
   useEffect(() => {
     const icp = icpDescription.trim();
     const draft = input.trim();
-    if (draft.length < 3 && !icp) {
-      setSuggestions([]);
-      return;
-    }
+    // No early return on an empty first run: a brand-new workspace has neither
+    // an ICP nor a draft, and that is exactly when starter chips help most. The
+    // suggest route handles the empty case and returns openers.
     const ctrl = new AbortController();
     const timer = setTimeout(async () => {
       try {
@@ -241,6 +243,9 @@ export function IcpChat({
       }
 
       if (data.settings) onSettingsSaved?.(data.settings as DirectorySettingsRow);
+      // The route now mirrors an applied ICP into the Saved ICPs list, so push
+      // the fresh list up instead of leaving that card stale until a reload.
+      if (Array.isArray(data.profiles)) onProfilesChange?.(data.profiles as IcpProfileRow[]);
       if (data.applied) toast?.('ICP updated.', 'success');
       if (data.suggestRun) void runDiscovery();
     } catch (err) {
@@ -258,7 +263,7 @@ export function IcpChat({
       setLoading(false);
       inputRef.current?.focus();
     }
-  }, [input, loading, messages, onSettingsSaved, runDiscovery, toast]);
+  }, [input, loading, messages, onProfilesChange, onSettingsSaved, runDiscovery, toast]);
 
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -363,10 +368,10 @@ export function IcpChat({
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowUp className="h-4 w-4" />}
           </button>
         </div>
-        {/* Live, profile-aware refinement chips. Clicking one fills the input
-            (doesn't send) so the user can tweak before hitting enter. Discovery
-            is triggered by typing "find leads now" or the feed's Scrape button -
-            defining an ICP here only saves it. */}
+        {/* Live, profile-aware refinement chips. Clicking one sends it straight
+            to the assistant: the chip already reads as a complete instruction,
+            and the old fill-the-box behaviour looked broken (click, nothing
+            happens, user has to press enter on text they did not type). */}
         {suggestions.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2">
             {suggestions.map((s) => (
@@ -374,10 +379,7 @@ export function IcpChat({
                 key={s}
                 type="button"
                 disabled={loading || discovering}
-                onClick={() => {
-                  setInput(s);
-                  inputRef.current?.focus();
-                }}
+                onClick={() => void send(s)}
                 className="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full border border-border text-text-tertiary hover:text-text-primary hover:border-accent-primary/30 disabled:opacity-50"
               >
                 <Sparkles className="h-3 w-3" />

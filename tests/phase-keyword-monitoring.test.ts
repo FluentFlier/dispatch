@@ -346,8 +346,23 @@ describe('POST /api/signals/sources - topic cap and poll default', () => {
     vi.mocked(getActiveWorkspaceId).mockResolvedValue('ws-1');
   });
 
-  it('rejects the 6th keyword source with 422', async () => {
+  // The old 5-topic product cap is gone: how many topics are worth monitoring is
+  // the user's call (and the ICP assistant's on their behalf). A brief like
+  // "track YC Speedrun, HF0, funding, name changes and CEO changes" legitimately
+  // needs more than five, and silently refusing them made the assistant look
+  // like it had ignored the request. What remains is a runaway guard.
+  it('accepts a 6th keyword source now that the product cap is lifted', async () => {
     const { client } = makeSourcesClientStub(5);
+    vi.mocked(getServerClient).mockReturnValue(client);
+
+    const res = await postSource(
+      makeRequest({ platform: 'x', handle_or_url: 'ai agents', source_type: 'keyword_search' }),
+    );
+    expect(res.status).toBe(201);
+  });
+
+  it('still refuses once the runaway guard is reached', async () => {
+    const { client } = makeSourcesClientStub(50);
     vi.mocked(getServerClient).mockReturnValue(client);
 
     const res = await postSource(

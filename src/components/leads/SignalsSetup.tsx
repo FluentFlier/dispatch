@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { Plus, X } from 'lucide-react';
 import { SignalsSetupBanner } from '@/components/signals/SignalsSetupBanner';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import type { SignalSourceRow } from '@/lib/signals/types';
 
 /**
@@ -89,6 +90,10 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
   const [newSourcePlatform, setNewSourcePlatform] = useState<'x' | 'linkedin'>('x');
   const [newKeyword, setNewKeyword] = useState('');
   const [removingKeywordId, setRemovingKeywordId] = useState<string | null>(null);
+  // After a topic change we offer a scrape immediately rather than leaving the
+  // user to wonder whether the edit took effect before the next scheduled run.
+  const [askScrape, setAskScrape] = useState(false);
+  const [scraping, setScraping] = useState(false);
   const [enablingSend, setEnablingSend] = useState(false);
   const [togglingAuto, setTogglingAuto] = useState(false);
 
@@ -222,9 +227,6 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
     }
   };
 
-  /** Per-workspace topic cap; keep in sync with MAX_KEYWORD_SOURCES in the sources API. */
-  const MAX_TOPICS = 5;
-
   /** Adds a monitored keyword/hashtag (an X keyword_search source). */
   const handleAddKeyword = async () => {
     const keyword = newKeyword.trim();
@@ -249,7 +251,8 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
       const data = await res.json().catch(() => ({}));
       if (data.source) setSources((prev) => [...prev, data.source as SignalSourceRow]);
       setNewKeyword('');
-      setSuccess('Topic added. New posts about it will surface as leads within the hour.');
+      setSuccess(`Saved. "${keyword}" is now monitored, and new posts about it surface as leads.`);
+      setAskScrape(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not add topic');
     }
@@ -269,10 +272,63 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
         throw new Error(data.error ?? 'Could not remove topic');
       }
       setSources((prev) => prev.filter((s) => s.id !== id));
+      setSuccess('Saved. That topic is no longer monitored.');
+      setAskScrape(true);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not remove topic');
     } finally {
       setRemovingKeywordId(null);
+    }
+  };
+
+  /**
+   * Runs the same scrape the feed uses, so "Scrape now" is a real action rather
+   * than a decorative prompt. The endpoint streams NDJSON progress; we only need
+   * the terminal outcome here, so the body is drained and the last `result`
+   * frame reported.
+   */
+  const scrapeNow = async () => {
+    setScraping(true);
+    setError(null);
+    try {
+      const res = await fetchWithAuth('/api/leads/sync', { method: 'POST' });
+      if (!res.ok || !res.body) throw new Error('Could not start the scrape.');
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      let inserted = 0;
+      let streamError: string | null = null;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop() ?? '';
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const msg = JSON.parse(line) as Record<string, unknown>;
+            if (msg.type === 'result') {
+              inserted = ((msg.result as { inserted?: number })?.inserted) ?? 0;
+            } else if (msg.type === 'error' && typeof msg.error === 'string') {
+              streamError = msg.error;
+            }
+          } catch {
+            /* partial frame */
+          }
+        }
+      }
+      if (streamError) throw new Error(streamError);
+      setSuccess(
+        inserted > 0
+          ? `Scrape finished. ${inserted} new lead${inserted === 1 ? '' : 's'} added to your feed.`
+          : 'Scrape finished. Nothing new matched this time.',
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Scrape failed.');
+    } finally {
+      setScraping(false);
+      setAskScrape(false);
     }
   };
 
@@ -366,11 +422,12 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
       <section className="rounded-lg border border-border bg-bg-secondary p-5 space-y-3">
         <div>
           <h2 className="text-sm font-semibold text-text-primary">
-            Topics to monitor ({keywordSources.length} of {MAX_TOPICS})
+            Topics to monitor ({keywordSources.length})
           </h2>
           <p className="mt-1 text-xs text-text-secondary">
             We check X for new posts about each topic roughly every hour and surface the authors as
-            leads.
+            leads. The ICP assistant sets these from what you ask it to watch; they stay until you
+            add or remove one here.
           </p>
         </div>
         {keywordSources.length > 0 && (
@@ -408,11 +465,11 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
           <button
             type="button"
             onClick={handleAddKeyword}
-            disabled={keywordSources.length >= MAX_TOPICS}
+            disabled={!newKeyword.trim()}
             className="inline-flex items-center gap-1 text-sm font-medium px-3 py-2 rounded-md bg-accent-primary text-white min-h-[40px] disabled:opacity-50"
           >
             <Plus className="h-4 w-4" />
-            Monitor
+            Save
           </button>
         </div>
       </section>
@@ -489,6 +546,16 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
         </div>
       </section>
 
+      <ConfirmModal
+        open={askScrape}
+        title="Scrape now?"
+        message="Your monitoring list changed. Run a scrape now to pick up matching posts right away, or leave it and the next scheduled run will use the new list."
+        confirmLabel={scraping ? 'Scraping…' : 'Scrape now'}
+        cancelLabel="Wait for next run"
+        loading={scraping}
+        onConfirm={() => void scrapeNow()}
+        onClose={() => setAskScrape(false)}
+      />
     </div>
   );
 }

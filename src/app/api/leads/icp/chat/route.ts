@@ -10,8 +10,16 @@ import { parseIcpDescription } from '@/lib/signals/icp/parse-description';
 import { parseTrackIntent } from '@/lib/signals/icp/parse-track-intent';
 import { syncIcpKeywordsToTopics } from '@/lib/signals/leads/topic-sync';
 import { addWatchlistEntry } from '@/lib/signals/watchlist';
+import { addFollowedCompany } from '@/lib/signals/leads/store';
 import { defaultEnabledSources } from '@/lib/signals/leads/directory-defaults';
 import { chatCompletion, LlmError } from '@/lib/llm';
+import {
+  createIcpProfile,
+  getActiveIcpProfile,
+  listIcpProfiles,
+  updateIcpProfile,
+} from '@/lib/signals/leads/icp-profiles';
+import type { IcpProfileRow } from '@/lib/signals/types';
 import { errorResponse } from '@/lib/api-errors';
 
 /**
@@ -115,6 +123,12 @@ interface ChatIntent {
   /** True when the user asks to search/find leads now. */
   run_discovery: boolean;
   /**
+   * Short label for the ICP being defined ("Seed fintech, YC"). Used to name the
+   * saved profile so the Saved ICPs list shows what the assistant just set up
+   * instead of staying empty until the user manually names and saves it.
+   */
+  icp_name: string;
+  /**
    * Set when the user wants to WATCH entities/programs for events or field changes
    * (funding, accelerator batches, name/CEO/title/description changes) and be
    * notified - a monitoring request, NOT an ICP definition. Null otherwise.
@@ -159,6 +173,7 @@ function extractJson(raw: string): ChatIntent | null {
       reply: typeof obj.reply === 'string' ? obj.reply : '',
       icp_description: typeof obj.icp_description === 'string' ? obj.icp_description.trim() : '',
       run_discovery: obj.run_discovery === true,
+      icp_name: typeof obj.icp_name === 'string' ? obj.icp_name.trim().slice(0, 60) : '',
       monitor: parseMonitor(obj.monitor),
     };
   } catch {
@@ -205,12 +220,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         keywords: [trackIntent.name.toLowerCase()],
       });
       const sourceCount = result.sourcesCreated.length;
-      return NextResponse.json({
-        assistantMessage: `Tracking ${trackIntent.name} - added ${sourceCount} source${sourceCount === 1 ? '' : 's'} to your watchlist.`,
-        settings: current,
-        applied: false,
-        suggestRun: false,
-      });
+      // Only short-circuit when the shortcut actually wired something. A
+      // name-only "track X" creates no source row, and reporting "added 0
+      // sources" as a successful outcome is worse than useless - fall through
+      // to the classifier, which puts it on the watchlist and arms it as a
+      // monitored topic instead.
+      if (sourceCount > 0) {
+        return NextResponse.json({
+          assistantMessage: `Tracking ${trackIntent.name} on ${sourceCount === 1 ? 'that account' : 'those accounts'} for profile, company, and role changes. New posts from them surface as leads.`,
+          settings: current,
+          applied: false,
+          suggestRun: false,
+        });
+      }
     }
 
     const historyText = (parsed.data.history ?? [])
@@ -228,13 +250,23 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       '    HF0, Techstars; name/title/CEO/description/profile changes; launch or announcement posts)',
       '    and be notified. A monitoring request is NOT an ICP - never invent customer attributes for it.',
       'Respond with ONLY a JSON object, no prose, with exactly these keys:',
-      '{"reply": string, "icp_description": string, "run_discovery": boolean, "monitor": {"targets": [{"name": string, "xHandle": string, "linkedinCompanyUrl": string}], "keywords": string[]} | null}',
-      '- reply: 1-3 short, warm, concrete sentences. NEVER claim you already searched or found anything,',
-      '  and NEVER state an ICP the user did not give (no made-up stage/industry/geography). If',
-      '  run_discovery is true, tell them to hit the "Find leads now" button to start.',
+      '{"reply": string, "icp_description": string, "icp_name": string, "run_discovery": boolean, "monitor": {"targets": [{"name": string, "xHandle": string, "linkedinCompanyUrl": string}], "keywords": string[]} | null}',
+      '- reply: 1-3 short, warm, concrete sentences, in this shape:',
+      '    1. Confirm instantly ("All set", "Got it", "Done") and mirror back what YOU are now doing,',
+      '       in the user\'s own terms - name the specific programs, events, changes or customer traits',
+      '       they mentioned. Never a generic "I saved that".',
+      '    2. Say what happens next concretely (new matches surface as leads within the hour; or,',
+      '       for discovery, hit "Find leads now" to start).',
+      '    3. Point them where to adjust it: monitoring lives under Setup > Advanced > Signals, the',
+      '       ICP itself is editable right below this chat.',
+      '  NEVER claim you already searched or found anything, and NEVER state an ICP the user did not',
+      '  give (no made-up stage/industry/geography). Plain sentences, no markdown, no bullet lists,',
+      '  no em dashes.',
       '- icp_description: if the user is defining or CHANGING their ICP, return the FULL updated brief',
       '  (merge their change into the current ICP). If they are only asking to search or just chatting,',
       '  For a MONITOR or DISCOVERY message, return an empty string - never fabricate an ICP.',
+      '- icp_name: 2-5 word label for that ICP ("Seed fintech, YC", "Series A healthtech ops").',
+      '  Empty string whenever icp_description is empty.',
       '- run_discovery: true ONLY if the user asks to find/search/pull/get leads now.',
       '- monitor: for a MONITOR/TRACK message, extract what to watch, else null.',
       '    targets = specific named companies/founders/programs. Include xHandle (no @) or',
@@ -289,7 +321,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     // by adding them to the watchlist. Crucially we never invent an ICP here - that
     // was the bug where a monitoring request produced a hallucinated fintech ICP.
     if (intent.monitor) {
+      /** Targets with a real handle: a source row exists, field-change diffing is armed. */
       const watchedNames: string[] = [];
+      /** Targets on the watchlist by name only: surfaced in the UI, but no profile diffing. */
+      const listedNames: string[] = [];
       const needHandle: string[] = [];
       // Collect keyword topics to arm as VISIBLE, monitored "Topics to monitor"
       // (signal_sources keyword_search rows - what the Signals setup card shows and
@@ -306,6 +341,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           });
           watchedNames.push(t.name);
         } else {
+          // No handle: still put the named company/program on the visible
+          // watchlist ("Where to look > Watch companies") as well as arming it
+          // as a keyword topic. Previously a handle-less target became a bare
+          // keyword and nothing else, so asking to track "YC Speedrun" and
+          // "HF0" left every watchlist surface empty and the setup looked like
+          // it had ignored the request. Best-effort: a watchlist write must not
+          // lose the topic sync below.
+          try {
+            await addFollowedCompany(client, workspaceId, {
+              companyName: t.name,
+              domain: null,
+              externalId: null,
+              userId: user.id,
+            });
+            listedNames.push(t.name);
+          } catch {
+            /* watchlist is additive polish; the keyword topic is the real arming */
+          }
           topicSeeds.push(t.name);
           needHandle.push(t.name);
         }
@@ -319,14 +372,27 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       const watchLine = watchedNames.length
         ? `Now watching ${watchedNames.join(', ')} on X and LinkedIn for profile, company, and role changes. `
         : '';
+      const listedLine = listedNames.length
+        ? `Added ${listedNames.join(', ')} to your watchlist (Setup > Where to look). `
+        : '';
       const topicLine = topicsAdded > 0
         ? `Added ${topicsAdded} topic${topicsAdded === 1 ? '' : 's'} to monitor (see Setup > Advanced > Signals). New posts about them surface as leads within the hour. `
         : '';
       const nudge = needHandle.length
         ? `To catch name, CEO, or description changes for ${needHandle.join(', ')}, give me a handle - e.g. "track ${needHandle[0]} @handle".`
         : '';
+      // The model's own reply leads: it mirrors the user's specific programs,
+      // events and change types back at them, which a canned template cannot.
+      // The deterministic lines stay as the fallback (and the handle nudge is
+      // always appended, since only we know which targets lacked a handle).
       const assistantMessage =
-        `${watchLine}${topicLine}${nudge}`.trim() ||
+        [
+          intent.reply.trim() || `${watchLine}${listedLine}${topicLine}`.trim(),
+          nudge,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .trim() ||
         'Set up monitoring. Tell me a company name plus its X or LinkedIn handle to watch it for changes.';
       return NextResponse.json({
         assistantMessage,
@@ -365,6 +431,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     }
 
     let applied = false;
+    let profiles: IcpProfileRow[] | null = null;
     // Persist ICP only when it actually changed (non-empty and different).
     if (icpBrief && icpBrief !== currentIcp) {
       const icp = await parseIcpDescription(icpBrief);
@@ -391,6 +458,42 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         await syncIcpKeywordsToTopics(client, workspaceId, icp.icp_keywords);
       } catch {
         /* topic sync is best-effort; the ICP is already saved */
+      }
+
+      // Mirror the working ICP into the Saved ICPs list. Without this the
+      // assistant wrote only directory settings, so the user was told "saved"
+      // while the Saved ICPs card stayed empty unless they separately clicked
+      // "Save current ICP" and typed a name. Refining an existing ICP updates
+      // the active profile in place rather than piling up near-duplicate rows.
+      // Best-effort, exactly like the topic sync above: the ICP itself is
+      // already persisted in directory settings by this point, and a failure to
+      // mirror it into the profiles list must not fail the whole turn and lose
+      // the save the user just made.
+      try {
+        const active = await getActiveIcpProfile(client, workspaceId);
+        const fields = {
+          description: icpBrief,
+          verticals: icp.icp_verticals,
+          keywords: icp.icp_keywords,
+        };
+        if (active) {
+          await updateIcpProfile(client, workspaceId, active.id, {
+            ...fields,
+            // Keep a name the user typed themselves; only fill in a blank/default.
+            ...(intent.icp_name && (!active.name || active.name === 'Default')
+              ? { name: intent.icp_name }
+              : {}),
+          });
+        } else {
+          await createIcpProfile(client, workspaceId, {
+            ...fields,
+            name: intent.icp_name || 'My ICP',
+            activate: true,
+          });
+        }
+        profiles = await listIcpProfiles(client, workspaceId);
+      } catch (err) {
+        console.warn('[leads/icp/chat] could not mirror ICP into saved profiles', err);
       }
       applied = true;
     }
@@ -462,6 +565,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       suggestRun,
       hasIcp: hasIcpNow,
       icpUnderstood,
+      ...(profiles ? { profiles } : {}),
     });
   } catch (err) {
     // A quota/credit failure from the classify or ICP-parse LLM call is our

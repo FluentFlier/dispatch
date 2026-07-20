@@ -45,5 +45,18 @@ export function parseTrackIntent(message: string): TrackIntent | null {
     .trim();
 
   if (!name) return null;
+
+  // Only claim the turn when this really is a short, targeted command. Without
+  // this, "Track HF0 and YC Speedrun for me, tell me when they announce a new
+  // batch or a company in them raises funding or changes its name or CEO"
+  // matched, swallowed the entire sentence as a company `name`, created zero
+  // sources (no handle in it) and short-circuited the LLM entirely - the user
+  // got "added 0 sources to your watchlist" echoing their own sentence back.
+  // A handle or company URL is proof of a real command at any length; without
+  // one, anything sentence-shaped belongs to the monitor classifier instead.
+  if (xHandle || linkedinCompanyUrl) return { name, xHandle, linkedinCompanyUrl };
+  const wordCount = name.split(/\s+/).length;
+  if (wordCount > 4 || /[,.;?]|\b(tell|when|me|they|their|so that|if)\b/i.test(name)) return null;
+
   return { name, xHandle, linkedinCompanyUrl };
 }

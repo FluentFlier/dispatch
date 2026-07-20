@@ -173,14 +173,21 @@ export function IcpManager({
 
   return (
     <div className="space-y-6">
-      <IcpChat settings={settings} onSettingsSaved={onSettingsSaved} onDiscoveryComplete={onDiscoveryComplete} toast={toast} />
+      <IcpChat
+        settings={settings}
+        onSettingsSaved={onSettingsSaved}
+        onProfilesChange={onProfilesChange}
+        onDiscoveryComplete={onDiscoveryComplete}
+        toast={toast}
+      />
 
       <section className="rounded-lg border border-border bg-bg-secondary">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
           <div>
             <h2 className="text-sm font-semibold text-text-primary">Saved ICPs</h2>
             <p className="text-xs text-text-secondary mt-0.5">
-              Keep an ICP per segment. Tick the ones to search, then discover leads across them.
+              The assistant saves what you describe here automatically. Keep an ICP per segment, tick
+              the ones to search, then discover leads across them.
             </p>
           </div>
           <div className="flex items-center gap-2">

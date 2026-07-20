@@ -2,8 +2,14 @@ import type { createClient } from '@insforge/sdk';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
-/** Per-workspace ceiling on monitored keywords - mirror of MAX_KEYWORD_SOURCES in the sources API. */
-const MAX_KEYWORD_SOURCES = 5;
+/**
+ * Runaway guard only, NOT a product limit: how many topics the assistant may
+ * arm is its own call (a "track YC Speedrun, HF0, funding, name changes, CEO
+ * changes" brief legitimately needs more than a handful). This ceiling exists
+ * so a malformed model response can't insert hundreds of poll rows. Mirror of
+ * MAX_KEYWORD_SOURCES in the sources API.
+ */
+const MAX_KEYWORD_SOURCES = 50;
 const KEYWORD_POLL_INTERVAL_MINUTES = 60;
 
 /**
