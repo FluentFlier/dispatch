@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { useToast } from '@/components/ui/Toast';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
 
@@ -42,6 +43,35 @@ export function SlackConnectionCard({ refreshKey = 0 }: SlackConnectionCardProps
   const [channelsLoading, setChannelsLoading] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  /**
+   * Revokes the Slack grant at Composio, then clears the local row. A 502 means
+   * the provider could not be reached and NOTHING was revoked, so we keep
+   * showing "Connected" - claiming otherwise would hide a still-live grant.
+   */
+  const disconnect = async () => {
+    setDisconnecting(true);
+    try {
+      const res = await fetchWithAuth('/api/integrations/composio/slack/disconnect', {
+        method: 'POST',
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast(typeof data.error === 'string' ? data.error : 'Could not disconnect Slack.', 'error');
+        return;
+      }
+      setConnected(false);
+      setEnabled(false);
+      setChannels([]);
+      toast('Slack disconnected.');
+    } catch {
+      toast('Could not disconnect Slack.', 'error');
+    } finally {
+      setDisconnecting(false);
+    }
+  };
 
   const loadStatus = useCallback(async () => {
     try {
@@ -208,9 +238,32 @@ export function SlackConnectionCard({ refreshKey = 0 }: SlackConnectionCardProps
                 </span>
               </span>
             </label>
+
+            <button
+              type="button"
+              disabled={disconnecting}
+              onClick={() => setConfirmOpen(true)}
+              className="inline-block rounded-md border border-border px-4 py-2 text-[12px] text-text-secondary transition-colors hover:border-coral/40 hover:text-coral disabled:opacity-60"
+            >
+              {disconnecting ? 'Disconnecting…' : 'Disconnect Slack'}
+            </button>
           </>
         )}
       </div>
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Disconnect Slack"
+        message="This revokes Content OS's access to your Slack workspace. The daily lead digest and instant signal alerts will stop until you reconnect."
+        confirmLabel="Disconnect"
+        tone="danger"
+        loading={disconnecting}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          void disconnect();
+        }}
+        onClose={() => setConfirmOpen(false)}
+      />
     </section>
   );
 }

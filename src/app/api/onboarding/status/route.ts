@@ -39,10 +39,13 @@ export async function GET(): Promise<NextResponse> {
     try {
       const integration = await getIntegration(client, workspaceId, 'gmail');
       if (integration?.enabled) {
-        gmailConnected = await isComposioToolkitConnected(
+        // null = Composio unreachable, so fall back to the stored flag rather
+        // than telling onboarding the user has no Gmail and re-prompting them.
+        const live = await isComposioToolkitConnected(
           integration.composio_user_id ?? toComposioUserId(workspaceId, user.id),
           'gmail',
         );
+        gmailConnected = live ?? Boolean(integration.connected_by_user_id);
       }
     } catch {
       gmailConnected = false;

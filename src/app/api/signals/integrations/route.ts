@@ -46,10 +46,34 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
         const row = rows.find((r) => r.toolkit === toolkit);
         const entityId = row?.composio_user_id ?? composioUserId;
         const connectedFromDb = Boolean(row?.connected_by_user_id);
-        const connected =
+        // `?? connectedFromDb`: the live probe answers null when Composio is
+        // unreachable, and an unanswerable probe must fall back to the stored
+        // flag rather than reporting a disconnection that did not happen.
+        const live =
           liveCheck && composioConfigured
             ? await isComposioToolkitConnected(entityId, toolkit)
-            : connectedFromDb;
+            : null;
+        const connected = live ?? connectedFromDb;
+        // Diagnostic for "it says not connected but it IS connected". The three
+        // ways that happens are indistinguishable in the UI but obvious here:
+        //   live=false            -> Composio genuinely has no ACTIVE grant
+        //   live=null             -> probe failed, we fell back to the DB flag
+        //   hasRow=false          -> no row for this workspace, so entityId was
+        //                            DERIVED; if the connect happened in another
+        //                            workspace the id will not match Composio's
+        // Only when the answer is "not connected" - a connected toolkit needs no
+        // explanation, and logging every poll drowned the dev console.
+        if (process.env.NODE_ENV !== 'production' && !connected) {
+          console.warn('[integrations] reporting NOT connected', {
+            toolkit,
+            entityId,
+            hasRow: Boolean(row),
+            rowEntityId: row?.composio_user_id ?? null,
+            live,
+            connectedFromDb,
+            connected,
+          });
+        }
         return {
           toolkit,
           connected,
