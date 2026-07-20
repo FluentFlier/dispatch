@@ -16,6 +16,7 @@ import BioGenerator from "@/components/settings/BioGenerator";
 import PlatformConnections from "@/components/settings/PlatformConnections";
 import CalendarConnectionCard from "@/components/calendar/CalendarConnectionCard";
 import GmailConnectionCard from "@/components/settings/GmailConnectionCard";
+import NotionConnectionCard from "@/components/settings/NotionConnectionCard";
 import { SlackConnectionCard } from "@/components/leads/SlackConnectionCard";
 import ProfileEditor from "@/components/settings/ProfileEditor";
 import AutoOptimizeToggle from "@/components/settings/AutoOptimizeToggle";
@@ -318,6 +319,8 @@ export default function SettingsPage() {
 
     const shouldRefreshIntegrations =
       searchParams.get('outreach_connected') ||
+      searchParams.get('notion_connected') ||
+      searchParams.get('notion_error') ||
       searchParams.get('calendar_error') ||
       searchParams.get('outreach_error');
 
@@ -660,6 +663,11 @@ export default function SettingsPage() {
             <div className="border-t border-hair my-6" />
             <SubHeader>Calendar</SubHeader>
             <CalendarConnectionCard refreshKey={integrationsRefreshKey} />
+
+            {/* Knowledge */}
+            <div className="border-t border-hair my-6" />
+            <SubHeader>Knowledge</SubHeader>
+            <NotionConnectionCard refreshKey={integrationsRefreshKey} />
           </Section>
 
           <Section title="Platform Defaults">

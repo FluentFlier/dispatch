@@ -512,7 +512,7 @@ export function SignalsSetup({ refreshKey = 0 }: { refreshKey?: number }) {
                 {safety.settings.working_hours_only
                   ? safety.within_working_hours
                     ? 'Within working hours'
-                    : `Paused · sends UTC ${safety.settings.working_hours_utc_start}:00–${safety.settings.working_hours_utc_end}:00`
+                    : `Paused · sends UTC ${safety.settings.working_hours_utc_start}:00-${safety.settings.working_hours_utc_end}:00`
                   : 'Working hours off (sends anytime)'}
               </span>
               {safety.last_send_at && (

@@ -75,7 +75,7 @@ export async function assertOutreachAllowed(
 
   if (!isWithinWorkingHours(settings, now)) {
     return block(
-      `Outside working hours (UTC ${settings.working_hours_utc_start}:00–${settings.working_hours_utc_end}:00). Sends are paused to reduce ban risk.`,
+      `Outside working hours (UTC ${settings.working_hours_utc_start}:00-${settings.working_hours_utc_end}:00). Sends are paused to reduce ban risk.`,
     );
   }
 

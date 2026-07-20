@@ -16,18 +16,18 @@ function directiveFor(learning: ContentLearning): string | null {
   switch (learning.id) {
     case 'pillar-strong': {
       const p = quoted(learning.headline);
-      return p ? `Your strongest-performing angle is "${p}" — favor it when the brief allows.` : null;
+      return p ? `Your strongest-performing angle is "${p}" - favor it when the brief allows.` : null;
     }
     case 'pillar-weak': {
       const p = quoted(learning.headline);
-      return p ? `Your "${p}" angle underperforms — avoid it unless the brief calls for it.` : null;
+      return p ? `Your "${p}" angle underperforms - avoid it unless the brief calls for it.` : null;
     }
     case 'hook-question':
-      return 'Question-style hooks outperform for you — open with a question when it fits.';
+      return 'Question-style hooks outperform for you - open with a question when it fits.';
     case 'hook-statement':
-      return 'Declarative statement hooks outperform for you — a strong, confident opener works well.';
+      return 'Declarative statement hooks outperform for you - a strong, confident opener works well.';
     case 'hook-number':
-      return 'Numbered / list hooks ("N ways…", "3 things…") perform well for you — consider that framing.';
+      return 'Numbered / list hooks ("N ways…", "3 things…") perform well for you - consider that framing.';
     default:
       // timing/platform/voice/pipeline learnings aren't actionable for a single draft.
       return null;
@@ -41,14 +41,14 @@ function directiveFor(learning: ContentLearning): string | null {
 export function formatBrainGuidance(learnings: ContentLearning[]): string {
   const lines = learnings.map(directiveFor).filter((l): l is string => Boolean(l));
   if (lines.length === 0) return '';
-  return `\n\nWHAT WORKS FOR THIS CREATOR (evidence from their own top posts — apply when it fits the brief, never force):\n${lines
+  return `\n\nWHAT WORKS FOR THIS CREATOR (evidence from their own top posts - apply when it fits the brief, never force):\n${lines
     .map((l) => `- ${l}`)
     .join('\n')}`;
 }
 
 /**
  * Loads the creator's published posts and distills what's working into a compact
- * guidance block for the generation prompt. Never throws — degrades to ''.
+ * guidance block for the generation prompt. Never throws - degrades to ''.
  */
 export async function getBrainGuidanceForGeneration(
   client: InsforgeClient,

@@ -45,7 +45,7 @@ describe('buildOutcomeDetail', () => {
   });
 
   it('flags em-dash output as a hard check failure (observation, not enforcement)', () => {
-    const dirty = { ...result, text: result.text + '\n\nGreat work — truly.' };
+    const dirty = { ...result, text: result.text + '\n\nGreat work \u2014 truly.' };
     const d = buildOutcomeDetail(input as never, dirty as never);
     expect(d.hardCheckFailures).toContain('em_dash');
   });

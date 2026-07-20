@@ -71,7 +71,7 @@ const emDash: Check = {
   ruleAppliesTo: anyTextOutput,
   ruleText: () => 'No em dashes anywhere. Ever. Use a comma, period, or hyphen instead.',
   test: (text) => {
-    const m = text.match(/[—–]/);
+    const m = text.match(/[\u2014\u2013]/);
     return m
       ? fail('em_dash', 'hard', text.slice(Math.max(0, m.index! - 30), m.index! + 30),
           'Remove every em/en dash; use a comma, period, or hyphen instead.')

@@ -66,7 +66,7 @@ export function buildLeadPlaybook(lead: SignalLeadWithContacts): LeadPlaybook {
       },
       {
         type: 'dm',
-        label: 'If accepted, light follow-up DM in 5–7 days',
+        label: 'If accepted, light follow-up DM in 5-7 days',
         dueInDays: 7,
         status: 'pending',
       },

@@ -6,6 +6,7 @@ import { isComposioConfigured } from '@/lib/composio/config';
 import { isComposioToolkitConnected } from '@/lib/composio/connect';
 import { toComposioUserId } from '@/lib/composio/client';
 import { getIntegration } from '@/lib/signals/integrations/store';
+import type { CreatorBaseline } from '@/lib/onboarding/baseline';
 
 /**
  * GET /api/onboarding/status
@@ -59,9 +60,24 @@ export async function GET(): Promise<NextResponse> {
     .eq('key', 'onboarding_baseline')
     .maybeSingle();
 
-  const hasBaseline = Boolean(
-    typeof baselineSetting?.value === 'string' && baselineSetting.value.trim().length > 2,
-  );
+  let baseline: CreatorBaseline | null = null;
+  if (typeof baselineSetting?.value === 'string' && baselineSetting.value.trim().length > 2) {
+    try {
+      const parsed: unknown = JSON.parse(baselineSetting.value);
+      // Shape-check, not just JSON-valid: a corrupt row (e.g. `12345` or `{"foo":1}`) would
+      // otherwise parse fine and pass a non-baseline object to the wizard, which crashes
+      // calling .join()/.map() on missing array fields during resume hydration.
+      baseline =
+        parsed && typeof parsed === 'object'
+        && Array.isArray((parsed as CreatorBaseline).voiceRules)
+        && Array.isArray((parsed as CreatorBaseline).pillars)
+          ? (parsed as CreatorBaseline)
+          : null;
+    } catch {
+      // Malformed stored value: treat as no baseline rather than failing the route.
+      baseline = null;
+    }
+  }
 
   return NextResponse.json({
     unipileConfigured,
@@ -71,7 +87,8 @@ export async function GET(): Promise<NextResponse> {
     platforms: (accounts ?? []).map((a) => a.platform),
     gmailConnected,
     canIngest: (accounts?.length ?? 0) > 0,
-    hasBaseline,
+    hasBaseline: Boolean(baseline),
+    baseline,
     requiresSocialConnect: (accounts?.length ?? 0) === 0,
   });
 }

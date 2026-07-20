@@ -174,7 +174,7 @@ export default function Sidebar() {
         ) : (
           <div className="space-y-0.5">{moreNav.map((item) => renderItem(item, true))}</div>
         )}
-        {/* Settings — standalone, always visible (not inside Advanced). */}
+        {/* Settings - standalone, always visible (not inside Advanced). */}
         <div className="mt-3">{renderItem(settingsNav, true)}</div>
         <button
           type="button"

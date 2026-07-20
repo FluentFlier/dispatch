@@ -69,7 +69,7 @@ function accountClaimTokens(account: UnipileAccount): string[] {
  * user, and is the ONLY new account of its platform. Two concurrent connects
  * produce >1 new account of a platform → ambiguous → bound to nobody here
  * (the state-bound webhook resolves those). This is the guard against the old
- * "grab the first id Unipile returns" cross-wiring bug — keep it pure + tested.
+ * "grab the first id Unipile returns" cross-wiring bug - keep it pure + tested.
  */
 export function pickAccountsToBind(
   accounts: UnipileAccount[],
@@ -99,7 +99,7 @@ export function pickAccountsToBind(
  * Waits for the notify_url webhook to bind the account from THIS user's hosted
  * session. The webhook deletes the pre-connect snapshot once it has written the
  * row, so a vanished snapshot is our signal that the ground-truth bind landed.
- * Bounded poll — never blocks the connect flow indefinitely.
+ * Bounded poll - never blocks the connect flow indefinitely.
  */
 async function waitForWebhookBind(
   serviceClient: ReturnType<typeof getServiceClient>,
@@ -133,7 +133,7 @@ export async function syncUnipileAccountsForUser(
   // list races concurrent connects and cross-wires strangers' accounts (users
   // saw a random name that kept changing). In any deployed environment the
   // notify_url webhook is reachable and binds the EXACT account from this user's
-  // hosted session (state=user.id) — that is the only trustworthy source, so we
+  // hosted session (state=user.id) - that is the only trustworthy source, so we
   // defer to it entirely here and never guess from the shared list.
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL ?? '').toLowerCase();
   const isLocalhost = !appUrl || appUrl.includes('localhost') || appUrl.includes('127.0.0.1');
@@ -183,7 +183,7 @@ export async function syncUnipileAccountsForUser(
   }
 
   // Pre-connect snapshot written by /connect/unipile. Its absence means this
-  // call is NOT a fresh connect (e.g. a settings-page load) — bind nothing, so
+  // call is NOT a fresh connect (e.g. a settings-page load) - bind nothing, so
   // we never re-derive identity from the shared list (the old cross-wiring bug).
   const { data: snapRow } = await serviceClient.database
     .from('unipile_connect_snapshots')
@@ -192,7 +192,7 @@ export async function syncUnipileAccountsForUser(
     .maybeSingle();
 
   if (!snapRow) {
-    return { synced: 0, workspaceId, message: 'No pending connect — nothing to bind' };
+    return { synced: 0, workspaceId, message: 'No pending connect - nothing to bind' };
   }
   // Expired permit = no proof of an in-flight login. This is the path that
   // produced "Connected as <name>" with no OAuth at all: an abandoned connect

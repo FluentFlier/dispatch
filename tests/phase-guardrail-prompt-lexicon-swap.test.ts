@@ -22,7 +22,7 @@ describe('Phase: Guardrail Consolidation - prompt/lexicon single source', () => 
 
   it('index.ts no longer hardcodes the style-rule sentence text', () => {
     const src = read('src/lib/content-pipeline/index.ts');
-    expect(src).not.toContain('Plain text only — no markdown, no em dashes');
+    expect(src).not.toContain('Plain text only \u2014 no markdown, no em dashes');
     expect(src).toMatch(/styleRulesFromChecks\(/);
   });
 

@@ -2,8 +2,8 @@
 // .design-sync/tsconfig.json for the design-system bundle only.
 // OnboardingPage imports its server actions file, which drags this
 // server-only module (and node:crypto) into the browser bundle. Pages never
-// actually call these in a preview — actions fire on user interaction against
-// a live backend — so the stub only has to exist, not work.
+// actually call these in a preview - actions fire on user interaction against
+// a live backend - so the stub only has to exist, not work.
 export function getServiceClient(): never {
   throw new Error('insforge server client is unavailable in design previews');
 }

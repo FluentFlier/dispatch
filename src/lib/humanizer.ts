@@ -25,7 +25,7 @@ export interface HumanizePipelineResult {
  * consolidation). Em/en dash detection stays here explicitly - the lexicon
  * covers vocabulary/phrases, not raw punctuation.
  */
-export const AI_SLOP_PATTERNS: RegExp[] = [...allSlopRegexes(), /—/g, /–/g];
+export const AI_SLOP_PATTERNS: RegExp[] = [...allSlopRegexes(), /\u2014/g, /\u2013/g];
 
 const AI_WORD_REPLACEMENTS: Array<[RegExp, string]> = [
   [/\butilize\b/gi, 'use'],
@@ -54,7 +54,7 @@ const AI_WORD_REPLACEMENTS: Array<[RegExp, string]> = [
  */
 export function deterministicPreClean(text: string, preserve: string[] = []): string {
   const keep = new Set(preserve.map((w) => w.toLowerCase().trim()).filter(Boolean));
-  let out = text.replace(/—/g, ' - ').replace(/–/g, '-');
+  let out = text.replace(/\u2014/g, ' - ').replace(/\u2013/g, '-');
   for (const [re, replacement] of AI_WORD_REPLACEMENTS) {
     out = out.replace(re, (match) => (keep.has(match.toLowerCase()) ? match : replacement));
   }
@@ -65,7 +65,7 @@ export function deterministicPreClean(text: string, preserve: string[] = []): st
 }
 
 function stripEmDashes(text: string): string {
-  return text.replace(/—/g, ' - ').replace(/–/g, '-');
+  return text.replace(/\u2014/g, ' - ').replace(/\u2013/g, '-');
 }
 
 function buildVoiceContextBlock(profile?: CreatorProfileForPrompt | null): string {

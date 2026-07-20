@@ -23,7 +23,7 @@ function getApiKey(): string {
 }
 
 async function unipoleFetch(path: string, options: RequestInit = {}): Promise<Response> {
-  // For multipart (FormData) bodies we must NOT set Content-Type ourselves —
+  // For multipart (FormData) bodies we must NOT set Content-Type ourselves -
   // fetch has to set `multipart/form-data; boundary=...`. Forcing
   // application/json here is exactly what made POST /posts fail with a schema
   // "invalid_parameters" 400. JSON callers are unaffected.
@@ -301,7 +301,7 @@ export interface UnipileFullAccount {
       publicIdentifier?: string;
       /** LinkedIn numeric member ID (used in /users/{id}/posts path) */
       memberId?: string;
-      /** LinkedIn internal ID — may be numeric or ACo... encoded */
+      /** LinkedIn internal ID - may be numeric or ACo... encoded */
       id?: string;
       objectUrn?: string;
       entityUrn?: string;
@@ -313,7 +313,7 @@ export interface UnipileFullAccount {
  * Fetches full account details from Unipile including connection_params.
  * Webhook payloads only carry a bare account object (no connection_params),
  * so account_id stored there is just `username`. Calling this after webhook
- * upsert gives us publicIdentifier — the LinkedIn provider user ID required
+ * upsert gives us publicIdentifier - the LinkedIn provider user ID required
  * for GET /users/{id}/posts.
  */
 export async function fetchUnipileAccountDetails(unipileAccountId: string): Promise<UnipileFullAccount | null> {
@@ -349,7 +349,7 @@ export async function listUnipileAccounts(): Promise<UnipileFullAccount[]> {
 }
 
 /**
- * Deletes a Unipile account *session* (the connector box) — NOT the underlying
+ * Deletes a Unipile account *session* (the connector box) - NOT the underlying
  * LinkedIn account. Best-effort.
  */
 export async function deleteUnipileAccount(unipileAccountId: string): Promise<boolean> {
@@ -363,10 +363,10 @@ export async function deleteUnipileAccount(unipileAccountId: string): Promise<bo
 
 /**
  * Unipile mints a NEW account box on every reconnect, so the same LinkedIn piles
- * up as stale duplicate sessions in the shared tenant — clutter that also feeds
+ * up as stale duplicate sessions in the shared tenant - clutter that also feeds
  * the account cross-wire. After an authoritative bind, delete the person's OTHER
  * boxes (same stable publicIdentifier, different id), keeping only `keepId`.
- * Matching on publicIdentifier only — never deletes a different person's box.
+ * Matching on publicIdentifier only - never deletes a different person's box.
  *
  * DANGER, and why `knownOwnIds` exists: one Unipile API key covers dev AND
  * production, so "the person's other boxes" spans environments. Connecting the
@@ -374,7 +374,7 @@ export async function deleteUnipileAccount(unipileAccountId: string): Promise<bo
  * Unipile then emitted a delete event and the account showed as disconnected
  * although the user never disconnected anything. Callers now pass the ids that
  * account has actually held for THIS user (from their own row), and anything
- * not on that list is left alone — an unrecognised box may well be another
+ * not on that list is left alone - an unrecognised box may well be another
  * environment's live session.
  */
 export async function pruneDuplicateUnipileAccounts(

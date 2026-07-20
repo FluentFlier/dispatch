@@ -47,6 +47,22 @@ function calendarErrorMessage(code: string): string {
 export function integrationNoticeFromSearchParams(
   params: Pick<URLSearchParams, 'get'>,
 ): IntegrationNotice | null {
+  if (params.get('notion_connected') === 'true') {
+    return { type: 'success', message: 'Notion connected. Add the pages you want to use as context, then sync.' };
+  }
+
+  const notionError = params.get('notion_error');
+  if (notionError) {
+    const message = notionError === 'invalid_state'
+      ? 'The Notion connection session expired. Please try again.'
+      : notionError === 'authorization_declined'
+        ? 'Notion authorization was cancelled.'
+        : notionError === 'wrong_user' || notionError === 'wrong_workspace'
+          ? 'The Notion connection was started from a different account or workspace.'
+          : 'Could not connect Notion. Please try again.';
+    return { type: 'error', message };
+  }
+
   const outreachConnected = params.get('outreach_connected') as ComposioToolkit | null;
   if (outreachConnected && outreachConnected in TOOLKIT_LABELS) {
     return {

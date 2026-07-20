@@ -145,7 +145,7 @@ export default async function DashboardPage() {
         .gte('detected_at', trendsSince)
         .order('detected_at', { ascending: false })
         .limit(8)),
-      // Morning brief: most recent GENUINELY-published posts — posted_date must be
+      // Morning brief: most recent GENUINELY-published posts - posted_date must be
       // set, so a queued/draft post (status can flip to 'posted' before the publish
       // job runs) never surfaces as the latest-post snapshot.
       scoped(onlyPublished(client.database.from('posts')
@@ -310,12 +310,12 @@ export default async function DashboardPage() {
         <QuickActions variant="rail" />
       </div>
 
-      {/* Morning brief — its own card */}
+      {/* Morning brief - its own card */}
       <section className="card-surface p-5 md:p-6">
         <MorningBriefStrip brief={morningBrief} />
       </section>
 
-      {/* Coming up + Ideas — separate cards */}
+      {/* Coming up + Ideas - separate cards */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <section className="card-surface p-5 md:p-6">
             <SectionHeader

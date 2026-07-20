@@ -10,10 +10,10 @@ import { selectBalancedVoiceSamples } from '@/lib/voice-lab/select-voice-samples
 describe('Phase: Content pipeline + humanizer', () => {
   describe('deterministicPreClean', () => {
     it('should replace common AI vocabulary and em dashes', () => {
-      const raw = 'We must leverage this robust landscape — it is worth noting that teams utilize it.';
+      const raw = 'We must leverage this robust landscape \u2014 it is worth noting that teams utilize it.';
       const cleaned = deterministicPreClean(raw);
       expect(cleaned.toLowerCase()).not.toContain('leverage');
-      expect(cleaned).not.toContain('—');
+      expect(cleaned).not.toContain('\u2014');
     });
   });
 

@@ -43,7 +43,7 @@ const INITIAL_FILTERS: FeedFilterState = {
  * Signal types that can only ever come from the live Signal engine (X/LinkedIn
  * post detection), never from a directory scrape. When one of these is selected
  * and the feed is empty, the filtered-empty state explains that gap instead of
- * misleadingly offering "Scrape now". 'launch' is intentionally excluded — it
+ * misleadingly offering "Scrape now". 'launch' is intentionally excluded - it
  * now maps to Product Hunt / YC-launch directory leads too.
  */
 const SIGNAL_ENGINE_ONLY_TYPES = new Set<string>([
@@ -177,7 +177,7 @@ export function LeadsFeedBody(props: LeadsController) {
         </div>
       ) : view === 'setup' ? (
         <div className="space-y-6">
-          {/* Basics — the two things a user must set to get relevant leads: who to
+          {/* Basics - the two things a user must set to get relevant leads: who to
               reach (ICP) and where to look (sources). Everything else is under
               "Advanced" below so the surface isn't a wall of ~20 fields.
               The old Setup "Scrape now" button was a duplicate of the ICP chat's
@@ -282,7 +282,7 @@ export function LeadsFeedBody(props: LeadsController) {
       ) : feedViewState({ loading, loadError, cardCount: cards.length, setupRequired }) === 'setup' ? (
         <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-border bg-bg-secondary py-16 text-center px-6">
           <p className="text-sm text-text-primary font-medium">
-            {setupMessage ?? 'Leads engine not provisioned — contact support'}
+            {setupMessage ?? 'Leads engine not provisioned - contact support'}
           </p>
           <p className="text-xs text-text-tertiary max-w-md">
             This workspace cannot load leads until the signals schema is applied. If you are an operator, apply{' '}
@@ -322,7 +322,7 @@ export function LeadsFeedBody(props: LeadsController) {
         )
       ) : visibleCards.length === 0 ? (
         // Server returned leads, but a client-side filter (search / vertical)
-        // hides them all — explain + offer clear instead of a blank list.
+        // hides them all - explain + offer clear instead of a blank list.
         <LeadsFilteredEmptyState
           onClear={() => setFilters(INITIAL_FILTERS)}
           signalHint={SIGNAL_ENGINE_ONLY_TYPES.has(filters.signalType)}

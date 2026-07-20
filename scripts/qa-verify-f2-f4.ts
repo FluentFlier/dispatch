@@ -39,7 +39,7 @@ const PROFILE: CreatorProfileForPrompt = {
 
 /** Replicates voice-pipeline.ts fast-path (em-dash strip + single draft). */
 function stripEmDashes(text: string): string {
-  return text.replace(/—/g, ' - ').replace(/–/g, '-');
+  return text.replace(/\u2014/g, ' - ').replace(/\u2013/g, '-');
 }
 async function fastGenerate(userPrompt: string, contentType: VoiceContentType): Promise<string> {
   const composeHints = buildVoiceComposeHints(undefined, contentType);

@@ -28,7 +28,7 @@ export const HF_DEFAULT_CHAT_MODEL = 'meta-llama/Llama-3.1-8B-Instruct';
 const DEFAULT_MAX_TOKENS = 1024;
 // Reasoning models (gpt-oss, o-series, gpt-5) spend hundreds of tokens on hidden
 // reasoning BEFORE emitting content, so the normal 1024 cap truncates real output
-// mid-JSON. Give them headroom by default. This is a ceiling, not spend — billing
+// mid-JSON. Give them headroom by default. This is a ceiling, not spend - billing
 // counts only tokens actually generated, and LLM_DAILY_HARD_CAP still guards total.
 const REASONING_DEFAULT_MAX_TOKENS = 4096;
 const DEFAULT_TEMPERATURE = 0.7;

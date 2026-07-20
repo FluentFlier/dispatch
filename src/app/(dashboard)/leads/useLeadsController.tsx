@@ -186,7 +186,7 @@ export function useLeadsController() {
         setSetupMessage(
           (boot.error as string | undefined) ||
             (feed.error as string | undefined) ||
-            'Leads engine not provisioned — contact support',
+            'Leads engine not provisioned - contact support',
         );
         setCards([]);
         return;
@@ -472,7 +472,7 @@ export function useLeadsController() {
       setScrapeProgress({ pct: 100, label: 'Done' });
       const warnings: string[] = result.warnings ?? [];
       if (result.inserted === 0 && warnings.length > 0) {
-        toast(`0 new leads — ${warnings[0]}`, 'error');
+        toast(`0 new leads - ${warnings[0]}`, 'error');
       } else if (warnings.length > 0) {
         toast(`${result.inserted} new, but ${warnings.length} source(s) failed: ${warnings[0]}`, 'error');
       } else {
@@ -640,9 +640,9 @@ export function useLeadsController() {
       if (!res.ok) throw new Error(data.error);
       if (data.connected) {
         setAcceptedIds((prev) => new Set(prev).add(id));
-        toast('Connection accepted — draft the follow-up DM.', 'success');
+        toast('Connection accepted - draft the follow-up DM.', 'success');
       } else {
-        toast('Not accepted yet — check back later.');
+        toast('Not accepted yet - check back later.');
       }
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not check connection.', 'error');
@@ -685,7 +685,7 @@ export function useLeadsController() {
       if (!res.ok) throw new Error(data.error);
       mergeLead(data.lead);
       setDrafts((d) => ({ ...d, [id]: data.draftText }));
-      toast('Follow-up DM drafted — review and approve.');
+      toast('Follow-up DM drafted - review and approve.');
     } catch {
       toast('Could not draft follow-up.', 'error');
     } finally {
@@ -703,7 +703,7 @@ export function useLeadsController() {
       if (!res.ok) throw new Error(data.error);
       mergeLead(data.lead);
       setDrafts((d) => ({ ...d, [id]: data.draftText }));
-      toast('Reply drafted — review and send.');
+      toast('Reply drafted - review and send.');
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not draft reply.', 'error');
     } finally {
@@ -935,7 +935,7 @@ export function useLeadsController() {
         toast('Contact found.', 'success');
         return;
       }
-      toast('Contact found — drafting…', 'success');
+      toast('Contact found - drafting…', 'success');
       const dres = await fetchWithAuth(`/api/leads/${id}/draft`, { method: 'POST', headers: jsonHeaders, body: '{}' });
       const ddata = await dres.json();
       if (dres.ok) {
@@ -962,8 +962,8 @@ export function useLeadsController() {
       }
       toast(
         data.lead?.nurture_stage === 'planned'
-          ? 'Plan ready — resolve a contact to start outreach.'
-          : 'Nurture plan ready — connect queued.',
+          ? 'Plan ready - resolve a contact to start outreach.'
+          : 'Nurture plan ready - connect queued.',
       );
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not plan nurture.', 'error');
@@ -1030,8 +1030,8 @@ export function useLeadsController() {
       await refreshEngager(id);
       toast(
         data.path === 'comment'
-          ? 'Sequence started — value-add comment queued.'
-          : 'Sequence started — connect note drafted.',
+          ? 'Sequence started - value-add comment queued.'
+          : 'Sequence started - connect note drafted.',
       );
     } catch (e) {
       toast(e instanceof Error ? e.message : 'Could not start sequence.', 'error');

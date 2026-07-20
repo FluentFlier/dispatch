@@ -112,7 +112,7 @@ function parseExperiences(value: unknown): CreatorExperience[] {
       const row = item as Record<string, unknown>;
       const start = asString(row.start ?? row.starts_at);
       const end = asString(row.end ?? row.ends_at);
-      const dateRange = [start, end].filter(Boolean).join(' – ') || undefined;
+      const dateRange = [start, end].filter(Boolean).join(' - ') || undefined;
       return {
         title: asString(row.title ?? row.position ?? row.role),
         company: asString(row.company ?? row.company_name ?? row.organization),

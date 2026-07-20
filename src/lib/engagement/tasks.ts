@@ -318,7 +318,7 @@ export async function runEngagementTaskQueue(
     }
 
     // Human-mimicking gap between outbound actions - Unipile recommends ≥120s
-    // between consecutive LinkedIn writes, not the old 1–3s burst pacing.
+    // between consecutive LinkedIn writes, not the old 1-3s burst pacing.
     if (task.workspace_id) {
       const settings = await getSafetySettings(client, task.workspace_id);
       await awaitEngagementGap(settings);

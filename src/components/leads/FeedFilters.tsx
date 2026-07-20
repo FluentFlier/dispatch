@@ -98,7 +98,7 @@ export function FeedFilters({ state, onChange, verticals }: FeedFiltersProps) {
         ))}
       </div>
 
-      {/* Search + "Filters" disclosure — the two controls people reach for most. */}
+      {/* Search + "Filters" disclosure - the two controls people reach for most. */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative flex-1 min-w-[160px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-text-tertiary" aria-hidden="true" />
@@ -129,7 +129,7 @@ export function FeedFilters({ state, onChange, verticals }: FeedFiltersProps) {
         </button>
       </div>
 
-      {/* Advanced filters — source / signal / vertical / sort, hidden by default. */}
+      {/* Advanced filters - source / signal / vertical / sort, hidden by default. */}
       {showAdvanced && (
         <div className="flex flex-wrap items-center gap-2">
           <label className="sr-only" htmlFor="feed-source">Source</label>

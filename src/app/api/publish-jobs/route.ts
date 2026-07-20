@@ -23,7 +23,7 @@ export async function GET(): Promise<NextResponse> {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Publish jobs carry only post_id — pull the post titles in one extra query
+  // Publish jobs carry only post_id - pull the post titles in one extra query
   // (InsForge embeds are unreliable here) so the timeline can name each post.
   const jobs = data ?? [];
   const postIds = Array.from(new Set(jobs.map((j) => j.post_id).filter(Boolean)));

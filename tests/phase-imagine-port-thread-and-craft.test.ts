@@ -65,7 +65,7 @@ describe('thread contentType check gating', () => {
   });
 
   it('still applies base hygiene (em_dash) to threads', () => {
-    const r = get(VALID_THREAD.replace('the playbook', 'the playbook — full story'), 'em_dash')!;
+    const r = get(VALID_THREAD.replace('the playbook', 'the playbook \u2014 full story'), 'em_dash')!;
     expect(r.pass).toBe(false);
   });
 
