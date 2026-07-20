@@ -427,6 +427,7 @@ export function LeadsFeedBody(props: LeadsController) {
                 key={selectedLead.id}
                 lead={selectedLead}
                 company={companyById[selectedLead.id]}
+                quality={selectedCard?.quality}
                 onRetryCompany={() => retryCompany(selectedLead.id)}
                 draft={
                   drafts[selectedLead.id] ??

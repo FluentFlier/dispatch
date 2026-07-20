@@ -3,9 +3,10 @@
 import { useState } from 'react';
 import { Search, ArrowUpDown, SlidersHorizontal } from 'lucide-react';
 import type { LeadStatus, SignalType } from '@/lib/signals/types';
+import type { FeedSort } from '@/lib/leads/feed-sort';
 
-/** Sort orders the feed list supports. */
-export type FeedSort = 'score' | 'recency';
+/** Sort orders the feed list supports. Defined next to the comparator that implements them. */
+export type { FeedSort };
 
 /** Every filter the feed UI can drive. `status`/`source`/`signalType` map to feed query params; the rest are client-side. */
 export interface FeedFilterState {
@@ -57,9 +58,16 @@ interface FeedFiltersProps {
 const selectCls =
   'rounded-md border border-border bg-bg-secondary px-2.5 py-1.5 text-xs text-text-secondary cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary';
 
+/** "Score" said nothing about what was being scored; these name the intent. */
+const SORT_LABEL: Record<FeedSort, string> = {
+  score: 'Best fit',
+  warm: 'Warm',
+  recency: 'Recent',
+};
+
 /**
  * The feed's control bar: a status segmented row, source/signal/ICP-vertical
- * selects, a search box, and a score/recency sort toggle. Status, source, and
+ * selects, a search box, and a best-fit/warm/recent sort toggle. Status, source, and
  * signal type drive the `/api/leads/feed` query; vertical, search, and sort are
  * applied client-side. Everything is a native form control so keyboard users
  * and screen readers get correct semantics for free; each control carries an
@@ -173,15 +181,17 @@ export function FeedFilters({ state, onChange, verticals }: FeedFiltersProps) {
             </>
           )}
 
-          {/* Sort toggle: score / recency */}
+          {/* Sort toggle: best fit -> warm -> recent */}
           <button
             type="button"
-            onClick={() => set({ sort: state.sort === 'score' ? 'recency' : 'score' })}
-            aria-label={`Sort by ${state.sort}, click to change`}
+            onClick={() =>
+              set({ sort: state.sort === 'score' ? 'warm' : state.sort === 'warm' ? 'recency' : 'score' })
+            }
+            aria-label={`Sorted by ${SORT_LABEL[state.sort]}, click to change`}
             className="inline-flex items-center gap-1.5 rounded-md border border-border bg-bg-secondary px-2.5 py-1.5 text-xs text-text-secondary cursor-pointer hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
           >
             <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
-            {state.sort === 'score' ? 'Score' : 'Recent'}
+            {SORT_LABEL[state.sort]}
           </button>
         </div>
       )}

@@ -64,7 +64,14 @@ export function middleware(request: NextRequest): NextResponse {
 
   if (pathname === '/login' && token) {
     const { searchParams } = request.nextUrl;
-    if (searchParams.get('expired') === '1' || searchParams.has('error')) {
+    // `insforge_code` means this IS the OAuth callback landing: the page must
+    // render to exchange the code. Redirecting it away on the strength of a
+    // stale token cookie drops the sign-in the user just completed.
+    if (
+      searchParams.get('expired') === '1' ||
+      searchParams.has('error') ||
+      searchParams.has('insforge_code')
+    ) {
       return NextResponse.next({ request: { headers: requestHeaders } });
     }
     // A returning user can land on /login holding an EXPIRED access token (the

@@ -27,6 +27,7 @@ import { leadButtonBusy, type LeadDetailAction } from '@/lib/leads/busy';
 import { formatDuplicateWarning, type DuplicateWarningState } from '@/lib/leads/duplicate-warning';
 import { linkedInBadgeState } from '@/lib/leads/verified-badge';
 import { LINKEDIN_CONNECT_NOTE_LIMIT } from '@/lib/leads/constants';
+import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 
 export type { LeadDetailAction };
 
@@ -102,6 +103,8 @@ interface LeadDetailProps {
   company: YcCompanyDetail | 'loading' | 'error' | undefined;
   /** Retry a failed company-info fetch (re-arms the parent's fetch effect). */
   onRetryCompany?: () => void;
+  /** Quality breakdown from the feed card, so the panel header states the verdict. */
+  quality?: UnifiedLeadCard['quality'];
   draft: string;
   onDraftChange: (v: string) => void;
   busyAction: LeadDetailAction | null;
@@ -190,6 +193,7 @@ export function LeadDetail({
   lead,
   company,
   onRetryCompany,
+  quality,
   draft,
   onDraftChange,
   busyAction,
@@ -311,6 +315,8 @@ export function LeadDetail({
   const overLimit = draft.length > CONNECT_LIMIT;
   const summary = summarizeLead(lead);
   const sourceUrl = leadSourceUrl(lead);
+  // Null for an unscored lead: showing "0%" would read as a scored-and-bad fit.
+  const fitPercent = lead.fit_score > 0 ? Math.round(Math.min(1, lead.fit_score) * 100) : null;
   const inReplyMode = Boolean(
     lead.needs_reply || lead.nurture_stage === 'replied' || lead.nurture_stage === 'in_conversation',
   );
@@ -375,13 +381,26 @@ export function LeadDetail({
             )}
           </div>
         </div>
-        <button
-          onClick={onFollow}
-          aria-pressed={followed}
-          className={`inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border border-border shrink-0 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary ${followed ? 'text-accent-secondary bg-sage-light' : 'text-text-secondary hover:bg-bg-tertiary'}`}
-        >
-          <Pin className="h-3.5 w-3.5" /> {followed ? 'Following' : 'Follow'}
-        </button>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          {quality && (
+            <div className="flex flex-wrap justify-end gap-1.5 text-[11px]">
+              <span className="rounded-md border border-border bg-bg-primary px-2 py-1 font-medium text-text-primary">
+                {quality.label}
+                {fitPercent !== null && ` ${fitPercent}%`}
+              </span>
+              <span className="rounded-md bg-bg-tertiary px-2 py-1 text-text-secondary">
+                {quality.reachabilityLabel}
+              </span>
+            </div>
+          )}
+          <button
+            onClick={onFollow}
+            aria-pressed={followed}
+            className={`inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-md border border-border cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary ${followed ? 'text-accent-secondary bg-sage-light' : 'text-text-secondary hover:bg-bg-tertiary'}`}
+          >
+            <Pin className="h-3.5 w-3.5" /> {followed ? 'Following' : 'Follow'}
+          </button>
+        </div>
       </div>
 
       {/* Body: About on the left, info box + tags on the right */}
