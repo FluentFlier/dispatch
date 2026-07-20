@@ -11,9 +11,10 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  ThumbsUp,
-  MessageSquare,
   CornerDownLeft,
+  Search,
+  Check,
+  Undo2,
 } from 'lucide-react';
 import type { EngagementInboxResult, InboxComment, InboxPostGroup } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
@@ -41,6 +42,7 @@ function statusLabel(queue: InboxComment['queue'], answeredNatively = false): st
   if (answeredNatively) return 'You replied';
   if (!queue) return 'Needs a reply';
   if (queue.status === 'sent') return 'Reply sent';
+  if (queue.status === 'skipped') return 'Marked replied';
   if (queue.status === 'draft' || queue.status === 'approved') return 'Draft ready';
   if (queue.status === 'failed') return 'Send failed. Try again';
   return 'Needs a reply';
@@ -49,7 +51,7 @@ function statusLabel(queue: InboxComment['queue'], answeredNatively = false): st
 function statusTone(queue: InboxComment['queue'], answeredNatively = false): string {
   if (answeredNatively) return 'text-ink bg-lime/15';
   if (!queue) return 'text-ink2 bg-paper2/80';
-  if (queue.status === 'sent') return 'text-ink bg-lime/15';
+  if (queue.status === 'sent' || queue.status === 'skipped') return 'text-ink bg-lime/15';
   if (queue.status === 'draft' || queue.status === 'approved') return 'text-blue bg-blue/10';
   if (queue.status === 'failed') return 'text-flame bg-flame/10';
   return 'text-ink2 bg-paper2/80';
@@ -77,6 +79,9 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
   const [draftEdits, setDraftEdits] = useState<Record<string, string>>({});
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [draftingId, setDraftingId] = useState<string | null>(null);
+  const [markingId, setMarkingId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
+  const [replyFilter, setReplyFilter] = useState<'all' | 'needs_reply' | 'replied'>('all');
   // Comment ids ticked for a batch send from the footer button.
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -228,6 +233,29 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
     }
   };
 
+  /**
+   * Park a comment as handled, or put it back. Nothing is sent - this exists
+   * for comments the creator answered with a reaction, or elsewhere, which
+   * would otherwise sit in the needs-a-reply pile forever.
+   */
+  const handleMarkHandled = async (item: InboxComment, handled: boolean) => {
+    setMarkingId(item.comment.id);
+    try {
+      const res = await fetch('/api/engagement/mark', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commentIds: [item.comment.id], handled }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Could not update');
+      await loadInbox();
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Could not update', 'error');
+    } finally {
+      setMarkingId(null);
+    }
+  };
+
   const handleSendApproved = async () => {
     // With rows ticked, send exactly those - with whatever is in each box,
     // typed or drafted. With nothing ticked, fall back to every approved draft.
@@ -341,9 +369,37 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
   // comments appeared out of nowhere with nothing to say they were coming.
   const busy = loading || syncing;
 
-  const groups = data?.groups ?? [];
+  // Search and the replied/not-replied filter run on what is already loaded -
+  // the inbox is one post's worth of comments, so there is nothing to gain by
+  // going back to the server for it.
+  const query = search.trim().toLowerCase();
+  const groups = (data?.groups ?? [])
+    .map((group) => ({
+      ...group,
+      comments: group.comments.filter((item) => {
+        const handled =
+          item.queue?.status === 'sent' ||
+          item.queue?.status === 'skipped' ||
+          Boolean(item.answered_natively);
+        if (replyFilter === 'needs_reply' && handled) return false;
+        if (replyFilter === 'replied' && !handled) return false;
+        if (!query) return true;
+        return [
+          item.comment.author_name,
+          item.comment.author_handle,
+          item.comment.author_headline,
+          item.comment.comment_text,
+          group.post_title,
+        ]
+          .filter(Boolean)
+          .some((field) => (field as string).toLowerCase().includes(query));
+      }),
+    }))
+    .filter((group) => group.comments.length > 0);
+
   const summary = data?.summary;
   const isEmpty = groups.length === 0;
+  const filtersActive = query.length > 0 || replyFilter !== 'all';
 
   // In the portal (the editor footer) the row shares one line with the status
   // pipeline, so the labels shorten to keep it from wrapping underneath. Inline
@@ -409,6 +465,44 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
 
       {actionsPortal ? createPortal(actions, actionsPortal) : actions}
 
+      {!busy && (data?.groups?.length ?? 0) > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[180px] flex-1">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-text-secondary" />
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by commenter, text or post…"
+              aria-label="Search comments"
+              className="min-h-[40px] w-full rounded-md border border-border bg-bg-primary pl-8 pr-3 text-[13px] text-text-primary placeholder:text-text-tertiary focus:border-border-hover focus:outline-none"
+            />
+          </div>
+          <div className="flex items-center gap-1 rounded-md border border-border bg-bg-primary p-0.5">
+            {(
+              [
+                { value: 'all', label: 'All' },
+                { value: 'needs_reply', label: 'Needs a reply' },
+                { value: 'replied', label: 'Replied' },
+              ] as const
+            ).map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => setReplyFilter(option.value)}
+                className={`min-h-[36px] cursor-pointer rounded px-3 text-[13px] font-medium transition-colors ${
+                  replyFilter === option.value
+                    ? 'bg-bg-tertiary text-text-primary'
+                    : 'text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {busy ? (
         <div className="rounded-lg border border-border bg-bg-secondary p-6 shadow-card">
           <p className="mb-3 text-[12px] text-text-secondary">
@@ -416,6 +510,10 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
           </p>
           <SkeletonLines count={4} />
         </div>
+      ) : isEmpty && filtersActive ? (
+        <p className="rounded-lg border border-dashed border-border bg-bg-secondary px-4 py-6 text-center text-[13px] text-text-secondary">
+          No comments match that search or filter.
+        </p>
       ) : isEmpty ? (
         <div className="rounded-lg border border-border bg-bg-secondary p-8 md:p-10 text-center shadow-card">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-md bg-coral-light text-accent-primary mb-5">
@@ -462,6 +560,8 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
               onApproveSend={handleApproveSend}
               onDraftOne={handleDraftOne}
               draftingId={draftingId}
+              onMarkHandled={handleMarkHandled}
+              markingId={markingId}
               selected={selected}
               onToggleSelect={toggleSelect}
             />
@@ -481,6 +581,8 @@ function PostCommentGroup({
   onApproveSend,
   onDraftOne,
   draftingId,
+  onMarkHandled,
+  markingId,
   selected,
   onToggleSelect,
 }: {
@@ -492,6 +594,8 @@ function PostCommentGroup({
   onApproveSend: (item: InboxComment) => void;
   onDraftOne: (item: InboxComment) => void;
   draftingId: string | null;
+  onMarkHandled: (item: InboxComment, handled: boolean) => void;
+  markingId: string | null;
   selected: Set<string>;
   onToggleSelect: (commentId: string) => void;
 }) {
@@ -531,6 +635,8 @@ function PostCommentGroup({
             onApproveSend={onApproveSend}
             onDraftOne={onDraftOne}
             draftingId={draftingId}
+            onMarkHandled={onMarkHandled}
+            markingId={markingId}
             selected={selected.has(item.comment.id)}
             onToggleSelect={onToggleSelect}
             platform={group.post_platform}
@@ -594,6 +700,8 @@ function CommentRow({
   onApproveSend,
   onDraftOne,
   draftingId,
+  onMarkHandled,
+  markingId,
   selected,
   onToggleSelect,
   platform,
@@ -605,17 +713,21 @@ function CommentRow({
   onApproveSend: (item: InboxComment) => void;
   onDraftOne: (item: InboxComment) => void;
   draftingId: string | null;
+  onMarkHandled: (item: InboxComment, handled: boolean) => void;
+  markingId: string | null;
   selected: boolean;
   onToggleSelect: (commentId: string) => void;
   platform: string;
 }) {
   const { comment, queue } = item;
-  const isSent = queue?.status === 'sent' || Boolean(item.answered_natively);
+  const isSent =
+    queue?.status === 'sent' || queue?.status === 'skipped' || Boolean(item.answered_natively);
   // Drafts are keyed by queue id when the AI wrote one, and by comment id when
   // the reply is hand-written and has no queue row yet.
   const draftKey = queue?.id ?? comment.id;
   const draftValue = draftEdits[draftKey] ?? queue?.draft_reply ?? '';
 
+  const markedHandled = queue?.status === 'skipped';
   const isX = normalizeDashboardPlatform(platform) === 'twitter';
   const name = authorLabel(item);
   const handle = comment.author_handle?.replace(/^@/, '');
@@ -659,6 +771,18 @@ function CommentRow({
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 {when && <span className="text-[13px] text-ink3">{when}</span>}
+                {/* Gmail-style: park a comment you have already handled - a
+                    reaction, a reply we cannot see - so it leaves the
+                    needs-a-reply pile. Reversible. */}
+                <button
+                  type="button"
+                  disabled={markingId === comment.id}
+                  onClick={() => onMarkHandled(item, !markedHandled)}
+                  title={markedHandled ? 'Move back to needs a reply' : 'Mark as replied'}
+                  className="cursor-pointer rounded p-1 text-ink3 transition-colors hover:bg-bg-tertiary hover:text-ink disabled:opacity-50"
+                >
+                  {markedHandled ? <Undo2 className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+                </button>
                 <span
                   className={`inline-flex items-center gap-1 rounded-badge px-2 py-1 text-[13px] font-medium ${statusTone(queue, item.answered_natively)}`}
                 >

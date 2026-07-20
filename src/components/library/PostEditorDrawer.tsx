@@ -510,7 +510,20 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               )}
 
               <label className="block">
-                <span className={labelClass}>{isLinkedIn ? 'Post body' : 'Script'}</span>
+                <div className="flex items-center justify-between">
+                  <span className={labelClass}>{isLinkedIn ? 'Post body' : 'Script'}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!form.script) return;
+                      navigator.clipboard.writeText(form.script);
+                      toast('Post body copied');
+                    }}
+                    className="flex cursor-pointer items-center gap-1 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+                  >
+                    <Copy size={12} /> Copy
+                  </button>
+                </div>
                 <textarea
                   rows={10}
                   value={form.script}
@@ -611,18 +624,6 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                     <Wand2 size={14} /> Regenerate Hook
                   </button>
                 )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (form.script) {
-                      navigator.clipboard.writeText(form.script);
-                      toast('Script copied for repurpose');
-                    }
-                  }}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
-                >
-                  <Copy size={14} /> Repurpose
-                </button>
                 <Link
                   href={`/teleprompter?postId=${post.id}`}
                   className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"

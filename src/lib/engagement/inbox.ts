@@ -43,8 +43,11 @@ function classifyComment(
   if (queue.status === 'sent') {
     return { needs_reply: false, drafted: false, sent: true };
   }
+  // "Mark as replied" writes this status. The creator has handled the comment
+  // some other way - a reaction, a reply we cannot see - so it must leave the
+  // needs-a-reply pile, which is the whole point of the button.
   if (queue.status === 'skipped') {
-    return { needs_reply: true, drafted: false, sent: false };
+    return { needs_reply: false, drafted: false, sent: true };
   }
   if (queue.status === 'draft' || queue.status === 'approved') {
     return { needs_reply: false, drafted: true, sent: false };
