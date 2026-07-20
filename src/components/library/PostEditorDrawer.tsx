@@ -34,6 +34,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import Link from 'next/link';
 
 const DRAWER_TABS = [
+  { id: 'preview', label: 'Preview' },
   { id: 'write', label: 'Write' },
   { id: 'schedule', label: 'Schedule' },
   { id: 'comments', label: 'Comments' },
@@ -52,7 +53,9 @@ interface PostEditorDrawerProps {
 
 export default function PostEditorDrawer({ post, series, onClose, onSave, onDelete }: PostEditorDrawerProps) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<DrawerTab>('write');
+  // Preview opens first: for a published post the card is the answer to "what
+  // is this?", and the edit fields are the follow-up.
+  const [activeTab, setActiveTab] = useState<DrawerTab>('preview');
   const [form, setForm] = useState({
     title: post.title,
     pillar: post.pillar,
@@ -375,30 +378,26 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
             clipped the excess, and `overflow-y-auto` was left scrolling a sliver
             a couple of lines tall. */}
         <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4 bg-bg-primary">
+          {activeTab === 'preview' && (
+            <PostSocialPreview
+              platform={normalizeDashboardPlatform(form.platform)}
+              name={author.name}
+              headline={author.headline}
+              text={form.script || form.caption || form.hook || ''}
+              imageUrl={form.image_url || null}
+              imageUrls={(post.images ?? []).map((i) => i.url)}
+              videoUrl={post.video_url ?? null}
+              reactions={form.likes}
+              comments={form.comments}
+              reposts={form.shares}
+              repost={post.reposted_content ?? null}
+              topComments={previewComments.top}
+              totalComments={previewComments.total}
+            />
+          )}
+
           {activeTab === 'write' && (
             <>
-              {/* Preview leads the tab - it's what the post actually looks like.
-                  It is a normal block in the scroll flow, not a pinned header:
-                  the old pinned copy ate the height the scroll pane needed and
-                  left the fields unreachable. */}
-              <div>
-                <span className={labelClass}>Preview</span>
-                <PostSocialPreview
-                  platform={normalizeDashboardPlatform(form.platform)}
-                  name={author.name}
-                  headline={author.headline}
-                  text={form.script || form.caption || form.hook || ''}
-                  imageUrl={form.image_url || null}
-                  imageUrls={(post.images ?? []).map((i) => i.url)}
-                  videoUrl={post.video_url ?? null}
-                  reactions={form.likes}
-                  comments={form.comments}
-                  reposts={form.shares}
-                  repost={post.reposted_content ?? null}
-                  topComments={previewComments.top}
-                  totalComments={previewComments.total}
-                />
-              </div>
 
               <label className="block">
                 <span className={labelClass}>Title</span>
