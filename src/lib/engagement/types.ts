@@ -12,6 +12,8 @@ export interface PostCommentRow {
   comment_text: string;
   commented_at: string | null;
   parent_comment_id: string | null;
+  /** True when the account owner wrote this - i.e. it is their own reply. */
+  is_own: boolean | null;
   synced_at: string;
   // --- L5: Engagement Signal Detection ---
   // Set by draftEngagementReplies after Haiku signal check.
@@ -39,6 +41,8 @@ export interface CommentReplyQueueRow {
 export interface InboxComment {
   comment: PostCommentRow;
   queue: CommentReplyQueueRow | null;
+  /** The creator already replied to this on the platform itself. */
+  answered_natively?: boolean;
 }
 
 export interface InboxPostGroup {

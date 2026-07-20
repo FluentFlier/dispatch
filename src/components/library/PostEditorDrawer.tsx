@@ -336,6 +336,9 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                   headline={author.headline}
                   text={form.script || form.caption || form.hook || ''}
                   imageUrl={form.image_url || null}
+                  reactions={form.likes}
+                  comments={form.comments}
+                  reposts={form.shares}
                 />
               </div>
 
@@ -842,15 +845,31 @@ function PostSocialPreview({
   headline,
   text,
   imageUrl,
+  reactions,
+  comments,
+  reposts,
 }: {
   platform: DashboardPlatform;
   name: string;
   headline?: string | null;
   text: string;
   imageUrl?: string | null;
+  reactions?: number;
+  comments?: number;
+  reposts?: number;
 }) {
   if (platform === 'linkedin') {
-    return <LinkedInPostPreview name={name} headline={headline} text={text} imageUrl={imageUrl} />;
+    return (
+      <LinkedInPostPreview
+        name={name}
+        headline={headline}
+        text={text}
+        imageUrl={imageUrl}
+        reactions={reactions}
+        comments={comments}
+        reposts={reposts}
+      />
+    );
   }
   // X / other: minimal tweet-style card.
   return (

@@ -97,7 +97,7 @@ function normalizedIdentity(value?: string | null): string | null {
   return token.replace(/^@/, '').replace(/\/+$/, '').toLowerCase();
 }
 
-function identityVariants(value?: string | null): string[] {
+export function identityVariants(value?: string | null): string[] {
   return uniq([value, urnTail(value ?? undefined)])
     .map(normalizedIdentity)
     .filter(Boolean) as string[];
@@ -276,7 +276,13 @@ async function fetchPostsForProviderUser(
     fetchedCount += items.length;
 
     for (const item of items) {
-      if (item.is_repost || item.is_reply) {
+      // Reposts are the creator's own commentary on someone else's post, and
+      // that commentary is their voice - dropping them silently lost a large
+      // slice of the account. Unipile puts the commentary in the item's own
+      // text and the reshared body in a nested object we never read, so a bare
+      // no-commentary reshare falls out of the length guard below on its own.
+      // Replies stay excluded: they are conversation, not posts.
+      if (item.is_reply) {
         filteredCount++;
         continue;
       }

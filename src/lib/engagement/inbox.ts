@@ -23,11 +23,20 @@ type InsforgeClient = ReturnType<typeof createClient>;
 
 export type InboxFilter = 'all' | 'needs_reply' | 'drafted' | 'sent';
 
-function classifyComment(queue: CommentReplyQueueRow | null): {
+function classifyComment(
+  queue: CommentReplyQueueRow | null,
+  answeredNatively = false,
+): {
   needs_reply: boolean;
   drafted: boolean;
   sent: boolean;
 } {
+  // A reply the creator wrote on LinkedIn itself counts as answered. Reply state
+  // used to come only from comment_reply_queue - a table this app alone writes -
+  // so every comment they had already handled still read "Needs a reply".
+  if (answeredNatively) {
+    return { needs_reply: false, drafted: false, sent: true };
+  }
   if (!queue) {
     return { needs_reply: true, drafted: false, sent: false };
   }
@@ -141,15 +150,22 @@ export async function getEngagementInbox(
     }
   }
 
+  // Thread replies are context, not inbox items: show the top-level comment and
+  // use its children only to decide whether it has already been answered.
+  const ownReplyParents = new Set(
+    commentRows.filter((c) => c.is_own && c.parent_comment_id).map((c) => c.parent_comment_id as string),
+  );
+  const topLevel = commentRows.filter((c) => !c.parent_comment_id && !c.is_own);
+
   const groupsMap = new Map<string, InboxPostGroup>();
 
   let totalNeeds = 0;
   let totalDrafted = 0;
   let totalSent = 0;
 
-  for (const comment of commentRows) {
+  for (const comment of topLevel) {
     const queue = queueByComment.get(comment.id) ?? null;
-    const flags = classifyComment(queue);
+    const flags = classifyComment(queue, ownReplyParents.has(comment.id));
 
     if (!matchesFilter(filter, flags)) continue;
 
@@ -174,7 +190,11 @@ export async function getEngagementInbox(
       groupsMap.set(comment.post_id, group);
     }
 
-    const inboxComment: InboxComment = { comment, queue };
+    const inboxComment: InboxComment = {
+      comment,
+      queue,
+      answered_natively: ownReplyParents.has(comment.id),
+    };
     group.comments.push(inboxComment);
     group.stats.total++;
     if (flags.needs_reply) group.stats.needs_reply++;

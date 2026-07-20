@@ -24,7 +24,10 @@ function authorLabel(comment: InboxComment): string {
   return 'Someone';
 }
 
-function statusLabel(queue: InboxComment['queue']): string {
+function statusLabel(queue: InboxComment['queue'], answeredNatively = false): string {
+  // Mirrors classifyComment on the server: a reply written on the platform is
+  // still a reply, even though this app never queued it.
+  if (answeredNatively) return 'You replied';
   if (!queue) return 'Needs a reply';
   if (queue.status === 'sent') return 'Reply sent';
   if (queue.status === 'draft' || queue.status === 'approved') return 'Draft ready';
@@ -32,7 +35,8 @@ function statusLabel(queue: InboxComment['queue']): string {
   return 'Needs a reply';
 }
 
-function statusTone(queue: InboxComment['queue']): string {
+function statusTone(queue: InboxComment['queue'], answeredNatively = false): string {
+  if (answeredNatively) return 'text-ink bg-lime/15';
   if (!queue) return 'text-ink2 bg-paper2/80';
   if (queue.status === 'sent') return 'text-ink bg-lime/15';
   if (queue.status === 'draft' || queue.status === 'approved') return 'text-blue bg-blue/10';
@@ -429,7 +433,7 @@ function CommentRow({
   onApproveSend: (item: InboxComment) => void;
 }) {
   const { comment, queue } = item;
-  const isSent = queue?.status === 'sent';
+  const isSent = queue?.status === 'sent' || Boolean(item.answered_natively);
   const queueId = queue?.id;
   const draftValue =
     queueId != null
@@ -446,7 +450,7 @@ function CommentRow({
           )}
         </div>
         <span
-          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-badge text-xs font-medium ${statusTone(queue)}`}
+          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-badge text-xs font-medium ${statusTone(queue, item.answered_natively)}`}
         >
           {isSent ? (
             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -455,7 +459,7 @@ function CommentRow({
           ) : (
             <Clock className="h-3.5 w-3.5" />
           )}
-          {statusLabel(queue)}
+          {statusLabel(queue, item.answered_natively)}
         </span>
       </div>
 

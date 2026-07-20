@@ -186,7 +186,14 @@ export default function PlatformConnections({
       const res = await fetch('/api/social-accounts/sync', { method: 'POST' });
       const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setSyncResult(data.synced > 0 ? `Synced ${data.synced} account(s)` : 'No accounts found in Unipile');
+        // The server distinguishes "Unipile really is empty" from "you are not
+        // mid-connect, so there is nothing to bind" - collapsing both into
+        // "No accounts found in Unipile" made a working connection look broken.
+        setSyncResult(
+          data.synced > 0
+            ? `Synced ${data.synced} account(s)`
+            : (data.message ?? 'Nothing to sync'),
+        );
         onAccountsRefresh();
       } else {
         setSyncResult(data.error ?? 'Sync failed');

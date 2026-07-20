@@ -1,6 +1,6 @@
 import { getServerClient } from '@/lib/insforge/server';
 import { buildPostIdCandidates } from '@/lib/engagement/unipile-reactions';
-import { resolveUnipileTarget, type OnboardingPlatform } from '@/lib/onboarding/import-posts';
+import { identityVariants, resolveUnipileTarget, type OnboardingPlatform } from '@/lib/onboarding/import-posts';
 import { HttpStatusError, retryWithBackoff, throwIfNotOk } from '@/lib/social/reliability';
 
 /**
@@ -14,7 +14,15 @@ export interface UnipileFetchedComment {
   author_handle?: string;
   author_headline?: string;
   commented_at?: string;
+  /** Provider id of the comment this is a reply to, for thread replies. */
+  parent_provider_comment_id?: string;
+  /** True when the account owner wrote it - i.e. they already replied natively. */
+  is_own?: boolean;
 }
+
+/** How many pages of comments to walk per post before giving up. */
+const COMMENT_PAGE_SIZE = 50;
+const MAX_COMMENT_PAGES = 10;
 
 function getUnipileBase(): string {
   const dsn = process.env.UNIPILE_DSN;
@@ -126,6 +134,22 @@ export function extractComments(json: unknown, fallbackPlatform: string): Unipil
  * stored id rather than blocking the sync entirely.
  */
 export async function getUnipileAccountId(userId: string, platform: string): Promise<string | null> {
+  return (await resolveUnipileIdentity(userId, platform))?.accountId ?? null;
+}
+
+/**
+ * Same resolution as {@link getUnipileAccountId}, but also hands back the
+ * account's provider user ids.
+ *
+ * Those ids are what tells "a comment on your post" apart from "your own reply
+ * to a comment". `resolveUnipileTarget` already computes them; the old
+ * `getUnipileAccountId` threw them away one line before returning, which is why
+ * nothing downstream could recognise a reply the creator had written natively.
+ */
+export async function resolveUnipileIdentity(
+  userId: string,
+  platform: string,
+): Promise<{ accountId: string; providerUserIds: string[] } | null> {
   const client = getServerClient();
   const { data } = await client.database
     .from('social_accounts')
@@ -151,10 +175,18 @@ export async function getUnipileAccountId(userId: string, platform: string): Pro
         .eq('user_id', userId)
         .eq('platform', platform);
     }
-    return target.unipileAccountId;
+    return { accountId: target.unipileAccountId, providerUserIds: target.providerUserIds };
   } catch {
     return null;
   }
+}
+
+/** True when a comment's author is the account owner. */
+function isOwnComment(c: UnipileFetchedComment, ownerTokens: Set<string>): boolean {
+  if (ownerTokens.size === 0) return false;
+  return [c.author_handle, c.author_name].some((value) =>
+    identityVariants(value).some((token) => ownerTokens.has(token)),
+  );
 }
 
 /**
@@ -204,8 +236,10 @@ export async function fetchUnipilePostComments(
 ): Promise<UnipileFetchedComment[]> {
   if (!getApiKey()) return [];
 
-  const accountId = await getUnipileAccountId(userId, platform);
-  if (!accountId) return [];
+  const identity = await resolveUnipileIdentity(userId, platform);
+  if (!identity) return [];
+  const { accountId } = identity;
+  const ownerTokens = new Set(identity.providerUserIds.flatMap((id) => identityVariants(id)));
 
   const params = new URLSearchParams({ account_id: accountId });
 
@@ -223,20 +257,78 @@ export async function fetchUnipilePostComments(
         })()
       : rawCandidates;
 
+  /**
+   * One page of a comment listing. `commentId` asks for a thread's replies
+   * instead of the post's top-level comments.
+   */
+  const fetchPage = async (
+    postCandidate: string,
+    cursor?: string,
+    commentId?: string,
+  ): Promise<{ comments: UnipileFetchedComment[]; cursor?: string }> => {
+    const query = new URLSearchParams(params);
+    query.set('limit', String(COMMENT_PAGE_SIZE));
+    if (cursor) query.set('cursor', cursor);
+    if (commentId) query.set('comment_id', commentId);
+
+    const res = await retryWithBackoff(async () =>
+      throwIfNotOk(
+        await unipoleFetch(
+          `/posts/${encodeURIComponent(postCandidate)}/comments?${query.toString()}`,
+          { method: 'GET' },
+        ),
+        'Unipile get comments',
+      ),
+    );
+    const json = (await res.json()) as { cursor?: string; next_cursor?: string };
+    return {
+      comments: extractComments(json, platform),
+      cursor: json.next_cursor ?? json.cursor,
+    };
+  };
+
+  /** Walk every page of a listing, bounded by MAX_COMMENT_PAGES. */
+  const fetchAllPages = async (
+    postCandidate: string,
+    commentId?: string,
+  ): Promise<UnipileFetchedComment[]> => {
+    const all: UnipileFetchedComment[] = [];
+    let cursor: string | undefined;
+    for (let page = 0; page < MAX_COMMENT_PAGES; page++) {
+      const { comments, cursor: next } = await fetchPage(postCandidate, cursor, commentId);
+      all.push(...comments);
+      if (!next || comments.length === 0) break;
+      cursor = next;
+    }
+    return all;
+  };
+
   let lastError: unknown = null;
 
   for (const candidate of candidates) {
     try {
-      const res = await retryWithBackoff(async () =>
-        throwIfNotOk(
-          await unipoleFetch(
-            `/posts/${encodeURIComponent(candidate)}/comments?${params.toString()}`,
-            { method: 'GET' },
-          ),
-          'Unipile get comments',
-        ),
+      // Top-level comments, then each thread's replies. Without the replies a
+      // busy post showed only a fraction of what LinkedIn displays, and there
+      // was no way to see that the creator had already answered.
+      const top = await fetchAllPages(candidate);
+      const threads = await Promise.all(
+        top.map(async (parent) => {
+          try {
+            const replies = await fetchAllPages(candidate, parent.provider_comment_id);
+            return replies.map((reply) => ({
+              ...reply,
+              parent_provider_comment_id: parent.provider_comment_id,
+            }));
+          } catch {
+            return []; // a thread that won't load must not sink the whole sync
+          }
+        }),
       );
-      return extractComments(await res.json(), platform);
+
+      return [...top, ...threads.flat()].map((c) => ({
+        ...c,
+        is_own: isOwnComment(c, ownerTokens),
+      }));
     } catch (error) {
       lastError = error;
       if (error instanceof HttpStatusError && (error.status === 404 || error.status === 422)) {

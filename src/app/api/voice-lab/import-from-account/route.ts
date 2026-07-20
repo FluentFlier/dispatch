@@ -121,11 +121,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   try {
+    // No cap override here: the hardcoded 25 shadowed the lib's
+    // MAX_POSTS_PER_PLATFORM and, once reposts and replies were filtered out,
+    // left a user-triggered "import my posts" returning about six rows.
     const { samples, rawItems, fetchedCount, filteredCount } = await fetchPostsFromUnipile(
       target.providerUserIds,
       target.unipileAccountId,
       platform,
-      25,
     );
 
     const persistClient = process.env.INSFORGE_SERVICE_ROLE_KEY?.trim()
