@@ -19,6 +19,16 @@ interface LinkedInPostPreviewProps {
   reactions?: number;
   comments?: number;
   reposts?: number;
+  /** Top comments, shown under the action bar the way the feed shows them. */
+  topComments?: Array<{
+    id: string;
+    author: string;
+    headline?: string | null;
+    text: string;
+    age?: string | null;
+  }>;
+  /** Total comment count, for the "View all N comments" line. */
+  totalComments?: number;
   /** The post being reshared, for a repost. Rendered as a quoted card. */
   repost?: {
     text?: string;
@@ -107,6 +117,8 @@ export function LinkedInPostPreview({
   comments = 0,
   reposts = 0,
   repost = null,
+  topComments,
+  totalComments = 0,
 }: LinkedInPostPreviewProps) {
   const [expanded, setExpanded] = useState(false);
   const initials = getInitials(name);
@@ -206,6 +218,34 @@ export function LinkedInPostPreview({
           </span>
         ))}
       </div>
+
+      {/* Top comments, the way the feed hangs them under the card. */}
+      {topComments && topComments.length > 0 && (
+        <div className="space-y-3 border-t border-hair px-3 py-3">
+          {topComments.map((c) => (
+            <div key={c.id} className="flex gap-2">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-tertiary text-[11px] font-semibold text-text-secondary">
+                {getInitials(c.author)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="truncate text-[13px] font-semibold text-ink">{c.author}</p>
+                  {c.age && <span className="shrink-0 text-[12px] text-ink3">{c.age}</span>}
+                </div>
+                {c.headline && <p className="line-clamp-1 text-[12px] text-ink3">{c.headline}</p>}
+                <p className="mt-1 line-clamp-3 whitespace-pre-wrap text-[13px] leading-[1.43] text-text-primary">
+                  {c.text}
+                </p>
+              </div>
+            </div>
+          ))}
+          {totalComments > topComments.length && (
+            <p className="text-[13px] font-semibold text-ink3">
+              View all {totalComments} comments
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -251,8 +251,16 @@ export async function draftEngagementReplies(
     .from('post_comments')
     .select('*')
     .eq('user_id', userId)
+    // Never draft a reply to our own reply, and never to a thread reply - both
+    // are now stored as post_comments rows alongside the top-level comments.
+    .eq('is_own', false)
+    .is('parent_comment_id', null)
     .order('synced_at', { ascending: false })
     .limit(limit * 3);
+
+  if (input.postId) {
+    commentsQuery = commentsQuery.eq('post_id', input.postId);
+  }
 
   if (input.commentIds?.length) {
     commentsQuery = commentsQuery.in('id', input.commentIds);
@@ -321,7 +329,11 @@ export async function draftEngagementReplies(
         contextAdditions: contextAdditions || undefined,
         platform: comment.platform,
         contentType: 'reply',
-        fast: input.fast ?? false,
+        // Fast by default. A comment reply is a sentence or two; running the
+        // full generate-evaluate-revise pipeline on each one took ~30-60s per
+        // comment (a batch measured 949s) and burned the daily token budget, so
+        // the button read as broken. Callers can still ask for the full pass.
+        fast: input.fast ?? true,
       });
 
       const { data: inserted, error: insertError } = await client.database

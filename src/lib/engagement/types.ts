@@ -125,6 +125,14 @@ export interface DraftRepliesInput {
   commentIds?: string[];
   fast?: boolean;
   limit?: number;
+  /**
+   * Draft only for this post's comments.
+   *
+   * Without it, pressing Draft while looking at one post spent the AI budget on
+   * whatever comments happened to be newest across every post - so the post on
+   * screen got a draft or two, or none, and the button looked broken.
+   */
+  postId?: string;
 }
 
 export interface DraftRepliesResult {

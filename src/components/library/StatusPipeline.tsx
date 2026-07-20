@@ -22,7 +22,10 @@ export default function StatusPipeline({ current, onChange }: StatusPipelineProp
   return (
     <div className="flex items-center gap-2">
       {STATUSES.map((s, i) => {
-        const isActive = i <= currentIdx;
+        // Only the post's actual status is filled. Filling every dot up to it
+        // read as "this post is all five of these at once" - the pipeline is a
+        // picker, not a progress bar.
+        const isActive = i === currentIdx;
         return (
           <button
             key={s}

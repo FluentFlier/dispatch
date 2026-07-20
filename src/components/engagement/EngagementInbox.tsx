@@ -21,23 +21,8 @@ import { Textarea } from '@/components/ui/Textarea';
 import { SkeletonLines } from '@/components/ui/Skeleton';
 import { getInitials } from '@/lib/compose-preview';
 import { normalizeDashboardPlatform } from '@/lib/constants';
-import { formatRelative } from '@/lib/utils';
+import { shortAge } from '@/lib/utils';
 import { useToast } from '@/components/ui/Toast';
-
-/** LinkedIn/X-style age: 31m, 5h, 2d, 3mo, 1y. */
-function shortAge(iso: string): string {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.round(hours / 24);
-  if (days < 7) return `${days}d`;
-  const weeks = Math.round(days / 7);
-  if (days < 30) return `${weeks}w`;
-  const months = Math.round(days / 30);
-  if (months < 12) return `${months}mo`;
-  return `${Math.round(days / 365)}y`;
-}
 
 /** Comments rendered before the "Load more" button appears, then per click. */
 const INITIAL_COMMENTS = 3;
@@ -91,6 +76,7 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
   const [sendingBulk, setSendingBulk] = useState(false);
   const [draftEdits, setDraftEdits] = useState<Record<string, string>>({});
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [draftingId, setDraftingId] = useState<string | null>(null);
   // Comment ids ticked for a batch send from the footer button.
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
@@ -190,7 +176,14 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
       const res = await fetch('/api/engagement/draft-replies', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ limit: postId ? 30 : 20 }),
+        // Exactly the ticked comments. Unscoped, this spent the AI budget on
+        // whichever comments were newest across every post, so the post on
+        // screen got nothing back and the button looked dead.
+        body: JSON.stringify(
+          selected.size > 0
+            ? { commentIds: Array.from(selected) }
+            : { postId, limit: postId ? 30 : 20 },
+        ),
       });
       const result = await res.json();
       if (!res.ok) throw new Error(result.error || 'Draft failed');
@@ -204,6 +197,34 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
       toast(e instanceof Error ? e.message : 'Draft failed', 'error');
     } finally {
       setDrafting(false);
+    }
+  };
+
+  const handleDraftOne = async (item: InboxComment) => {
+    setDraftingId(item.comment.id);
+    try {
+      const res = await fetch('/api/engagement/draft-replies', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ commentIds: [item.comment.id] }),
+      });
+      const result = await res.json();
+      if (!res.ok) throw new Error(result.error || 'Draft failed');
+      if (result.drafted > 0) {
+        // Drop any stale local edit so the fresh draft is what shows.
+        setDraftEdits((prev) => {
+          const next = { ...prev };
+          delete next[item.queue?.id ?? item.comment.id];
+          return next;
+        });
+        await loadInbox();
+      } else {
+        toast('Could not draft a reply for this comment', 'error');
+      }
+    } catch (e) {
+      toast(e instanceof Error ? e.message : 'Draft failed', 'error');
+    } finally {
+      setDraftingId(null);
     }
   };
 
@@ -344,28 +365,34 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
         <RefreshCw className="h-4 w-4" />
         {actionLabels.sync}
       </Button>
-      <Button
-        variant="secondary"
-        size="md"
-        loading={drafting}
-        onClick={handleDraftReplies}
-        title="Draft replies in your voice"
-        className="min-h-[44px]"
-      >
-        <Sparkles className="h-4 w-4" />
-        {actionLabels.draft}
-      </Button>
-      <Button
-        variant="primary"
-        size="md"
-        loading={sendingBulk}
-        onClick={handleSendApproved}
-        title="Send approved replies"
-        className="min-h-[44px]"
-      >
-        <Send className="h-4 w-4" />
-        {selected.size > 0 ? `Send ${selected.size}` : actionLabels.send}
-      </Button>
+      {/* Draft and Send are batch actions - they only mean something once rows
+          are ticked, so they stay out of the way until then. Sync is always on. */}
+      {selected.size > 0 && (
+        <>
+          <Button
+            variant="secondary"
+            size="md"
+            loading={drafting}
+            onClick={handleDraftReplies}
+            title="Draft replies in your voice"
+            className="min-h-[44px]"
+          >
+            <Sparkles className="h-4 w-4" />
+            {actionLabels.draft}
+          </Button>
+          <Button
+            variant="primary"
+            size="md"
+            loading={sendingBulk}
+            onClick={handleSendApproved}
+            title="Send the selected replies"
+            className="min-h-[44px]"
+          >
+            <Send className="h-4 w-4" />
+            {`Send ${selected.size}`}
+          </Button>
+        </>
+      )}
     </div>
   );
 
@@ -433,6 +460,8 @@ export default function EngagementInbox({ postId, compact = false, actionsPortal
               sendingId={sendingId}
               onDraftChange={updateDraft}
               onApproveSend={handleApproveSend}
+              onDraftOne={handleDraftOne}
+              draftingId={draftingId}
               selected={selected}
               onToggleSelect={toggleSelect}
             />
@@ -450,6 +479,8 @@ function PostCommentGroup({
   sendingId,
   onDraftChange,
   onApproveSend,
+  onDraftOne,
+  draftingId,
   selected,
   onToggleSelect,
 }: {
@@ -459,6 +490,8 @@ function PostCommentGroup({
   sendingId: string | null;
   onDraftChange: (queueId: string, text: string) => void;
   onApproveSend: (item: InboxComment) => void;
+  onDraftOne: (item: InboxComment) => void;
+  draftingId: string | null;
   selected: Set<string>;
   onToggleSelect: (commentId: string) => void;
 }) {
@@ -496,6 +529,8 @@ function PostCommentGroup({
             sendingId={sendingId}
             onDraftChange={onDraftChange}
             onApproveSend={onApproveSend}
+            onDraftOne={onDraftOne}
+            draftingId={draftingId}
             selected={selected.has(item.comment.id)}
             onToggleSelect={onToggleSelect}
             platform={group.post_platform}
@@ -557,6 +592,8 @@ function CommentRow({
   sendingId,
   onDraftChange,
   onApproveSend,
+  onDraftOne,
+  draftingId,
   selected,
   onToggleSelect,
   platform,
@@ -566,6 +603,8 @@ function CommentRow({
   sendingId: string | null;
   onDraftChange: (queueId: string, text: string) => void;
   onApproveSend: (item: InboxComment) => void;
+  onDraftOne: (item: InboxComment) => void;
+  draftingId: string | null;
   selected: boolean;
   onToggleSelect: (commentId: string) => void;
   platform: string;
@@ -576,12 +615,6 @@ function CommentRow({
   // the reply is hand-written and has no queue row yet.
   const draftKey = queue?.id ?? comment.id;
   const draftValue = draftEdits[draftKey] ?? queue?.draft_reply ?? '';
-
-  // The reply box opens on Reply, the way it does in the feed. Leaving one open
-  // under every comment turned three comments into a full screen and buried the
-  // rest of the thread. A drafted or half-typed reply keeps it open.
-  const [replying, setReplying] = useState(false);
-  const replyOpen = replying || draftValue.trim().length > 0;
 
   const isX = normalizeDashboardPlatform(platform) === 'twitter';
   const name = authorLabel(item);
@@ -621,20 +654,20 @@ function CommentRow({
               <div className="min-w-0">
                 <p className="truncate text-[14px] font-semibold leading-tight text-ink">{name}</p>
                 {comment.author_headline && (
-                  <p className="mt-0.5 line-clamp-1 text-[12px] text-ink3">{comment.author_headline}</p>
+                  <p className="mt-0.5 line-clamp-1 text-[13px] text-ink3">{comment.author_headline}</p>
                 )}
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                {when && <span className="text-[12px] text-ink3">{when}</span>}
+                {when && <span className="text-[13px] text-ink3">{when}</span>}
                 <span
-                  className={`inline-flex items-center gap-1 rounded-badge px-2 py-0.5 text-[11px] font-medium ${statusTone(queue, item.answered_natively)}`}
+                  className={`inline-flex items-center gap-1 rounded-badge px-2 py-1 text-[13px] font-medium ${statusTone(queue, item.answered_natively)}`}
                 >
                   {isSent ? (
-                    <CheckCircle2 className="h-3 w-3" />
+                    <CheckCircle2 className="h-3.5 w-3.5" />
                   ) : queue?.status === 'failed' ? (
-                    <AlertCircle className="h-3 w-3" />
+                    <AlertCircle className="h-3.5 w-3.5" />
                   ) : (
-                    <Clock className="h-3 w-3" />
+                    <Clock className="h-3.5 w-3.5" />
                   )}
                   {statusLabel(queue, item.answered_natively)}
                 </span>
@@ -646,50 +679,43 @@ function CommentRow({
             {comment.comment_text}
           </p>
 
-          {/* Icon-only, the way both feeds render it now - the word buttons
-              were the older LinkedIn. */}
-          <div className="mt-1.5 flex items-center gap-4 text-ink3">
-            <ThumbsUp className="h-[18px] w-[18px]" aria-label="Like" />
-            {!isSent && (
-              <button
-                type="button"
-                onClick={() => setReplying((open) => !open)}
-                aria-label="Reply"
-                aria-expanded={replyOpen}
-                className="cursor-pointer transition-colors hover:text-ink"
-              >
-                <MessageSquare className="h-[18px] w-[18px]" />
-              </button>
-            )}
-            {isX && (
+          {isX && (
+            <div className="mt-1.5">
               <span
-                className={`inline-flex items-center gap-1 rounded-badge px-2 py-0.5 text-[11px] font-medium ${statusTone(queue, item.answered_natively)}`}
+                className={`inline-flex items-center gap-1 rounded-badge px-2 py-1 text-[13px] font-medium ${statusTone(queue, item.answered_natively)}`}
               >
                 {statusLabel(queue, item.answered_natively)}
               </span>
-            )}
-          </div>
-
-      {!isSent && replyOpen && (
-        <div className="mt-3 space-y-2">
-          <label className="block">
-            <span className="section-label">{isX ? 'Post your reply' : 'Add a comment'}</span>
-            {/* No longer gated on an AI draft existing: you can type a reply and
-                send it, and the server creates the queue row on the way through. */}
-            <AutoGrowReply
-              value={draftValue}
-              placeholder={isX ? 'Post your reply…' : 'Add a comment…'}
-              onChange={(text) => onDraftChange(draftKey, text)}
-            />
-          </label>
-          {queue?.last_error && (
-            <p className="text-xs text-accent-dark">{queue.last_error}</p>
+            </div>
           )}
-          <div className="flex justify-end">
+
+      {/* Box, Draft and Send on one line - the box is the affordance, so there
+          is no Reply button to press first and no Send stranded on its own row. */}
+      {!isSent && (
+        <div className="mt-2 space-y-1">
+          <div className="flex items-end gap-2">
+            <div className="min-w-0 flex-1">
+              <AutoGrowReply
+                value={draftValue}
+                placeholder={isX ? 'Post your reply…' : 'Add a comment…'}
+                onChange={(text) => onDraftChange(draftKey, text)}
+              />
+            </div>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="min-h-[38px] shrink-0"
+              loading={draftingId === comment.id}
+              onClick={() => onDraftOne(item)}
+              title="Draft a reply in your voice"
+            >
+              <Sparkles className="h-4 w-4" />
+              Draft
+            </Button>
             <Button
               variant="primary"
               size="sm"
-              className="min-h-[36px]"
+              className="min-h-[38px] shrink-0"
               disabled={!draftValue.trim()}
               loading={sendingId === draftKey}
               onClick={() => onApproveSend(item)}
@@ -698,6 +724,7 @@ function CommentRow({
               Send
             </Button>
           </div>
+          {queue?.last_error && <p className="text-xs text-accent-dark">{queue.last_error}</p>}
         </div>
       )}
 

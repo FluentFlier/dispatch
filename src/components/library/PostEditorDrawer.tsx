@@ -16,6 +16,7 @@ import { getInitials } from '@/lib/compose-preview';
 import dynamic from 'next/dynamic';
 import { logEditFeedback } from '@/lib/hooks-intelligence/edit-feedback';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
+import { shortAge } from '@/lib/utils';
 
 const EngagementInbox = dynamic(() => import('@/components/engagement/EngagementInbox'), {
   ssr: false,
@@ -87,6 +88,37 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   // Footer slot the Comments tab portals its Sync/Draft/Send row into, so those
   // actions sit beside the status pipeline instead of scrolling with the list.
   const [commentActionsSlot, setCommentActionsSlot] = useState<HTMLDivElement | null>(null);
+  // Top comments for the Write-tab preview, so the card shows what the post
+  // actually looks like in the feed rather than a version with no discussion.
+  const [previewComments, setPreviewComments] = useState<{
+    top: Array<{ id: string; author: string; headline?: string | null; text: string; age?: string | null }>;
+    total: number;
+  }>({ top: [], total: 0 });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchWithAuth(`/api/engagement/inbox?postId=${post.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        const group = (data.groups ?? [])[0];
+        if (!group) return;
+        setPreviewComments({
+          total: group.stats?.total ?? group.comments.length,
+          top: group.comments.slice(0, 2).map((c: { comment: { id: string; author_name: string | null; author_handle: string | null; author_headline: string | null; comment_text: string; commented_at: string | null } }) => ({
+            id: c.comment.id,
+            author: c.comment.author_name ?? c.comment.author_handle ?? 'Someone',
+            headline: c.comment.author_headline,
+            text: c.comment.comment_text,
+            age: c.comment.commented_at ? shortAge(c.comment.commented_at) : null,
+          })),
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [post.id]);
   // Author identity for the LinkedIn-style preview (LinkedIn posts only).
   const [author, setAuthor] = useState<{ name: string; headline: string | null }>({ name: 'You', headline: null });
 
@@ -363,6 +395,8 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                   comments={form.comments}
                   reposts={form.shares}
                   repost={post.reposted_content ?? null}
+                  topComments={previewComments.top}
+                  totalComments={previewComments.total}
                 />
               </div>
 
@@ -902,6 +936,8 @@ function PostSocialPreview({
   comments,
   reposts,
   repost,
+  topComments,
+  totalComments,
 }: {
   platform: DashboardPlatform;
   name: string;
@@ -914,6 +950,8 @@ function PostSocialPreview({
   comments?: number;
   reposts?: number;
   repost?: Post['reposted_content'];
+  topComments?: Array<{ id: string; author: string; headline?: string | null; text: string; age?: string | null }>;
+  totalComments?: number;
 }) {
   if (platform === 'linkedin') {
     return (
@@ -928,6 +966,8 @@ function PostSocialPreview({
         comments={comments}
         reposts={reposts}
         repost={repost}
+        topComments={topComments}
+        totalComments={totalComments}
       />
     );
   }

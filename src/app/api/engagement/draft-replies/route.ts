@@ -8,6 +8,7 @@ import { z } from 'zod';
 const DraftSchema = z
   .object({
     commentIds: z.array(z.string().uuid()).optional(),
+    postId: z.string().uuid().optional(),
     fast: z.boolean().optional(),
     limit: z.number().int().min(1).max(50).optional(),
   })
