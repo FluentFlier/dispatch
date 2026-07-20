@@ -583,7 +583,11 @@ export function ScriptGenerator({
           width so the sidebar can sit flush on the right. */}
       <div className="flex min-w-0 flex-1 flex-col">
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
-      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pb-4">
+      {/* scrollbar-gutter:stable reserves the scrollbar track even when empty, so
+          the centered hero does not shift a few px left the moment the thread
+          starts to overflow while the composer below (outside this scroller)
+          stays put. Without it the two centres drift apart. */}
+      <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pb-4 [scrollbar-gutter:stable]">
         {isEmpty && (
           <div className="py-12 text-center">
             <h1 className="font-serif text-[1.75rem] font-normal tracking-[-0.03em] text-ink sm:text-[2rem]">

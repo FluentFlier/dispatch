@@ -1,5 +1,6 @@
 import { getServerClient, getServiceClient } from '@/lib/insforge/server';
 import { unipoleFetch, pruneDuplicateUnipileAccounts } from '@/lib/social/unipile';
+import { isSnapshotExpired } from '@/lib/social/connect-snapshot';
 import {
   backfillNullWorkspaceSocialAccounts,
   ensureActiveWorkspaceId,
@@ -186,12 +187,21 @@ export async function syncUnipileAccountsForUser(
   // we never re-derive identity from the shared list (the old cross-wiring bug).
   const { data: snapRow } = await serviceClient.database
     .from('unipile_connect_snapshots')
-    .select('account_ids')
+    .select('account_ids, created_at')
     .eq('user_id', userId)
     .maybeSingle();
 
   if (!snapRow) {
     return { synced: 0, workspaceId, message: 'No pending connect - nothing to bind' };
+  }
+  // Expired permit = no proof of an in-flight login. This is the path that
+  // produced "Connected as <name>" with no OAuth at all: an abandoned connect
+  // left a permanent snapshot, and a later automatic sync (opening Voice Lab or
+  // Settings calls this without the user asking) bound whatever account had
+  // since appeared in the shared tenant.
+  if (isSnapshotExpired((snapRow as { created_at?: string }).created_at)) {
+    await serviceClient.database.from('unipile_connect_snapshots').delete().eq('user_id', userId);
+    return { synced: 0, workspaceId, message: 'Connect expired — start the connect again' };
   }
   const snapshotIds = new Set(
     ((snapRow as { account_ids?: string[] }).account_ids ?? []).filter(Boolean),

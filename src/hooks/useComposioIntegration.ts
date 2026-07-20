@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import type { ComposioToolkit } from '@/lib/composio/config';
+import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 interface IntegrationRow {
   toolkit: ComposioToolkit;
@@ -18,6 +19,9 @@ interface UseComposioIntegrationResult {
   error: string | null;
   setError: (message: string | null) => void;
   connect: (returnTo?: 'settings' | 'onboarding') => Promise<void>;
+  /** Revokes the grant at the provider, then clears the local row. */
+  disconnect: () => Promise<void>;
+  disconnecting: boolean;
   reload: () => Promise<void>;
 }
 
@@ -33,12 +37,27 @@ export function useComposioIntegration(
   const [composioConfigured, setComposioConfigured] = useState(false);
   const [toolkitReady, setToolkitReady] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadStatus = useCallback(async () => {
     try {
-      const res = await fetch('/api/signals/integrations');
-      const data = await res.json();
+      // fetchWithAuth, not bare fetch: an expired access token 401s, and the
+      // old code read `undefined` off the error body straight into
+      // `Boolean(...)` = false, so a token that just needed refreshing showed a
+      // connected account as "Not connected" until a manual reload.
+      const res = await fetchWithAuth('/api/signals/integrations');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // 401 / 400 (no active workspace) / 500 all land here. Surface it as an
+        // error and leave the previous state alone - reporting a failed status
+        // check as a disconnection is the bug, not the fix.
+        setError(
+          typeof data.error === 'string' ? data.error : 'Could not load integration status.',
+        );
+        return;
+      }
+      setError(null);
       const row = (data.integrations as IntegrationRow[] | undefined)?.find(
         (i) => i.toolkit === toolkit,
       );
@@ -95,7 +114,40 @@ export function useComposioIntegration(
     [composioConfigured, toolkit, toolkitReady],
   );
 
+  /** Toolkit -> disconnect route. Calendar's path predates the others. */
+  const DISCONNECT_PATH: Record<ComposioToolkit, string> = {
+    googlecalendar: '/api/integrations/composio/calendar/disconnect',
+    gmail: '/api/integrations/composio/gmail/disconnect',
+    slack: '/api/integrations/composio/slack/disconnect',
+  };
+
+  const disconnect = useCallback(async () => {
+    setDisconnecting(true);
+    setError(null);
+    try {
+      const res = await fetchWithAuth(DISCONNECT_PATH[toolkit], { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        // A 502 here means the provider could not be reached, so nothing was
+        // revoked and nothing was cleared. Surfacing it matters: silently
+        // showing "Not connected" would be a lie about a still-live grant.
+        setError(
+          typeof data.error === 'string' ? data.error : `Could not disconnect ${toolkit}.`,
+        );
+        return;
+      }
+      setConnected(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Could not disconnect ${toolkit}.`);
+    } finally {
+      setDisconnecting(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [toolkit]);
+
   return {
+    disconnect,
+    disconnecting,
     loading,
     connected,
     composioConfigured,

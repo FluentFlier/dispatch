@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServiceClient } from '@/lib/insforge/server';
 import { fetchUnipileAccountDetails, mapPlatform, pruneDuplicateUnipileAccounts } from '@/lib/social/unipile';
 import { isValidUnipileAuth, validateUnipileWebhookAuth } from '@/lib/webhooks/unipile-auth';
+import { isSnapshotExpired } from '@/lib/social/connect-snapshot';
 import { ensureSoloWorkspace } from '@/lib/workspace';
 import { handleInboundUnipileMessage } from '@/lib/signals/leads/inbound-message';
 
@@ -44,6 +45,22 @@ function getHostedCallbackSecret() {
   return process.env.UNIPILE_HOSTED_CALLBACK_SECRET
     ?? process.env.UNIPILE_WEBHOOK_SECRET
     ?? process.env.CRON_SECRET;
+}
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * First candidate that is actually shaped like a user id. Binding writes to a
+ * `user_id` column, so a value that cannot be one (a display name, an empty
+ * string, a provider placeholder) must never reach it - refusing is always
+ * safer than binding a stranger's LinkedIn to a malformed id.
+ */
+function firstUuid(...candidates: Array<string | undefined | null>): string | null {
+  for (const candidate of candidates) {
+    const value = candidate?.trim();
+    if (value && UUID_RE.test(value)) return value;
+  }
+  return null;
 }
 
 function isHostedAuthCallback(payload: UnipileWebhookPayload) {
@@ -125,7 +142,7 @@ async function upsertSocialAccountFromUnipileAccount({
 
   const { data: snap } = await client.database
     .from('unipile_connect_snapshots')
-    .select('account_ids')
+    .select('account_ids, created_at')
     .eq('user_id', userId)
     .maybeSingle();
   if (!snap) {
@@ -133,6 +150,20 @@ async function upsertSocialAccountFromUnipileAccount({
       userId,
       unipileAccountId,
     });
+    return;
+  }
+  // A snapshot is a time-boxed permit, not a standing permission. It is only
+  // deleted on a successful bind, so a user who clicked Connect and abandoned
+  // the LinkedIn login used to leave a permit that never expired - any account
+  // appearing in the shared tenant days later would bind to them with no
+  // authentication at all. Tie its lifetime to the hosted link's.
+  if (isSnapshotExpired((snap as { created_at?: string }).created_at)) {
+    console.warn('[webhooks/unipile] refusing bind — connect snapshot expired', {
+      userId,
+      unipileAccountId,
+      createdAt: (snap as { created_at?: string }).created_at,
+    });
+    await client.database.from('unipile_connect_snapshots').delete().eq('user_id', userId);
     return;
   }
   const snapshotIds = new Set(
@@ -230,9 +261,24 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   const client = getServiceClient();
 
   if (hostedCallback) {
+    // Identify the user from `state` first: the connect route sets BOTH `name`
+    // and `state` to the user id, but `name` is documented as a display label,
+    // so anything that ever changes it (a relabel in the Unipile dashboard, a
+    // provider default, a hand-made test event) would send this bind to a
+    // wrong-but-plausible id. `state` is the field that exists to carry it.
+    // Whichever we use must look like a user id: a non-uuid means the payload
+    // is not one of our hosted links, so refuse rather than bind on garbage.
+    const claimedUserId = firstUuid(payload.state, payload.name);
+    if (!claimedUserId) {
+      console.warn('[webhooks/unipile] hosted callback carried no valid user id', {
+        state: payload.state ?? null,
+        name: payload.name ?? null,
+      });
+      return NextResponse.json({ ok: true });
+    }
     await upsertSocialAccountFromUnipileAccount({
       client,
-      userId: payload.name as string,
+      userId: claimedUserId,
       unipileAccountId: payload.account_id as string,
     });
     return NextResponse.json({ ok: true });

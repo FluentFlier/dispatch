@@ -34,7 +34,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     'Return ONLY a JSON array of 3-4 strings. Each string is an imperative refinement the user could tap,',
     'max 6 words, concrete and specific to their ICP (stage, vertical, geography, signals like funding/hiring/YC).',
     'No numbering, no punctuation at the end, no duplicates of what they already said.',
-    'Examples: ["Narrow to US only", "Add Series A stage", "Focus on fintech", "Only YC companies"].',
+    'The assistant also sets up MONITORING (watching companies, founders or programs for funding,',
+    'accelerator batches, name/CEO/title/description changes), so suggest those when the ICP or the',
+    'draft is about tracking rather than selling.',
+    'A tapped suggestion is sent to the assistant verbatim, so each one must stand alone as an instruction.',
+    'Examples: ["Narrow to US only", "Add Series A stage", "Only YC companies", "Track HF0 for funding news"].',
   ].join(' ');
 
   const userPrompt = [

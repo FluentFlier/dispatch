@@ -1,5 +1,5 @@
 import { useState, type ComponentType } from 'react';
-import { ChevronDown, Loader2, Plus, PanelRightClose, PanelRightOpen, Trash2 } from 'lucide-react';
+import { ChevronDown, Loader2, Plus, PanelRight, PanelRightOpen, Trash2 } from 'lucide-react';
 import { formatRelative } from '@/lib/utils';
 import type { ChatSummary } from '@/lib/chats-status';
 
@@ -10,6 +10,20 @@ const STAGE_LABELS: Record<string, string> = {
   polishing: 'Polishing…',
   scoring: 'Scoring…',
 };
+
+/**
+ * Shell shared by both states, mirroring the main nav rail in `nav/Sidebar.tsx`:
+ * same widths (264 open / 72 collapsed), same surface, same hairline. `sticky
+ * top-0 h-screen` with negative vertical margins cancels the Write page's
+ * `py-6 sm:py-10`, so the panel runs edge to edge instead of floating as a
+ * short column with gaps above and below it.
+ */
+const SHELL =
+  'hidden shrink-0 flex-col lg:flex sticky top-0 h-screen -my-6 sm:-my-10 border-l border-hair bg-paper2/90 backdrop-blur-xl py-4';
+
+/** Icon-button treatment copied from the main sidebar's toggle, so both rails feel like one system. */
+const ACTION =
+  'flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-ink transition-colors hover:bg-white/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/30';
 
 /** A secondary Write tool surfaced in the sidebar's "More tools" dropdown. */
 export interface WriteTool {
@@ -54,14 +68,15 @@ export function SessionSidebar({
 
   if (collapsed) {
     return (
-      <div className="hidden w-11 shrink-0 flex-col items-center gap-2 border-l border-hair pl-2 lg:flex">
+      <div className={`${SHELL} w-[72px] items-center gap-2 px-3`}>
         <button
           type="button"
           onClick={onToggleCollapsed}
           aria-label="Expand sessions"
-          className="relative flex h-9 w-9 items-center justify-center rounded-full text-ink3 transition-colors hover:bg-paper2 hover:text-ink2"
+          title="Expand sessions"
+          className={`relative ${ACTION}`}
         >
-          <PanelRightOpen className="h-4 w-4" />
+          <PanelRightOpen className="h-5 w-5" strokeWidth={2.5} />
           {runningCount > 0 && (
             <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-accent-primary" />
           )}
@@ -70,53 +85,57 @@ export function SessionSidebar({
           type="button"
           onClick={onNew}
           aria-label="New session"
-          className="flex h-9 w-9 items-center justify-center rounded-full text-ink3 transition-colors hover:bg-paper2 hover:text-ink2"
+          title="New session"
+          className={ACTION}
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-5 w-5" strokeWidth={2.5} />
         </button>
       </div>
     );
   }
 
   return (
-    <aside className="hidden w-72 shrink-0 flex-col border-l border-hair pl-4 lg:flex">
-      <div className="mb-2 flex items-center justify-between">
-        <span className="text-sm font-semibold text-ink">Sessions</span>
+    <aside className={`${SHELL} w-[264px] px-3`}>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <span className="text-base font-semibold tracking-[-0.02em] text-ink">Sessions</span>
         <div className="flex items-center gap-1">
           <button
             type="button"
             onClick={onNew}
             aria-label="New session"
             title="New session"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-ink3 transition-colors hover:bg-paper2 hover:text-ink2"
+            className={ACTION}
           >
-            <Plus className="h-4 w-4" />
+            <Plus className="h-5 w-5" strokeWidth={2.5} />
           </button>
           <button
             type="button"
             onClick={onToggleCollapsed}
             aria-label="Collapse sessions"
-            className="flex h-8 w-8 items-center justify-center rounded-full text-ink3 transition-colors hover:bg-paper2 hover:text-ink2"
+            title="Collapse sessions"
+            className={ACTION}
           >
-            <PanelRightClose className="h-4 w-4" />
+            <PanelRight className="h-5 w-5" strokeWidth={2.5} />
           </button>
         </div>
       </div>
 
-      <div className="flex-1 space-y-0.5 overflow-y-auto">
+      <div className="-mx-1 flex-1 space-y-0.5 overflow-y-auto px-1">
         {loading && chats.length === 0 && (
-          <div className="flex items-center gap-2 px-2 py-2 text-sm text-ink2">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading…
+          <div className="flex items-center gap-2 px-3 py-2 text-sm text-ink2">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </div>
         )}
         {!loading && chats.length === 0 && (
-          <p className="px-2 py-2 text-sm text-ink2">No sessions yet.</p>
+          <p className="px-3 py-2 text-sm text-ink2">No sessions yet.</p>
         )}
         {chats.map((chat) => (
           <div
             key={chat.id}
-            className={`group flex items-center gap-2 rounded-lg px-2 py-2 transition-colors hover:bg-paper2 ${
-              chat.id === activeId ? 'bg-paper2' : ''
+            className={`group flex min-h-[40px] items-center gap-2 rounded-lg px-3 py-2 transition-colors ${
+              chat.id === activeId
+                ? 'border border-hair2 bg-white text-ink shadow-sm'
+                : 'hover:bg-white/60'
             }`}
           >
             <button
@@ -124,8 +143,8 @@ export function SessionSidebar({
               onClick={() => onSelect(chat.id)}
               className="min-w-0 flex-1 text-left"
             >
-              <span className="block truncate text-sm font-normal text-ink">{chat.title}</span>
-              <span className="flex items-center gap-1.5 text-xs text-ink2">
+              <span className="block truncate text-sm font-medium text-ink">{chat.title}</span>
+              <span className="flex items-center gap-1.5 text-[13px] text-ink2">
                 {chat.status === 'running' ? (
                   <>
                     <Loader2 className="h-3 w-3 animate-spin text-accent-primary" />
@@ -153,29 +172,29 @@ export function SessionSidebar({
       {/* More tools: the secondary Write modes, as a collapsible dropdown under
           the sessions list (moved here from the strip beneath the composer). */}
       {tools.length > 0 && (
-        <div className="mt-2 border-t border-hair pt-2">
+        <div className="mt-4 border-t border-hair pt-4">
           <button
             type="button"
             onClick={() => setToolsOpen((o) => !o)}
             aria-expanded={toolsOpen}
-            className="flex w-full items-center justify-between rounded-lg px-2 py-2 text-sm font-semibold text-ink transition-colors hover:bg-paper2"
+            className="flex min-h-[38px] w-full items-center justify-between gap-3 rounded-lg px-3 text-sm font-medium text-ink transition-colors hover:bg-white/60"
           >
             More tools
-            <ChevronDown className={`h-4 w-4 text-ink2 transition-transform ${toolsOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`h-4 w-4 shrink-0 text-ink3 transition-transform ${toolsOpen ? 'rotate-180' : ''}`} />
           </button>
           {toolsOpen && (
-            <div className="mt-0.5 space-y-0.5 pb-1">
+            <div className="mt-1 space-y-0.5 pb-1 pl-2">
               {tools.map((t) => (
                 <button
                   key={t.id}
                   type="button"
                   onClick={() => onSelectTool(t.id)}
-                  className="group flex w-full items-start gap-2.5 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-paper2"
+                  className="group flex min-h-[38px] w-full items-center gap-3 rounded-lg px-3 py-1.5 text-left text-sm text-ink transition-colors hover:bg-white/60"
                 >
-                  <t.icon className="mt-0.5 h-4 w-4 shrink-0 text-ink2 group-hover:text-ink" />
+                  <t.icon className="h-4 w-4 shrink-0" />
                   <span className="min-w-0">
-                    <span className="block text-sm font-semibold text-ink">{t.label}</span>
-                    <span className="block truncate text-xs text-ink2">{t.hint}</span>
+                    <span className="block truncate font-medium">{t.label}</span>
+                    <span className="block truncate text-[13px] text-ink2">{t.hint}</span>
                   </span>
                 </button>
               ))}

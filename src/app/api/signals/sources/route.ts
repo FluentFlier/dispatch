@@ -15,8 +15,13 @@ const CreateSourceSchema = z.object({
   enabled: z.boolean().optional(),
 }).strict();
 
-/** Per-workspace ceiling on monitored keywords - each one costs an X search per poll. */
-const MAX_KEYWORD_SOURCES = 5;
+/**
+ * Runaway guard only, NOT a product limit. The user (or the ICP assistant on
+ * their behalf) decides how many topics are worth monitoring; this just stops a
+ * malformed batch from arming hundreds of hourly X searches. Mirror of the
+ * constant in lib/signals/leads/topic-sync.ts.
+ */
+const MAX_KEYWORD_SOURCES = 50;
 
 /** Keyword searches poll hourly by default (profiles default to 30 min). */
 const KEYWORD_POLL_INTERVAL_MINUTES = 60;

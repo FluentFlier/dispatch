@@ -86,9 +86,19 @@ export function LeadsFeedBody(props: LeadsController) {
   // Bumped whenever the ICP changes so the Signals card (Topics to monitor)
   // reloads and reflects keywords the assistant just mirrored in.
   const [signalsRefreshKey, setSignalsRefreshKey] = useState(0);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const handleIcpSettingsSaved = (s: Parameters<typeof setSettings>[0]) => {
     setSettings(s);
     setSignalsRefreshKey((k) => k + 1);
+    // The assistant can also write the company watchlist and ICP profiles, which
+    // live in bootstrap state rather than in `settings`. Without this reload the
+    // chat says "added X to your watchlist" while "Where to look" still reads
+    // "No companies on your watchlist yet".
+    void loadBootstrap();
+    // Reveal what actually changed. The assistant writes topics and watched
+    // accounts into Advanced, and leaving it collapsed made those writes look
+    // like they never happened.
+    setAdvancedOpen(true);
   };
 
   return (
@@ -190,10 +200,20 @@ export function LeadsFeedBody(props: LeadsController) {
           />
 
           {/* Advanced - delivery timing, signal engine + sending safety, and Slack
-              alerts. Collapsed by default (native <details>) so first-run users
-              aren't buried; power users expand when they need it. */}
-          <details className="group rounded-lg border border-border bg-bg-secondary [&_summary::-webkit-details-marker]:hidden">
-            <summary className="flex cursor-pointer items-center justify-between gap-2 px-4 py-3 select-none list-none">
+              alerts. Still one collapsible group so first-run users aren't buried,
+              but the group itself is now an unstyled shell: only the summary is a
+              card, and each panel inside keeps its own card. Previously the shell
+              was a card too, so five cards nested inside one card of the same
+              colour read as a single undifferentiated wall.
+              It auto-opens after the assistant changes monitoring
+              (`signalsRefreshKey`), so a "now watching X" reply is visibly backed
+              by the topics that appear here. */}
+          <details
+            open={advancedOpen}
+            onToggle={(e) => setAdvancedOpen((e.currentTarget as HTMLDetailsElement).open)}
+            className="group [&_summary::-webkit-details-marker]:hidden"
+          >
+            <summary className="flex cursor-pointer items-center justify-between gap-2 rounded-lg border border-border bg-bg-secondary px-4 py-3 select-none list-none hover:border-accent-primary/40">
               <div>
                 <h2 className="text-sm font-semibold text-text-primary">Advanced</h2>
                 <p className="mt-0.5 text-xs text-text-secondary">
@@ -202,7 +222,7 @@ export function LeadsFeedBody(props: LeadsController) {
               </div>
               <ChevronDown className="h-4 w-4 shrink-0 text-text-tertiary transition-transform group-open:rotate-180" />
             </summary>
-            <div className="space-y-6 border-t border-border px-4 py-4">
+            <div className="mt-4 space-y-4">
               <SignalsSetup refreshKey={signalsRefreshKey} />
               {/* Without a channel set here, every Slack send (digest + instant) silently no-ops. */}
               <SlackConnectionCard />

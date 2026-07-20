@@ -18,6 +18,26 @@ function firstSentence(text?: string | null): string | null {
   return (m ? m[0] : t).trim().slice(0, 220);
 }
 
+/**
+ * Honest wording for how well a lead matches the saved ICP.
+ *
+ * This line used to be the hardcoded string "Fits your ICP", asserted for every
+ * lead regardless of the ICP. A water-risk company surfaced under a
+ * seed-fintech ICP still claimed to fit, which made the whole panel untrustworthy.
+ *
+ * `fit_score` is the blended ICP score already stored per lead (0.7 LLM ICP fit
+ * + 0.3 heuristic, see sync-directory.ts), so the claim now follows the number
+ * that actually exists. A lead that was never scored (0 / missing, e.g. a manual
+ * import or a row predating scoring) says nothing about fit rather than
+ * inventing a match.
+ */
+function icpFitPhrase(fitScore: number | null | undefined): string | null {
+  if (typeof fitScore !== 'number' || !Number.isFinite(fitScore) || fitScore <= 0) return null;
+  if (fitScore >= 0.7) return 'Strong ICP match';
+  if (fitScore >= 0.4) return 'Partial ICP match';
+  return 'Weak ICP match';
+}
+
 export interface LeadSummary {
   /** What this lead is (company + one-line blurb). */
   what: string;
@@ -45,7 +65,7 @@ export function summarizeLead(lead: SignalLeadWithContacts): LeadSummary {
   const space =
     Array.isArray(lead.tags) && lead.tags.length ? lead.tags.slice(0, 3).join(', ') : null;
   const whyParts = [
-    'Fits your ICP',
+    icpFitPhrase(lead.fit_score),
     lead.batch ? `(${lead.batch})` : null,
     intent ? `· ${intent}` : null,
     space ? `· ${space}` : null,

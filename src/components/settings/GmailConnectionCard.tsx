@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
 import { Loader2 } from 'lucide-react';
 import { useComposioIntegration } from '@/hooks/useComposioIntegration';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 interface GmailConnectionCardProps {
   refreshKey?: number;
@@ -21,7 +23,10 @@ export default function GmailConnectionCard({ refreshKey = 0 }: GmailConnectionC
     error,
     setError,
     connect,
+    disconnect,
+    disconnecting,
   } = useComposioIntegration('gmail', refreshKey);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   if (loading) {
     return (
@@ -84,7 +89,32 @@ export default function GmailConnectionCard({ refreshKey = 0 }: GmailConnectionC
         </button>
       )}
 
+      {connected && (
+        <button
+          type="button"
+          disabled={disconnecting}
+          onClick={() => setConfirmOpen(true)}
+          className="inline-block rounded-md border border-border px-4 py-2 text-[12px] text-text-secondary transition-colors hover:border-coral/40 hover:text-coral disabled:opacity-60"
+        >
+          {disconnecting ? 'Disconnecting…' : 'Disconnect Gmail'}
+        </button>
+      )}
+
       {error && <p className="mt-2 text-[11px] text-red-400">{error}</p>}
+
+      <ConfirmModal
+        open={confirmOpen}
+        title="Disconnect Gmail"
+        message="This revokes Content OS's access to your Gmail account. Sent-email voice import and any Gmail outreach will stop working until you reconnect."
+        confirmLabel="Disconnect"
+        tone="danger"
+        loading={disconnecting}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          void disconnect();
+        }}
+        onClose={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }

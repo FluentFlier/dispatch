@@ -8,10 +8,27 @@ import type { DirectorySettingsRow, FollowedCompanyRow } from '@/lib/signals/typ
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
 
+/**
+ * Every source a scrape can actually use, matching ALL_CONFIGURABLE_SOURCES in
+ * lib/signals/leads/directory-defaults.ts. This card used to list only the three
+ * directories, so a workspace whose enabled_sources already included
+ * web_discovery / linkedin / x had no way to see or change them - and the ICP
+ * assistant would truthfully say "I'll search the open web, X and LinkedIn"
+ * while the UI showed three checkboxes that said otherwise.
+ *
+ * Deliberately NOT using LEAD_SOURCE_UI's `disabled()` predicates: those read
+ * server-only env vars (APIFY_TOKEN, TINYFISH_API_KEY) which are undefined in
+ * the browser bundle, so every social source would render permanently disabled.
+ * The checkbox state comes from settings.enabled_sources instead, which the
+ * server already computed through mergeEnabledSources() with real env access.
+ */
 const SOURCES = [
+  { key: 'web_discovery', label: 'Web discovery', hint: 'Open-web search driven by your ICP' },
   { key: 'yc_directory', label: 'YC directory' },
   { key: 'yc_launches', label: 'YC launches' },
-  { key: 'product_hunt', label: 'Product Hunt' },
+  { key: 'product_hunt', label: 'Product Hunt', hint: 'Newest launches matching your ICP' },
+  { key: 'linkedin', label: 'LinkedIn discovery', hint: 'LinkedIn company search + your ICP' },
+  { key: 'x', label: 'X discovery', hint: 'X search + your ICP' },
 ] as const;
 
 interface LeadSourcesCardProps {
@@ -104,13 +121,19 @@ export function LeadSourcesCard({
           {SOURCES.map((s) => {
             const on = (settings?.enabled_sources ?? []).includes(s.key);
             return (
-              <label key={s.key} className="flex items-center gap-2 text-sm text-text-secondary">
+              <label key={s.key} className="flex items-start gap-2 text-sm text-text-secondary">
                 <input
                   type="checkbox"
                   checked={on}
                   onChange={(e) => void toggleSource(s.key, e.target.checked)}
+                  className="mt-0.5"
                 />
-                {s.label}
+                <span className="min-w-0">
+                  {s.label}
+                  {'hint' in s && s.hint && (
+                    <span className="block text-xs text-text-tertiary">{s.hint}</span>
+                  )}
+                </span>
               </label>
             );
           })}
