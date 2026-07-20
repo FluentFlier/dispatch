@@ -285,12 +285,17 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
       {/* Centered modal window (was a right-side drawer). Opens as a large
           overlay so a post gets a full editing surface, not a cramped rail. */}
-      <div className="fixed inset-0 z-[65] flex items-start justify-center overflow-y-auto p-4 sm:p-6" onClick={onClose}>
+      {/* One scroll container, and only one: the shell is capped to the padded
+          viewport (`max-h-full`) so the body pane below is the single thing that
+          scrolls. The old `overflow-y-auto` here plus a `90vh` shell meant the
+          wheel chained between two scrollers and the modal could still outgrow
+          the screen. */}
+      <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
         <div
           role="dialog"
           aria-modal="true"
           onClick={(e) => e.stopPropagation()}
-          className="relative my-auto w-full max-w-3xl max-h-[90vh] rounded-2xl bg-bg-primary border border-border shadow-2xl overflow-hidden flex flex-col"
+          className="relative w-full max-w-3xl max-h-full rounded-2xl bg-bg-primary border border-border shadow-2xl overflow-hidden flex flex-col"
         >
         <div className="flex items-center justify-between p-4 border-b border-border shrink-0 bg-bg-secondary">
           <h2 className="font-heading text-lg font-bold text-text-primary truncate pr-2">
@@ -396,21 +401,6 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                 </div>
               )}
 
-              {/* The one preview in the modal. A published post used to also get a
-                  pinned copy above the tab bar, so a posted LinkedIn item rendered
-                  the identical card twice while the pinned copy ate the height the
-                  scrollable pane needed. */}
-              <div>
-                <span className={labelClass}>Preview</span>
-                <PostSocialPreview
-                  platform={normalizeDashboardPlatform(form.platform)}
-                  name={author.name}
-                  headline={author.headline}
-                  text={form.script || form.caption || form.hook || ''}
-                  imageUrl={form.image_url || null}
-                />
-              </div>
-
               {!isLinkedIn && (
                 <label className="block">
                   <span className={labelClass}>Hook</span>
@@ -463,6 +453,21 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                   </label>
                 </>
               )}
+
+              {/* The one preview in the modal, and it sits *after* the fields it
+                  mirrors: opening a post used to land on a preview card that
+                  filled the pane, so the editable fields were off-screen. It
+                  scrolls with everything else - nothing here is pinned. */}
+              <div>
+                <span className={labelClass}>Preview</span>
+                <PostSocialPreview
+                  platform={normalizeDashboardPlatform(form.platform)}
+                  name={author.name}
+                  headline={author.headline}
+                  text={form.script || form.caption || form.hook || ''}
+                  imageUrl={form.image_url || null}
+                />
+              </div>
 
               <label className="block">
                 <span className={labelClass}>Notes</span>

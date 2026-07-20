@@ -8,6 +8,7 @@ import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { useToast } from '@/components/ui/Toast';
 import { DASHBOARD_PLATFORMS, PLATFORM_LABELS, type DashboardPlatform } from '@/lib/constants';
 import type { Post } from '@/lib/types';
+import { isPublished } from '@/lib/posts/published';
 
 interface PublishBarProps {
   post: Post;
@@ -43,7 +44,7 @@ export function PublishBar({ post, userId, onChanged }: PublishBarProps) {
   const [time, setTime] = useState('09:00');
   const [busy, setBusy] = useState<'publish' | 'schedule' | null>(null);
 
-  const posted = post.status === 'posted';
+  const posted = isPublished(post);
   const scheduled = Boolean(post.scheduled_date);
 
   async function changePlatform(next: DashboardPlatform) {

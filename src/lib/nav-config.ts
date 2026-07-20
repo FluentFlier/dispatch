@@ -42,7 +42,7 @@ export const navItems: NavItem[] = [
   // --- Primary: daily loop ---
   { name: 'Home', href: '/dashboard', short: 'Home', section: 'primary' },
   { name: 'Write', href: '/generate', short: 'Write', section: 'primary' },
-  { name: 'Posts', href: '/library', short: 'Posts', section: 'primary' },
+  { name: 'Post library', href: '/library', short: 'Posts', section: 'primary' },
   { name: 'Schedule', href: '/calendar', short: 'Plan', section: 'primary' },
   { name: 'Inbox', href: '/inbox', short: 'Inbox', section: 'primary' },
   { name: 'Leads', href: '/leads', short: 'Leads', section: 'primary' },

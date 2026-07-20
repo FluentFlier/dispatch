@@ -14,6 +14,7 @@
  */
 import type { createClient } from '@insforge/sdk';
 import { updateArm as thompsonUpdateArm, type Arm } from './thompson';
+import { onlyPublished } from '@/lib/posts/published';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -44,11 +45,12 @@ export async function getTrailingMedianEngagement(
   client: InsforgeClient,
   userId: string,
 ): Promise<number | null> {
-  const { data } = await client.database
+  // onlyPublished, not a bare status check: a hand-marked draft carries
+  // status='posted' with no posted_date and would skew the RL baseline.
+  const { data } = await onlyPublished(client.database
     .from('posts')
     .select('saves, views, likes, comments')
-    .eq('user_id', userId)
-    .eq('status', 'posted')
+    .eq('user_id', userId))
     .gte('views', 100)
     .not('rl_processed_at', 'is', null)
     .order('created_at', { ascending: false })

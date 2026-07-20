@@ -323,7 +323,7 @@ export default function LibraryPage() {
   return (
     <div className="page-shell-wide space-y-4">
       <PageHeader
-        eyebrow="LIBRARY"
+        eyebrow="POST LIBRARY"
         title="Posts"
         subtitle="All your drafts, scheduled posts, and published content."
         action={

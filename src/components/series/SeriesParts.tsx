@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { Plus, Pencil, ArrowUp, ArrowDown } from 'lucide-react';
 import type { Post, Series } from '@/lib/types';
+import { isPublished } from '@/lib/posts/published';
 import type { Status } from '@/lib/constants';
 import PillarDot from '@/components/PillarDot';
 import { StageStepper } from './StageStepper';
@@ -125,7 +126,7 @@ export default function SeriesParts({
             <div className="mt-4">
               <StageStepper
                 currentIndex={stage}
-                disabled={busy || post.status === 'posted'}
+                disabled={busy || isPublished(post)}
                 onSetStatus={(status) => onSetStatus(post, status)}
               />
             </div>

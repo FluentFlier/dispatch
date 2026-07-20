@@ -2,6 +2,7 @@
 
 import Image from 'next/image';
 import type { Post } from '@/lib/types';
+import { isPublished } from '@/lib/posts/published';
 import StatusBadge from '@/components/ui/StatusBadge';
 import PillarBadge from '@/components/ui/PillarBadge';
 import { postPillars } from '@/lib/pillars';
@@ -95,7 +96,7 @@ export default function PostCard({ post, selected, onSelect, onClick }: PostCard
             <StatusBadge status={post.status} />
             {dateStr && <span>{formatDateShort(dateStr)}</span>}
           </div>
-          {post.status === 'posted' && (post.views !== null || post.saves !== null) && (
+          {isPublished(post) && (post.views !== null || post.saves !== null) && (
             <span className="flex gap-2">
               {post.views !== null && <span>{post.views} views</span>}
               {post.saves !== null && <span>{post.saves} saves</span>}

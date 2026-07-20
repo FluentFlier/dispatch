@@ -15,6 +15,7 @@ import PostDetailModal from "@/components/calendar/PostDetailModal";
 import { ClientOnly } from "@/components/ClientOnly";
 import { useRouter } from "next/navigation";
 import { fetchWithAuth } from "@/lib/fetch-with-auth";
+import { isPublished } from "@/lib/posts/published";
 
 type ViewMode = "month" | "week" | "day";
 
@@ -138,14 +139,14 @@ export default function CalendarPage() {
 
   /* ---- Derived data ---- */
   const backlog = useMemo(
-    () => posts.filter((p) => !p.scheduled_date && p.status !== "posted"),
+    () => posts.filter((p) => !p.scheduled_date && !isPublished(p)),
     [posts]
   );
 
   const filteredPosts = useMemo(() => {
     return posts.filter((p) => {
       if (platformFilter.size > 0 && !platformFilter.has(p.platform)) return false;
-      if (publishedOnly && p.status !== "posted") return false;
+      if (publishedOnly && !isPublished(p)) return false;
       return true;
     });
   }, [posts, platformFilter, publishedOnly]);
@@ -631,7 +632,7 @@ Respond ONLY with a JSON array: [{"postId":"...","date":"YYYY-MM-DD"}]. No expla
                             </p>
                           </div>
                           <span className={`text-[10px] tracking-[0.08em] px-2 py-0.5 rounded ${
-                            p.status === "posted" ? "bg-green-100 text-green-700" : "bg-bg-tertiary text-ink3"
+                            isPublished(p) ? "bg-green-100 text-green-700" : "bg-bg-tertiary text-ink3"
                           }`}>
                             {p.status}
                           </span>
