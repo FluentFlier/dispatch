@@ -20,6 +20,14 @@ import type { ContentPillarConfig } from '@/types/database';
 
 const DRAFT_KEY = 'onboarding-draft';
 
+/** Fire-and-forget analytics call that swallows failures instead of surfacing an unhandled rejection. */
+function track(
+  event: Parameters<typeof trackOnboardingEvent>[0],
+  properties?: Record<string, string | number | boolean>,
+): void {
+  void trackOnboardingEvent(event, properties).catch(() => undefined);
+}
+
 interface Draft {
   displayName: string;
   focus: string;
@@ -95,6 +103,7 @@ export default function OnboardingWizard() {
         setUnipileReady(Boolean(data?.unipileConfigured));
         setComposioReady(Boolean(data?.composioConfigured));
         setGmailConnected(Boolean(data?.gmailConnected));
+        if (data?.baseline) setBaseline(data.baseline as CreatorBaseline);
         setStep(next);
       })
       .catch(() => setStep(resolveStep({ connectedCount: 0, hasBaseline: false }, requested)))
@@ -106,7 +115,7 @@ export default function OnboardingWizard() {
   useEffect(() => {
     if (!ready) return;
     headingRef.current?.focus();
-    void trackOnboardingEvent('onboarding_step_viewed', { step });
+    track('onboarding_step_viewed', { step });
   }, [step, ready]);
 
   useEffect(() => {
@@ -125,9 +134,10 @@ export default function OnboardingWizard() {
     if (derivedPillars.length > 0) setProfilePillars(derivedPillars);
   }, [baseline, derivedPillars]);
 
+  // Pure navigation. Callers own clearing `error` - runIngest relies on the
+  // error it just set surviving into the step it navigates to.
   const goToStep = useCallback(
     (next: StepKey) => {
-      setError('');
       setStep(next);
       router.push(`/onboarding?step=${next}`, { scroll: false });
     },
@@ -184,11 +194,11 @@ export default function OnboardingWizard() {
       const data = await res.json();
       const pillars = (data?.pillars ?? []) as ContentPillarConfig[];
       if (pillars.length === 0) {
-        void trackOnboardingEvent('onboarding_pillars_derived_fallback', {});
+        track('onboarding_pillars_derived_fallback', {});
       }
       return pillars;
     } catch {
-      void trackOnboardingEvent('onboarding_pillars_derived_fallback', {});
+      track('onboarding_pillars_derived_fallback', {});
       return [];
     }
   }, [focus]);
@@ -200,7 +210,7 @@ export default function OnboardingWizard() {
   const runIngest = useCallback(async () => {
     setBuilding(true);
     setError('');
-    void trackOnboardingEvent('onboarding_ingest_started', {});
+    track('onboarding_ingest_started', {});
 
     let lineIndex = 0;
     const ticker = window.setInterval(() => {
@@ -208,8 +218,9 @@ export default function OnboardingWizard() {
       setBuildingLine(COPY.building.lines[lineIndex]);
     }, 3000);
 
+    let timeoutId = 0;
     const timeout = new Promise<'timeout'>((resolve) => {
-      window.setTimeout(() => resolve('timeout'), 90_000);
+      timeoutId = window.setTimeout(() => resolve('timeout'), 90_000);
     });
 
     try {
@@ -222,22 +233,23 @@ export default function OnboardingWizard() {
       ]);
 
       if (outcome === 'timeout') {
-        void trackOnboardingEvent('onboarding_ingest_timeout', {});
+        track('onboarding_ingest_timeout', {});
         setError(COPY.building.timeout);
         setDerivedPillars(await derivePillars());
       } else if (outcome === 'failed') {
-        void trackOnboardingEvent('onboarding_ingest_failed', {});
+        track('onboarding_ingest_failed', {});
         setError(COPY.errors.ingestFailed);
         setDerivedPillars(await derivePillars());
       } else {
         setBaseline(outcome);
       }
     } catch {
-      void trackOnboardingEvent('onboarding_ingest_failed', {});
+      track('onboarding_ingest_failed', {});
       setError(COPY.errors.ingestFailed);
       setDerivedPillars(await derivePillars());
     } finally {
       window.clearInterval(ticker);
+      window.clearTimeout(timeoutId);
       setBuilding(false);
       goToStep('profile');
     }
@@ -271,6 +283,53 @@ export default function OnboardingWizard() {
     void refreshAccounts();
   }, [ready, step, refreshAccounts]);
 
+  /**
+   * Terminal action. Writes onboarding_complete exactly once, then routes. The
+   * dashboard layout guard bounces completed users off /onboarding, so the
+   * handoff must complete before navigating.
+   */
+  const finish = useCallback(
+    async (destination: 'leads' | 'dashboard') => {
+      if (busy) return;
+      setBusy(true);
+      setError('');
+      try {
+        if (baseline) {
+          await completeOnboardingFromBaseline({
+            ...baseline,
+            displayName: displayName.trim() || baseline.displayName,
+            voiceSummary: voiceDescription,
+            voiceRules: voiceRules.split('\n').map((r) => r.trim()).filter(Boolean),
+            pillars: profilePillars,
+          });
+        } else {
+          await completeOnboardingMinimal(displayName, profilePillars, {
+            description: voiceDescription,
+            rules: voiceRules,
+          });
+        }
+
+        track('onboarding_complete', {
+          path: baseline ? 'connected' : 'skipped',
+          destination,
+        });
+
+        try {
+          window.sessionStorage.removeItem(DRAFT_KEY);
+        } catch {
+          // best effort
+        }
+
+        void fetch('/api/brain/sync', { method: 'POST' }).catch(() => undefined);
+        router.push(destination === 'leads' ? '/leads' : '/dashboard?welcome=1');
+      } catch {
+        setError(COPY.errors.saveFailed);
+        setBusy(false);
+      }
+    },
+    [busy, baseline, displayName, voiceDescription, voiceRules, profilePillars, router],
+  );
+
   const handleNext = useCallback(async () => {
     if (busy || building) return;
     setError('');
@@ -301,65 +360,25 @@ export default function OnboardingWizard() {
       setDerivedPillars(await derivePillars());
       setBusy(false);
       goToStep('profile');
+      return;
     }
-  }, [step, displayName, focus, accounts.length, runIngest, derivePillars, goToStep, busy, building]);
+
+    if (step === 'profile') {
+      // Enter on the profile step activates the same primary action as the footer button.
+      await finish('leads');
+    }
+  }, [step, displayName, focus, accounts.length, runIngest, derivePillars, goToStep, finish, busy, building]);
 
   /** Skip on connect: no ingest, pillars come from the one-liner. */
   const handleSkip = useCallback(async () => {
     if (busy || building) return;
-    void trackOnboardingEvent('onboarding_step_skipped', { step });
+    setError('');
+    track('onboarding_step_skipped', { step });
     setBusy(true);
     setDerivedPillars(await derivePillars());
     setBusy(false);
     goToStep('profile');
   }, [step, derivePillars, goToStep, busy, building]);
-
-  /**
-   * Terminal action. Writes onboarding_complete exactly once, then routes. The
-   * dashboard layout guard bounces completed users off /onboarding, so the
-   * handoff must complete before navigating.
-   */
-  const finish = useCallback(
-    async (destination: 'leads' | 'dashboard') => {
-      if (busy) return;
-      setBusy(true);
-      setError('');
-      try {
-        if (baseline) {
-          await completeOnboardingFromBaseline({
-            ...baseline,
-            displayName: displayName.trim() || baseline.displayName,
-            voiceSummary: voiceDescription,
-            voiceRules: voiceRules.split('\n').map((r) => r.trim()).filter(Boolean),
-            pillars: profilePillars,
-          });
-        } else {
-          await completeOnboardingMinimal(displayName, profilePillars, {
-            description: voiceDescription,
-            rules: voiceRules,
-          });
-        }
-
-        void trackOnboardingEvent('onboarding_complete', {
-          path: baseline ? 'connected' : 'skipped',
-          destination,
-        });
-
-        try {
-          window.sessionStorage.removeItem(DRAFT_KEY);
-        } catch {
-          // best effort
-        }
-
-        void fetch('/api/brain/sync', { method: 'POST' }).catch(() => undefined);
-        router.push(destination === 'leads' ? '/leads' : '/dashboard?welcome=1');
-      } catch {
-        setError(COPY.errors.saveFailed);
-        setBusy(false);
-      }
-    },
-    [busy, baseline, displayName, voiceDescription, voiceRules, profilePillars, router],
-  );
 
   const stepIndex = STEP_ORDER.indexOf(step);
 
@@ -466,7 +485,14 @@ export default function OnboardingWizard() {
       </div>
 
       <WizardFooter
-        onBack={stepIndex > 0 && !building ? () => goToStep(STEP_ORDER[stepIndex - 1]) : undefined}
+        onBack={
+          stepIndex > 0 && !building
+            ? () => {
+                setError('');
+                goToStep(STEP_ORDER[stepIndex - 1]);
+              }
+            : undefined
+        }
         onNext={step === 'profile' ? () => void finish('leads') : () => void handleNext()}
         nextLabel={step === 'profile' ? COPY.footer.finishToLeads : undefined}
         onSkip={

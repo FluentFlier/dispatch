@@ -25,7 +25,14 @@ export async function completeOnboardingFromBaseline(baseline: CreatorBaseline) 
   const workspaceId = workspaces?.[0]?.workspace_id;
   if (!workspaceId) throw new Error('No workspace found - please sign out and sign back in.');
 
-  const pillars = baseline.pillars as ContentPillarConfig[];
+  const pillars: ContentPillarConfig[] =
+    baseline.pillars && baseline.pillars.length > 0 ? baseline.pillars : DEFAULT_PILLARS;
+
+  const oauthName = displayNameFromAuthUser(user);
+  const name = resolveDisplayName({
+    oauthName,
+    fallback: baseline.displayName.trim() || 'Creator',
+  });
 
   const { error: profileError } = await client.database
     .from('creator_profile')
@@ -33,7 +40,7 @@ export async function completeOnboardingFromBaseline(baseline: CreatorBaseline) 
       {
         user_id: user.id,
         workspace_id: workspaceId,
-        display_name: baseline.displayName.trim(),
+        display_name: name,
         // bio_facts deliberately omitted: /api/onboarding/ingest already wrote the real
         // background-facts value for this row, and CreatorBaseline has no bio_facts field
         // to overwrite it with, so leave the existing column value untouched here.
@@ -48,7 +55,7 @@ export async function completeOnboardingFromBaseline(baseline: CreatorBaseline) 
 
   if (profileError) throw new Error(profileError.message || 'Failed to save profile');
 
-  return { success: true, suggestedTopic: baseline.suggestedTopic };
+  return { success: true };
 }
 
 /**

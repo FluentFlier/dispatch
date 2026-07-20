@@ -6,6 +6,7 @@ import { isComposioConfigured } from '@/lib/composio/config';
 import { isComposioToolkitConnected } from '@/lib/composio/connect';
 import { toComposioUserId } from '@/lib/composio/client';
 import { getIntegration } from '@/lib/signals/integrations/store';
+import type { CreatorBaseline } from '@/lib/onboarding/baseline';
 
 /**
  * GET /api/onboarding/status
@@ -56,9 +57,15 @@ export async function GET(): Promise<NextResponse> {
     .eq('key', 'onboarding_baseline')
     .maybeSingle();
 
-  const hasBaseline = Boolean(
-    typeof baselineSetting?.value === 'string' && baselineSetting.value.trim().length > 2,
-  );
+  let baseline: CreatorBaseline | null = null;
+  if (typeof baselineSetting?.value === 'string' && baselineSetting.value.trim().length > 2) {
+    try {
+      baseline = JSON.parse(baselineSetting.value) as CreatorBaseline;
+    } catch {
+      // Malformed stored value: treat as no baseline rather than failing the route.
+      baseline = null;
+    }
+  }
 
   return NextResponse.json({
     unipileConfigured,
@@ -68,7 +75,8 @@ export async function GET(): Promise<NextResponse> {
     platforms: (accounts ?? []).map((a) => a.platform),
     gmailConnected,
     canIngest: (accounts?.length ?? 0) > 0,
-    hasBaseline,
+    hasBaseline: Boolean(baseline),
+    baseline,
     requiresSocialConnect: (accounts?.length ?? 0) === 0,
   });
 }

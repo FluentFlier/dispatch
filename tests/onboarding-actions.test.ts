@@ -15,6 +15,7 @@ import {
   completeOnboardingMinimal,
 } from '@/app/(dashboard)/onboarding/actions';
 import type { CreatorBaseline } from '@/lib/onboarding/baseline';
+import { DEFAULT_PILLARS } from '@/lib/onboarding/derive-pillars';
 
 interface Captured { table: string; payload: Record<string, unknown> }
 
@@ -152,5 +153,25 @@ describe('completeOnboardingFromBaseline', () => {
     expect(profile!.payload.voice_description).toBe(BASELINE.voiceSummary.trim());
     expect(profile!.payload.voice_rules).toBe(BASELINE.voiceRules.join('\n'));
     expect(profile!.payload.content_pillars).toEqual(BASELINE.pillars);
+  });
+
+  it('falls back to DEFAULT_PILLARS when baseline.pillars is empty', async () => {
+    const captured: Captured[] = [];
+    vi.mocked(getServerClient).mockReturnValue(stubClient(captured));
+
+    await completeOnboardingFromBaseline({ ...BASELINE, pillars: [] });
+
+    const profile = captured.find((c) => c.table === 'creator_profile');
+    expect(profile!.payload.content_pillars).toEqual(DEFAULT_PILLARS);
+  });
+
+  it('does not persist an empty display name when baseline.displayName is empty', async () => {
+    const captured: Captured[] = [];
+    vi.mocked(getServerClient).mockReturnValue(stubClient(captured));
+
+    await completeOnboardingFromBaseline({ ...BASELINE, displayName: '' });
+
+    const profile = captured.find((c) => c.table === 'creator_profile');
+    expect(profile!.payload.display_name).toBeTruthy();
   });
 });

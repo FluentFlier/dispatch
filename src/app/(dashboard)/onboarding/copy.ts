@@ -50,7 +50,6 @@ export const COPY = {
   },
 
   building: {
-    title: 'Building your profile',
     lines: [
       'Reading your posts...',
       'Analyzing your hooks...',
