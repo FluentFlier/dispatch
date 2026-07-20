@@ -105,6 +105,9 @@ export function useLeadsController() {
   // Leads confirmed as accepted LinkedIn connections (response tracking).
   const [acceptedIds, setAcceptedIds] = useState<Set<string>>(new Set());
   const [emailConfirmId, setEmailConfirmId] = useState<string | null>(null);
+  // Pending "plan outreach" confirmation - planning spends AI calls and queues
+  // comment drafts, so it never runs straight off the button click.
+  const [planConfirmId, setPlanConfirmId] = useState<{ id: string; kind: 'lead' | 'engager' } | null>(null);
   // Load-more page size: grows the requested feed limit; mergeFeed returns the
   // top-N sorted slice, so raising N appends lower-ranked cards with no dupes.
   const [feedLimit, setFeedLimit] = useState(FEED_PAGE_SIZE);
@@ -950,7 +953,19 @@ export function useLeadsController() {
     }
   };
 
-  const handlePlanNurture = async (id: string) => {
+  // Planning drafts AI comments on the lead's posts (billable, and they land in
+  // "Comments to approve"), so it is confirmed rather than fired on one click.
+  const handlePlanNurture = (id: string) => setPlanConfirmId({ id, kind: 'lead' });
+
+  const confirmPlanNurture = async () => {
+    const pending = planConfirmId;
+    setPlanConfirmId(null);
+    if (!pending) return;
+    if (pending.kind === 'engager') return runEngagerPlan(pending.id);
+    return runPlanNurture(pending.id);
+  };
+
+  const runPlanNurture = async (id: string) => {
     setBusy({ id, action: 'plan' });
     try {
       const res = await fetchWithAuth(`/api/leads/${id}/playbook`, { method: 'POST' });
@@ -1016,7 +1031,9 @@ export function useLeadsController() {
     }
   }, []);
 
-  const handleEngagerPlan = async (id: string) => {
+  const handleEngagerPlan = (id: string) => setPlanConfirmId({ id, kind: 'engager' });
+
+  const runEngagerPlan = async (id: string) => {
     setBusy({ id, action: 'plan' });
     setEngagerNotices((n) => {
       const next = { ...n };
@@ -1128,7 +1145,8 @@ export function useLeadsController() {
     setupMessage, setSetupMessage, listLoading, setListLoading, scraping, setScraping,
     scrapeProgress, setScrapeProgress, busy, setBusy, busyActionFor,
     selectedIds, setSelectedIds, bulkBusy, setBulkBusy, acceptedIds, setAcceptedIds,
-    emailConfirmId, setEmailConfirmId, feedLimit, setFeedLimit, importOpen, setImportOpen,
+    emailConfirmId, setEmailConfirmId, planConfirmId, setPlanConfirmId, confirmPlanNurture,
+    feedLimit, setFeedLimit, importOpen, setImportOpen,
     view, setView, companyById, setCompanyById, engagersById, setEngagersById,
     engagerNotices, setEngagerNotices, draftAll, setDraftAll, demoData, setDemoData,
     feedQuery, indexLeads, loadBootstrap, refetchList, mergeLead,
