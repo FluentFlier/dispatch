@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileText, Grid3X3, List, Plus, Search, Trash2, ChevronDown, RefreshCw } from 'lucide-react';
+import { FileText, Grid3X3, List, Plus, Search, Trash2, ChevronDown, RefreshCw, Link2 as LinkIcon } from 'lucide-react';
 import type { Post, Series } from '@/lib/types';
 import type { Platform, Status } from '@/lib/constants';
 import { PLATFORM_LABELS, DASHBOARD_PLATFORMS, STATUSES, STATUS_LABELS } from '@/lib/constants';
@@ -26,6 +26,10 @@ export default function LibraryPage() {
   const [importing, setImporting] = useState<Platform | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [importMenuOpen, setImportMenuOpen] = useState(false);
+  const [urlModalOpen, setUrlModalOpen] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
+  const [importingUrl, setImportingUrl] = useState(false);
   const PAGE_SIZE = 50;
 
   // View
@@ -283,6 +287,37 @@ export default function LibraryPage() {
     for (const platform of targets) await handleReimport(platform);
   };
 
+  // Import one post from a pasted LinkedIn/X URL - the manual alternative to the
+  // account-wide refresh.
+  const handleImportUrl = async () => {
+    const url = importUrl.trim();
+    if (!url) return;
+    setImportingUrl(true);
+    setImportMessage(null);
+    setImportError(null);
+    try {
+      const res = await fetchWithAuth('/api/voice-lab/import-from-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setImportError(data.error ?? 'Could not import that post.');
+        return;
+      }
+      const created = (data.persisted?.created ?? 0) + (data.persisted?.repaired ?? 0);
+      setImportMessage(created > 0 ? 'Imported the post.' : 'That post is already in your library.');
+      setUrlModalOpen(false);
+      setImportUrl('');
+      await fetchData();
+    } catch {
+      setImportError('Network error while importing that post.');
+    } finally {
+      setImportingUrl(false);
+    }
+  };
+
   // Load more pagination
   const loadMore = async () => {
     if (loadingMore || !hasMore) return;
@@ -368,22 +403,51 @@ export default function LibraryPage() {
           >
             <List className="w-4 h-4" />
           </button>
-          {/* New Post */}
-          <button
-            onClick={runImport}
-            disabled={importing !== null}
-            className="flex items-center gap-1.5 border border-border bg-bg-secondary text-text-primary text-[13px] font-medium px-4 py-[10px] min-h-[44px] rounded-md hover:border-border-hover transition-colors disabled:opacity-60"
-          >
-            <RefreshCw className={`w-4 h-4 ${importing !== null ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">
-              {importing !== null
-                ? 'Importing'
-                : platformFilter === 'all'
-                  ? 'Import posts'
-                  : `Import ${PLATFORM_LABELS[platformFilter]}`}
-            </span>
-            <span className="sm:hidden">Import</span>
-          </button>
+          {/* Import: refresh the whole account, or paste one post's URL. */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setImportMenuOpen((o) => !o)}
+              disabled={importing !== null || importingUrl}
+              aria-haspopup="menu"
+              aria-expanded={importMenuOpen}
+              className="flex items-center gap-1.5 border border-border bg-bg-secondary text-text-primary text-[13px] font-medium px-4 py-[10px] min-h-[44px] rounded-md hover:border-border-hover transition-colors disabled:opacity-60"
+            >
+              <RefreshCw className={`w-4 h-4 ${importing !== null ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{importing !== null ? 'Importing' : 'Import posts'}</span>
+              <span className="sm:hidden">Import</span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            {importMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" aria-hidden onClick={() => setImportMenuOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 w-60 z-20 rounded-lg border border-border bg-bg-secondary py-1 shadow-card">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportMenuOpen(false);
+                      runImport();
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] text-text-primary hover:bg-bg-tertiary"
+                  >
+                    <RefreshCw className="w-4 h-4 shrink-0" />
+                    {platformFilter === 'all' ? 'Refresh my posts' : `Refresh ${PLATFORM_LABELS[platformFilter]} posts`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportMenuOpen(false);
+                      setUrlModalOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] text-text-primary hover:bg-bg-tertiary"
+                  >
+                    <LinkIcon className="w-4 h-4 shrink-0" />
+                    Import from URL…
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
           <button
             onClick={handleNewPost}
             className="flex items-center gap-1.5 bg-accent-primary text-text-inverse text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-md hover:opacity-90 transition-opacity"
@@ -566,6 +630,52 @@ export default function LibraryPage() {
           onSave={fetchData}
           onDelete={() => { closeEditor(); fetchData(); }}
         />
+      )}
+
+      {urlModalOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !importingUrl && setUrlModalOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl border border-border bg-bg-primary p-5 shadow-2xl"
+          >
+            <h2 className="text-[16px] font-semibold text-text-primary">Import a post from its URL</h2>
+            <p className="mt-1 text-[13px] text-text-secondary">
+              Paste a LinkedIn or X post link. It has to be a post from your connected account.
+            </p>
+            <input
+              type="url"
+              value={importUrl}
+              onChange={(e) => setImportUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleImportUrl(); }}
+              autoFocus
+              placeholder="https://www.linkedin.com/feed/update/…"
+              className="mt-3 w-full rounded-md border border-border bg-bg-secondary px-3 py-2 min-h-[44px] text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setUrlModalOpen(false)}
+                disabled={importingUrl}
+                className="min-h-[40px] rounded-md border border-border bg-bg-secondary px-4 text-[13px] text-text-primary hover:border-border-hover transition-colors disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleImportUrl}
+                disabled={importingUrl || !importUrl.trim()}
+                className="min-h-[40px] rounded-md bg-accent-primary px-5 text-[13px] font-medium text-text-inverse hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {importingUrl ? 'Importing…' : 'Import'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

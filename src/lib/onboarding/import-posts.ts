@@ -6,6 +6,18 @@ import {
 } from '@/lib/social/unipile';
 import { buildPostUrl } from '@/lib/voice-lab/persist-imported-posts';
 
+/**
+ * Every id flavor Unipile might have indexed a post under. Inlined rather than
+ * imported from the engagement layer to avoid an import cycle (that module
+ * imports resolveUnipileTarget from here).
+ */
+function postIdCandidates(id: string): string[] {
+  const numeric = id.match(/(\d{5,25})/)?.[1];
+  const out = [id];
+  if (numeric) out.push(numeric, `urn:li:activity:${numeric}`, `urn:li:share:${numeric}`, `urn:li:ugcPost:${numeric}`);
+  return Array.from(new Set(out));
+}
+
 export type OnboardingPlatform = 'linkedin' | 'twitter';
 
 export interface VoiceSample {
@@ -260,6 +272,39 @@ export async function fetchPostsFromUnipile(
 
   if (lastError && !bestEmptyResult && providerUserIds.length > 0) throw lastError;
   return bestEmptyResult ?? { samples: [], rawItems: [], fetchedCount: 0, filteredCount: 0 };
+}
+
+/**
+ * Fetches one Unipile post by id (or any of its URN flavors) for a URL-based
+ * import. Returns the raw item shaped like a list item, with a repost's
+ * reshared images already enriched. Null when no candidate resolves.
+ */
+export async function fetchSingleUnipilePost(
+  providerPostId: string,
+  unipileAccountId: string,
+): Promise<UnipilePostItem | null> {
+  const acct = encodeURIComponent(unipileAccountId);
+  for (const candidate of postIdCandidates(providerPostId)) {
+    try {
+      const res = await unipoleFetch(
+        `/posts/${encodeURIComponent(candidate)}?account_id=${acct}`,
+        { method: 'GET' },
+      );
+      if (!res.ok) continue;
+      const item = (await res.json()) as UnipilePostItem;
+      if (!item?.id) continue;
+      if (item.is_repost && item.repost_content?.id && !item.repost_content.images) {
+        item.repost_content.images = await fetchPostImageUrls(
+          item.repost_content.id,
+          unipileAccountId,
+        );
+      }
+      return item;
+    } catch {
+      /* try the next id flavor */
+    }
+  }
+  return null;
 }
 
 /** Image attachment URLs on a single Unipile post, best-effort (empty on any error). */

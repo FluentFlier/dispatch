@@ -87,7 +87,6 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   const [deleting, setDeleting] = useState(false);
   // Bumped after linking a live post URL, to remount EngagementInbox so it
   // re-fetches (its auto-sync fires on an empty, now-linked post).
-  const [inboxKey, setInboxKey] = useState(0);
   // Footer slot the Comments tab portals its Sync/Draft/Send row into, so those
   // actions sit beside the status pipeline instead of scrolling with the list.
   const [commentActionsSlot, setCommentActionsSlot] = useState<HTMLDivElement | null>(null);
@@ -740,18 +739,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
           {activeTab === 'comments' && (
             <>
-              {isPosted && !post.publish_job_id && (
-                <LinkLivePostBanner
-                  postId={post.id}
-                  platform={normalizeDashboardPlatform(form.platform)}
-                  onLinked={() => {
-                    setInboxKey((k) => k + 1);
-                    onSave();
-                  }}
-                />
-              )}
               <EngagementInbox
-                key={inboxKey}
                 postId={post.id}
                 compact
                 actionsPortal={commentActionsSlot}
@@ -861,75 +849,6 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
         <PerformanceModal post={post} onSave={handlePerfSave} onClose={() => setShowPerfModal(false)} />
       )}
     </>
-  );
-}
-
-/**
- * Shown in the Comments tab for a posted post that was never published/linked
- * through the app (an "old" post, so no publish_jobs row and no comments). The
- * user pastes the live post URL; the server resolves the provider post id and
- * links it, unlocking comment + reaction sync.
- */
-function LinkLivePostBanner({
-  postId,
-  platform,
-  onLinked,
-}: {
-  postId: string;
-  platform: DashboardPlatform;
-  onLinked: () => void;
-}) {
-  const { toast } = useToast();
-  const [url, setUrl] = useState('');
-  const [linking, setLinking] = useState(false);
-  const label = platform === 'linkedin' ? 'LinkedIn' : platform === 'twitter' ? 'X' : 'post';
-
-  async function link() {
-    if (!url.trim()) return;
-    setLinking(true);
-    try {
-      const res = await fetchWithAuth(`/api/posts/${postId}/link-live`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not link the post.');
-      toast('Linked. Hit Sync to pull in the comments.');
-      onLinked();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not link the post.', 'error');
-    } finally {
-      setLinking(false);
-    }
-  }
-
-  return (
-    <div className="rounded-lg border border-dashed border-border bg-bg-secondary p-3 space-y-2">
-      <p className="text-[13px] font-medium text-text-primary">Pull in this post&apos;s comments</p>
-      <p className="text-[12px] text-text-secondary">
-        This post was published outside the app, so paste its {label} URL to load the real comments
-        and replies here.
-      </p>
-      <div className="flex gap-2">
-        <input
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void link(); }}
-          placeholder={platform === 'twitter' ? 'https://x.com/you/status/…' : 'https://www.linkedin.com/feed/update/…'}
-          className="flex-1 rounded-md border border-border bg-bg-primary px-3 py-2 text-[13px] text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
-        />
-        <button
-          type="button"
-          onClick={() => void link()}
-          disabled={linking || !url.trim()}
-          className="shrink-0 rounded-md bg-accent-primary px-4 text-[13px] font-medium text-text-inverse hover:bg-accent-dark disabled:opacity-50"
-        >
-          {linking ? 'Linking…' : 'Link'}
-        </button>
-      </div>
-    </div>
   );
 }
 
