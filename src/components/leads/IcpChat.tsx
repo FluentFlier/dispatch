@@ -3,12 +3,19 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { ArrowUp, Loader2, Sparkles, Target } from 'lucide-react';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
+import {
+  discoveryStatusMessage,
+  writeDiscoveryRunStatus,
+  type DiscoveryRunStatus,
+} from '@/lib/leads/discovery-run-status';
 import type { DirectorySettingsRow, IcpProfileRow } from '@/lib/signals/types';
 
 export interface IcpChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  retryText?: string;
+  requestId?: string;
 }
 
 const STORAGE_KEY = 'leads:icp:chat';
@@ -33,6 +40,8 @@ interface IcpChatProps {
   toast?: (message: string, type?: 'success' | 'error') => void;
   /** Tighter layout for the advanced drawer. */
   compact?: boolean;
+  discoveryStatus?: DiscoveryRunStatus | null;
+  onDiscoveryStatusChange?: (status: DiscoveryRunStatus) => void;
 }
 
 /**
@@ -45,6 +54,8 @@ export function IcpChat({
   onDiscoveryComplete,
   toast,
   compact = false,
+  discoveryStatus = null,
+  onDiscoveryStatusChange,
 }: IcpChatProps) {
   const hasIcp = Boolean(
     settings?.icp_description?.trim() ||
@@ -136,6 +147,12 @@ export function IcpChat({
   const runDiscovery = useCallback(async () => {
     if (discovering) return;
     setDiscovering(true);
+    const startedAt = new Date().toISOString();
+    onDiscoveryStatusChange?.(writeDiscoveryRunStatus(window.localStorage, {
+      state: 'running',
+      startedAt,
+      message: 'Discovery is running in this tab. Keep it open until the search finishes.',
+    }));
     const statusId = newId();
     setMessages((prev) => [
       ...prev,
@@ -188,6 +205,7 @@ export function IcpChat({
       }
 
       if (streamError) throw new Error(streamError);
+      if (!result) throw new Error('The search connection ended before a result was returned. Refresh the feed to check before retrying.');
       const inserted = result?.inserted ?? 0;
       const warnings = result?.warnings ?? [];
       if (inserted === 0 && warnings.length > 0) {
@@ -205,14 +223,28 @@ export function IcpChat({
         );
       }
       onDiscoveryComplete?.();
+      onDiscoveryStatusChange?.(writeDiscoveryRunStatus(window.localStorage, {
+        state: 'succeeded',
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        message: inserted > 0
+          ? `Discovery finished with ${inserted} new lead${inserted === 1 ? '' : 's'}. You can safely leave this page.`
+          : 'Discovery finished with no new matches. You can safely leave this page.',
+      }));
     } catch (err) {
       const m = err instanceof Error ? err.message : 'Search failed.';
       patch(`Couldn't finish the search: ${m}`);
       toast?.(m, 'error');
+      onDiscoveryStatusChange?.(writeDiscoveryRunStatus(window.localStorage, {
+        state: 'failed',
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        message: `Discovery did not finish: ${m}`,
+      }));
     } finally {
       setDiscovering(false);
     }
-  }, [discovering, onDiscoveryComplete, toast]);
+  }, [discovering, onDiscoveryComplete, onDiscoveryStatusChange, toast]);
 
   const send = useCallback(async (override?: string) => {
     const trimmed = (override ?? input).trim();
@@ -230,8 +262,12 @@ export function IcpChat({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: trimmed, history }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(typeof data.error === 'string' ? data.error : 'Chat failed');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const failure = new Error(typeof data.error === 'string' ? data.error : 'The ICP assistant could not respond.');
+        Object.assign(failure, { requestId: typeof data.requestId === 'string' ? data.requestId : undefined });
+        throw failure;
+      }
 
       // When discovery is about to run, runDiscovery() posts its own status
       // message - skip the route's CTA line so we don't stack two messages.
@@ -246,17 +282,29 @@ export function IcpChat({
       // The route now mirrors an applied ICP into the Saved ICPs list, so push
       // the fresh list up instead of leaving that card stale until a reload.
       if (Array.isArray(data.profiles)) onProfilesChange?.(data.profiles as IcpProfileRow[]);
-      if (data.applied) toast?.('ICP updated.', 'success');
+      if (data.applied) {
+        toast?.(
+          Array.isArray(data.enrichmentWarnings) && data.enrichmentWarnings.length > 0
+            ? 'ICP saved. Some related views did not sync; retry the edit if they stay stale.'
+            : 'ICP updated.',
+          'success',
+        );
+      }
       if (data.suggestRun) void runDiscovery();
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Could not send message.';
+      const requestId = err && typeof err === 'object' && 'requestId' in err && typeof err.requestId === 'string'
+        ? err.requestId
+        : undefined;
       toast?.(msg, 'error');
       setMessages((prev) => [
         ...prev,
         {
           id: newId(),
           role: 'assistant',
-          content: 'Something went wrong on my side. Try again in a moment.',
+          content: `${msg}${requestId ? ` Reference: ${requestId}.` : ''}`,
+          retryText: trimmed,
+          requestId,
         },
       ]);
     } finally {
@@ -290,6 +338,9 @@ export function IcpChat({
           <p className="text-xs text-text-secondary mt-0.5">
             Describe who you sell to or ask for changes. Say &quot;find leads&quot; when ready to search.
           </p>
+          <p className="mt-1 text-[11px] text-text-tertiary">
+            Assistant replies and discovery run in this tab. Keep it open while a status is active.
+          </p>
           {(verticals.length > 0 || keywords.length > 0) && (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {verticals.map((v) => (
@@ -313,6 +364,21 @@ export function IcpChat({
         </div>
       </div>
 
+      {discoveryStatusMessage(discoveryStatus) && (
+        <div
+          role="status"
+          className={`border-b border-border px-4 py-2 text-xs ${
+            discoveryStatus?.state === 'failed' || discoveryStatus?.state === 'interrupted'
+              ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+              : discoveryStatus?.state === 'running'
+                ? 'bg-accent-primary/10 text-accent-primary'
+                : 'bg-green-500/10 text-green-700 dark:text-green-300'
+          }`}
+        >
+          {discoveryStatusMessage(discoveryStatus)}
+        </div>
+      )}
+
       <div className={`flex-1 overflow-y-auto px-4 py-3 space-y-3 ${compact ? 'max-h-[240px]' : 'max-h-[320px]'}`}>
         {messages.map((msg) =>
           msg.role === 'user' ? (
@@ -324,7 +390,17 @@ export function IcpChat({
           ) : (
             <div key={msg.id} className="flex justify-start">
               <div className="max-w-[92%] rounded-2xl border border-border bg-bg-primary px-3 py-2 text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
-                {msg.content}
+                <p>{msg.content}</p>
+                {msg.retryText && (
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => void send(msg.retryText)}
+                    className="mt-2 rounded-md border border-border px-2.5 py-1 text-xs font-medium text-text-primary hover:border-accent-primary/40 disabled:opacity-50"
+                  >
+                    Retry this message
+                  </button>
+                )}
               </div>
             </div>
           ),
@@ -335,6 +411,7 @@ export function IcpChat({
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               Updating ICP…
             </div>
+            <p className="mt-1 px-2 text-[11px] text-text-tertiary">Keep this tab open until the assistant replies.</p>
           </div>
         )}
         <div ref={bottomRef} />

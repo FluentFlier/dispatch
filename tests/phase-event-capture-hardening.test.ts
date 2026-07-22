@@ -145,7 +145,12 @@ describe('Phase: Event Capture Hardening', () => {
         vi.doMock('@/lib/ai-budget', () => ({ checkAndIncrementUsage }));
 
         vi.doMock('@/lib/social/unipile', () => ({
-          fetchUnipileAccountDetails: vi.fn().mockResolvedValue({ connection_params: { im: { memberId: 'm1' } } }),
+          fetchUnipileAccountDetails: vi.fn().mockResolvedValue({
+            id: 'ua1',
+            type: 'LINKEDIN',
+            connection_params: { im: { memberId: 'a1' } },
+          }),
+          listUnipileAccounts: vi.fn().mockResolvedValue([]),
           unipoleFetch: vi.fn().mockResolvedValue({
             ok: true,
             json: async () => ({

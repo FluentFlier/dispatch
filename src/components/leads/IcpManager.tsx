@@ -7,6 +7,11 @@ import { IcpChat } from '@/components/leads/IcpChat';
 import { IcpForm } from '@/components/leads/IcpForm';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import type { DirectorySettingsRow, IcpProfileRow } from '@/lib/signals/types';
+import {
+  reconcileDiscoveryRunStatus,
+  writeDiscoveryRunStatus,
+  type DiscoveryRunStatus,
+} from '@/lib/leads/discovery-run-status';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
 
@@ -44,6 +49,11 @@ export function IcpManager({
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busyId, setBusyId] = useState<string | null>(null);
   const [discovering, setDiscovering] = useState(false);
+  const [discoveryStatus, setDiscoveryStatus] = useState<DiscoveryRunStatus | null>(null);
+
+  useEffect(() => {
+    setDiscoveryStatus(reconcileDiscoveryRunStatus(window.localStorage));
+  }, []);
 
   // Save-current-ICP inline form.
   const [showSave, setShowSave] = useState(false);
@@ -147,6 +157,12 @@ export function IcpManager({
       return;
     }
     setDiscovering(true);
+    const startedAt = new Date().toISOString();
+    setDiscoveryStatus(writeDiscoveryRunStatus(window.localStorage, {
+      state: 'running',
+      startedAt,
+      message: 'Discovery is running in this tab. Keep it open until the search finishes.',
+    }));
     try {
       const res = await fetchWithAuth('/api/leads/icp/discover', {
         method: 'POST',
@@ -154,7 +170,9 @@ export function IcpManager({
         body: JSON.stringify({ profileIds: ids }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error('discover failed');
+      if (!res.ok) {
+        throw new Error(typeof data.error === 'string' ? data.error : 'Discovery failed.');
+      }
       const inserted = (data.inserted as number) ?? 0;
       const count = (data.icpCount as number) ?? ids.length;
       toast?.(
@@ -164,8 +182,23 @@ export function IcpManager({
         'success',
       );
       onDiscoveryComplete?.();
-    } catch {
-      toast?.('Discovery failed.', 'error');
+      setDiscoveryStatus(writeDiscoveryRunStatus(window.localStorage, {
+        state: 'succeeded',
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        message: inserted > 0
+          ? `Discovery finished with ${inserted} new lead${inserted === 1 ? '' : 's'}. You can safely leave this page.`
+          : 'Discovery finished with no new matches. You can safely leave this page.',
+      }));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Discovery failed.';
+      toast?.(message, 'error');
+      setDiscoveryStatus(writeDiscoveryRunStatus(window.localStorage, {
+        state: 'failed',
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        message: `Discovery did not finish: ${message}`,
+      }));
     } finally {
       setDiscovering(false);
     }
@@ -179,6 +212,8 @@ export function IcpManager({
         onProfilesChange={onProfilesChange}
         onDiscoveryComplete={onDiscoveryComplete}
         toast={toast}
+        discoveryStatus={discoveryStatus}
+        onDiscoveryStatusChange={setDiscoveryStatus}
       />
 
       <section className="rounded-lg border border-border bg-bg-secondary">
@@ -318,7 +353,7 @@ export function IcpManager({
                             {v}
                           </span>
                         ))}
-                        {p.keywords.slice(0, 8).map((k) => (
+                        {p.keywords.map((k) => (
                           <span
                             key={`k-${k}`}
                             className="inline-flex rounded-full border border-accent-primary/20 bg-accent-primary/5 px-2 py-0.5 text-[10px] text-accent-primary"

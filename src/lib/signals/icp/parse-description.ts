@@ -1,4 +1,5 @@
 import { chatCompletion } from '@/lib/llm';
+import { MAX_ICP_KEYWORDS, MAX_ICP_VERTICALS, normalizeIcpTerms } from '@/lib/signals/leads/icp-limits';
 
 /** Structured ICP parsed from a natural-language description. */
 export interface ParsedIcp {
@@ -50,10 +51,10 @@ function extractJson(raw: string): ParsedIcp | null {
     if (!parsed.gtm || typeof parsed.discovery_goal !== 'string') return null;
     return {
       icp_verticals: Array.isArray(parsed.icp_verticals)
-        ? parsed.icp_verticals.map(String).filter(Boolean).slice(0, 12)
+        ? normalizeIcpTerms(parsed.icp_verticals.map(String), MAX_ICP_VERTICALS)
         : [],
       icp_keywords: Array.isArray(parsed.icp_keywords)
-        ? parsed.icp_keywords.map(String).filter(Boolean).slice(0, 20)
+        ? normalizeIcpTerms(parsed.icp_keywords.map(String), MAX_ICP_KEYWORDS)
         : [],
       gtm: {
         icp: String(parsed.gtm.icp ?? '').trim(),

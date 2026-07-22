@@ -135,6 +135,12 @@ function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
     { key: 'pain_resonance', label: 'Pain' },
     { key: 'ai_slop', label: 'AI slop', invert: true },
   ];
+  const scored = evaluation ? dimensions.flatMap(({ key, label, invert }) => {
+    const raw = evaluation[key];
+    return typeof raw === 'number' ? [{ label, score: invert ? 10 - raw : raw }] : [];
+  }).sort((a, b) => b.score - a.score) : [];
+  const strengths = scored.filter((item) => item.score >= 8).slice(0, 2);
+  const weaknesses = [...scored].reverse().filter((item) => item.score < 8).slice(0, 2);
 
   return (
     <div className="bg-paper2 border border-hair rounded-[10px] p-3 space-y-2">
@@ -201,9 +207,14 @@ function VoiceMetricsPanel({ metrics }: { metrics: GenerateVoiceMetrics }) {
         </div>
       )}
       {evaluation?.revision_notes && !evaluation.pass && (
-        <p className="text-[11px] text-ink3 leading-snug">
-          {evaluation.revision_notes}
-        </p>
+        <div className="space-y-2 border-t border-hair pt-2 text-[11px] leading-snug">
+          {strengths.length > 0 && <p className="text-ink2"><span className="font-medium text-ink">What works:</span> {strengths.map((item) => `${item.label} (${item.score}/10)`).join(', ')}.</p>}
+          {weaknesses.length > 0 && <p className="text-ink2"><span className="font-medium text-ink">Needs work:</span> {weaknesses.map((item) => `${item.label} (${item.score}/10)`).join(', ')}.</p>}
+          <p className="text-ink2"><span className="font-medium text-ink">How to improve:</span> {evaluation.revision_notes}</p>
+        </div>
+      )}
+      {evaluation?.pass && strengths.length > 0 && (
+        <p className="border-t border-hair pt-2 text-[11px] leading-snug text-ink2"><span className="font-medium text-ink">Strongest qualities:</span> {strengths.map((item) => `${item.label} (${item.score}/10)`).join(', ')}.</p>
       )}
     </div>
   );
@@ -462,7 +473,7 @@ export function GenerateOutput({
         {variant === 'simple' ? (
           <div className="flex flex-wrap items-center gap-2 pt-1">
             <Button variant="primary" size="sm" onClick={() => setComposerOpen(true)}>
-              Post
+              Preview &amp; post
             </Button>
             <Button variant="secondary" size="sm" onClick={() => void quickSave()} loading={quickSaving}>
               Save

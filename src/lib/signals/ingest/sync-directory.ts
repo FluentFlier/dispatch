@@ -23,6 +23,7 @@ import { checkAndIncrementUsage } from '@/lib/ai-budget';
 import { signalsDebugEnabled, signalsEnrichInlineEnabled } from '@/lib/signals/ingest/config';
 import { defaultEnabledSources } from '@/lib/signals/leads/directory-defaults';
 import { mapWithConcurrency } from '@/lib/util/concurrency';
+import { inferPersonaTarget } from '@/lib/signals/leads/persona-fit';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -142,6 +143,7 @@ export async function syncWorkspaceDirectory(
     settings.enabled_sources.length > 0
       ? settings.enabled_sources
       : defaultEnabledSources();
+  const persona = inferPersonaTarget(settings.icp_description);
 
   emit({ phase: 'discovery', label: 'Discovering leads…', pct: PCT.scrapeStart });
 
@@ -203,7 +205,7 @@ export async function syncWorkspaceDirectory(
       total: leads.length,
     });
     if (lead.contact_status !== 'resolved') {
-      const res = await resolveLeadContacts(client, workspaceId, lead, { enrich: true, fastOnly });
+      const res = await resolveLeadContacts(client, workspaceId, lead, { enrich: true, fastOnly, persona });
       if (res.status === 'resolved') result.resolved += 1;
       if (res.status === 'no_contact') result.noContact += 1;
       lead.contact_status = res.status;
@@ -239,6 +241,8 @@ export async function syncWorkspaceDirectory(
       tags: lead.tags,
       verticals: settings.icp_verticals,
       keywords: settings.icp_keywords,
+      description: settings.icp_description,
+      contacts: lead.contacts,
     });
     done();
     return fit;

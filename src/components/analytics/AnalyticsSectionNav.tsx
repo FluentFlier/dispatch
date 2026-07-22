@@ -5,9 +5,10 @@ import { useEffect, useState } from 'react';
 const SECTIONS = [
   { id: 'performance', label: 'Performance' },
   { id: 'timing', label: 'Timing' },
+  { id: 'algorithm-playbook', label: 'Playbook' },
   { id: 'posts-table', label: 'Posts' },
-  { id: 'charts', label: 'Charts' },
-  { id: 'intelligence', label: 'Intelligence' },
+  { id: 'charts', label: 'Content performance' },
+  { id: 'intelligence', label: 'Audience & leads' },
   { id: 'weekly-review', label: 'Reviews' },
   { id: 'hashtags', label: 'Hashtags' },
 ] as const;
@@ -43,7 +44,7 @@ export default function AnalyticsSectionNav() {
           <a
             key={id}
             href={`#${id}`}
-            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`shrink-0 rounded-full px-3 py-1.5 text-[13px] font-medium transition-colors ${
               active === id
                 ? 'bg-ink text-white'
                 : 'text-ink2 hover:bg-bg-tertiary hover:text-ink'

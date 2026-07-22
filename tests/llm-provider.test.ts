@@ -207,6 +207,29 @@ describe('LLM provider abstraction', () => {
       expect((opts as RequestInit).headers).toMatchObject({ Authorization: 'Bearer openai-key' });
     });
 
+    it('keeps judge calls on the judge provider inside a selected Write model context', async () => {
+      setLlmEnv();
+      process.env.LLM_JUDGE_BASE_URL = 'https://judge.example/v1';
+      process.env.LLM_JUDGE_API_KEY = 'judge-key';
+      process.env.LLM_JUDGE_MODEL = 'judge-model';
+      const fetchMock = vi.fn(async () => ({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'JUDGED' } }] }),
+      })) as unknown as typeof fetch;
+      vi.stubGlobal('fetch', fetchMock);
+
+      const { chatCompletion } = await import('@/lib/llm');
+      const { withWriteModel } = await import('@/lib/write-models');
+      await withWriteModel(
+        { id: 'custom', label: 'Custom', baseUrl: 'https://write.example/v1', apiKey: 'write-key', model: 'write-model' },
+        () => chatCompletion('sys', 'user', { role: 'judge' }),
+      );
+
+      const [url, opts] = (fetchMock as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
+      expect(url).toBe('https://judge.example/v1/chat/completions');
+      expect(JSON.parse((opts as RequestInit).body as string).model).toBe('judge-model');
+    });
+
     it('falls back to the global primary when the role env triplet is unset', async () => {
       setLlmEnv(); // only global primary configured; no LLM_JUDGE_*
       const fetchMock = vi.fn(async () => ({

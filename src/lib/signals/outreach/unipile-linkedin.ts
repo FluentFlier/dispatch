@@ -116,7 +116,10 @@ async function liveAccountId(
   if (!storedId) return null;
 
   const healed = await healUnipileAccountId(storedId, row?.account_id ?? null);
-  if (!healed) return null;
+  // Verification is a self-heal optimization, not an availability gate. When
+  // Unipile is temporarily unreachable, keep using the stored account id so a
+  // transient control-plane outage does not disconnect every Leads action.
+  if (!healed) return storedId;
   if (healed.refreshed) {
     await persistHealedAccountId(client, storedId, healed.accountId, scope);
   }

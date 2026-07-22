@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent, useMemo } from 'react';
-import { ArrowUp, Loader2, Square, Plus, AudioLines, Send, Check, History, Trash2, Paperclip, X } from 'lucide-react';
+import { useEffect, useState, useRef, useCallback, type KeyboardEvent, type ChangeEvent, type DragEvent, type ClipboardEvent } from 'react';
+import { ArrowUp, Loader2, Square, Plus, AudioLines, Send, Check, History, Trash2, Paperclip, X, Copy, RotateCcw } from 'lucide-react';
 import { MicDictate } from './MicDictate';
 import { assembleGeneratePrompt } from '@/lib/generate-prompt';
 import { GenerateOutput, type GenerateVoiceMetrics } from './GenerateOutput';
@@ -17,6 +17,8 @@ import {
   extractTagMentions,
   mergeMentions,
 } from '@/lib/mentions';
+import { validateImageContextFile } from '@/lib/image-context';
+import { buildThinkDiscussionContext } from '@/lib/think-discussion-context';
 
 // Pillar briefs describe the GOAL and the beats to hit as NARRATIVE guidance,
 // never as a labeled one-line-per-beat skeleton. The old "HOOK: one sentence /
@@ -27,7 +29,7 @@ import {
 type MessageCompleteness = { starved?: boolean; voiceSource?: string } | null;
 
 type ChatMessage =
-  | { id: string; role: 'user'; content: string }
+  | { id: string; role: 'user'; content: string; kind?: 'prompt' }
   | {
       id: string;
       role: 'assistant';
@@ -38,6 +40,7 @@ type ChatMessage =
       stage?: GenStage | null;
       error?: string;
       contextId?: string | null;
+      kind?: 'draft' | 'discussion';
     };
 
 type GenStage = 'thinking' | 'writing' | 'revising' | 'polishing' | 'scoring';
@@ -105,6 +108,9 @@ const PLATFORM_OPTIONS: (DashboardPlatform | null)[] = [null, ...DASHBOARD_PLATF
 const CHAT_KEY = 'generate:script:chat';
 const CHAT_ID_KEY = 'generate:script:chat-id';
 const SIDEBAR_COLLAPSED_KEY = 'generate:script:sidebar-collapsed';
+const MODEL_KEY = 'generate:script:model';
+type WriteMode = 'create' | 'think';
+type ModelOption = { id: string; label: string };
 
 function formatChatDate(iso: string): string {
   try {
@@ -129,11 +135,7 @@ export function ScriptGenerator({
   secondaryTools = [],
   onSelectTool,
 }: ScriptGeneratorProps) {
-  const mentionSeed = initialMentions.join(',');
-  const stableInitialMentions = useMemo(
-    () => mergeMentions(initialMentions),
-    [mentionSeed, initialMentions],
-  );
+  const stableInitialMentions = mergeMentions(initialMentions);
   const { pillars: pillarList, loading: pillarsLoading, getLabel } = usePillars();
   const { preferredPostLength, voiceEnabled, loading: prefLoading, savePreferredPostLength, saveVoiceEnabled } = useCreatorPreferences();
 
@@ -142,6 +144,11 @@ export function ScriptGenerator({
   const [platform, setPlatform] = useState<DashboardPlatform | null>(initialPlatform ?? 'linkedin');
   const [postLength, setPostLength] = useState<PostLength>(preferredPostLength);
   const [useVoice, setUseVoice] = useState(voiceEnabled);
+  const [writeMode, setWriteMode] = useState<WriteMode>('create');
+  const [models, setModels] = useState<ModelOption[]>([{ id: 'default', label: 'Default' }]);
+  const [modelId, setModelId] = useState(() => {
+    try { return sessionStorage.getItem(MODEL_KEY) ?? 'default'; } catch { return 'default'; }
+  });
   const [messages, setMessages] = useState<ChatMessage[]>(() => {
     if (initialResult) {
       return [{ id: newId(), role: 'assistant', content: initialResult }];
@@ -166,7 +173,7 @@ export function ScriptGenerator({
   });
   const [stage, setStage] = useState<GenStage | null>(null);
   const [error, setError] = useState('');
-  const [attachments, setAttachments] = useState<{ id: string; name: string; text: string }[]>([]);
+  const [attachments, setAttachments] = useState<{ id: string; name: string; text: string; imageUrl?: string }[]>([]);
   const [attaching, setAttaching] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -178,13 +185,25 @@ export function ScriptGenerator({
   // server can track the light-regen budget. Reset on new/loaded chats.
   const contextIdRef = useRef<string | null>(null);
 
-  const lastDraft = [...messages].reverse().find((m) => m.role === 'assistant' && m.content.trim())?.content ?? '';
-  const lastAssistantIdx = messages.findLastIndex((m) => m.role === 'assistant');
+  const lastDraft = [...messages].reverse().find((m) => m.role === 'assistant' && m.kind !== 'discussion' && m.content.trim())?.content ?? '';
+  const lastDraftIdx = messages.findLastIndex((m) => m.role === 'assistant' && m.kind !== 'discussion');
   const activeAssistant = [...messages].reverse().find(
     (m): m is Extract<ChatMessage, { role: 'assistant' }> =>
       m.role === 'assistant' && (m.status === 'queued' || m.status === 'running'),
   );
+  const activeAssistantId = activeAssistant?.id;
   const isGenerating = Boolean(activeAssistant);
+
+  useEffect(() => {
+    void fetchWithAuth('/api/generate/models').then(async (res) => {
+      if (!res.ok) return;
+      const data = await res.json();
+      const available = Array.isArray(data?.models) ? data.models as ModelOption[] : [];
+      if (!available.length) return;
+      setModels(available);
+      if (!available.some((model) => model.id === modelId)) setModelId('default');
+    }).catch(() => {});
+  }, [modelId]);
 
   useEffect(() => {
     if (initialPlatform) return;
@@ -337,13 +356,35 @@ export function ScriptGenerator({
   }, []);
 
   const handleFiles = useCallback(async (fileList: FileList | File[]) => {
-    const files = Array.from(fileList).filter((f) =>
-      /\.(txt|md|pdf)$/i.test(f.name) || f.type === 'application/pdf' || f.type.startsWith('text/'),
-    );
+    const files = Array.from(fileList).filter((f) => f.type.startsWith('image/') ||
+      /\.(txt|md|pdf)$/i.test(f.name) || f.type === 'application/pdf' || f.type.startsWith('text/'));
     if (files.length === 0) return;
     setAttaching(true);
     for (const file of files) {
       try {
+        if (file.type.startsWith('image/')) {
+          const validationError = validateImageContextFile(file);
+          if (validationError) { setError(validationError); continue; }
+          const uploadForm = new FormData();
+          uploadForm.append('file', file);
+          const uploadRes = await fetchWithAuth('/api/upload', { method: 'POST', body: uploadForm });
+          const uploaded = await uploadRes.json().catch(() => ({}));
+          if (!uploadRes.ok || typeof uploaded.url !== 'string' || !uploaded.url || typeof uploaded.path !== 'string') {
+            setError((uploaded as { error?: string }).error ?? `Couldn't upload ${file.name}`);
+            continue;
+          }
+          const describeRes = await fetchWithAuth('/api/generate/describe-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: uploaded.path }),
+          });
+          const described = await describeRes.json().catch(() => ({}));
+          const text = typeof described.description === 'string'
+            ? described.description
+            : 'An image is attached. Consider its visual context when drafting the post.';
+          setAttachments((prev) => [...prev, { id: newId(), name: file.name || 'Pasted image', text, imageUrl: uploaded.url }]);
+          continue;
+        }
         const form = new FormData();
         form.append('file', file);
         const res = await fetchWithAuth('/api/generate/parse-file', { method: 'POST', body: form });
@@ -368,6 +409,16 @@ export function ScriptGenerator({
     void handleFiles(e.dataTransfer.files);
   }
 
+  function onComposerPaste(e: ClipboardEvent<HTMLTextAreaElement>) {
+    const images = Array.from(e.clipboardData.items)
+      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => Boolean(file));
+    if (!images.length) return;
+    e.preventDefault();
+    void handleFiles(images);
+  }
+
   function removeAttachment(id: string) {
     setAttachments((prev) => prev.filter((a) => a.id !== id));
   }
@@ -384,17 +435,19 @@ export function ScriptGenerator({
     const trimmed = text.trim();
     if (!trimmed || loading || isGenerating || pillarsLoading || prefLoading || !pillar) return;
 
-    const priorDraft = [...messages].reverse().find((m) => m.role === 'assistant' && m.content.trim())?.content;
+    const priorDraft = [...messages].reverse().find((m) => m.role === 'assistant' && m.kind !== 'discussion' && m.content.trim())?.content;
     const info = pillarList.find((p) => p.value === pillar);
     const pillarLabel = info?.label ?? getLabel(pillar);
-    const mode: 'draft' | 'revise' = priorDraft ? 'revise' : 'draft';
+    const mode: 'draft' | 'revise' | 'think' = writeMode === 'think' ? 'think' : priorDraft ? 'revise' : 'draft';
 
     const attachmentBlock = attachments.length
       ? `\n\nATTACHED FILE CONTEXT:\n${attachments.map((a) => `[${a.name}]\n${a.text}`).join('\n\n')}`
       : '';
 
     let assembled: string;
-    if (priorDraft) {
+    if (mode === 'think') {
+      assembled = trimmed;
+    } else if (priorDraft) {
       assembled = assembleGeneratePrompt({
         base: `Revise this${platform ? ` ${platform}` : ''} post based on the creator's latest message. Return ONLY the updated post - no commentary, no labels.`,
         thoughts: `CURRENT DRAFT:\n${priorDraft}\n\nCREATOR SAID:\n${trimmed}${attachmentBlock}`,
@@ -410,7 +463,7 @@ export function ScriptGenerator({
     }
     const mentions = mergeMentions(stableInitialMentions, extractTagMentions(trimmed));
 
-    const userMsg: ChatMessage = { id: newId(), role: 'user', content: trimmed };
+    const userMsg: ChatMessage = { id: newId(), role: 'user', content: trimmed, kind: 'prompt' };
     const assistantId = newId();
     const assistantMsg: ChatMessage = {
       id: assistantId,
@@ -418,6 +471,7 @@ export function ScriptGenerator({
       content: '',
       status: 'queued',
       stage: mode === 'revise' ? 'revising' : 'thinking',
+      kind: mode === 'think' ? 'discussion' : 'draft',
     };
     const optimisticMessages = [...messages, userMsg, assistantMsg];
     setMessages(optimisticMessages);
@@ -441,6 +495,10 @@ export function ScriptGenerator({
           pillar,
           useVoice,
           mode,
+          modelId,
+          ...(mode === 'think'
+            ? { discussionContext: buildThinkDiscussionContext(messages, attachmentBlock) }
+            : {}),
           ...(mentions.length > 0 ? { mentions } : {}),
           ...(mode === 'revise' && contextIdRef.current ? { context_id: contextIdRef.current } : {}),
         }),
@@ -466,12 +524,12 @@ export function ScriptGenerator({
     }
   }, [
     loading, isGenerating, pillarsLoading, prefLoading, pillar, pillarList, getLabel,
-    platform, postLength, useVoice, stableInitialMentions, messages, attachments,
+    platform, postLength, useVoice, stableInitialMentions, messages, attachments, writeMode, modelId,
     refreshHistory,
   ]);
 
   useEffect(() => {
-    if (!conversationId || !activeAssistant) return;
+    if (!conversationId || !activeAssistantId) return;
     let cancelled = false;
     const poll = async () => {
       try {
@@ -483,7 +541,7 @@ export function ScriptGenerator({
         const nextMessages = chat.messages as ChatMessage[];
         setMessages(nextMessages);
         const currentAssistant = nextMessages.find(
-          (m): m is Extract<ChatMessage, { role: 'assistant' }> => m.id === activeAssistant.id && m.role === 'assistant',
+          (m): m is Extract<ChatMessage, { role: 'assistant' }> => m.id === activeAssistantId && m.role === 'assistant',
         );
         setStage(currentAssistant?.stage ?? null);
         try {
@@ -503,7 +561,7 @@ export function ScriptGenerator({
     // message array with fresh objects, so depending on the object would tear
     // down and restart this effect every tick, polling back-to-back instead of
     // on the interval.
-  }, [conversationId, activeAssistant?.id]);
+  }, [conversationId, activeAssistantId]);
 
   useEffect(() => {
     if (!autoGenerate || autoGenTriggered.current || pillarsLoading || prefLoading || !pillar) return;
@@ -520,9 +578,9 @@ export function ScriptGenerator({
   }
 
   function updateDraft(text: string) {
-    if (lastAssistantIdx < 0) return;
+    if (lastDraftIdx < 0) return;
     setMessages((prev) =>
-      prev.map((m, i) => (i === lastAssistantIdx && m.role === 'assistant' ? { ...m, content: text } : m)),
+      prev.map((m, i) => (i === lastDraftIdx && m.role === 'assistant' ? { ...m, content: text } : m)),
     );
   }
 
@@ -602,7 +660,11 @@ export function ScriptGenerator({
         {messages.map((msg, idx) => {
           if (msg.role === 'user') {
             return (
-              <div key={msg.id} className="flex justify-end">
+              <div key={msg.id} className="group flex justify-end gap-1">
+                <div className="self-start opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                  <button type="button" onClick={() => void navigator.clipboard.writeText(msg.content)} title="Copy prompt" aria-label="Copy prompt" className="rounded p-1.5 text-ink3 hover:bg-paper2 hover:text-ink"><Copy className="h-3.5 w-3.5" /></button>
+                  <button type="button" onClick={() => { setInput(msg.content); inputRef.current?.focus(); }} title="Reuse prompt" aria-label="Reuse prompt" className="rounded p-1.5 text-ink3 hover:bg-paper2 hover:text-ink"><RotateCcw className="h-3.5 w-3.5" /></button>
+                </div>
                 <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl bg-ink px-4 py-2.5 text-[15px] leading-relaxed text-white">
                   {msg.content}
                 </div>
@@ -642,7 +704,7 @@ export function ScriptGenerator({
 
           return (
             <div key={msg.id} className="flex justify-start">
-              {idx === lastAssistantIdx ? (
+              {idx === lastDraftIdx && msg.kind !== 'discussion' ? (
                 <div className="w-full max-w-full">
                   <GenerateOutput
                     text={msg.content}
@@ -679,6 +741,7 @@ export function ScriptGenerator({
           <div className="flex flex-wrap gap-1.5 px-4 pt-3">
             {attachments.map((a) => (
               <span key={a.id} className="inline-flex items-center gap-1 rounded-full border border-hair bg-paper2 px-2.5 py-1 text-[12px] text-ink2">
+                {a.imageUrl && <img src={a.imageUrl} alt="" className="h-5 w-5 rounded object-cover" />}
                 {a.name}
                 <button type="button" onClick={() => removeAttachment(a.id)} aria-label={`Remove ${a.name}`} className="text-ink3 hover:text-ink">
                   <X className="h-3 w-3" />
@@ -691,14 +754,19 @@ export function ScriptGenerator({
           ref={inputRef}
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onPaste={onComposerPaste}
           onKeyDown={handleKeyDown}
           rows={3}
           autoFocus
-          placeholder={lastDraft ? 'Ask for changes - shorter, punchier hook, add a CTA…' : 'What do you want to post about?'}
+          placeholder={writeMode === 'think' ? 'Brainstorm an angle, weigh a decision, or ask for advice…' : lastDraft ? 'Ask for changes - shorter, punchier hook, add a CTA…' : 'What do you want to post about?'}
           className="w-full resize-none bg-transparent px-4 py-3 font-body text-[15px] leading-relaxed text-ink placeholder:text-ink3 focus:outline-none focus:shadow-none focus:border-transparent"
         />
         <div className="flex items-center justify-between border-t border-hair px-3 py-2">
           <div className="flex flex-wrap items-center gap-2 text-[12px]">
+            <div className="flex items-center rounded-full border border-hair bg-paper2 p-0.5" aria-label="Write mode">
+              {(['create', 'think'] as WriteMode[]).map((mode) => <button key={mode} type="button" onClick={() => setWriteMode(mode)} className={`rounded-full px-2.5 py-1 capitalize ${writeMode === mode ? 'bg-ink text-white' : 'text-ink3 hover:text-ink'}`}>{mode}</button>)}
+            </div>
+            {models.length > 1 && <select aria-label="AI model" value={modelId} onChange={(e) => { setModelId(e.target.value); try { sessionStorage.setItem(MODEL_KEY, e.target.value); } catch {} }} className="rounded-full border border-hair bg-paper2 px-2.5 py-1.5 text-[12px] text-ink2 focus:outline-none">{models.map((model) => <option key={model.id} value={model.id}>{model.label}</option>)}</select>}
             {/* ChatGPT-style "+" menu: per-draft voice toggle + publish. */}
             <div className="relative">
               <button
@@ -786,7 +854,7 @@ export function ScriptGenerator({
             <input
               ref={fileInputRef}
               type="file"
-              accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf"
+              accept=".txt,.md,.pdf,text/plain,text/markdown,application/pdf,image/jpeg,image/png,image/webp,image/gif"
               multiple
               hidden
               onChange={onFileInputChange}
@@ -796,7 +864,7 @@ export function ScriptGenerator({
               onClick={() => fileInputRef.current?.click()}
               disabled={attaching}
               aria-label="Attach file"
-              title="Attach a text file or PDF"
+              title="Attach an image, text file, or PDF"
               className="flex h-9 w-9 items-center justify-center rounded-full text-ink3 transition-colors hover:bg-paper2 hover:text-ink2 disabled:opacity-50"
             >
               {attaching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Paperclip className="h-4 w-4" />}

@@ -92,13 +92,13 @@ select:focus {
     @apply text-base font-normal leading-[1.75] text-ink;
   }
   .text-label {
-    @apply text-[0.75rem] font-semibold leading-[1.2] tracking-[0.02em] text-ink3;
+    @apply text-[0.8125rem] font-semibold leading-[1.3] tracking-[0.02em] text-ink3;
   }
 
   /* Eyebrow above a page/section title - sentence case, one voice (Hanken),
      no mono, no all-caps (DESIGN.md §3). */
   .page-eyebrow {
-    @apply text-[12px] font-semibold tracking-[0.01em] text-ink3;
+    @apply text-[13px] font-semibold tracking-[0.01em] text-ink3;
   }
 
   /* Hairline rule used to separate major sections on the editorial grid. */

@@ -161,7 +161,7 @@ function directoryNextAction(l: SignalLeadWithContacts, reachable: number): stri
 function directoryQuality(l: SignalLeadWithContacts, reachable: number, urgency: number): LeadQualityBreakdown {
   const fit = clamp01(l.fit_score);
   const fitPhrase = icpFitPhrase(fit);
-  const reasons: string[] = [fitPhrase ? `${fitPhrase} (${fit.toFixed(2)})` : 'Not scored against your ICP yet'];
+  const reasons: string[] = [fitPhrase ? `${fitPhrase} (${Math.round(fit * 100)}% ICP fit)` : 'Not scored against your ICP yet'];
 
   reasons.push(sourceReason(l.source, l.batch));
   const tags = (l.tags ?? []).slice(0, 2).filter(Boolean);

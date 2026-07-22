@@ -17,6 +17,9 @@ vi.mock('@/lib/voice-context', () => ({
 }));
 vi.mock('@/lib/workspace', () => ({ getActiveWorkspaceId: vi.fn().mockResolvedValue('ws-1') }));
 vi.mock('@/lib/ai-guard', () => ({ guardAiRequest: vi.fn().mockResolvedValue({ ok: true }) }));
+// Pillar classification is unrelated to score persistence. Block its optional
+// AI call so this route test does not need to reproduce the budget table SDK.
+vi.mock('@/lib/ai-budget', () => ({ checkAndIncrementUsage: vi.fn().mockResolvedValue('blocked') }));
 
 const getAuthenticatedUser = vi.fn();
 let insertedPayload: Record<string, unknown> | null = null;

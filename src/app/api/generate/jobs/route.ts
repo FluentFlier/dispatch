@@ -5,7 +5,8 @@ import { getAuthenticatedUser, getServerClient, getServiceClient } from '@/lib/i
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { errorResponse } from '@/lib/api-errors';
 import { guardAiRequest } from '@/lib/ai-guard';
-import { LlmError } from '@/lib/llm';
+import { chatCompletion, LlmError } from '@/lib/llm';
+import { resolveWriteModel, withWriteModel } from '@/lib/write-models';
 import { loadCreatorVoiceContext } from '@/lib/voice-context';
 import { ensurePillarBriefs } from '@/lib/pillars/briefs-generate';
 import { classifyPromptForMemory } from '@/lib/memory/classify-prompt';
@@ -40,7 +41,9 @@ const JobSchema = z.object({
   topic: z.string().max(500).optional(),
   platform: z.enum(['twitter', 'linkedin', 'instagram', 'threads']).nullable().optional(),
   pillar: z.string().max(60).optional(),
-  mode: z.enum(['draft', 'revise']).optional(),
+  mode: z.enum(['draft', 'revise', 'think']).optional(),
+  modelId: z.string().max(64).optional(),
+  discussionContext: z.array(z.object({ role: z.enum(['user', 'assistant']), content: z.string().max(20_000) })).max(30).optional(),
   useVoice: z.boolean().optional(),
   mentions: z.array(z.string().max(100)).max(10).optional(),
   context_id: z.string().uuid().nullable().optional(),
@@ -96,6 +99,21 @@ async function runGenerationJob(job: JobPayload, userId: string, workspaceId: st
       stage: mode === 'revise' ? 'revising' : 'thinking',
       error: undefined,
     });
+
+    if (mode === 'think') {
+      const history = (job.discussionContext ?? []).slice(-12)
+        .map((m) => `${m.role === 'user' ? 'Creator' : 'Assistant'}: ${m.content}`)
+        .join('\n\n');
+      const response = await chatCompletion(
+        'You are a thoughtful content strategy partner. Help the creator brainstorm, compare choices, and reason through decisions. Be concise and practical. Do not turn the answer into a finished social post unless explicitly asked.',
+        `${history ? `CONVERSATION:\n${history}\n\n` : ''}LATEST QUESTION:\n${job.userMessage.content}`,
+        { role: 'generate', maxTokens: 1200 },
+      );
+      await updateAssistantMessage(job.conversationId!, userId, job.assistantId, {
+        content: response, kind: 'discussion', status: 'done', stage: null,
+      });
+      return;
+    }
 
     const cached =
       mode === 'revise' && job.context_id
@@ -186,6 +204,7 @@ async function runGenerationJob(job: JobPayload, userId: string, workspaceId: st
           used_hook_ids: result.usedHookIds ?? [],
           ai_score: result.ai_score,
           voice_match_score: result.voice_match_score,
+          evaluation: result.evaluation,
         },
         completeness: {
           starved: completeness?.starved ?? false,
@@ -247,14 +266,15 @@ async function runGenerationJob(job: JobPayload, userId: string, workspaceId: st
 
     const aiSlop = heuristicAiScore(finalText);
     let voiceMatchScore: number | null = null;
+    let evaluation: Awaited<ReturnType<typeof evaluateDraft>> | undefined;
     if (useVoice) {
       await updateAssistantMessage(job.conversationId!, userId, job.assistantId, {
         status: 'running',
         stage: 'scoring',
       });
-      const evalResult = await evaluateDraft(finalText, profile, contextAdditions || undefined, 'post');
-      if (!evalResult.parse_error) {
-        voiceMatchScore = Math.round((evalResult.persona_fidelity / 10) * 100);
+      evaluation = await evaluateDraft(finalText, profile, contextAdditions || undefined, 'post');
+      if (!evaluation.parse_error) {
+        voiceMatchScore = Math.round((evaluation.persona_fidelity / 10) * 100);
       }
     }
 
@@ -269,6 +289,7 @@ async function runGenerationJob(job: JobPayload, userId: string, workspaceId: st
         used_hook_ids: result.usedHookIds,
         ai_score: aiSlop,
         voice_match_score: voiceMatchScore,
+        evaluation,
       },
       completeness: {
         starved: completeness?.starved ?? false,
@@ -311,6 +332,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   const parsed = JobSchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: parsed.error.message }, { status: 400 });
+  const selectedModel = resolveWriteModel(parsed.data.modelId);
+  if (!selectedModel) return NextResponse.json({ error: 'Selected model is not available.' }, { status: 400 });
 
   const guard = await guardAiRequest(user.id);
   if (!guard.ok) return NextResponse.json({ error: guard.error ?? 'Rate limited' }, { status: guard.status });
@@ -322,11 +345,13 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       id: parsed.data.userMessage.id,
       role: 'user',
       content: parsed.data.userMessage.content.trim(),
+      kind: 'prompt',
     };
     const assistantMsg: ChatMessage = {
       id: parsed.data.assistantId,
       role: 'assistant',
       content: '',
+      kind: parsed.data.mode === 'think' ? 'discussion' : 'draft',
       status: 'queued',
       stage: parsed.data.mode === 'revise' ? 'revising' : 'thinking',
     };
@@ -375,7 +400,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     if (!conversationId) return NextResponse.json({ error: 'Could not create job' }, { status: 500 });
 
-    waitUntil(runGenerationJob({ ...parsed.data, conversationId }, user.id, workspaceId));
+    waitUntil(withWriteModel(selectedModel, () => runGenerationJob({ ...parsed.data, conversationId }, user.id, workspaceId)));
     return NextResponse.json({ conversationId, messages }, { status: 202 });
   } catch (err) {
     return errorResponse('Failed to start generation.', 500, err);

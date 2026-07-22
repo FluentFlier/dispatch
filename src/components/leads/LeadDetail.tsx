@@ -28,6 +28,7 @@ import { formatDuplicateWarning, type DuplicateWarningState } from '@/lib/leads/
 import { linkedInBadgeState } from '@/lib/leads/verified-badge';
 import { LINKEDIN_CONNECT_NOTE_LIMIT } from '@/lib/leads/constants';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
+import { fitPercentage } from './feed-format';
 
 export type { LeadDetailAction };
 
@@ -316,7 +317,7 @@ export function LeadDetail({
   const summary = summarizeLead(lead);
   const sourceUrl = leadSourceUrl(lead);
   // Null for an unscored lead: showing "0%" would read as a scored-and-bad fit.
-  const fitPercent = lead.fit_score > 0 ? Math.round(Math.min(1, lead.fit_score) * 100) : null;
+  const fitPercent = fitPercentage(lead.fit_score);
   const inReplyMode = Boolean(
     lead.needs_reply || lead.nurture_stage === 'replied' || lead.nurture_stage === 'in_conversation',
   );
@@ -384,9 +385,13 @@ export function LeadDetail({
         <div className="flex shrink-0 flex-col items-end gap-2">
           {quality && (
             <div className="flex flex-wrap justify-end gap-1.5 text-[11px]">
-              <span className="rounded-md border border-border bg-bg-primary px-2 py-1 font-medium text-text-primary">
+              <span
+                className="rounded-md border border-border bg-bg-primary px-2 py-1 font-medium text-text-primary tabular-nums"
+                title="How closely this lead matches your saved ideal customer profile"
+                aria-label={fitPercent ? `${quality.label}; ICP fit: ${fitPercent}` : quality.label}
+              >
                 {quality.label}
-                {fitPercent !== null && ` ${fitPercent}%`}
+                {fitPercent !== null && ` · ICP fit ${fitPercent}`}
               </span>
               <span className="rounded-md bg-bg-tertiary px-2 py-1 text-text-secondary">
                 {quality.reachabilityLabel}

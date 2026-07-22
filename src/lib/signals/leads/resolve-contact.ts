@@ -4,6 +4,8 @@ import { logLeadEvent, updateLead } from '@/lib/signals/leads/store';
 import { decideContactStatus } from '@/lib/signals/leads/identity';
 import { enrichFounderContact } from '@/lib/signals/leads/enrich-contact';
 import { getWorkspaceLinkedInAccountId, searchLinkedInPerson } from '@/lib/signals/outreach/unipile-linkedin';
+import type { PersonaTarget } from '@/lib/signals/leads/persona-fit';
+import { roleFitsPersona } from '@/lib/signals/leads/persona-fit';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -28,7 +30,7 @@ export async function resolveLeadContacts(
   client: InsforgeClient,
   workspaceId: string,
   lead: SignalLeadWithContacts,
-  opts: { enrich?: boolean; force?: boolean; fastOnly?: boolean } = {},
+  opts: { enrich?: boolean; force?: boolean; fastOnly?: boolean; persona?: PersonaTarget | null } = {},
 ): Promise<ResolveResult> {
   // Enrichment ladder. The batch scrape passes fastOnly:true so only the fast
   // YC-detail lookup runs inline (auto-resolving leads without the slow ~60s
@@ -42,7 +44,9 @@ export async function resolveLeadContacts(
   // the batch/fast path: that would fan out one search call per scraped lead.
   // Cost rule: one verify call only on an explicit (on-demand) resolve.
   const shouldVerify = !fastOnly;
-  const contacts = lead.contacts ?? [];
+  const contacts = opts.persona
+    ? (lead.contacts ?? []).filter((contact) => roleFitsPersona(contact.role, opts.persona!))
+    : (lead.contacts ?? []);
   const primary = contacts.find((c) => c.is_primary) ?? contacts[0] ?? null;
 
   // Step 1: existing scraped/resolved identifier wins (prefers CEO/Founder title).
@@ -63,7 +67,7 @@ export async function resolveLeadContacts(
   // Steps 2-4: enrichment (gated). When a provider resolves a URL, upsert it
   // onto the contact row and mark resolved. Skipped in batch mode.
   const enriched = enrich
-    ? await tryEnrichment(client, workspaceId, lead, primary, fastOnly, shouldVerify)
+    ? await tryEnrichment(client, workspaceId, lead, primary, fastOnly, shouldVerify, opts.persona)
     : null;
   if (enriched) {
     await setStatus(client, workspaceId, lead.id, 'resolved', enriched);
@@ -94,8 +98,9 @@ async function tryEnrichment(
   _primary: SignalLeadContactRow | null,
   fastOnly = false,
   shouldVerify = false,
+  persona: PersonaTarget | null = null,
 ): Promise<string | null> {
-  const found = await enrichFounderContact(lead, { fastOnly, client, workspaceId });
+  const found = await enrichFounderContact(lead, { fastOnly, client, workspaceId, persona });
   if (!found?.linkedinUrl) return null;
 
   // Replace any prior enrichment-sourced contact (avoids duplicates on a rescan);

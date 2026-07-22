@@ -4,12 +4,15 @@ import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
 import { createIcpProfile, ensureSeedProfile, listIcpProfiles } from '@/lib/signals/leads/icp-profiles';
 import { errorResponse } from '@/lib/api-errors';
+import { MAX_ICP_FIELD_LENGTH, MAX_ICP_KEYWORDS, MAX_ICP_VERTICALS } from '@/lib/signals/leads/icp-limits';
+
+const term = z.string().trim().min(1).max(MAX_ICP_FIELD_LENGTH);
 
 const createSchema = z.object({
   name: z.string().min(1).max(120),
   description: z.string().max(4000).nullish(),
-  verticals: z.array(z.string()).optional(),
-  keywords: z.array(z.string()).optional(),
+  verticals: z.array(term).max(MAX_ICP_VERTICALS).optional(),
+  keywords: z.array(term).max(MAX_ICP_KEYWORDS).optional(),
   goal_type: z.enum(['networking', 'customer_acquisition', 'hiring', 'fundraising', 'other']).optional(),
   target_personas: z.array(z.string()).optional(),
   pitch_angle: z.string().max(2000).nullish(),

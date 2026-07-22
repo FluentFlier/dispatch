@@ -10,11 +10,17 @@ export const ChatMessageSchema = z.object({
   id: z.string().max(64),
   role: z.enum(['user', 'assistant']),
   content: z.string().max(20_000),
+  kind: z.enum(['prompt', 'draft', 'discussion']).optional(),
   voiceMetrics: z
     .object({
       used_hook_ids: z.array(z.string().max(64)).max(20).optional(),
       ai_score: z.number().optional(),
       voice_match_score: z.number().nullable().optional(),
+      evaluation: z.object({
+        persona_fidelity: z.number(), uniqueness: z.number(), specificity: z.number(),
+        so_what: z.number(), pain_resonance: z.number(), ai_slop: z.number(),
+        revision_notes: z.string(), pass: z.boolean(), parse_error: z.boolean().optional(),
+      }).optional(),
     })
     .optional(),
   completeness: z

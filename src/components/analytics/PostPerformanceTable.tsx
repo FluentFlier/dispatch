@@ -81,28 +81,28 @@ export default function PostPerformanceTable({ posts }: PostPerformanceTableProp
           <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="border-b border-hair bg-bg-tertiary/50">
-                <th className="text-left px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium">
+                <th className="text-left px-4 py-2.5 text-xs tracking-[0.01em] text-ink3 font-medium">
                   Post
                 </th>
-                <th className="text-left px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium hidden sm:table-cell">
+                <th className="text-left px-4 py-2.5 text-xs tracking-[0.01em] text-ink3 font-medium hidden sm:table-cell">
                   Platform
                 </th>
-                <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium">
+                <th className="text-right px-4 py-2.5 text-xs tracking-[0.01em] text-ink3 font-medium">
                   Views
                 </th>
-                <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium">
+                <th className="text-right px-4 py-2.5 text-xs tracking-[0.01em] text-ink3 font-medium">
                   Likes
                 </th>
-                <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium">
+                <th className="text-right px-4 py-2.5 text-xs tracking-[0.01em] text-ink3 font-medium">
                   Saves
                 </th>
-                <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium hidden md:table-cell">
+                <th className="text-right px-4 py-2.5 text-xs tracking-[0.01em] text-ink3 font-medium hidden md:table-cell">
                   Comments
                 </th>
-                <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium hidden md:table-cell">
+                <th className="text-right px-4 py-2.5 text-xs tracking-[0.01em] text-ink3 font-medium hidden md:table-cell">
                   Shares
                 </th>
-                <th className="text-right px-4 py-2.5 text-[10px] tracking-[0.01em] text-ink3 font-medium hidden lg:table-cell">
+                <th className="text-right px-4 py-2.5 text-xs tracking-[0.01em] text-ink3 font-medium hidden lg:table-cell">
                   Posted
                 </th>
               </tr>
@@ -139,7 +139,7 @@ export default function PostPerformanceTable({ posts }: PostPerformanceTableProp
                   <td className={`px-4 py-3 text-right tabular-nums hidden md:table-cell ${(post.shares ?? 0) > 0 ? 'text-ink' : 'text-ink3'}`}>
                     {(post.shares ?? 0).toLocaleString()}
                   </td>
-                  <td className="px-4 py-3 text-right text-[11px] text-ink3 tabular-nums hidden lg:table-cell">
+                  <td className="px-4 py-3 text-right text-xs text-ink3 tabular-nums hidden lg:table-cell">
                     {publishedAt(post) ? formatDateShort(publishedAt(post)!) : '-'}
                   </td>
                 </tr>

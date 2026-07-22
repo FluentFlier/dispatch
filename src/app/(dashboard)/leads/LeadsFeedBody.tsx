@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { ChevronDown } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Check, ChevronDown, Circle, X } from 'lucide-react';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { FeedFilters, type FeedFilterState } from '@/components/leads/FeedFilters';
@@ -88,6 +88,28 @@ export function LeadsFeedBody(props: LeadsController) {
   // reloads and reflects keywords the assistant just mirrored in.
   const [signalsRefreshKey, setSignalsRefreshKey] = useState(0);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [checklistDismissed, setChecklistDismissed] = useState(false);
+  const checklistKey = settings?.workspace_id
+    ? `leads:onboarding:${settings.workspace_id}:dismissed`
+    : null;
+  useEffect(() => {
+    if (!checklistKey) return;
+    try {
+      setChecklistDismissed(localStorage.getItem(checklistKey) === '1');
+    } catch {
+      setChecklistDismissed(false);
+    }
+  }, [checklistKey]);
+
+  const dismissChecklist = () => {
+    setChecklistDismissed(true);
+    if (!checklistKey) return;
+    try {
+      localStorage.setItem(checklistKey, '1');
+    } catch {
+      /* local persistence is a convenience; never block setup */
+    }
+  };
   const handleIcpSettingsSaved = (s: Parameters<typeof setSettings>[0]) => {
     setSettings(s);
     setSignalsRefreshKey((k) => k + 1);
@@ -96,10 +118,8 @@ export function LeadsFeedBody(props: LeadsController) {
     // chat says "added X to your watchlist" while "Where to look" still reads
     // "No companies on your watchlist yet".
     void loadBootstrap();
-    // Reveal what actually changed. The assistant writes topics and watched
-    // accounts into Advanced, and leaving it collapsed made those writes look
-    // like they never happened.
-    setAdvancedOpen(true);
+    // Keep Advanced user-controlled. An ordinary ICP edit may refresh topics,
+    // but should not unexpectedly expand delivery and sending-safety controls.
   };
 
   return (
@@ -178,6 +198,34 @@ export function LeadsFeedBody(props: LeadsController) {
         </div>
       ) : view === 'setup' ? (
         <div className="space-y-6">
+          {!checklistDismissed && (
+            <section className="rounded-lg border border-accent-primary/30 bg-accent-primary/5 px-4 py-4" aria-label="Leads setup checklist">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-text-primary">Start with the essentials</h2>
+                  <p className="mt-0.5 text-xs text-text-secondary">Three steps are enough to get useful leads. Advanced controls can wait.</p>
+                </div>
+                <button type="button" onClick={dismissChecklist} aria-label="Dismiss setup checklist" className="rounded p-1 text-text-tertiary hover:text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <ol className="mt-3 grid gap-2 sm:grid-cols-3">
+                {[
+                  { done: icpConfigured, label: 'Describe your ICP', hint: 'Who you want to reach' },
+                  { done: (settings?.enabled_sources?.length ?? 0) > 0, label: 'Choose sources', hint: 'Where to find them' },
+                  { done: cards.length > 0, label: 'Find your first leads', hint: 'Run a search when ready' },
+                ].map((step) => (
+                  <li key={step.label} className="flex items-start gap-2 rounded-md border border-border/80 bg-bg-secondary px-3 py-2.5">
+                    {step.done ? <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" /> : <Circle className="mt-0.5 h-4 w-4 shrink-0 text-text-tertiary" />}
+                    <span>
+                      <span className="block text-xs font-medium text-text-primary">{step.label}</span>
+                      <span className="block text-[11px] text-text-tertiary">{step.hint}</span>
+                    </span>
+                  </li>
+                ))}
+              </ol>
+            </section>
+          )}
           {/* Basics - the two things a user must set to get relevant leads: who to
               reach (ICP) and where to look (sources). Everything else is under
               "Advanced" below so the surface isn't a wall of ~20 fields.
@@ -206,9 +254,8 @@ export function LeadsFeedBody(props: LeadsController) {
               card, and each panel inside keeps its own card. Previously the shell
               was a card too, so five cards nested inside one card of the same
               colour read as a single undifferentiated wall.
-              It auto-opens after the assistant changes monitoring
-              (`signalsRefreshKey`), so a "now watching X" reply is visibly backed
-              by the topics that appear here. */}
+              It stays user-controlled: basic ICP edits must not unexpectedly
+              expose sending and delivery controls. */}
           <details
             open={advancedOpen}
             onToggle={(e) => setAdvancedOpen((e.currentTarget as HTMLDetailsElement).open)}

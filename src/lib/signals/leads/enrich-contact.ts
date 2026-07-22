@@ -7,6 +7,8 @@ import { fetchYcFounders, findYcCompanyByName } from '@/lib/signals/ingest/yc-al
 import type { YcFounder, YcNameMatch } from '@/lib/signals/ingest/yc-algolia';
 import { chatCompletion } from '@/lib/llm';
 import { getWorkspaceLinkedInAccountId, searchLinkedInPerson } from '@/lib/signals/outreach/unipile-linkedin';
+import type { PersonaTarget } from '@/lib/signals/leads/persona-fit';
+import { roleFitsPersona } from '@/lib/signals/leads/persona-fit';
 
 type InsforgeClient = ReturnType<typeof createClient>;
 
@@ -61,8 +63,22 @@ export interface EnrichedContact {
  */
 export async function enrichFounderContact(
   lead: Pick<SignalLeadWithContacts, 'source' | 'external_id' | 'company_name' | 'domain' | 'website' | 'contacts'>,
-  opts: { fastOnly?: boolean; client?: InsforgeClient; workspaceId?: string } = {},
+  opts: { fastOnly?: boolean; client?: InsforgeClient; workspaceId?: string; persona?: PersonaTarget | null } = {},
 ): Promise<EnrichedContact | null> {
+  // A person-level ICP must not fall through the historical founder/CEO ladder.
+  // Search for the requested practitioner at the company and fail closed when
+  // no matching person can be verified.
+  if (opts.persona) {
+    // Batch sync promises a local/cheap fast path. Persona lookup is a remote
+    // LinkedIn people search, so leave the contact unresolved for later rather
+    // than fan one request out per discovered company.
+    if (opts.fastOnly) return null;
+    const accountId =
+      opts.client && opts.workspaceId
+        ? await getWorkspaceLinkedInAccountId(opts.client, opts.workspaceId)
+        : null;
+    return enrichViaPersonaSearch(lead, opts.persona, accountId);
+  }
   // YC leads: the YC company detail page reliably lists founders + LinkedIn (fast).
   const viaYc = await enrichViaYcDetail(lead);
   if (viaYc) return viaYc;
@@ -102,6 +118,26 @@ export async function enrichFounderContact(
   // before the lead is marked no_contact.
   const founderName = lead.contacts?.find((c) => c.name)?.name ?? undefined;
   return enrichViaUnipileSearch({ companyName: lead.company_name, founderName, accountId });
+}
+
+/** Person-aware lookup used for IC ICPs instead of the executive default. */
+export async function enrichViaPersonaSearch(
+  lead: Pick<SignalLeadWithContacts, 'company_name'>,
+  persona: PersonaTarget,
+  accountId: string | null | undefined,
+  deps: { search?: typeof searchLinkedInPerson } = {},
+): Promise<EnrichedContact | null> {
+  const company = lead.company_name?.trim();
+  if (!company || !accountId) return null;
+  const search = deps.search ?? searchLinkedInPerson;
+  const hit = await search({
+    name: persona.query,
+    company,
+    accountId,
+    keywords: `${persona.query} ${company}`,
+  });
+  if (!hit?.linkedinUrl || !roleFitsPersona(hit.role, persona)) return null;
+  return { name: hit.name, role: hit.role, linkedinUrl: hit.linkedinUrl, via: 'unipile' };
 }
 
 /**

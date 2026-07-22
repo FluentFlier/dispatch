@@ -228,11 +228,19 @@ export default function AnalyticsPage() {
       </div>
 
       <div id="charts">
+      <div className="mb-3">
+        <h2 className="text-lg font-semibold text-ink">Content performance</h2>
+        <p className="mt-1 text-sm text-ink2">See which posts, formats, and pillars earn the strongest response.</p>
+      </div>
       <ChartsSection posts={posts} getLabel={getLabel} getColor={getColor} />
       </div>
 
       {/* Lead buckets + audience. Full RL training loop is not wired yet. */}
       <section id="intelligence" className="space-y-6">
+        <div>
+          <h2 className="text-lg font-semibold text-ink">Audience &amp; leads</h2>
+          <p className="mt-1 text-sm text-ink2">Understand who engages with your work and which relationships may turn into opportunities.</p>
+        </div>
         {/* Lead Categorization Insights */}
         <div className="rounded-xl border border-border bg-bg-secondary p-6">
           <div className="flex items-center gap-2 mb-3">
@@ -255,12 +263,12 @@ export default function AnalyticsPage() {
               <div key={i} className="rounded-lg border border-border/60 p-4 bg-bg">
                 <div className={`text-3xl font-semibold tabular-nums tracking-tight ${bucket.color}`}>{bucket.count}</div>
                 <div className="font-medium text-sm mt-1">{bucket.label}</div>
-                <div className="text-[10px] tracking-[0.06em] text-text-tertiary mt-1">{bucket.desc}</div>
+                <div className="text-xs leading-relaxed text-text-tertiary mt-1">{bucket.desc}</div>
               </div>
             ))}
           </div>
 
-          <div className="mt-4 text-xs text-text-tertiary">
+          <div className="mt-4 text-[13px] leading-relaxed text-text-tertiary">
             Counts come straight from your categorized engagers. They fill in automatically after each engagement sync, once your published posts start collecting comments.
           </div>
         </div>

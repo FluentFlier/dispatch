@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Loader2, Plus, X, Copy, Check, ChevronRight, Sparkles, Mic, FileText, Download, Link2, Search, ExternalLink } from "lucide-react";
+import { Loader2, Plus, X, Copy, Check, ChevronRight, Sparkles, Mic, FileText, Download, Link2, Search, ExternalLink, Pencil } from "lucide-react";
 import { useCreatorPreferences, POST_LENGTH_CONFIG, type PostLength } from "@/hooks/useCreatorPreferences";
 import { VoiceDriftCard } from "@/components/voice-lab/VoiceDriftCard";
 
@@ -75,6 +75,41 @@ export default function VoiceLabPage() {
   const [accountImportMessage, setAccountImportMessage] = useState("");
   const [sampleSearch, setSampleSearch] = useState("");
   const [samplePlatformFilter, setSamplePlatformFilter] = useState<string>("all");
+  const [loadingSavedVoice, setLoadingSavedVoice] = useState(true);
+  const [editingPersona, setEditingPersona] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/voice-lab/save', { cache: 'no-store' })
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Could not load your saved voice');
+        return res.json();
+      })
+      .then((data) => {
+        if (!data.persona) return;
+        const vocabulary = data.persona.vocabulary_fingerprint ?? {};
+        const structural = data.persona.structural_patterns ?? {};
+        setPersona({
+          voice_description: data.persona.voice_description ?? '',
+          voice_rules: data.persona.voice_rules ?? '',
+          vocabulary_fingerprint: {
+            uses_often: Array.isArray(vocabulary.uses_often) ? vocabulary.uses_often : [],
+            never_uses: Array.isArray(vocabulary.never_uses) ? vocabulary.never_uses : [],
+            signature_phrases: Array.isArray(vocabulary.signature_phrases) ? vocabulary.signature_phrases : [],
+          },
+          structural_patterns: {
+            avg_sentence_length: structural.avg_sentence_length ?? '',
+            paragraph_style: structural.paragraph_style ?? '',
+            hook_pattern: structural.hook_pattern ?? '',
+            closing_pattern: structural.closing_pattern ?? '',
+          },
+          exportable_prompt: data.persona.exportable_prompt ?? '',
+        });
+        if (Array.isArray(data.samples) && data.samples.length) setSamples(data.samples);
+        setStep('result');
+      })
+      .catch((err) => setError(err instanceof Error ? err.message : 'Could not load your saved voice'))
+      .finally(() => setLoadingSavedVoice(false));
+  }, []);
 
   useEffect(() => {
     fetch("/api/social-accounts")
@@ -350,6 +385,12 @@ export default function VoiceLabPage() {
           );
         })}
       </div>
+
+      {loadingSavedVoice && (
+        <div className="flex items-center gap-2 text-[13px] text-text-tertiary">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading your saved voice…
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-[13px] text-red-800">
@@ -637,16 +678,23 @@ export default function VoiceLabPage() {
         <div className="space-y-4">
           {/* Voice Description */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
-            <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">Your Voice</h2>
-            <p className="text-[17px] text-ink2 leading-[1.5]">{persona.voice_description}</p>
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">Your Voice</h2>
+              <button type="button" onClick={() => setEditingPersona((value) => !value)} className="inline-flex items-center gap-1.5 text-[12px] text-text-secondary hover:text-text-primary">
+                <Pencil className="h-3.5 w-3.5" /> {editingPersona ? 'Done editing' : 'Edit voice'}
+              </button>
+            </div>
+            {editingPersona ? (
+              <textarea value={persona.voice_description} onChange={(e) => setPersona({ ...persona, voice_description: e.target.value })} rows={4} aria-label="Voice description" className="w-full resize-y rounded-lg border border-border bg-bg-tertiary px-3 py-2 text-[14px] text-text-primary focus:outline-none focus:border-accent-primary/40" />
+            ) : <p className="text-[17px] text-ink2 leading-[1.5]">{persona.voice_description}</p>}
           </div>
 
           {/* Voice Rules */}
           <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
             <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">Voice Rules</h2>
-            <pre className="text-[12px] text-text-tertiary whitespace-pre-wrap leading-relaxed font-mono bg-bg-tertiary rounded-lg p-4">
-              {persona.voice_rules}
-            </pre>
+            {editingPersona ? (
+              <textarea value={persona.voice_rules} onChange={(e) => setPersona({ ...persona, voice_rules: e.target.value })} rows={8} aria-label="Voice rules" className="w-full resize-y rounded-lg border border-border bg-bg-tertiary p-4 font-mono text-[12px] leading-relaxed text-text-primary focus:outline-none focus:border-accent-primary/40" />
+            ) : <pre className="text-[12px] text-text-tertiary whitespace-pre-wrap leading-relaxed font-mono bg-bg-tertiary rounded-lg p-4">{persona.voice_rules}</pre>}
           </div>
 
           {/* Vocabulary */}
@@ -655,28 +703,43 @@ export default function VoiceLabPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div>
                 <p className="section-label mb-1.5">Uses Often</p>
-                <div className="flex flex-wrap gap-1">
+                {editingPersona ? <input aria-label="Words used often" value={persona.vocabulary_fingerprint.uses_often.join(', ')} onChange={(e) => setPersona({ ...persona, vocabulary_fingerprint: { ...persona.vocabulary_fingerprint, uses_often: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) } })} className="w-full rounded-md border border-border bg-bg-tertiary px-2 py-1.5 text-[12px]" /> : <div className="flex flex-wrap gap-1">
                   {persona.vocabulary_fingerprint.uses_often?.map((w) => (
                     <span key={w} className="text-[11px] px-2 py-0.5 rounded-full bg-coral-light text-accent-primary">{w}</span>
                   ))}
-                </div>
+                </div>}
               </div>
               <div>
                 <p className="section-label mb-1.5">Never Uses</p>
-                <div className="flex flex-wrap gap-1">
+                {editingPersona ? <input aria-label="Words never used" value={persona.vocabulary_fingerprint.never_uses.join(', ')} onChange={(e) => setPersona({ ...persona, vocabulary_fingerprint: { ...persona.vocabulary_fingerprint, never_uses: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) } })} className="w-full rounded-md border border-border bg-bg-tertiary px-2 py-1.5 text-[12px]" /> : <div className="flex flex-wrap gap-1">
                   {persona.vocabulary_fingerprint.never_uses?.map((w) => (
                     <span key={w} className="text-[11px] px-2 py-0.5 rounded-full bg-red-50 text-red-800">{w}</span>
                   ))}
-                </div>
+                </div>}
               </div>
               <div>
                 <p className="section-label mb-1.5">Signature Phrases</p>
-                <div className="flex flex-wrap gap-1">
+                {editingPersona ? <input aria-label="Signature phrases" value={persona.vocabulary_fingerprint.signature_phrases.join(', ')} onChange={(e) => setPersona({ ...persona, vocabulary_fingerprint: { ...persona.vocabulary_fingerprint, signature_phrases: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) } })} className="w-full rounded-md border border-border bg-bg-tertiary px-2 py-1.5 text-[12px]" /> : <div className="flex flex-wrap gap-1">
                   {persona.vocabulary_fingerprint.signature_phrases?.map((w) => (
                     <span key={w} className="text-[11px] px-2 py-0.5 rounded-full bg-sage-light text-accent-secondary">{w}</span>
                   ))}
-                </div>
+                </div>}
               </div>
+            </div>
+          </div>
+
+          {/* Structural Patterns */}
+          <div className="bg-bg-secondary border border-border rounded-lg p-6 space-y-3">
+            <h2 className="text-[19px] font-normal tracking-[-0.02em] text-ink">Structural Patterns</h2>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {(Object.keys(persona.structural_patterns) as Array<keyof Persona['structural_patterns']>).map((key) => (
+                <label key={key} className="block">
+                  <span className="section-label mb-1.5 block">{key.replaceAll('_', ' ')}</span>
+                  {editingPersona ? (
+                    <input value={persona.structural_patterns[key]} onChange={(e) => setPersona({ ...persona, structural_patterns: { ...persona.structural_patterns, [key]: e.target.value } })} className="w-full rounded-md border border-border bg-bg-tertiary px-3 py-2 text-[12px] text-text-primary" />
+                  ) : <p className="text-[13px] text-text-secondary">{persona.structural_patterns[key] || 'Not specified'}</p>}
+                </label>
+              ))}
             </div>
           </div>
 
@@ -693,9 +756,7 @@ export default function VoiceLabPage() {
               </button>
             </div>
             <p className="text-[11px] text-text-tertiary">Use this in Claude, ChatGPT, or any LLM to write in your voice</p>
-            <pre className="text-[12px] text-text-tertiary whitespace-pre-wrap leading-relaxed font-mono bg-bg-tertiary border border-border rounded-lg p-4 max-h-[300px] overflow-y-auto">
-              {persona.exportable_prompt}
-            </pre>
+            {editingPersona ? <textarea aria-label="Exportable persona prompt" value={persona.exportable_prompt} onChange={(e) => setPersona({ ...persona, exportable_prompt: e.target.value })} rows={10} className="w-full resize-y rounded-lg border border-border bg-bg-tertiary p-4 font-mono text-[12px] leading-relaxed text-text-primary" /> : <pre className="text-[12px] text-text-tertiary whitespace-pre-wrap leading-relaxed font-mono bg-bg-tertiary border border-border rounded-lg p-4 max-h-[300px] overflow-y-auto">{persona.exportable_prompt}</pre>}
           </div>
 
           {/* Default Post Length */}
