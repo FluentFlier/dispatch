@@ -34,6 +34,7 @@ interface LinkedInPostPreviewProps {
     text?: string;
     author?: { name?: string; public_identifier?: string } | null;
     date?: string;
+    images?: string[];
   } | null;
 }
 
@@ -179,9 +180,13 @@ export function LinkedInPostPreview({
             </div>
           </div>
           {repost.text && (
-            <p className="line-clamp-6 whitespace-pre-wrap px-3 pb-3 pt-2 font-body text-[13px] leading-[1.43] text-ink2">
+            <p className="line-clamp-6 whitespace-pre-wrap px-3 pb-2 pt-2 font-body text-[13px] leading-[1.43] text-ink2">
               {repost.text}
             </p>
+          )}
+          {repost.images && repost.images.length > 0 && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={repost.images[0]} alt="" className="max-h-72 w-full object-cover" />
           )}
         </div>
       )}

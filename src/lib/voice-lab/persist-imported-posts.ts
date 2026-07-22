@@ -229,7 +229,7 @@ export async function persistImportedPosts({
     if (existingJob?.post_id) {
       const { data: existingPost } = await client.database
         .from('posts')
-        .select('id, views, likes, saves, comments, shares, images, video_url, reposted_content')
+        .select('id, views, likes, saves, comments, shares, images, image_url, video_url, reposted_content')
         .eq('id', existingJob.post_id)
         .eq('user_id', userId)
         .maybeSingle();
@@ -280,16 +280,30 @@ export async function persistImportedPosts({
         }
 
         // Reposts imported before the original was captured are commentary with
-        // no subject. A re-import carries repost_content, so heal them.
-        const hasReposted = Boolean(
-          (existingPost as { reposted_content?: unknown }).reposted_content,
-        );
-        if (!hasReposted && item.repost_content) {
-          await client.database
-            .from('posts')
-            .update({ reposted_content: item.repost_content })
-            .eq('id', existingJob.post_id);
-          repaired = true;
+        // no subject; older ones stored the reshared text but not its images.
+        // A re-import now carries both, so heal either gap - and give a
+        // media-less repost the reshared image as its grid thumbnail.
+        if (item.repost_content) {
+          const existingReposted = (existingPost as { reposted_content?: { images?: string[] } })
+            .reposted_content;
+          const repostImages = item.repost_content.images ?? [];
+          const needsReposted = !existingReposted;
+          const needsImages = (existingReposted?.images?.length ?? 0) < repostImages.length;
+          if (needsReposted || needsImages) {
+            await client.database
+              .from('posts')
+              .update({ reposted_content: item.repost_content })
+              .eq('id', existingJob.post_id);
+            repaired = true;
+          }
+          const existingImageUrl = (existingPost as { image_url?: string | null }).image_url ?? null;
+          if (!existingImageUrl && repostImages[0]) {
+            await client.database
+              .from('posts')
+              .update({ image_url: repostImages[0] })
+              .eq('id', existingJob.post_id);
+            repaired = true;
+          }
         }
 
         if (repaired) {
@@ -333,8 +347,10 @@ export async function persistImportedPosts({
       // Historical posts pulled from a connected account, not authored in-app.
       // The editor hides the pillar picker for these.
       is_imported: true,
-      // Carry the first image so the reconstructed post shows media, not just text.
-      image_url: firstImageUrl(item),
+      // Carry the first image so the reconstructed post shows media, not just
+      // text. A repost has no media of its own, so fall back to the first image
+      // of the post it reshares - that is the thumbnail the grid should show.
+      image_url: firstImageUrl(item) ?? item.repost_content?.images?.[0] ?? null,
       // Every image (image_url only ever kept the first), each with a cached
       // one-time vision description so generation can reference what was
       // actually in the photo without re-analyzing it on every draft.

@@ -30,6 +30,8 @@ export interface UnipileRepostContent {
     id?: string;
     is_company?: boolean;
   };
+  /** Image URLs on the reshared post, fetched separately (the list omits them). */
+  images?: string[];
 }
 
 interface UnipilePostItem {
@@ -260,6 +262,23 @@ export async function fetchPostsFromUnipile(
   return bestEmptyResult ?? { samples: [], rawItems: [], fetchedCount: 0, filteredCount: 0 };
 }
 
+/** Image attachment URLs on a single Unipile post, best-effort (empty on any error). */
+async function fetchPostImageUrls(postId: string, unipileAccountId: string): Promise<string[]> {
+  try {
+    const res = await unipoleFetch(
+      `/posts/${encodeURIComponent(postId)}?account_id=${encodeURIComponent(unipileAccountId)}`,
+      { method: 'GET' },
+    );
+    if (!res.ok) return [];
+    const json = (await res.json()) as { attachments?: Array<{ type?: string; url?: string }> };
+    return (json.attachments ?? [])
+      .filter((a) => a.type === 'img' && Boolean(a.url))
+      .map((a) => a.url as string);
+  } catch {
+    return [];
+  }
+}
+
 async function fetchPostsForProviderUser(
   providerUserId: string,
   unipileAccountId: string,
@@ -309,6 +328,16 @@ async function fetchPostsForProviderUser(
       if (content.length <= 20) {
         filteredCount++;
         continue;
+      }
+
+      // A repost's images live on the post it reshares, which the list payload
+      // omits - it only carries the original's text and author. Fetch the
+      // original by id once so the reshared card can show its media.
+      if (item.is_repost && item.repost_content?.id && !item.repost_content.images) {
+        item.repost_content.images = await fetchPostImageUrls(
+          item.repost_content.id,
+          unipileAccountId,
+        );
       }
 
       rawItems.push(item);

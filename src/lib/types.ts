@@ -42,6 +42,7 @@ export interface Post {
     text?: string;
     date?: string;
     author?: { name?: string; public_identifier?: string } | null;
+    images?: string[];
   } | null;
   /** Set once the post is published/linked through the app; gates comment sync. */
   publish_job_id?: string | null;

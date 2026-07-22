@@ -298,6 +298,28 @@ select:focus {
   display: none;
 }
 
+/* Scrollbar hidden until the pointer is over the list, then a thin one appears -
+   lets the auto-cycling recent-activity feed be scrolled by hand on demand. */
+.hover-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.hover-scroll::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.hover-scroll:hover {
+  scrollbar-width: thin;
+}
+.hover-scroll:hover::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.hover-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, currentColor 22%, transparent);
+  border-radius: 9999px;
+}
+
 /* ───────────────────────── Content OS landing (scoped dark theme) ───────────────────────── */
 .os-landing {
   --os-bg: #07080a;

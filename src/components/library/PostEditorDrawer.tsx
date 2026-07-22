@@ -572,6 +572,10 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                 />
               </label>
 
+              {/* Teleprompter shares the Series row: with no series selected the
+                  second column was empty, so it sat in a button strip below
+                  wasting a whole row. When a series IS selected, Position takes
+                  the second column and Teleprompter moves under it. */}
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className={labelClass}>Series</span>
@@ -589,7 +593,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                     ))}
                   </select>
                 </label>
-                {form.series_id && (
+                {form.series_id ? (
                   <label className="block">
                     <span className={labelClass}>Position</span>
                     <input
@@ -601,11 +605,30 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                       className={inputClass}
                     />
                   </label>
+                ) : (
+                  <div className="block">
+                    <span className={labelClass}>&nbsp;</span>
+                    <Link
+                      href={`/teleprompter?postId=${post.id}`}
+                      className={`${inputClass} flex items-center justify-center gap-1.5 hover:bg-bg-tertiary transition-colors`}
+                    >
+                      <MonitorPlay size={14} /> Teleprompter
+                    </Link>
+                  </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                {!isLinkedIn && (
+              {form.series_id && (
+                <Link
+                  href={`/teleprompter?postId=${post.id}`}
+                  className={`${inputClass} flex items-center justify-center gap-1.5 hover:bg-bg-tertiary transition-colors`}
+                >
+                  <MonitorPlay size={14} /> Teleprompter
+                </Link>
+              )}
+
+              {!isLinkedIn && (
+                <div className="grid grid-cols-2 gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => handleRegenerate('caption')}
@@ -613,8 +636,6 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                   >
                     <Wand2 size={14} /> Regenerate Caption
                   </button>
-                )}
-                {!isLinkedIn && (
                   <button
                     type="button"
                     onClick={() => handleRegenerate('hook')}
@@ -622,14 +643,8 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                   >
                     <Wand2 size={14} /> Regenerate Hook
                   </button>
-                )}
-                <Link
-                  href={`/teleprompter?postId=${post.id}`}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
-                >
-                  <MonitorPlay size={14} /> Teleprompter
-                </Link>
-              </div>
+                </div>
+              )}
 
               <GenerateVariantsSection
                 content={form.script || form.caption || form.hook || form.title}
