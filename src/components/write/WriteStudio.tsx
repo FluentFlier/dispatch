@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type ComponentType } from 'react';
 import {
-  AtSign, ChevronDown, Clock, Globe2, Image as ImageIcon, Link2, Loader2, Plus, Send, Sparkles, Trash2, X,
+  AtSign, ChevronDown, Clock, Globe2, Image as ImageIcon, Loader2, Plus, Smile, Sparkles, Trash2, X,
 } from 'lucide-react';
 import { useToast } from '@/components/ui/Toast';
 import { CharCount } from '@/components/ui/CharCount';
@@ -44,6 +44,9 @@ const PLATFORM_TOGGLES: { id: Platform; icon: ComponentType<{ className?: string
 
 /** Platforms the publish pipeline actually supports today (Unipile). */
 const ENABLED_PLATFORMS = new Set<Platform>(['twitter', 'linkedin']);
+
+/** Quick-insert emoji strip behind the compose card's smiley button. */
+const EMOJIS = ['😀', '😅', '❤️', '🔥', '👏', '💡', '🚀', '🙌', '✅', '🎯'];
 
 function isPlatform(value: string): value is Platform {
   return value === 'twitter' || value === 'linkedin' || value === 'instagram' || value === 'threads';
@@ -89,7 +92,7 @@ export function WriteStudio(): JSX.Element {
   const [saving, setSaving] = useState(false);
   const [publishOpen, setPublishOpen] = useState(false);
   const [queueOpen, setQueueOpen] = useState(false);
-  const [publishMenuOpen, setPublishMenuOpen] = useState(false);
+  const [emojiOpen, setEmojiOpen] = useState(false);
   const [queueing, setQueueing] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [review, setReview] = useState<VoiceEvaluationMatrix | null>(null);
@@ -376,7 +379,6 @@ export function WriteStudio(): JSX.Element {
       void reloadLists();
     } finally {
       setQueueing(false);
-      setPublishMenuOpen(false);
     }
   }
 
@@ -579,16 +581,20 @@ export function WriteStudio(): JSX.Element {
                   />
                 </div>
               ) : (
-                /* LinkedIn: header with name + audience pill, editor below */
+                /* LinkedIn: mirrors the real create-post modal - avatar, name
+                   with chevron, "Post to Anyone" line, then the open editor. */
                 <>
                   <div className="flex items-center gap-3">
                     <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-ink text-sm font-semibold text-white">
                       {initials}
                     </span>
                     <span className="min-w-0">
-                      <span className="block truncate text-[15px] font-semibold text-ink">{profile.name}</span>
-                      <span className="mt-0.5 inline-flex items-center gap-1 rounded-full border border-hair px-2 py-0.5 text-[11px] text-ink2">
-                        <Globe2 className="h-3 w-3" /> Anyone
+                      <span className="flex items-center gap-1 truncate text-[15px] font-semibold text-ink">
+                        {profile.name}
+                        <ChevronDown className="h-3.5 w-3.5 shrink-0 text-ink3" aria-hidden />
+                      </span>
+                      <span className="mt-0.5 flex items-center gap-1 text-[12px] text-ink2">
+                        <Globe2 className="h-3 w-3" /> Post to Anyone
                       </span>
                     </span>
                   </div>
@@ -604,7 +610,7 @@ export function WriteStudio(): JSX.Element {
                         else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMention(suggestions[suggestIdx]); }
                         else if (e.key === 'Escape') { setMentionQuery(null); setSuggestions([]); }
                       }}
-                      placeholder="What do you want to talk about?"
+                      placeholder="Share your thoughts…"
                       aria-label={`${platformLabel} draft`}
                       className="mt-3 min-h-[240px] w-full resize-none bg-transparent text-[15px] leading-relaxed text-ink outline-none placeholder:text-ink3"
                     />
@@ -707,10 +713,39 @@ export function WriteStudio(): JSX.Element {
               )}
             </div>
 
-            {/* Card toolbar: attach / link / mention, like the real composers */}
-            <div className="flex items-center gap-1 border-t border-hair px-4 py-2">
-              <label className="flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] text-ink2 transition-colors hover:bg-paper2">
-                <ImageIcon className="h-4 w-4" /> {uploading ? 'Uploading…' : 'Photo'}
+            {/* Tool row: emoji / photo / more, laid out like LinkedIn's modal */}
+            <div className="flex items-center gap-1 px-4 pb-3">
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setEmojiOpen((o) => !o)}
+                  aria-label="Add emoji"
+                  aria-expanded={emojiOpen}
+                  className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink2 transition-colors hover:bg-paper2"
+                >
+                  <Smile className="h-5 w-5" />
+                </button>
+                {emojiOpen && (
+                  <div className="absolute bottom-full left-0 z-40 mb-1 flex gap-0.5 rounded-full border border-hair bg-white px-2 py-1.5 shadow-lg">
+                    {EMOJIS.map((e) => (
+                      <button
+                        key={e}
+                        type="button"
+                        onClick={() => { insertAtCursor(e); setEmojiOpen(false); }}
+                        className="cursor-pointer rounded-full px-1.5 py-0.5 text-[17px] transition-colors hover:bg-paper2"
+                        aria-label={`Insert ${e}`}
+                      >
+                        {e}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <label
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink2 transition-colors hover:bg-paper2"
+                title={uploading ? 'Uploading…' : 'Add a photo'}
+              >
+                {uploading ? <Loader2 className="h-5 w-5 animate-spin" /> : <ImageIcon className="h-5 w-5" />}
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp,image/gif"
@@ -722,30 +757,30 @@ export function WriteStudio(): JSX.Element {
               <button
                 type="button"
                 onClick={() => setShowLinkInput((s) => !s)}
-                className="flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] text-ink2 transition-colors hover:bg-paper2"
+                aria-label="Add a link"
+                title="Add a link"
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink2 transition-colors hover:bg-paper2"
               >
-                <Link2 className="h-4 w-4" /> Link
-              </button>
-              <button
-                type="button"
-                onClick={() => insertAtCursor('@')}
-                className="flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] text-ink2 transition-colors hover:bg-paper2"
-              >
-                <AtSign className="h-4 w-4" /> Mention
+                <Plus className="h-5 w-5" />
               </button>
               <span className="ml-auto flex items-center gap-3">
                 <CharCount text={text} platform={platform} />
                 <span className="text-[12px] text-ink3">{saving ? 'Saving…' : activeId ? 'Saved' : ''}</span>
               </span>
             </div>
-          </div>
 
-          <div className="sticky bottom-4 mt-6 flex items-center justify-end gap-2">
-            <div
-              className="relative flex overflow-visible rounded-full border border-hair bg-white shadow-sm"
-              onMouseEnter={() => { if (canAct) setPublishMenuOpen(true); }}
-              onMouseLeave={() => setPublishMenuOpen(false)}
-            >
+            {/* Footer: schedule clock + Post, exactly where LinkedIn puts them */}
+            <div className="flex items-center justify-end gap-2 border-t border-hair px-4 py-3">
+              <button
+                type="button"
+                onClick={() => void addToQueue()}
+                disabled={!canAct || queueing}
+                aria-label={`Add to ${platformLabel} queue`}
+                title={`Add to ${platformLabel} queue (next free slot)`}
+                className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-full text-ink2 transition-colors hover:bg-paper2 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {queueing ? <Loader2 className="h-5 w-5 animate-spin" /> : <Clock className="h-5 w-5" />}
+              </button>
               <button
                 type="button"
                 onClick={() => {
@@ -756,39 +791,13 @@ export function WriteStudio(): JSX.Element {
                 }}
                 disabled={!canAct}
                 title={platformEnabled ? undefined : `${platformLabel} publishing coming soon`}
-                className="inline-flex min-h-[40px] cursor-pointer items-center gap-2 rounded-l-full py-2 pl-4 pr-3 text-sm font-medium text-ink transition-colors hover:bg-paper2 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/30"
+                className="inline-flex min-h-[36px] cursor-pointer items-center gap-1.5 rounded-full bg-ink px-5 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/30"
               >
-                <Send className="h-4 w-4" />
-                Publish to {platformLabel}
+                {platform === 'linkedin' ? 'Post' : `Post to ${platformLabel}`}
               </button>
-              <button
-                type="button"
-                onClick={() => setPublishMenuOpen((o) => !o)}
-                disabled={!canAct}
-                aria-label="More publish options"
-                aria-expanded={publishMenuOpen}
-                className="inline-flex min-h-[40px] cursor-pointer items-center rounded-r-full border-l border-hair px-2.5 text-ink transition-colors hover:bg-paper2 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/30"
-              >
-                <ChevronDown className={`h-4 w-4 transition-transform ${publishMenuOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {publishMenuOpen && (
-                /* pb-2 (not mb-2) keeps the hover path contiguous upward */
-                <div className="absolute bottom-full right-0 z-40 pb-2">
-                <div className="w-56 rounded-xl border border-hair bg-white p-1.5 shadow-lg">
-                  <button
-                    type="button"
-                    onClick={() => void addToQueue()}
-                    disabled={queueing}
-                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-ink transition-colors hover:bg-paper2 disabled:opacity-40"
-                  >
-                    {queueing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Clock className="h-4 w-4" />}
-                    Add to {platformLabel} queue
-                  </button>
-                </div>
-                </div>
-              )}
             </div>
           </div>
+
         </div>
 
         {/* Right column: mirrors the drafts rail width so the editor stays
