@@ -29,6 +29,9 @@ interface PlatformConnectionsProps {
   onAccountsRefresh: () => void;
   /** Inline error surfaced after a failed Unipile connect redirect. */
   connectError?: string | null;
+  /** True while the post-connect sync verifies the bind - rows without an
+      account show "Confirming connection…" instead of a Connect button. */
+  confirming?: boolean;
 }
 
 // Brand marks rendered as letter tiles - white on the platform's brand color.
@@ -62,6 +65,7 @@ export default function PlatformConnections({
   disconnecting,
   onAccountsRefresh,
   connectError = null,
+  confirming = false,
 }: PlatformConnectionsProps) {
   const [connectingPlatform, setConnectingPlatform] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
@@ -274,6 +278,13 @@ export default function PlatformConnections({
                     <Unplug size={12} />
                     {isDisconnecting ? "..." : "Disconnect"}
                   </button>
+                ) : confirming ? (
+                  /* Post-redirect: the bind isn't verified yet - never flash a
+                     Connect button (or claim Connected) until sync confirms. */
+                  <span className="flex items-center gap-2 px-4 py-1.5 text-[12px] text-text-secondary shrink-0">
+                    <Loader2 size={12} className="animate-spin" />
+                    Confirming connection…
+                  </span>
                 ) : (
                   <button
                     type="button"
@@ -282,7 +293,7 @@ export default function PlatformConnections({
                     className="flex items-center gap-2 px-4 py-1.5 text-[12px] text-white bg-accent-primary rounded-md hover:bg-accent-primary/90 transition-colors disabled:opacity-60 shrink-0"
                   >
                     {isConnecting && <Loader2 size={12} className="animate-spin" />}
-                    {isConnecting ? "Redirecting…" : "Connect"}
+                    {isConnecting ? "Opening sign-in…" : "Connect"}
                   </button>
                 )}
               </div>

@@ -27,6 +27,7 @@ const EngagementInbox = dynamic(() => import('@/components/engagement/Engagement
   ),
 });
 import { useToast } from '@/components/ui/Toast';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { CharCount } from '@/components/ui/CharCount';
 import { PlatformConstraints } from '@/components/ui/PlatformConstraints';
@@ -85,6 +86,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   });
   const [showPerfModal, setShowPerfModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   // Bumped after linking a live post URL, to remount EngagementInbox so it
   // re-fetches (its auto-sync fires on an empty, now-linked post).
   // Footer slot the Comments tab portals its Sync/Draft/Send row into, so those
@@ -259,7 +261,6 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   const handleDelete = async () => {
     // Deletes ONLY the tool's post row (InsForge). Does NOT touch the live
     // LinkedIn/X post - the DELETE route makes no provider call.
-    if (!confirm('Remove this post from the tool? (Your live LinkedIn/X post is not affected.)')) return;
     setDeleting(true);
     try {
       // fetchWithAuth so an expired access token refreshes+retries instead of
@@ -657,12 +658,22 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={() => setDeleteOpen(true)}
                 disabled={deleting}
                 className="flex items-center gap-1.5 text-[13px] text-accent-primary hover:text-accent-dark transition-colors mt-2 min-h-[44px]"
               >
                 <Trash2 size={14} /> Delete Post
               </button>
+              <ConfirmModal
+                open={deleteOpen}
+                title="Remove post"
+                message="Remove this post from the tool? Your live LinkedIn/X post is not affected."
+                confirmLabel="Remove"
+                tone="danger"
+                loading={deleting}
+                onConfirm={() => void handleDelete()}
+                onClose={() => setDeleteOpen(false)}
+              />
             </>
           )}
 

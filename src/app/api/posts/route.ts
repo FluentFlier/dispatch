@@ -58,6 +58,10 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     const seriesId = params.get('series_id');
     if (seriesId) query = query.eq('series_id', seriesId);
 
+    // Title search for the command palette. Case-insensitive substring.
+    const q = params.get('q');
+    if (q && q.trim()) query = query.ilike('title', `%${q.trim()}%`);
+
     // Pagination
     const page = parseInt(params.get('page') ?? '1', 10);
     const limit = Math.min(parseInt(params.get('limit') ?? '50', 10), 100);

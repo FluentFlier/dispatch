@@ -13,13 +13,15 @@ const STAGE_LABELS: Record<string, string> = {
 
 /**
  * Shell shared by both states, mirroring the main nav rail in `nav/Sidebar.tsx`:
- * same widths (264 open / 72 collapsed), same surface, same hairline. `sticky
- * top-0 h-screen` with negative vertical margins cancels the Write page's
- * `py-6 sm:py-10`, so the panel runs edge to edge instead of floating as a
- * short column with gaps above and below it.
+ * same widths (264 open / 72 collapsed). `fixed inset-y-0 right-0` pins the rail
+ * to the viewport edge - escaping the dashboard main's padding and its centered
+ * max-w wrapper, which otherwise leave gaps on every side. No surface color:
+ * the shell stays transparent so the dashboard's silk ambient shows through,
+ * same as the main write column. The host page reserves the width via
+ * padding-right (see ScriptGenerator's root).
  */
 const SHELL =
-  'hidden shrink-0 flex-col lg:flex sticky top-0 h-screen -my-6 sm:-my-10 border-l border-hair bg-paper2/90 backdrop-blur-xl py-4';
+  'hidden shrink-0 flex-col lg:flex fixed inset-y-0 right-0 z-30 border-l border-hair py-4';
 
 /** Icon-button treatment copied from the main sidebar's toggle, so both rails feel like one system. */
 const ACTION =
@@ -134,7 +136,7 @@ export function SessionSidebar({
             key={chat.id}
             className={`group flex min-h-[40px] items-center gap-2 rounded-lg px-3 py-2 transition-colors ${
               chat.id === activeId
-                ? 'border border-hair2 bg-white text-ink shadow-sm'
+                ? 'border border-hair2 bg-white/80 text-ink shadow-sm backdrop-blur-sm'
                 : 'hover:bg-white/60'
             }`}
           >
@@ -169,10 +171,15 @@ export function SessionSidebar({
         ))}
       </div>
 
-      {/* More tools: the secondary Write modes, as a collapsible dropdown under
-          the sessions list (moved here from the strip beneath the composer). */}
+      {/* More tools: bottom of the rail. The shell is fixed inset-y-0 (exact
+          viewport height) and this block sits above the shell's bottom padding,
+          so it can't render below the fold. Expanding opens upward-safe: the
+          sessions list above it scrolls, this block never leaves the screen. */}
       {tools.length > 0 && (
-        <div className="mt-4 border-t border-hair pt-4">
+        <div
+          className="mt-4 shrink-0 border-t border-hair pb-2 pt-4"
+          onMouseEnter={() => setToolsOpen(true)}
+        >
           <button
             type="button"
             onClick={() => setToolsOpen((o) => !o)}
@@ -183,7 +190,7 @@ export function SessionSidebar({
             <ChevronDown className={`h-4 w-4 shrink-0 text-ink3 transition-transform ${toolsOpen ? 'rotate-180' : ''}`} />
           </button>
           {toolsOpen && (
-            <div className="mt-1 space-y-0.5 pb-1 pl-2">
+            <div className="mt-1 max-h-[40vh] space-y-0.5 overflow-y-auto pb-1 pl-2">
               {tools.map((t) => (
                 <button
                   key={t.id}

@@ -578,9 +578,14 @@ export function ScriptGenerator({
   const isEmpty = messages.length === 0 && !loading;
 
   return (
-    <div className="relative flex min-h-[calc(100vh-10rem)] gap-8">
+    <div
+      className={`relative flex min-h-[calc(100vh-10rem)] gap-8 ${
+        sidebarCollapsed ? 'lg:pr-[72px]' : 'lg:pr-[264px]'
+      }`}
+    >
       {/* Main column grows to fill; its content stays centered at a readable
-          width so the sidebar can sit flush on the right. */}
+          width. The right padding reserves room for the SessionSidebar, which
+          is fixed to the viewport edge (see SHELL in SessionSidebar.tsx). */}
       <div className="flex min-w-0 flex-1 flex-col">
       <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col">
       {/* scrollbar-gutter:stable reserves the scrollbar track even when empty, so

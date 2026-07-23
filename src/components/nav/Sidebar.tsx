@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { ChevronDown, LogOut, PanelLeft, PanelLeftOpen, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, PanelLeft, PanelLeftOpen, SlidersHorizontal } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { getInsforgeClient } from '@/lib/insforge/client';
 import { PRODUCT_NAME, PRODUCT_LOGO } from '@/lib/brand';
-import { primaryNav, moreNav, settingsNav, navIcons, APP_HOME_PATH } from '@/lib/nav-config';
-import WorkspaceSwitcher from '@/components/nav/WorkspaceSwitcher';
+import { primaryNav, moreNav, navIcons, APP_HOME_PATH } from '@/lib/nav-config';
+import SidebarProfile from '@/components/nav/SidebarProfile';
+import SidebarSearch from '@/components/nav/SidebarSearch';
 
 const FOCUS =
   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue/30 focus-visible:ring-offset-2';
@@ -43,12 +43,6 @@ export default function Sidebar() {
       `${expanded ? OPEN_WIDTH : RAIL_WIDTH}px`,
     );
   }, [expanded]);
-
-  const handleSignOut = async () => {
-    await getInsforgeClient().auth.signOut();
-    await fetch('/api/auth', { method: 'DELETE', credentials: 'same-origin' });
-    window.location.href = '/login';
-  };
 
   const renderItem = (item: { href: string; name: string }, small: boolean) => {
     const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -125,12 +119,13 @@ export default function Sidebar() {
         </button>
       </div>
 
-      {/* Workspace (icon when collapsed, full switcher when expanded) */}
-      <div className="px-3">
-        <WorkspaceSwitcher collapsed={!expanded} />
+      {/* Search - sits directly above the nav, opens the command palette.
+          (Workspace switcher lives in the profile popover now.) */}
+      <div className={`mt-4 ${expanded ? 'px-3' : 'flex justify-center px-2'}`}>
+        <SidebarSearch expanded={expanded} />
       </div>
 
-      <nav className="mt-4 space-y-0.5 px-3">
+      <nav className="mt-3 space-y-0.5 px-3">
         {primaryNav.map((item) => renderItem(item, false))}
       </nav>
 
@@ -174,23 +169,12 @@ export default function Sidebar() {
         ) : (
           <div className="space-y-0.5">{moreNav.map((item) => renderItem(item, true))}</div>
         )}
-        {/* Settings - standalone, always visible (not inside Advanced). */}
-        <div className="mt-3">{renderItem(settingsNav, true)}</div>
-        <button
-          type="button"
-          onClick={handleSignOut}
-          title="Sign out"
-          className={`mt-0.5 flex min-h-[38px] w-full items-center overflow-hidden rounded-lg text-sm font-semibold text-ink transition-colors hover:bg-white/60 ${FOCUS} ${
-            expanded ? 'gap-3 px-3 py-2' : 'justify-center px-2 py-2'
-          }`}
-        >
-          <LogOut className="h-4 w-4 shrink-0" strokeWidth={2.5} />
-          {expanded && (
-            <motion.span variants={label} initial="collapsed" animate="open" className="whitespace-nowrap">
-              Sign out
-            </motion.span>
-          )}
-        </button>
+      </div>
+
+      {/* Identity chip pinned to the bottom - Settings, dark mode, sign out live
+          in its popover now. mt-auto sinks it below the nav. */}
+      <div className={`mt-auto border-t border-hair pb-3 pt-3 ${expanded ? 'px-3' : 'px-2'}`}>
+        <SidebarProfile expanded={expanded} />
       </div>
     </motion.aside>
   );

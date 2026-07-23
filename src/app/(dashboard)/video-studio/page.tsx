@@ -13,6 +13,7 @@ import {
 import type { TemplateId } from '@/components/video-studio';
 import type { CaptionWord } from '@/components/video-studio/compositions';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 interface VideoFile {
   name: string;
@@ -23,6 +24,7 @@ interface VideoFile {
 export default function VideoStudioPage() {
   const [videos, setVideos] = useState<VideoFile[]>([]);
   const [activeVideo, setActiveVideo] = useState<VideoFile | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<VideoFile | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateId | undefined>();
   const [showPreview, setShowPreview] = useState(false);
@@ -88,7 +90,6 @@ export default function VideoStudioPage() {
 
   const handleDelete = useCallback(
     async (video: VideoFile) => {
-      if (!confirm(`Delete "${video.name}"?`)) return;
       try {
         const client = getInsforgeClient();
         const { data: userData } = await client.auth.getCurrentUser();
@@ -169,6 +170,18 @@ export default function VideoStudioPage() {
 
   return (
     <div className="space-y-6">
+      <ConfirmModal
+        open={deleteTarget !== null}
+        title="Delete video"
+        message={deleteTarget ? `Delete "${deleteTarget.name}"? This cannot be undone.` : ''}
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={() => {
+          if (deleteTarget) void handleDelete(deleteTarget);
+          setDeleteTarget(null);
+        }}
+        onClose={() => setDeleteTarget(null)}
+      />
       {/* Header */}
       <PageHeader
         eyebrow="VIDEO STUDIO"
@@ -295,7 +308,7 @@ export default function VideoStudioPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDelete(video);
+                          setDeleteTarget(video);
                         }}
                         className="text-text-secondary hover:text-accent-primary transition-colors flex-shrink-0"
                       >

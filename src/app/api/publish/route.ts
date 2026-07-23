@@ -207,6 +207,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     caption: z.string().max(25000).optional(),
     imageUrl: z.string().url().optional(),
     scheduledAt: z.string().datetime().optional(),
+    /** LinkedIn tags from the Write editor; stored on the post row. */
+    mentions: z.array(z.object({ name: z.string().min(1), profile_id: z.string().min(1) })).optional(),
   });
 
   const parsed = PublishSchema.safeParse(body);
@@ -214,7 +216,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ error: parsed.error.message }, { status: 400 });
   }
 
-  const { postId, platform, content, caption, imageUrl, scheduledAt } = parsed.data;
+  const { postId, platform, content, caption, imageUrl, scheduledAt, mentions } = parsed.data;
 
   const entitlementCheck = await assertCanPublish(user.id);
   if (!entitlementCheck.ok) {
@@ -284,6 +286,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
           caption: publishContent,
           script: publishContent,
           image_url: imageUrl ?? null,
+          mentions: mentions ?? null,
           scheduled_publish_at: scheduledAt ?? null,
         },
       ]);

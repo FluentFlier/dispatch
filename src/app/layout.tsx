@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { DM_Sans, Fraunces, Hanken_Grotesk, JetBrains_Mono } from 'next/font/google';
 import { PRODUCT_NAME } from '@/lib/brand';
 import { pageMetadata, findSeoPage } from '@/lib/seo';
+import { ThemeProvider, themeNoFlashScript } from '@/components/theme/ThemeProvider';
 import './globals.css';
 
 const dmSans = DM_Sans({
@@ -69,7 +70,12 @@ export default function RootLayout({
       lang="en"
       className={`scroll-smooth ${dmSans.variable} ${fraunces.variable} ${hanken.variable} ${jetbrains.variable}`}
     >
-      <body className={hanken.className}>{children}</body>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeNoFlashScript }} />
+      </head>
+      <body className={hanken.className}>
+        <ThemeProvider>{children}</ThemeProvider>
+      </body>
     </html>
   );
 }

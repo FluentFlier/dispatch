@@ -247,7 +247,24 @@ export const unipileProvider: SocialProvider = {
     // `media_urls` field). See Unipile "Create a post" reference.
     const form = new FormData();
     form.append('account_id', unipileAccountId);
-    form.append('text', payload.text);
+
+    // LinkedIn mentions: Unipile expects `{{i}}` placeholders in the text plus a
+    // `mentions` array of {name, profile_id}. Our stored text keeps readable
+    // `@Name` tokens, so substitute at the wire. Best-effort: a mention whose
+    // `@Name` was edited out of the text is dropped rather than mis-tagged.
+    let text = payload.text;
+    if (payload.platform === 'linkedin' && payload.mentions?.length) {
+      let idx = 0;
+      for (const mention of payload.mentions) {
+        const token = `@${mention.name}`;
+        if (!text.includes(token)) continue;
+        text = text.replace(token, `{{${idx}}}`);
+        form.append(`mentions[${idx}][name]`, mention.name);
+        form.append(`mentions[${idx}][profile_id]`, mention.profile_id);
+        idx += 1;
+      }
+    }
+    form.append('text', text);
 
     if (payload.imageUrl) {
       try {

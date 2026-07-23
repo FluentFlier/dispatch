@@ -1,6 +1,7 @@
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
+  darkMode: 'class',
   content: [
     './src/app/**/*.{ts,tsx}',
     './src/components/**/*.{ts,tsx}',
@@ -9,43 +10,43 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // --- Content Relay palette (white stage + bold flat accents) ---
-        paper: 'oklch(99.2% 0.002 85)',
-        paper2: 'oklch(97.5% 0.004 85)',
-        surface: 'oklch(100% 0 0)',
-        ink: 'oklch(18% 0.012 55)',
-        ink2: 'oklch(43% 0.014 65)',
-        ink3: 'oklch(49% 0.014 65)',
-        hair: 'oklch(18% 0.012 55 / 0.11)',
-        hair2: 'oklch(18% 0.012 55 / 0.18)',
+        // --- Content Relay palette (var-backed so a `.dark` class flips them) ---
+        paper: 'rgb(var(--paper) / <alpha-value>)',
+        paper2: 'rgb(var(--paper2) / <alpha-value>)',
+        surface: 'rgb(var(--surface) / <alpha-value>)',
+        ink: 'rgb(var(--ink) / <alpha-value>)',
+        ink2: 'rgb(var(--ink2) / <alpha-value>)',
+        ink3: 'rgb(var(--ink3) / <alpha-value>)',
+        hair: 'var(--hair)',
+        hair2: 'var(--hair2)',
         blue: { DEFAULT: 'oklch(57% 0.24 260)', dark: 'oklch(47% 0.22 260)' },
         teal: 'oklch(44% 0.1 145)',
         flame: 'oklch(62% 0.2 35)',
         lime: 'oklch(84% 0.2 125)',
         lilac: 'oklch(76% 0.12 305)',
         bg: {
-          primary: '#FBFAF7',
-          secondary: '#FFFFFF',
-          tertiary: '#F4F2EC',
-          elevated: '#FBFCFA',
+          primary: 'rgb(var(--bg-primary-rgb) / <alpha-value>)',
+          secondary: 'rgb(var(--bg-secondary-rgb) / <alpha-value>)',
+          tertiary: 'rgb(var(--bg-tertiary-rgb) / <alpha-value>)',
+          elevated: 'rgb(var(--bg-elevated-rgb) / <alpha-value>)',
         },
         text: {
-          primary: '#171717',
-          secondary: '#56544F',
-          tertiary: '#908D87',
-          inverse: '#FBFAF7',
+          primary: 'rgb(var(--text-primary-rgb) / <alpha-value>)',
+          secondary: 'rgb(var(--text-secondary-rgb) / <alpha-value>)',
+          tertiary: 'rgb(var(--text-tertiary-rgb) / <alpha-value>)',
+          inverse: 'rgb(var(--text-inverse-rgb) / <alpha-value>)',
         },
         border: {
-          DEFAULT: 'rgba(23, 23, 23, 0.1)',
-          primary: 'rgba(23, 23, 23, 0.1)',
-          hover: 'rgba(23, 23, 23, 0.2)',
-          active: 'rgba(23, 23, 23, 0.3)',
+          DEFAULT: 'rgb(var(--border-rgb) / 0.1)',
+          primary: 'rgb(var(--border-rgb) / 0.1)',
+          hover: 'rgb(var(--border-rgb) / 0.2)',
+          active: 'rgb(var(--border-rgb) / 0.3)',
         },
         accent: {
-          primary: '#2563EB',
+          primary: 'rgb(var(--accent-rgb) / <alpha-value>)',
           secondary: '#0F766E',
-          light: 'rgba(37, 99, 235, 0.1)',
-          dark: '#1D4ED8',
+          light: 'rgb(var(--accent-rgb) / 0.1)',
+          dark: 'rgb(var(--accent-dark-rgb) / <alpha-value>)',
         },
         coral: {
           DEFAULT: '#E07A5F',

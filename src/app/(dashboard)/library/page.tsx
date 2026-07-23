@@ -12,7 +12,27 @@ import PostGrid from '@/components/library/PostGrid';
 import PostTable from '@/components/library/PostTable';
 import PostEditorDrawer from '@/components/library/PostEditorDrawer';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
+
+type SortKey = 'latest' | 'oldest' | 'trending';
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'latest', label: 'Latest' },
+  { value: 'oldest', label: 'Oldest' },
+  { value: 'trending', label: 'Trending' },
+];
+
+// Weighted engagement: comments/shares count more than passive likes/views, so
+// genuinely resonant posts rank above merely-seen ones. Null metrics → 0.
+function engagementScore(p: Post): number {
+  return (
+    (p.likes ?? 0) +
+    (p.comments ?? 0) * 2 +
+    (p.shares ?? 0) * 3 +
+    (p.views ?? 0) * 0.1
+  );
+}
 
 export default function LibraryPage() {
   const { pillars: pillarList, getLabel } = usePillars();
@@ -41,10 +61,13 @@ export default function LibraryPage() {
   const [platformFilter, setPlatformFilter] = useState<Platform | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<Status | 'all'>('all');
   const [seriesFilter, setSeriesFilter] = useState<string | 'all'>('all');
+  const [sort, setSort] = useState<SortKey>('latest');
 
   // Selection
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Editor drawer
   const [editorPost, setEditorPost] = useState<Post | null>(null);
@@ -151,6 +174,23 @@ export default function LibraryPage() {
     [nonPlatformFiltered, platformFilter],
   );
 
+  // Sort is applied last, over the filtered set (order only, never membership -
+  // so selection/select-all keep working on `sorted`). Latest/Oldest by
+  // created_at; Trending by weighted engagement so posts with no metrics sink.
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    if (sort === 'trending') {
+      arr.sort((a, b) => engagementScore(b) - engagementScore(a));
+    } else {
+      arr.sort((a, b) => {
+        const da = new Date(a.created_at).getTime();
+        const db = new Date(b.created_at).getTime();
+        return sort === 'oldest' ? da - db : db - da;
+      });
+    }
+    return arr;
+  }, [filtered, sort]);
+
   // Selection
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -172,13 +212,18 @@ export default function LibraryPage() {
     // SDK's userId (it can lag), and use fetchWithAuth so a 401 refreshes+retries
     // instead of silently failing (the old plain fetch() left delete broken).
     if (selected.size === 0) return;
-    if (!confirm(`Delete ${selected.size} post(s)?`)) return;
-    const ids = Array.from(selected);
-    await Promise.all(
-      ids.map((id) => fetchWithAuth(`/api/posts/${id}`, { method: 'DELETE' }))
-    );
-    setSelected(new Set());
-    fetchData();
+    setBulkDeleting(true);
+    try {
+      const ids = Array.from(selected);
+      await Promise.all(
+        ids.map((id) => fetchWithAuth(`/api/posts/${id}`, { method: 'DELETE' }))
+      );
+      setSelected(new Set());
+      fetchData();
+    } finally {
+      setBulkDeleting(false);
+      setBulkDeleteOpen(false);
+    }
   };
 
   const handleBulkStatus = async (status: Status) => {
@@ -403,8 +448,13 @@ export default function LibraryPage() {
           >
             <List className="w-4 h-4" />
           </button>
-          {/* Import: refresh the whole account, or paste one post's URL. */}
-          <div className="relative">
+          {/* Import: refresh the whole account, or paste one post's URL.
+              Opens on hover (pt-1 bridge keeps the pointer path contiguous). */}
+          <div
+            className="relative"
+            onMouseEnter={() => { if (importing === null && !importingUrl) setImportMenuOpen(true); }}
+            onMouseLeave={() => setImportMenuOpen(false)}
+          >
             <button
               type="button"
               onClick={() => setImportMenuOpen((o) => !o)}
@@ -421,7 +471,8 @@ export default function LibraryPage() {
             {importMenuOpen && (
               <>
                 <div className="fixed inset-0 z-10" aria-hidden onClick={() => setImportMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 w-60 z-20 rounded-lg border border-border bg-bg-secondary py-1 shadow-card">
+                <div className="absolute right-0 top-full z-20 pt-1">
+                <div className="w-60 rounded-lg border border-border bg-bg-secondary py-1 shadow-card">
                   <button
                     type="button"
                     onClick={() => {
@@ -444,6 +495,7 @@ export default function LibraryPage() {
                     <LinkIcon className="w-4 h-4 shrink-0" />
                     Import from URL…
                   </button>
+                </div>
                 </div>
               </>
             )}
@@ -496,6 +548,12 @@ export default function LibraryPage() {
             </button>
           )}
           <FilterDropdown
+            label="Sort"
+            value={sort}
+            onChange={(v) => setSort(v as SortKey)}
+            options={SORT_OPTIONS}
+          />
+          <FilterDropdown
             label="Status"
             value={statusFilter}
             onChange={(v) => setStatusFilter(v as Status | 'all')}
@@ -516,10 +574,14 @@ export default function LibraryPage() {
       {selected.size > 0 && (
         <div className="flex items-center gap-3 bg-bg-tertiary border border-hair rounded-lg px-4 py-2">
           <span className="text-[12px] text-ink3">{selected.size} selected</span>
-          <button onClick={handleBulkDelete} className="flex items-center gap-1 text-[13px] text-accent-primary hover:opacity-80">
+          <button onClick={() => setBulkDeleteOpen(true)} className="flex items-center gap-1 text-[13px] text-accent-primary hover:opacity-80">
             <Trash2 className="w-3.5 h-3.5" /> Delete
           </button>
-          <div className="relative">
+          <div
+            className="relative"
+            onMouseEnter={() => setBulkStatusOpen(true)}
+            onMouseLeave={() => setBulkStatusOpen(false)}
+          >
             <button
               type="button"
               aria-haspopup="menu"
@@ -536,7 +598,9 @@ export default function LibraryPage() {
                   aria-hidden
                   onClick={() => setBulkStatusOpen(false)}
                 />
-                <div className="absolute top-full left-0 mt-1 bg-bg-secondary border border-border rounded-lg py-1 shadow-card z-20">
+                {/* pt-1 (not mt-1) keeps the hover path contiguous from button to menu */}
+                <div className="absolute top-full left-0 z-20 pt-1">
+                <div className="bg-bg-secondary border border-border rounded-lg py-1 shadow-card">
                   {STATUSES.map((s) => (
                     <button
                       key={s}
@@ -549,6 +613,7 @@ export default function LibraryPage() {
                       {STATUS_LABELS[s]}
                     </button>
                   ))}
+                </div>
                 </div>
               </>
             )}
@@ -594,14 +659,14 @@ export default function LibraryPage() {
         </div>
       ) : view === 'card' ? (
         <PostGrid
-          posts={filtered}
+          posts={sorted}
           selected={selected}
           onSelect={toggleSelect}
           onClickPost={openEditor}
         />
       ) : (
         <PostTable
-          posts={filtered}
+          posts={sorted}
           selected={selected}
           onSelect={toggleSelect}
           onSelectAll={toggleSelectAll}
@@ -620,6 +685,17 @@ export default function LibraryPage() {
           </button>
         </div>
       )}
+
+      <ConfirmModal
+        open={bulkDeleteOpen}
+        title="Delete posts"
+        message={`Delete ${selected.size} post(s) from the tool? Your live LinkedIn/X posts are not affected.`}
+        confirmLabel="Delete"
+        tone="danger"
+        loading={bulkDeleting}
+        onConfirm={() => void handleBulkDelete()}
+        onClose={() => setBulkDeleteOpen(false)}
+      />
 
       {/* Post Editor Drawer */}
       {editorOpen && editorPost && (

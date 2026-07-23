@@ -17,6 +17,7 @@ import {
   PenLine,
   Settings,
   SlidersHorizontal,
+  Sparkles,
   Target,
   type LucideIcon,
 } from 'lucide-react';
@@ -41,7 +42,8 @@ export const APP_HOME_PATH = '/dashboard';
 export const navItems: NavItem[] = [
   // --- Primary: daily loop ---
   { name: 'Home', href: '/dashboard', short: 'Home', section: 'primary' },
-  { name: 'Write', href: '/generate', short: 'Write', section: 'primary' },
+  { name: 'Write', href: '/write', short: 'Write', section: 'primary' },
+  { name: 'Brainstorm', href: '/generate', short: 'Ideate', section: 'primary' },
   { name: 'Post library', href: '/library', short: 'Posts', section: 'primary' },
   { name: 'Schedule', href: '/calendar', short: 'Plan', section: 'primary' },
   { name: 'Inbox', href: '/inbox', short: 'Inbox', section: 'primary' },
@@ -87,7 +89,8 @@ export const settingsNav = navItems.find((item) => item.href === '/settings')!;
  */
 export const navIcons: Record<string, LucideIcon> = {
   '/dashboard': Home,
-  '/generate': PenLine,
+  '/write': PenLine,
+  '/generate': Sparkles,
   '/library': FileText,
   '/calendar': CalendarDays,
   '/inbox': MessageSquare,

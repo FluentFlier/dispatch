@@ -11,6 +11,7 @@ import {
   type CapturePost,
 } from './useEventCapture';
 import { buildWriteUrl } from '@/lib/event-capture/draft-context';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 interface EventDetailPanelProps {
   id: string;
@@ -35,6 +36,7 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [busy, setBusy] = useState<null | 'reload' | 'regen'>(null);
+  const [reloadConfirmOpen, setReloadConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const openedRef = useRef<string | null>(null);
 
@@ -72,7 +74,6 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
   const answeredCount = Object.values(answers).filter((v) => v.trim().length > 0).length;
 
   const handleReload = async (): Promise<void> => {
-    if (!window.confirm('Reload questions? This replaces the current questions and clears your saved answers.')) return;
     setBusy('reload');
     setError(null);
     try {
@@ -109,10 +110,27 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
     }
   };
 
+  const reloadConfirm = (
+    <ConfirmModal
+      open={reloadConfirmOpen}
+      title="Reload questions"
+      message="This replaces the current questions and clears your saved answers."
+      confirmLabel="Reload"
+      tone="danger"
+      loading={busy === 'reload'}
+      onConfirm={() => {
+        setReloadConfirmOpen(false);
+        void handleReload();
+      }}
+      onClose={() => setReloadConfirmOpen(false)}
+    />
+  );
+
   // --- Drafted ---
   if (capture.status === 'drafted') {
     return (
       <div className="space-y-4">
+        {reloadConfirm}
         <h2 className="text-xl font-display text-text-primary">{capture.title}</h2>
         {posts.length === 0 ? (
           <div className="space-y-4">
@@ -151,7 +169,8 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
                 {questions.length > 0 ? `Generate draft (${answeredCount}/${questions.length} answered)` : 'Regenerate draft'}
               </button>
               <button
-                onClick={handleReload}
+                type="button"
+                onClick={() => setReloadConfirmOpen(true)}
                 disabled={busy !== null}
                 className="inline-flex items-center gap-1.5 text-sm font-medium px-4 py-2 rounded-md border border-border text-text-secondary hover:bg-bg-tertiary disabled:opacity-50"
               >
@@ -218,11 +237,12 @@ export function EventDetailPanel({ id, onSubmitted }: EventDetailPanelProps) {
 
   return (
     <form className="space-y-4" onSubmit={handleSubmit}>
+      {reloadConfirm}
       <div className="flex items-start justify-between gap-3">
         <h2 className="text-xl font-display text-text-primary">{capture.title}</h2>
         <button
           type="button"
-          onClick={handleReload}
+          onClick={() => setReloadConfirmOpen(true)}
           disabled={busy !== null}
           title="Generate a fresh set of questions for this event (clears current answers)"
           className="inline-flex items-center gap-1.5 shrink-0 text-xs font-medium px-3 py-1.5 rounded-md border border-border text-text-secondary hover:bg-bg-tertiary disabled:opacity-50"

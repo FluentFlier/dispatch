@@ -1,11 +1,26 @@
 'use server';
 
+import { cookies } from 'next/headers';
 import { getServerClient, getAuthenticatedUser } from '@/lib/insforge/server';
 import type { ContentPillarConfig } from '@/types/database';
 import type { CreatorBaseline } from '@/lib/onboarding/baseline';
-import { displayNameFromAuthUser, resolveDisplayName } from '@/lib/user-display-name';
+import { fetchOAuthDisplayName, resolveDisplayName } from '@/lib/user-display-name';
+import { AUTH_COOKIE } from '@/lib/auth-cookies';
 import { trackEvent, type AnalyticsEvent } from '@/lib/analytics';
 import { DEFAULT_PILLARS } from '@/lib/onboarding/derive-pillars';
+
+/**
+ * OAuth (e.g. Google) display name for the signed-in user. The JWT often lacks
+ * user_metadata name claims, so fall back to asking InsForge directly - same
+ * pattern as /api/onboarding/ingest. (displayNameFromAuthUser reads
+ * profile/metadata fields that don't exist on getAuthenticatedUser()'s flat
+ * shape, which is why skipped-name users used to land on "Creator".)
+ */
+async function oauthNameForUser(user: { name?: string }): Promise<string | null> {
+  if (user.name?.trim()) return user.name.trim();
+  const token = cookies().get(AUTH_COOKIE.access)?.value ?? '';
+  return fetchOAuthDisplayName(token);
+}
 
 /**
  * Marks onboarding complete after connect-first baseline flow.
@@ -28,7 +43,7 @@ export async function completeOnboardingFromBaseline(baseline: CreatorBaseline) 
   const pillars: ContentPillarConfig[] =
     baseline.pillars && baseline.pillars.length > 0 ? baseline.pillars : DEFAULT_PILLARS;
 
-  const oauthName = displayNameFromAuthUser(user);
+  const oauthName = await oauthNameForUser(user);
   const name = resolveDisplayName({
     oauthName,
     fallback: baseline.displayName.trim() || 'Creator',
@@ -71,11 +86,10 @@ export async function completeOnboardingMinimal(
   const user = await getAuthenticatedUser();
   if (!user) throw new Error('Not logged in');
 
-  const oauthName = displayNameFromAuthUser(user);
-  const name = resolveDisplayName({
-    oauthName,
-    fallback: displayName.trim() || 'Creator',
-  });
+  // A name the user actually typed wins; the OAuth (Google) name fills the gap
+  // when they skipped the field.
+  const typed = displayName.trim();
+  const name = typed || (await oauthNameForUser(user)) || 'Creator';
   const client = getServerClient();
 
   const { data: workspaces } = await client.database

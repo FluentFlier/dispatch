@@ -1,10 +1,18 @@
 export type SocialPlatform = 'twitter' | 'linkedin' | 'instagram' | 'threads';
 
+/** A person tagged in a post; profile_id comes from Unipile people-search. */
+export interface PostMention {
+  name: string;
+  profile_id: string;
+}
+
 export interface PublishPayload {
   platform: SocialPlatform;
   text: string;
   imageUrl?: string | null;
   scheduledAt?: string | null;
+  /** LinkedIn only: `@Name` tokens in text resolve to real tags at the wire. */
+  mentions?: PostMention[] | null;
 }
 
 export interface PublishResult {

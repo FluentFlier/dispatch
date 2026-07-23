@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Pickaxe } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
+import { ConfirmModal } from "@/components/ui/ConfirmModal";
 import { getInsforge } from "@/lib/insforge/client";
 import type { StoryBankEntry } from "@/lib/types";
 import { usePillars } from "@/hooks/usePillars";
@@ -32,6 +33,7 @@ export default function StoryBankPage() {
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [reminingId, setReminingId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<StoryBankEntry | null>(null);
 
   const fetchStories = useCallback(async () => {
     try {
@@ -179,7 +181,6 @@ export default function StoryBankPage() {
   // Delete
   const handleDelete = async (story: StoryBankEntry) => {
     if (!userId) return;
-    if (!confirm("Delete this story? This cannot be undone.")) return;
     setDeletingId(story.id);
     try {
       const insforge = getInsforge();
@@ -216,6 +217,18 @@ export default function StoryBankPage() {
 
   return (
     <div className="space-y-4">
+      <ConfirmModal
+        open={deleteTarget !== null}
+        title="Delete story"
+        message="Delete this story? This cannot be undone."
+        confirmLabel="Delete"
+        tone="danger"
+        onConfirm={() => {
+          if (deleteTarget) void handleDelete(deleteTarget);
+          setDeleteTarget(null);
+        }}
+        onClose={() => setDeleteTarget(null)}
+      />
       {/* Header */}
       <PageHeader
         eyebrow="STORY BANK"
@@ -301,7 +314,7 @@ export default function StoryBankPage() {
           }
           onConvert={handleConvert}
           onRemine={handleRemine}
-          onDelete={handleDelete}
+          onDelete={(story) => setDeleteTarget(story)}
           convertingId={convertingId}
           reminingId={reminingId}
           deletingId={deletingId}

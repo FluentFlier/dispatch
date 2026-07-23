@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { UserCog } from 'lucide-react';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 interface ImpersonateButtonProps {
   userId: string;
@@ -15,12 +16,10 @@ interface ImpersonateButtonProps {
 export function ImpersonateButton({ userId, displayName }: ImpersonateButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleClick(): Promise<void> {
-    if (!confirm(`View the app as ${displayName}? You will see their data until you end impersonation.`)) {
-      return;
-    }
     setLoading(true);
     setError(null);
     try {
@@ -47,7 +46,7 @@ export function ImpersonateButton({ userId, displayName }: ImpersonateButtonProp
     <div className="mt-1">
       <button
         type="button"
-        onClick={() => void handleClick()}
+        onClick={() => setConfirmOpen(true)}
         disabled={loading}
         className="inline-flex items-center gap-1 text-[11px] text-accent-primary hover:underline disabled:opacity-50"
       >
@@ -55,6 +54,18 @@ export function ImpersonateButton({ userId, displayName }: ImpersonateButtonProp
         {loading ? 'Starting…' : 'Impersonate'}
       </button>
       {error ? <p className="text-[10px] text-red-600 mt-0.5">{error}</p> : null}
+      <ConfirmModal
+        open={confirmOpen}
+        title="Impersonate user"
+        message={`View the app as ${displayName}? You will see their data until you end impersonation.`}
+        confirmLabel="Impersonate"
+        loading={loading}
+        onConfirm={() => {
+          setConfirmOpen(false);
+          void handleClick();
+        }}
+        onClose={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }

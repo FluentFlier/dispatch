@@ -173,6 +173,10 @@ export default function SettingsPage() {
   // Connected Accounts (OAuth)
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  // True from the moment the Unipile success redirect lands until the sync +
+  // voice import confirms the bind - drives "Confirming connection…" in the UI
+  // so we never claim Connected before the account is actually verified.
+  const [confirmingConnection, setConfirmingConnection] = useState(false);
   const [entitlements, setEntitlements] = useState<{
     plan: string;
     isPaid: boolean;
@@ -336,6 +340,7 @@ export default function SettingsPage() {
     // incomplete" lit until the user manually imported in Voice Lab.
     if (searchParams.get('connected') === 'true') {
       setActiveTab('connections');
+      setConfirmingConnection(true);
       void completeConnectVoiceImport();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -463,6 +468,10 @@ export default function SettingsPage() {
       setProfileError("Could not save profile. Please try again.");
       return;
     }
+    // Let persistent chrome (sidebar profile chip) pick up the new name live.
+    window.dispatchEvent(
+      new CustomEvent("profile-updated", { detail: { displayName: displayName || "Creator" } }),
+    );
     flashSaved(setProfileSaved);
   }
 
@@ -534,6 +543,7 @@ export default function SettingsPage() {
       );
     } finally {
       refreshAccounts();
+      setConfirmingConnection(false);
     }
   }
 
@@ -660,6 +670,7 @@ export default function SettingsPage() {
               disconnecting={disconnecting}
               onAccountsRefresh={refreshAccounts}
               connectError={connectError}
+              confirming={confirmingConnection}
             />
 
             {/* Email */}

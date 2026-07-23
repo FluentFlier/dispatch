@@ -24,7 +24,7 @@ export default function SilkAmbient({ variant = 'landing' }: Props) {
       style={{ opacity: dashboard ? 1 : fade }}
     >
       <motion.div
-        className={`absolute inset-0 ${reduce || dashboard ? '' : 'animate-land-silk-breathe'}`}
+        className={`absolute inset-0 dark:opacity-[0.14] ${reduce || dashboard ? '' : 'animate-land-silk-breathe'}`}
         style={{ y: dashboard ? 0 : fabricY }}
       >
         <Image
@@ -82,8 +82,9 @@ export default function SilkAmbient({ variant = 'landing' }: Props) {
         />
       </motion.div>
 
-      {/* Soft vignette so type stays crisp on bright silk */}
-      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,transparent_0%,rgba(251,250,247,0.15)_55%,rgba(251,250,247,0.55)_100%)]" />
+      {/* Soft vignette so type stays crisp on bright silk. Light-tinted, so it is
+          dropped in dark mode (would paint a white wash over the dark canvas). */}
+      <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_50%_0%,transparent_0%,rgba(251,250,247,0.15)_55%,rgba(251,250,247,0.55)_100%)] dark:hidden" />
     </motion.div>
   );
 }
