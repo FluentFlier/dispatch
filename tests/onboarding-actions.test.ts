@@ -5,12 +5,17 @@ vi.mock('@/lib/insforge/server', () => ({
   getAuthenticatedUser: vi.fn(),
 }));
 vi.mock('@/lib/user-display-name', () => ({
-  displayNameFromAuthUser: vi.fn(() => ''),
+  fetchOAuthDisplayName: vi.fn(async () => null),
   resolveDisplayName: vi.fn(({ fallback }: { fallback: string }) => fallback),
+}));
+// The actions read the auth cookie to resolve the OAuth display name; vitest
+// has no Next request scope, so cookies() must be stubbed.
+vi.mock('next/headers', () => ({
+  cookies: () => ({ get: () => undefined }),
 }));
 
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
-import { displayNameFromAuthUser, resolveDisplayName } from '@/lib/user-display-name';
+import { fetchOAuthDisplayName, resolveDisplayName } from '@/lib/user-display-name';
 import {
   completeOnboardingFromBaseline,
   completeOnboardingMinimal,
@@ -179,7 +184,7 @@ describe('completeOnboardingFromBaseline', () => {
   it('prefers the OAuth display name over the fallback when the baseline name is empty', async () => {
     const captured: Captured[] = [];
     vi.mocked(getServerClient).mockReturnValue(stubClient(captured));
-    vi.mocked(displayNameFromAuthUser).mockReturnValueOnce('Oauth Name');
+    vi.mocked(fetchOAuthDisplayName).mockResolvedValueOnce('Oauth Name');
     vi.mocked(resolveDisplayName).mockImplementationOnce(
       ({ oauthName, fallback }) => oauthName?.trim() || fallback?.trim() || 'Creator',
     );

@@ -12,6 +12,8 @@ export interface PostCommentRow {
   comment_text: string;
   commented_at: string | null;
   parent_comment_id: string | null;
+  /** True when the account owner wrote this - i.e. it is their own reply. */
+  is_own: boolean | null;
   synced_at: string;
   // --- L5: Engagement Signal Detection ---
   // Set by draftEngagementReplies after Haiku signal check.
@@ -39,6 +41,8 @@ export interface CommentReplyQueueRow {
 export interface InboxComment {
   comment: PostCommentRow;
   queue: CommentReplyQueueRow | null;
+  /** The creator already replied to this on the platform itself. */
+  answered_natively?: boolean;
 }
 
 export interface InboxPostGroup {
@@ -121,6 +125,14 @@ export interface DraftRepliesInput {
   commentIds?: string[];
   fast?: boolean;
   limit?: number;
+  /**
+   * Draft only for this post's comments.
+   *
+   * Without it, pressing Draft while looking at one post spent the AI budget on
+   * whatever comments happened to be newest across every post - so the post on
+   * screen got a draft or two, or none, and the button looked broken.
+   */
+  postId?: string;
 }
 
 export interface DraftRepliesResult {
@@ -141,6 +153,14 @@ export interface SendRepliesInput {
   approveFirst?: boolean;
   /** Override draft text before send (queue id → reply text) */
   draftOverrides?: Record<string, string>;
+  /**
+   * Replies the creator wrote themselves (post_comment id → reply text).
+   *
+   * comment_reply_queue is only ever written by the AI drafting step, so a
+   * hand-written reply had no row to send and the send button stayed disabled
+   * until you asked for a draft you did not want. These get a row on the way in.
+   */
+  manualDrafts?: Record<string, string>;
 }
 
 export interface SendRepliesResult {

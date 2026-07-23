@@ -12,6 +12,7 @@ import type { VoiceEvaluationMatrix } from '@/lib/voice-evaluator';
 import PillarMultiSelect from '@/components/ui/PillarMultiSelect';
 import { OptimizePanel } from './OptimizePanel';
 import { LinkedInComposer } from './LinkedInComposer';
+import { LinkedInPostPreview } from './LinkedInPostPreview';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 
 interface PredictResult {
@@ -241,6 +242,25 @@ export function GenerateOutput({
   const [composerOpen, setComposerOpen] = useState(false);
   const [quickSaving, setQuickSaving] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
+  // Inline feed-fidelity preview: exactly how the draft renders on LinkedIn
+  // (line breaks, "…more" fold, card chrome) before anything is published.
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewProfile, setPreviewProfile] = useState<{ name: string; headline: string | null }>({
+    name: 'You',
+    headline: null,
+  });
+
+  useEffect(() => {
+    if (!showPreview) return;
+    fetch('/api/auth/session', { credentials: 'same-origin', cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data?.profile?.displayName) {
+          setPreviewProfile({ name: data.profile.displayName, headline: data.profile.headline ?? null });
+        }
+      })
+      .catch(() => {});
+  }, [showPreview]);
   const [autoPredicted, setAutoPredicted] = useState(false);
 
   // Local copy of the draft so in-place edits (Humanize) are reflected on every
@@ -475,6 +495,11 @@ export function GenerateOutput({
             <Button variant="primary" size="sm" onClick={() => setComposerOpen(true)}>
               Preview &amp; post
             </Button>
+            {(sourcePlatform ?? 'linkedin') === 'linkedin' && (
+              <Button variant="secondary" size="sm" onClick={() => setShowPreview((s) => !s)}>
+                {showPreview ? 'Hide preview' : 'Preview'}
+              </Button>
+            )}
             <Button variant="secondary" size="sm" onClick={() => void quickSave()} loading={quickSaving}>
               Save
             </Button>
@@ -515,6 +540,23 @@ export function GenerateOutput({
           </div>
         )}
       </div>
+
+      {/* Feed-fidelity preview: the exact card the LinkedIn feed will render,
+          so formatting slips are caught before publish. */}
+      {variant === 'simple' && showPreview && (
+        <div className="space-y-1.5">
+          <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-ink3">
+            LinkedIn preview
+          </p>
+          <div className="mx-auto max-w-[555px]">
+            <LinkedInPostPreview
+              name={previewProfile.name}
+              headline={previewProfile.headline}
+              text={displayText}
+            />
+          </div>
+        </div>
+      )}
 
       {variant === 'full' && <OptimizePanel content={displayText} sourcePlatform={sourcePlatform} />}
 

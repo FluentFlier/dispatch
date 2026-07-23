@@ -6,6 +6,7 @@ import {
   extractUnipilePostMetrics,
   extractUnipilePublishedAt,
 } from '@/lib/platforms/linkedin-metrics';
+import type { UnipileRepostContent } from '@/lib/onboarding/import-posts';
 import { writeToMemory, buildPostMemoryCustomId, buildImageMemoryCustomId } from '@/lib/memory/write';
 import { describeImage, chatCompletion, isLlmConfigured } from '@/lib/llm';
 
@@ -66,6 +67,7 @@ export interface UnipileItem {
   is_repost?: boolean;
   is_reply?: boolean;
   attachments?: UnipileAttachment[];
+  repost_content?: UnipileRepostContent;
 }
 
 export interface ImportedImage {
@@ -120,6 +122,21 @@ export function allImageUrls(item: UnipileItem): string[] {
   return (item.attachments ?? [])
     .filter((a) => a.type === 'img' && Boolean(a.url))
     .map((a) => a.url as string);
+}
+
+/**
+ * The post's video attachment URL, or null.
+ *
+ * Only images were ever captured, so a post whose media was a video imported as
+ * bare text. LinkedIn posts carry either one video or a set of images, never
+ * both, so a single url is enough. Provider type strings vary
+ * ('video', 'linkedin_video', 'video/mp4'), hence the substring test.
+ */
+export function videoUrl(item: UnipileItem): string | null {
+  const video = item.attachments?.find(
+    (a) => typeof a.type === 'string' && a.type.toLowerCase().includes('video') && Boolean(a.url),
+  );
+  return video?.url ?? null;
 }
 
 /**
@@ -212,7 +229,7 @@ export async function persistImportedPosts({
     if (existingJob?.post_id) {
       const { data: existingPost } = await client.database
         .from('posts')
-        .select('id, views, likes, saves, comments, shares, images')
+        .select('id, views, likes, saves, comments, shares, images, image_url, video_url, reposted_content')
         .eq('id', existingJob.post_id)
         .eq('user_id', userId)
         .maybeSingle();
@@ -234,9 +251,13 @@ export async function persistImportedPosts({
         // Backfill images on posts imported before multi-image capture existed
         // (firstImageUrl() used to be the only thing kept - the rest of a
         // post's photos were silently discarded).
+        //
+        // The test is "fewer than the provider has", not "none at all": those
+        // older rows kept exactly one image, so an is-it-empty check declared
+        // them healthy and a five-image carousel stayed a single photo forever.
         const existingImages = (existingPost as { images?: ImportedImage[] }).images ?? [];
         const availableUrls = allImageUrls(item);
-        if (existingImages.length === 0 && availableUrls.length > 0) {
+        if (existingImages.length < availableUrls.length) {
           const images = await describeImages(availableUrls);
           await client.database.from('posts').update({ images }).eq('id', existingJob.post_id);
           repaired = true;
@@ -245,6 +266,44 @@ export async function persistImportedPosts({
           pushImageMemoryWrites(memoryWrites, client, images, {
             userId, workspaceId, platform, postId: existingJob.post_id, postedDate,
           });
+        }
+
+        // Same for video, which was never captured at all.
+        const existingVideo = (existingPost as { video_url?: string | null }).video_url ?? null;
+        const availableVideo = videoUrl(item);
+        if (!existingVideo && availableVideo) {
+          await client.database
+            .from('posts')
+            .update({ video_url: availableVideo })
+            .eq('id', existingJob.post_id);
+          repaired = true;
+        }
+
+        // Reposts imported before the original was captured are commentary with
+        // no subject; older ones stored the reshared text but not its images.
+        // A re-import now carries both, so heal either gap - and give a
+        // media-less repost the reshared image as its grid thumbnail.
+        if (item.repost_content) {
+          const existingReposted = (existingPost as { reposted_content?: { images?: string[] } })
+            .reposted_content;
+          const repostImages = item.repost_content.images ?? [];
+          const needsReposted = !existingReposted;
+          const needsImages = (existingReposted?.images?.length ?? 0) < repostImages.length;
+          if (needsReposted || needsImages) {
+            await client.database
+              .from('posts')
+              .update({ reposted_content: item.repost_content })
+              .eq('id', existingJob.post_id);
+            repaired = true;
+          }
+          const existingImageUrl = (existingPost as { image_url?: string | null }).image_url ?? null;
+          if (!existingImageUrl && repostImages[0]) {
+            await client.database
+              .from('posts')
+              .update({ image_url: repostImages[0] })
+              .eq('id', existingJob.post_id);
+            repaired = true;
+          }
         }
 
         if (repaired) {
@@ -288,13 +347,20 @@ export async function persistImportedPosts({
       // Historical posts pulled from a connected account, not authored in-app.
       // The editor hides the pillar picker for these.
       is_imported: true,
-      // Carry the first image so the reconstructed post shows media, not just text.
-      image_url: firstImageUrl(item),
+      // Carry the first image so the reconstructed post shows media, not just
+      // text. A repost has no media of its own, so fall back to the first image
+      // of the post it reshares - that is the thumbnail the grid should show.
+      image_url: firstImageUrl(item) ?? item.repost_content?.images?.[0] ?? null,
       // Every image (image_url only ever kept the first), each with a cached
       // one-time vision description so generation can reference what was
       // actually in the photo without re-analyzing it on every draft.
       images,
+      video_url: videoUrl(item),
       platform,
+      // The post this one reshares, when it is a repost. Commentary alone reads
+      // as a reaction to nothing ("congrats for pulling this off" - pulling
+      // what off?), so the original travels with it and the preview quotes it.
+      reposted_content: item.repost_content ?? null,
       status: 'posted',
       posted_date: importedPublishedAt?.split('T')[0] ?? new Date().toISOString().split('T')[0],
       ...importedMetrics,

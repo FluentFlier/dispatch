@@ -16,6 +16,10 @@ interface LinkedInComposerProps {
   onClose: () => void;
   initialText: string;
   platform: Platform;
+  /** Existing posts row to publish; without it /api/publish inserts a new row. */
+  postId?: string;
+  /** Image already attached to the draft (e.g. from the Write page editor). */
+  initialImageUrl?: string | null;
   /** Called after a successful publish with the post URL if available. */
   onPublished?: (url?: string) => void;
 }
@@ -30,7 +34,7 @@ const PLATFORM_LABELS: Record<string, string> = {
  * user sees exactly how their post will look before publishing - plus image,
  * link, and mention controls. Uses app theme colors, not LinkedIn's palette.
  */
-export function LinkedInComposer({ open, onClose, initialText, platform, onPublished }: LinkedInComposerProps) {
+export function LinkedInComposer({ open, onClose, initialText, platform, postId, initialImageUrl, onPublished }: LinkedInComposerProps) {
   const { toast } = useToast();
   const [text, setText] = useState(initialText);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -47,10 +51,10 @@ export function LinkedInComposer({ open, onClose, initialText, platform, onPubli
   useEffect(() => {
     if (open) {
       setText(initialText);
-      setImageUrl(null);
+      setImageUrl(initialImageUrl ?? null);
       setShowLinkInput(false);
     }
-  }, [open, initialText]);
+  }, [open, initialText, initialImageUrl]);
 
   // Pull the creator's name + headline for a realistic preview.
   useEffect(() => {
@@ -115,7 +119,7 @@ export function LinkedInComposer({ open, onClose, initialText, platform, onPubli
       const res = await fetchWithAuth('/api/publish', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ platform, content: text, caption: text, imageUrl: imageUrl ?? undefined }),
+        body: JSON.stringify({ platform, content: text, caption: text, imageUrl: imageUrl ?? undefined, postId }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {

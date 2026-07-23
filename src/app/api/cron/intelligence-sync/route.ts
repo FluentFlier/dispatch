@@ -5,6 +5,7 @@ import { updateFromPerformanceDB, extractWinningPatterns } from '@/lib/hooks-int
 import { countLeadsForPost, pillarToVertical } from '@/lib/engagement/categorize-leads';
 import { trackEvent } from '@/lib/analytics';
 import { engagementRateOf, getTrailingMedianEngagement, updateArmsForHooks } from '@/lib/hooks-intelligence/rewards';
+import { onlyPublished } from '@/lib/posts/published';
 
 /**
  * GET /api/cron/intelligence-sync
@@ -38,13 +39,12 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
     //   - views >= 100 (below this is noise, not signal)
     //   - status = 'posted' (only published posts have real engagement)
     //   - rl_processed_at IS NULL (process once semantics - never re-score)
-    const { data: posts, error: fetchError } = await client.database
+    const { data: posts, error: fetchError } = await onlyPublished(client.database
       .from('posts')
       .select('id, user_id, pillar, saves, views, likes, comments, used_hook_ids')
       .is('rl_processed_at', null)
       .not('used_hook_ids', 'is', null)
-      .gte('views', 100)
-      .eq('status', 'posted')
+      .gte('views', 100))
       .order('created_at', { ascending: true })
       .limit(500);
 

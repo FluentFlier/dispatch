@@ -125,7 +125,7 @@ export default async function DashboardPage() {
       scoped(onlyPublished(client.database.from('posts').select('id').eq('user_id', uid))),
       scoped(onlyPublished(client.database.from('posts').select('posted_date').eq('user_id', uid)).order('posted_date', { ascending: false })),
       scoped(client.database.from('posts').select('*').eq('user_id', uid).gte('scheduled_date', today).neq('status', 'posted').order('scheduled_date', { ascending: true }).limit(3)),
-      scoped(client.database.from('posts').select('*').eq('user_id', uid).order('updated_at', { ascending: false }).limit(5)),
+      scoped(client.database.from('posts').select('*').eq('user_id', uid).order('updated_at', { ascending: false }).limit(15)),
       scoped(client.database.from('content_ideas').select('*').eq('user_id', uid).eq('converted', false).order('priority', { ascending: true }).limit(3)),
       client.database.from('creator_profile').select('display_name, content_pillars, voice_description, onboarding_complete').eq('user_id', uid).maybeSingle(),
       scoped(client.database.from('social_accounts').select('platform, connection_method, connected_at').eq('user_id', uid)),

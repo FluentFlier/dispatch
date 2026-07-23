@@ -31,6 +31,8 @@ const UpdatePostSchema = z.object({
   source_platform: z.string().nullable().optional(),
   scheduled_publish_at: z.string().nullable().optional(),
   image_url: z.string().nullable().optional(),
+  /** People tagged via the Write page's @mention typeahead (LinkedIn). */
+  mentions: z.array(z.object({ name: z.string().min(1), profile_id: z.string().min(1) })).nullable().optional(),
   voice_match_score: z.number().int().min(0).max(100).nullable().optional(),
   ai_score: z.number().int().min(0).max(100).nullable().optional(),
   voice_evaluation: z.record(z.string(), z.unknown()).nullable().optional(),
@@ -80,7 +82,7 @@ export async function PATCH(
   // Fetch existing post to compare content for auto-optimize
   const { data: existingPost } = await client
     .database.from('posts')
-    .select('script, caption, workspace_id')
+    .select('script, caption, workspace_id, posted_date')
     .eq('id', params.id)
     .eq('user_id', user.id)
     .single();
@@ -98,6 +100,15 @@ export async function PATCH(
     updatePayload.pillar = pillar;
     updatePayload.pillars = pillars;
     updatePayload.pillar_weights = pillar_weights;
+  }
+
+  // "Posted" without a `posted_date` is the row shape that makes a script look
+  // published to every downstream reader (see lib/posts/published.ts). This is
+  // the only write path that could produce it - the Library status dropdown and
+  // the bulk "Change status" menu both PATCH bare `{ status }` - so stamp the
+  // date here rather than in each caller.
+  if (updatePayload.status === 'posted' && !updatePayload.posted_date && !existingPost?.posted_date) {
+    updatePayload.posted_date = new Date().toISOString().slice(0, 10);
   }
 
   const { data, error } = await client

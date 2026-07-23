@@ -38,6 +38,8 @@ export const CreatePostSchema = z.object({
   variant_group_id: z.string().uuid().nullable().optional(),
   source_platform: z.string().nullable().optional(),
   image_url: z.string().nullable().optional(),
+  /** People tagged via the Write page's @mention typeahead (LinkedIn). */
+  mentions: z.array(z.object({ name: z.string().min(1), profile_id: z.string().min(1) })).nullable().optional(),
   voice_match_score: z.number().int().min(0).max(100).nullable().optional(),
   ai_score: z.number().int().min(0).max(100).nullable().optional(),
   voice_evaluation: z.record(z.string(), z.unknown()).nullable().optional(),

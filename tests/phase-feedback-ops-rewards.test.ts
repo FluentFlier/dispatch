@@ -55,7 +55,8 @@ describe('medianOf / engagementRateOf', () => {
 
 describe('getTrailingMedianEngagement', () => {
   const mkPost = (views: number, likes: number) => ({
-    user_id: 'u1', status: 'posted', views, saves: 0, likes, comments: 0, rl_processed_at: 'x', created_at: 'x',
+    // posted_date required: getTrailingMedianEngagement narrows via onlyPublished.
+    user_id: 'u1', status: 'posted', posted_date: '2026-07-01', views, saves: 0, likes, comments: 0, rl_processed_at: 'x', created_at: 'x',
   });
   it('returns null with fewer than 3 prior processed posts', async () => {
     const { client } = fakeClient({ posts: [mkPost(200, 10), mkPost(200, 20)] });

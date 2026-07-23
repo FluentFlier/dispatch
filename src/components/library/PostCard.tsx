@@ -2,11 +2,13 @@
 
 import Image from 'next/image';
 import type { Post } from '@/lib/types';
+import { isPublished } from '@/lib/posts/published';
 import StatusBadge from '@/components/ui/StatusBadge';
 import PillarBadge from '@/components/ui/PillarBadge';
 import { postPillars } from '@/lib/pillars';
 import { PLATFORM_LABELS } from '@/lib/constants';
 import { formatDateShort, truncate } from '@/lib/utils';
+import { Repeat2 } from 'lucide-react';
 
 interface PostCardProps {
   post: Post;
@@ -22,6 +24,7 @@ export default function PostCard({ post, selected, onSelect, onClick }: PostCard
   // The 'general' fallback pillar isn't a real pillar - never show it as a tag.
   const realPillars = postPillars(post).filter((p) => p !== 'general');
   const dateStr = post.scheduled_date ?? post.posted_date ?? null;
+  const isRepost = Boolean(post.reposted_content);
 
   return (
     <div
@@ -52,8 +55,15 @@ export default function PostCard({ post, selected, onSelect, onClick }: PostCard
           />
           {/* Airbnb-style platform badge overlaid on the media */}
           {post.platform && (
-            <span className="absolute left-2.5 top-2.5 z-10 inline-flex items-center rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-ink shadow-sm">
-              {platformLabel}
+            <span className="absolute left-2.5 top-2.5 z-10 inline-flex items-center gap-1.5">
+              <span className="inline-flex items-center rounded-full bg-white/95 px-2.5 py-1 text-[11px] font-semibold text-ink shadow-sm">
+                {platformLabel}
+              </span>
+              {isRepost && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-[11px] font-semibold text-ink shadow-sm">
+                  <Repeat2 className="h-3 w-3" /> Repost
+                </span>
+              )}
             </span>
           )}
         </div>
@@ -63,8 +73,15 @@ export default function PostCard({ post, selected, onSelect, onClick }: PostCard
 
         {/* Platform badge for text-only posts (no media to overlay) */}
         {!post.image_url && post.platform && (
-          <span className="mb-2 inline-flex items-center rounded-full border border-hair bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
-            {platformLabel}
+          <span className="mb-2 inline-flex items-center gap-1.5">
+            <span className="inline-flex items-center rounded-full border border-hair bg-white/95 px-2.5 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
+              {platformLabel}
+            </span>
+            {isRepost && (
+              <span className="inline-flex items-center gap-1 rounded-full border border-hair bg-white/95 px-2 py-0.5 text-[11px] font-semibold text-ink shadow-sm">
+                <Repeat2 className="h-3 w-3" /> Repost
+              </span>
+            )}
           </span>
         )}
 
@@ -95,7 +112,7 @@ export default function PostCard({ post, selected, onSelect, onClick }: PostCard
             <StatusBadge status={post.status} />
             {dateStr && <span>{formatDateShort(dateStr)}</span>}
           </div>
-          {post.status === 'posted' && (post.views !== null || post.saves !== null) && (
+          {isPublished(post) && (post.views !== null || post.saves !== null) && (
             <span className="flex gap-2">
               {post.views !== null && <span>{post.views} views</span>}
               {post.saves !== null && <span>{post.saves} saves</span>}

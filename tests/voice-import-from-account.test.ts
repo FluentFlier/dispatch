@@ -174,7 +174,8 @@ describe('POST /api/voice-lab/import-from-account', () => {
 
     expect(res.status).toBe(200);
     expect(syncUnipileAccountsForUser).toHaveBeenCalledWith('user_123');
-    expect(body.count).toBe(2);
+    // 5 fixture items: reply + empty filtered; repost commentary now counts as voice.
+    expect(body.count).toBe(3);
     expect(unipoleFetch).toHaveBeenCalledWith(
       expect.stringMatching(/\/users\/ACoAABcDEFgH\/posts\?account_id=unipile_abc123/),
       expect.objectContaining({ method: 'GET' }),
@@ -252,14 +253,15 @@ describe('POST /api/voice-lab/import-from-account', () => {
     expect(unipoleFetch).not.toHaveBeenCalled();
   });
 
-  it('filters out reposts and replies, returns only original posts', async () => {
+  it('filters out replies and empty posts but keeps repost commentary', async () => {
     const { POST } = await import('@/app/api/voice-lab/import-from-account/route');
     const res = await POST(makeRequest({ platform: 'linkedin' }));
     expect(res.status).toBe(200);
     const body = await res.json();
-    // 5 items: 1 repost + 1 empty + 1 reply filtered = 2 original
-    expect(body.samples).toHaveLength(2);
-    expect(body.count).toBe(2);
+    // 5 items: 1 empty + 1 reply filtered = 3 kept. Reposts stay: the
+    // creator's commentary on a reshare is their voice (see import-posts.ts).
+    expect(body.samples).toHaveLength(3);
+    expect(body.count).toBe(3);
   });
 
   it('labels samples with correct platform name for linkedin', async () => {

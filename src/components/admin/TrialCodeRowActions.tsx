@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 
 /**
  * Per-row enable/disable + delete controls for a trial code.
@@ -9,6 +10,7 @@ import { useRouter } from 'next/navigation';
 export function TrialCodeRowActions({ code, active }: { code: string; active: boolean }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const encoded = encodeURIComponent(code);
@@ -35,7 +37,6 @@ export function TrialCodeRowActions({ code, active }: { code: string; active: bo
   }
 
   async function remove(): Promise<void> {
-    if (!window.confirm(`Delete code ${code}? This cannot be undone.`)) return;
     setLoading(true);
     setError(null);
     try {
@@ -65,12 +66,25 @@ export function TrialCodeRowActions({ code, active }: { code: string; active: bo
       <button
         type="button"
         disabled={loading}
-        onClick={() => void remove()}
+        onClick={() => setDeleteOpen(true)}
         className="rounded-md border border-red-200 px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-50"
       >
         Delete
       </button>
       {error ? <span className="text-xs text-red-600">{error}</span> : null}
+      <ConfirmModal
+        open={deleteOpen}
+        title="Delete trial code"
+        message={`Delete code ${code}? This cannot be undone.`}
+        confirmLabel="Delete"
+        tone="danger"
+        loading={loading}
+        onConfirm={() => {
+          setDeleteOpen(false);
+          void remove();
+        }}
+        onClose={() => setDeleteOpen(false)}
+      />
     </div>
   );
 }

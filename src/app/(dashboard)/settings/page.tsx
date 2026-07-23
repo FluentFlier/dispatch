@@ -25,6 +25,7 @@ import HookWatchlistEditor from "@/components/settings/HookWatchlistEditor";
 import AgentAccessCard from "@/components/settings/AgentAccessCard";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { integrationNoticeFromSearchParams } from "@/lib/composio/integration-messages";
+import { fetchWithAuth } from "@/lib/fetch-with-auth";
 
 /* ------------------------------------------------------------------ */
 /*  Constants                                                          */
@@ -172,6 +173,10 @@ export default function SettingsPage() {
   // Connected Accounts (OAuth)
   const [connectedAccounts, setConnectedAccounts] = useState<ConnectedAccount[]>([]);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  // True from the moment the Unipile success redirect lands until the sync +
+  // voice import confirms the bind - drives "Confirming connection…" in the UI
+  // so we never claim Connected before the account is actually verified.
+  const [confirmingConnection, setConfirmingConnection] = useState(false);
   const [entitlements, setEntitlements] = useState<{
     plan: string;
     isPaid: boolean;
@@ -335,6 +340,7 @@ export default function SettingsPage() {
     // incomplete" lit until the user manually imported in Voice Lab.
     if (searchParams.get('connected') === 'true') {
       setActiveTab('connections');
+      setConfirmingConnection(true);
       void completeConnectVoiceImport();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -462,6 +468,10 @@ export default function SettingsPage() {
       setProfileError("Could not save profile. Please try again.");
       return;
     }
+    // Let persistent chrome (sidebar profile chip) pick up the new name live.
+    window.dispatchEvent(
+      new CustomEvent("profile-updated", { detail: { displayName: displayName || "Creator" } }),
+    );
     flashSaved(setProfileSaved);
   }
 
@@ -511,31 +521,51 @@ export default function SettingsPage() {
             .catch(() => null),
         ),
       );
-      const imported = results.reduce((sum, r) => sum + (r?.count ?? 0), 0);
+      // Count what was actually written, not what was fetched. `count` is the
+      // number of samples pulled from the provider, so re-importing the same
+      // account reported "Imported 6 posts" every time while creating nothing.
+      const sum = (key: 'created' | 'repaired' | 'skipped') =>
+        results.reduce((total, r) => total + ((r?.persisted?.[key] as number | undefined) ?? 0), 0);
+      const added = sum('created') + sum('repaired');
+      const alreadyThere = sum('skipped');
       setIntegrationNotice(
-        imported > 0
-          ? { type: 'success', message: `Imported ${imported} posts. Your voice profile is ready.` }
-          : {
-              type: 'success',
-              message: 'Account connected. Import posts in Voice Lab to finish your voice profile.',
-            },
+        added > 0
+          ? { type: 'success', message: `Imported ${added} post${added === 1 ? '' : 's'}. Your voice profile is ready.` }
+          : alreadyThere > 0
+            ? {
+                type: 'success',
+                message: `Your ${alreadyThere} post${alreadyThere === 1 ? ' was' : 's were'} already imported. Nothing new to pull in.`,
+              }
+            : {
+                type: 'success',
+                message: 'Account connected. Import posts in Voice Lab to finish your voice profile.',
+              },
       );
     } finally {
       refreshAccounts();
+      setConfirmingConnection(false);
     }
   }
 
   async function disconnectAccount(platform: string) {
     setDisconnecting(platform);
     try {
-      const res = await fetch(`/api/social-accounts/${platform}`, { method: "DELETE" });
-      if (res.ok) {
-        setConnectedAccounts((prev) => prev.filter((a) => a.platform !== platform));
+      // Trust the server, not an optimistic filter: the old code dropped the row
+      // locally on any ok response, so a failed delete looked like a disconnect
+      // until the next refetch put "Connected as <name>" straight back.
+      const res = await fetchWithAuth(`/api/social-accounts/${platform}`, { method: "DELETE" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setIntegrationNotice({
+          type: "error",
+          message: body.error ?? "Could not disconnect. Try again.",
+        });
       }
     } catch {
-      // silently fail
+      setIntegrationNotice({ type: "error", message: "Could not disconnect. Try again." });
     } finally {
       setDisconnecting(null);
+      refreshAccounts();
     }
   }
 
@@ -640,6 +670,7 @@ export default function SettingsPage() {
               disconnecting={disconnecting}
               onAccountsRefresh={refreshAccounts}
               connectError={connectError}
+              confirming={confirmingConnection}
             />
 
             {/* Email */}

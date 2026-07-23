@@ -23,19 +23,31 @@ type InsforgeClient = ReturnType<typeof createClient>;
 
 export type InboxFilter = 'all' | 'needs_reply' | 'drafted' | 'sent';
 
-function classifyComment(queue: CommentReplyQueueRow | null): {
+function classifyComment(
+  queue: CommentReplyQueueRow | null,
+  answeredNatively = false,
+): {
   needs_reply: boolean;
   drafted: boolean;
   sent: boolean;
 } {
+  // A reply the creator wrote on LinkedIn itself counts as answered. Reply state
+  // used to come only from comment_reply_queue - a table this app alone writes -
+  // so every comment they had already handled still read "Needs a reply".
+  if (answeredNatively) {
+    return { needs_reply: false, drafted: false, sent: true };
+  }
   if (!queue) {
     return { needs_reply: true, drafted: false, sent: false };
   }
   if (queue.status === 'sent') {
     return { needs_reply: false, drafted: false, sent: true };
   }
+  // "Mark as replied" writes this status. The creator has handled the comment
+  // some other way - a reaction, a reply we cannot see - so it must leave the
+  // needs-a-reply pile, which is the whole point of the button.
   if (queue.status === 'skipped') {
-    return { needs_reply: true, drafted: false, sent: false };
+    return { needs_reply: false, drafted: false, sent: true };
   }
   if (queue.status === 'draft' || queue.status === 'approved') {
     return { needs_reply: false, drafted: true, sent: false };
@@ -141,15 +153,22 @@ export async function getEngagementInbox(
     }
   }
 
+  // Thread replies are context, not inbox items: show the top-level comment and
+  // use its children only to decide whether it has already been answered.
+  const ownReplyParents = new Set(
+    commentRows.filter((c) => c.is_own && c.parent_comment_id).map((c) => c.parent_comment_id as string),
+  );
+  const topLevel = commentRows.filter((c) => !c.parent_comment_id && !c.is_own);
+
   const groupsMap = new Map<string, InboxPostGroup>();
 
   let totalNeeds = 0;
   let totalDrafted = 0;
   let totalSent = 0;
 
-  for (const comment of commentRows) {
+  for (const comment of topLevel) {
     const queue = queueByComment.get(comment.id) ?? null;
-    const flags = classifyComment(queue);
+    const flags = classifyComment(queue, ownReplyParents.has(comment.id));
 
     if (!matchesFilter(filter, flags)) continue;
 
@@ -174,7 +193,11 @@ export async function getEngagementInbox(
       groupsMap.set(comment.post_id, group);
     }
 
-    const inboxComment: InboxComment = { comment, queue };
+    const inboxComment: InboxComment = {
+      comment,
+      queue,
+      answered_natively: ownReplyParents.has(comment.id),
+    };
     group.comments.push(inboxComment);
     group.stats.total++;
     if (flags.needs_reply) group.stats.needs_reply++;
@@ -231,8 +254,16 @@ export async function draftEngagementReplies(
     .from('post_comments')
     .select('*')
     .eq('user_id', userId)
+    // Never draft a reply to our own reply, and never to a thread reply - both
+    // are now stored as post_comments rows alongside the top-level comments.
+    .eq('is_own', false)
+    .is('parent_comment_id', null)
     .order('synced_at', { ascending: false })
     .limit(limit * 3);
+
+  if (input.postId) {
+    commentsQuery = commentsQuery.eq('post_id', input.postId);
+  }
 
   if (input.commentIds?.length) {
     commentsQuery = commentsQuery.in('id', input.commentIds);
@@ -301,7 +332,11 @@ export async function draftEngagementReplies(
         contextAdditions: contextAdditions || undefined,
         platform: comment.platform,
         contentType: 'reply',
-        fast: input.fast ?? false,
+        // Fast by default. A comment reply is a sentence or two; running the
+        // full generate-evaluate-revise pipeline on each one took ~30-60s per
+        // comment (a batch measured 949s) and burned the daily token budget, so
+        // the button read as broken. Callers can still ask for the full pass.
+        fast: input.fast ?? true,
       });
 
       const { data: inserted, error: insertError } = await client.database
@@ -429,13 +464,48 @@ export async function sendEngagementReplies(
     );
   }
 
+  // Hand-written replies arrive without a queue row - give them one (reusing
+  // any unsent row for the same comment) so the rest of this function, which is
+  // entirely queue-driven, can send them like any other reply.
+  const manualQueueIds: string[] = [];
+  for (const [postCommentId, text] of Object.entries(input.manualDrafts ?? {})) {
+    if (!text.trim()) continue;
+    const { data: existing } = await client.database
+      .from('comment_reply_queue')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('post_comment_id', postCommentId)
+      .neq('status', 'sent')
+      .limit(1);
+
+    const hit = (existing?.[0] as { id: string } | undefined)?.id;
+    if (hit) {
+      await client.database
+        .from('comment_reply_queue')
+        .update({ draft_reply: text, status: 'approved', updated_at: new Date().toISOString() })
+        .eq('id', hit)
+        .eq('user_id', userId);
+      manualQueueIds.push(hit);
+      continue;
+    }
+
+    const { data: created } = await client.database
+      .from('comment_reply_queue')
+      .insert([{ user_id: userId, post_comment_id: postCommentId, draft_reply: text, status: 'approved' }])
+      .select('id');
+    const createdId = (created?.[0] as { id: string } | undefined)?.id;
+    if (createdId) manualQueueIds.push(createdId);
+  }
+
+  const queueIds = [...(input.queueIds ?? []), ...manualQueueIds];
+
   let queueQuery = client.database
     .from('comment_reply_queue')
     .select('*')
     .eq('user_id', userId);
 
-  if (input.queueIds?.length) {
-    queueQuery = queueQuery.in('id', input.queueIds);
+  if (queueIds.length) {
+    queueQuery = queueQuery.in('id', queueIds);
   } else if (input.approveFirst) {
     queueQuery = queueQuery.eq('status', 'draft');
   } else {

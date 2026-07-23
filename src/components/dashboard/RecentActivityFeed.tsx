@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
+import { useReducedMotion } from 'motion/react';
 
 export type ActivityItem = {
   id: string;
@@ -13,65 +13,68 @@ export type ActivityItem = {
   href: string;
 };
 
-const VISIBLE = 3;
-const INTERVAL = 3500;
+/** Pixels the feed drifts per tick, and how often it ticks. */
+const DRIFT_PX = 0.4;
+const TICK_MS = 40;
 
 /**
- * Recent activity rendered as a stacked, self-cycling feed: a fresh item slides
- * in at the top every few seconds and pushes the rest down under a fade mask.
+ * Recent activity as a slowly self-scrolling list that the user can also grab
+ * and scroll by hand.
+ *
+ * It used to be an absolutely-positioned card stack driven by framer transforms
+ * - it looked alive but could not be scrolled at all, and its tall rows showed
+ * only three items. This is a real scroll container: the auto-drift nudges
+ * scrollTop a fraction of a pixel each tick and loops at the bottom, hovering
+ * pauses it and reveals a thin scrollbar (see .hover-scroll), and the shorter
+ * rows fit more of the list on screen at once.
  */
 export function RecentActivityFeed({ items }: { items: ActivityItem[] }) {
   const reduce = useReducedMotion();
-  const cycles = items.length > VISIBLE && !reduce;
-  const [head, setHead] = useState(0);
+  const ref = useRef<HTMLDivElement>(null);
+  const [paused, setPaused] = useState(false);
+
+  const drifts = items.length > 4 && !reduce && !paused;
 
   useEffect(() => {
-    if (!cycles) return;
-    const t = setInterval(
-      () => setHead((h) => (h - 1 + items.length) % items.length),
-      INTERVAL,
-    );
+    if (!drifts) return;
+    const el = ref.current;
+    if (!el) return;
+    const t = setInterval(() => {
+      // Loop back to the top a hair before the true end so the jump is unseen.
+      if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1) {
+        el.scrollTop = 0;
+      } else {
+        el.scrollTop += DRIFT_PX;
+      }
+    }, TICK_MS);
     return () => clearInterval(t);
-  }, [cycles, items.length]);
-
-  const count = Math.min(VISIBLE, items.length);
-  const visible = Array.from(
-    { length: count },
-    (_, i) => items[(head + i) % items.length],
-  );
+  }, [drifts]);
 
   return (
-    // Rows are sized as a fraction of the container, so the feed fills whatever
-    // height the surrounding card has. `y` is in multiples of a row's own height,
-    // which is exactly one slot - no pixel measuring needed.
-    <div className="relative mt-3 min-h-[228px] flex-1 overflow-hidden [mask-image:linear-gradient(to_bottom,black_75%,transparent_100%)]">
-      <AnimatePresence initial={false}>
-        {visible.map((item, i) => (
-          <motion.div
-            key={item.id}
-            className="absolute inset-x-0 top-0 pb-2"
-            style={{ height: `${100 / count}%` }}
-            initial={{ opacity: 0, y: '-100%', scale: 0.96 }}
-            animate={{ opacity: 1, y: `${i * 100}%`, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.96, transition: { duration: 0.2 } }}
-            transition={{ type: 'spring', stiffness: 320, damping: 34 }}
-          >
-            <Link
-              href={item.href}
-              className="flex h-full items-center gap-3 rounded-card border border-hair bg-white/70 px-3 transition-colors hover:bg-paper2/60"
-            >
-              <span
-                className="inline-block h-2 w-2 shrink-0 rounded-full"
-                style={{ backgroundColor: item.color }}
-              />
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-ink">{item.title}</p>
-                <p className="mt-0.5 text-xs text-ink3">{item.meta}</p>
-              </div>
-            </Link>
-          </motion.div>
-        ))}
-      </AnimatePresence>
+    <div
+      ref={ref}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
+      className="hover-scroll mt-3 max-h-[220px] flex-1 space-y-2 overflow-y-auto pr-1 text-ink3"
+    >
+      {items.map((item) => (
+        <Link
+          key={item.id}
+          href={item.href}
+          className="flex items-center gap-3 rounded-card border border-hair bg-white/70 px-3 py-2 transition-colors hover:bg-paper2/60"
+        >
+          <span
+            className="inline-block h-2 w-2 shrink-0 rounded-full"
+            style={{ backgroundColor: item.color }}
+          />
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-medium text-ink">{item.title}</p>
+            <p className="mt-0.5 text-xs text-ink3">{item.meta}</p>
+          </div>
+        </Link>
+      ))}
     </div>
   );
 }

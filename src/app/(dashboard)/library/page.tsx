@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileText, Grid3X3, List, Plus, Search, Trash2, ChevronDown, RefreshCw } from 'lucide-react';
+import { FileText, Grid3X3, List, Plus, Search, Trash2, ChevronDown, RefreshCw, Link2 as LinkIcon } from 'lucide-react';
 import type { Post, Series } from '@/lib/types';
 import type { Platform, Status } from '@/lib/constants';
 import { PLATFORM_LABELS, DASHBOARD_PLATFORMS, STATUSES, STATUS_LABELS } from '@/lib/constants';
@@ -12,7 +12,27 @@ import PostGrid from '@/components/library/PostGrid';
 import PostTable from '@/components/library/PostTable';
 import PostEditorDrawer from '@/components/library/PostEditorDrawer';
 import { PageHeader } from '@/components/layout/PageHeader';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
+
+type SortKey = 'latest' | 'oldest' | 'trending';
+
+const SORT_OPTIONS: { value: SortKey; label: string }[] = [
+  { value: 'latest', label: 'Latest' },
+  { value: 'oldest', label: 'Oldest' },
+  { value: 'trending', label: 'Trending' },
+];
+
+// Weighted engagement: comments/shares count more than passive likes/views, so
+// genuinely resonant posts rank above merely-seen ones. Null metrics → 0.
+function engagementScore(p: Post): number {
+  return (
+    (p.likes ?? 0) +
+    (p.comments ?? 0) * 2 +
+    (p.shares ?? 0) * 3 +
+    (p.views ?? 0) * 0.1
+  );
+}
 
 export default function LibraryPage() {
   const { pillars: pillarList, getLabel } = usePillars();
@@ -26,6 +46,10 @@ export default function LibraryPage() {
   const [importing, setImporting] = useState<Platform | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [importMenuOpen, setImportMenuOpen] = useState(false);
+  const [urlModalOpen, setUrlModalOpen] = useState(false);
+  const [importUrl, setImportUrl] = useState('');
+  const [importingUrl, setImportingUrl] = useState(false);
   const PAGE_SIZE = 50;
 
   // View
@@ -37,10 +61,13 @@ export default function LibraryPage() {
   const [platformFilter, setPlatformFilter] = useState<Platform | 'all'>('all');
   const [statusFilter, setStatusFilter] = useState<Status | 'all'>('all');
   const [seriesFilter, setSeriesFilter] = useState<string | 'all'>('all');
+  const [sort, setSort] = useState<SortKey>('latest');
 
   // Selection
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   // Editor drawer
   const [editorPost, setEditorPost] = useState<Post | null>(null);
@@ -147,6 +174,23 @@ export default function LibraryPage() {
     [nonPlatformFiltered, platformFilter],
   );
 
+  // Sort is applied last, over the filtered set (order only, never membership -
+  // so selection/select-all keep working on `sorted`). Latest/Oldest by
+  // created_at; Trending by weighted engagement so posts with no metrics sink.
+  const sorted = useMemo(() => {
+    const arr = [...filtered];
+    if (sort === 'trending') {
+      arr.sort((a, b) => engagementScore(b) - engagementScore(a));
+    } else {
+      arr.sort((a, b) => {
+        const da = new Date(a.created_at).getTime();
+        const db = new Date(b.created_at).getTime();
+        return sort === 'oldest' ? da - db : db - da;
+      });
+    }
+    return arr;
+  }, [filtered, sort]);
+
   // Selection
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -168,13 +212,18 @@ export default function LibraryPage() {
     // SDK's userId (it can lag), and use fetchWithAuth so a 401 refreshes+retries
     // instead of silently failing (the old plain fetch() left delete broken).
     if (selected.size === 0) return;
-    if (!confirm(`Delete ${selected.size} post(s)?`)) return;
-    const ids = Array.from(selected);
-    await Promise.all(
-      ids.map((id) => fetchWithAuth(`/api/posts/${id}`, { method: 'DELETE' }))
-    );
-    setSelected(new Set());
-    fetchData();
+    setBulkDeleting(true);
+    try {
+      const ids = Array.from(selected);
+      await Promise.all(
+        ids.map((id) => fetchWithAuth(`/api/posts/${id}`, { method: 'DELETE' }))
+      );
+      setSelected(new Set());
+      fetchData();
+    } finally {
+      setBulkDeleting(false);
+      setBulkDeleteOpen(false);
+    }
   };
 
   const handleBulkStatus = async (status: Status) => {
@@ -261,13 +310,56 @@ export default function LibraryPage() {
     }
   };
 
-  // The header import button targets the active platform tab; on "All" it pulls both.
+  // The header import button targets the active platform tab; on "All" it pulls
+  // every CONNECTED platform. It used to call both unconditionally, so a
+  // LinkedIn-only user got "No connected X account found" every single import -
+  // a reminder about a feature they had not asked for.
   const runImport = async () => {
-    if (platformFilter === 'all') {
-      await handleReimport('linkedin');
-      await handleReimport('twitter');
-    } else {
+    if (platformFilter !== 'all') {
       await handleReimport(platformFilter);
+      return;
+    }
+    const connected = await fetchWithAuth('/api/social-accounts')
+      .then((r) => (r.ok ? r.json() : { accounts: [] }))
+      .then((d) => new Set(((d.accounts ?? []) as Array<{ platform: string }>).map((a) => a.platform)))
+      .catch(() => new Set<string>());
+
+    const targets = (['linkedin', 'twitter'] as const).filter((p) => connected.has(p));
+    if (targets.length === 0) {
+      setImportError('Connect LinkedIn or X in Settings to import posts.');
+      return;
+    }
+    for (const platform of targets) await handleReimport(platform);
+  };
+
+  // Import one post from a pasted LinkedIn/X URL - the manual alternative to the
+  // account-wide refresh.
+  const handleImportUrl = async () => {
+    const url = importUrl.trim();
+    if (!url) return;
+    setImportingUrl(true);
+    setImportMessage(null);
+    setImportError(null);
+    try {
+      const res = await fetchWithAuth('/api/voice-lab/import-from-url', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setImportError(data.error ?? 'Could not import that post.');
+        return;
+      }
+      const created = (data.persisted?.created ?? 0) + (data.persisted?.repaired ?? 0);
+      setImportMessage(created > 0 ? 'Imported the post.' : 'That post is already in your library.');
+      setUrlModalOpen(false);
+      setImportUrl('');
+      await fetchData();
+    } catch {
+      setImportError('Network error while importing that post.');
+    } finally {
+      setImportingUrl(false);
     }
   };
 
@@ -323,7 +415,7 @@ export default function LibraryPage() {
   return (
     <div className="page-shell-wide space-y-4">
       <PageHeader
-        eyebrow="LIBRARY"
+        eyebrow="POST LIBRARY"
         title="Posts"
         subtitle="All your drafts, scheduled posts, and published content."
         action={
@@ -356,22 +448,58 @@ export default function LibraryPage() {
           >
             <List className="w-4 h-4" />
           </button>
-          {/* New Post */}
-          <button
-            onClick={runImport}
-            disabled={importing !== null}
-            className="flex items-center gap-1.5 border border-border bg-bg-secondary text-text-primary text-[13px] font-medium px-4 py-[10px] min-h-[44px] rounded-md hover:border-border-hover transition-colors disabled:opacity-60"
+          {/* Import: refresh the whole account, or paste one post's URL.
+              Opens on hover (pt-1 bridge keeps the pointer path contiguous). */}
+          <div
+            className="relative"
+            onMouseEnter={() => { if (importing === null && !importingUrl) setImportMenuOpen(true); }}
+            onMouseLeave={() => setImportMenuOpen(false)}
           >
-            <RefreshCw className={`w-4 h-4 ${importing !== null ? 'animate-spin' : ''}`} />
-            <span className="hidden sm:inline">
-              {importing !== null
-                ? 'Importing'
-                : platformFilter === 'all'
-                  ? 'Import posts'
-                  : `Import ${PLATFORM_LABELS[platformFilter]}`}
-            </span>
-            <span className="sm:hidden">Import</span>
-          </button>
+            <button
+              type="button"
+              onClick={() => setImportMenuOpen((o) => !o)}
+              disabled={importing !== null || importingUrl}
+              aria-haspopup="menu"
+              aria-expanded={importMenuOpen}
+              className="flex items-center gap-1.5 border border-border bg-bg-secondary text-text-primary text-[13px] font-medium px-4 py-[10px] min-h-[44px] rounded-md hover:border-border-hover transition-colors disabled:opacity-60"
+            >
+              <RefreshCw className={`w-4 h-4 ${importing !== null ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">{importing !== null ? 'Importing' : 'Import posts'}</span>
+              <span className="sm:hidden">Import</span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+            {importMenuOpen && (
+              <>
+                <div className="fixed inset-0 z-10" aria-hidden onClick={() => setImportMenuOpen(false)} />
+                <div className="absolute right-0 top-full z-20 pt-1">
+                <div className="w-60 rounded-lg border border-border bg-bg-secondary py-1 shadow-card">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportMenuOpen(false);
+                      runImport();
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] text-text-primary hover:bg-bg-tertiary"
+                  >
+                    <RefreshCw className="w-4 h-4 shrink-0" />
+                    {platformFilter === 'all' ? 'Refresh my posts' : `Refresh ${PLATFORM_LABELS[platformFilter]} posts`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setImportMenuOpen(false);
+                      setUrlModalOpen(true);
+                    }}
+                    className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] text-text-primary hover:bg-bg-tertiary"
+                  >
+                    <LinkIcon className="w-4 h-4 shrink-0" />
+                    Import from URL…
+                  </button>
+                </div>
+                </div>
+              </>
+            )}
+          </div>
           <button
             onClick={handleNewPost}
             className="flex items-center gap-1.5 bg-accent-primary text-text-inverse text-[13px] font-medium px-5 py-[10px] min-h-[44px] rounded-md hover:opacity-90 transition-opacity"
@@ -420,6 +548,12 @@ export default function LibraryPage() {
             </button>
           )}
           <FilterDropdown
+            label="Sort"
+            value={sort}
+            onChange={(v) => setSort(v as SortKey)}
+            options={SORT_OPTIONS}
+          />
+          <FilterDropdown
             label="Status"
             value={statusFilter}
             onChange={(v) => setStatusFilter(v as Status | 'all')}
@@ -440,10 +574,14 @@ export default function LibraryPage() {
       {selected.size > 0 && (
         <div className="flex items-center gap-3 bg-bg-tertiary border border-hair rounded-lg px-4 py-2">
           <span className="text-[12px] text-ink3">{selected.size} selected</span>
-          <button onClick={handleBulkDelete} className="flex items-center gap-1 text-[13px] text-accent-primary hover:opacity-80">
+          <button onClick={() => setBulkDeleteOpen(true)} className="flex items-center gap-1 text-[13px] text-accent-primary hover:opacity-80">
             <Trash2 className="w-3.5 h-3.5" /> Delete
           </button>
-          <div className="relative">
+          <div
+            className="relative"
+            onMouseEnter={() => setBulkStatusOpen(true)}
+            onMouseLeave={() => setBulkStatusOpen(false)}
+          >
             <button
               type="button"
               aria-haspopup="menu"
@@ -460,7 +598,9 @@ export default function LibraryPage() {
                   aria-hidden
                   onClick={() => setBulkStatusOpen(false)}
                 />
-                <div className="absolute top-full left-0 mt-1 bg-bg-secondary border border-border rounded-lg py-1 shadow-card z-20">
+                {/* pt-1 (not mt-1) keeps the hover path contiguous from button to menu */}
+                <div className="absolute top-full left-0 z-20 pt-1">
+                <div className="bg-bg-secondary border border-border rounded-lg py-1 shadow-card">
                   {STATUSES.map((s) => (
                     <button
                       key={s}
@@ -473,6 +613,7 @@ export default function LibraryPage() {
                       {STATUS_LABELS[s]}
                     </button>
                   ))}
+                </div>
                 </div>
               </>
             )}
@@ -518,14 +659,14 @@ export default function LibraryPage() {
         </div>
       ) : view === 'card' ? (
         <PostGrid
-          posts={filtered}
+          posts={sorted}
           selected={selected}
           onSelect={toggleSelect}
           onClickPost={openEditor}
         />
       ) : (
         <PostTable
-          posts={filtered}
+          posts={sorted}
           selected={selected}
           onSelect={toggleSelect}
           onSelectAll={toggleSelectAll}
@@ -545,6 +686,17 @@ export default function LibraryPage() {
         </div>
       )}
 
+      <ConfirmModal
+        open={bulkDeleteOpen}
+        title="Delete posts"
+        message={`Delete ${selected.size} post(s) from the tool? Your live LinkedIn/X posts are not affected.`}
+        confirmLabel="Delete"
+        tone="danger"
+        loading={bulkDeleting}
+        onConfirm={() => void handleBulkDelete()}
+        onClose={() => setBulkDeleteOpen(false)}
+      />
+
       {/* Post Editor Drawer */}
       {editorOpen && editorPost && (
         <PostEditorDrawer
@@ -554,6 +706,52 @@ export default function LibraryPage() {
           onSave={fetchData}
           onDelete={() => { closeEditor(); fetchData(); }}
         />
+      )}
+
+      {urlModalOpen && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4"
+          onClick={() => !importingUrl && setUrlModalOpen(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md rounded-2xl border border-border bg-bg-primary p-5 shadow-2xl"
+          >
+            <h2 className="text-[16px] font-semibold text-text-primary">Import a post from its URL</h2>
+            <p className="mt-1 text-[13px] text-text-secondary">
+              Paste a LinkedIn or X post link. It has to be a post from your connected account.
+            </p>
+            <input
+              type="url"
+              value={importUrl}
+              onChange={(e) => setImportUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleImportUrl(); }}
+              autoFocus
+              placeholder="https://www.linkedin.com/feed/update/…"
+              className="mt-3 w-full rounded-md border border-border bg-bg-secondary px-3 py-2 min-h-[44px] text-[13px] text-text-primary placeholder:text-text-secondary focus:outline-none focus:border-border-hover"
+            />
+            <div className="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setUrlModalOpen(false)}
+                disabled={importingUrl}
+                className="min-h-[40px] rounded-md border border-border bg-bg-secondary px-4 text-[13px] text-text-primary hover:border-border-hover transition-colors disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleImportUrl}
+                disabled={importingUrl || !importUrl.trim()}
+                className="min-h-[40px] rounded-md bg-accent-primary px-5 text-[13px] font-medium text-text-inverse hover:opacity-90 transition-opacity disabled:opacity-50"
+              >
+                {importingUrl ? 'Importing…' : 'Import'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

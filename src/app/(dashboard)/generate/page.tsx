@@ -163,7 +163,7 @@ function GeneratePageInner() {
             className="inline-flex items-center gap-1.5 text-sm text-ink2 hover:text-ink"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to Write
+            Back to Brainstorm
           </button>
           <span className="text-ink3">/</span>
           <span className="text-sm font-medium text-ink">{TOOL_LABELS[activeTab]}</span>

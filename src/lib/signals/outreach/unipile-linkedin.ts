@@ -379,6 +379,53 @@ export async function searchLinkedInPerson(query: {
   }
 }
 
+export interface LinkedInPersonSuggestion {
+  /** Unipile/LinkedIn provider id - the `profile_id` used for post mentions. */
+  id: string;
+  name: string;
+  headline?: string;
+  profileUrl?: string;
+}
+
+/**
+ * LinkedIn people-search returning the full suggestion list (vs.
+ * `searchLinkedInPerson`'s single best match). Powers the Write page's
+ * @mention typeahead: each item's `id` is the `profile_id` Unipile's create-post
+ * `mentions` array expects. Fail-closed: any error returns [].
+ */
+export async function searchLinkedInPeople(
+  accountId: string,
+  keywords: string,
+  limit = 5,
+): Promise<LinkedInPersonSuggestion[]> {
+  if (!accountId || !keywords.trim()) return [];
+
+  try {
+    const api = getLinkedInApiMode();
+    const params = new URLSearchParams({ account_id: accountId, limit: String(limit) });
+    const res = await unipileJsonPost(`/linkedin/search?${params.toString()}`, {
+      api,
+      category: 'people',
+      keywords: keywords.trim(),
+    });
+    if (!res.ok) return [];
+
+    const json = (await res.json()) as { items?: UnipileSearchItem[] } | UnipileSearchItem[];
+    const items = Array.isArray(json) ? json : (json.items ?? []);
+    return items
+      .filter((item) => item.type === 'PEOPLE' && item.id && item.name)
+      .slice(0, limit)
+      .map((item) => ({
+        id: item.id as string,
+        name: item.name as string,
+        headline: item.headline,
+        profileUrl: item.profile_url,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 /**
  * First connected LinkedIn Unipile account in the workspace, used to resolve
  * the `account_id` the search endpoint requires when no specific user session

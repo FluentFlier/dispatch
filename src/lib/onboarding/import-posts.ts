@@ -6,12 +6,44 @@ import {
 } from '@/lib/social/unipile';
 import { buildPostUrl } from '@/lib/voice-lab/persist-imported-posts';
 
+/**
+ * Every id flavor Unipile might have indexed a post under. Inlined rather than
+ * imported from the engagement layer to avoid an import cycle (that module
+ * imports resolveUnipileTarget from here).
+ */
+function postIdCandidates(id: string): string[] {
+  const numeric = id.match(/(\d{5,25})/)?.[1];
+  const out = [id];
+  if (numeric) out.push(numeric, `urn:li:activity:${numeric}`, `urn:li:share:${numeric}`, `urn:li:ugcPost:${numeric}`);
+  return Array.from(new Set(out));
+}
+
 export type OnboardingPlatform = 'linkedin' | 'twitter';
 
 export interface VoiceSample {
   content: string;
   platform: string;
   sourceUrl?: string;
+}
+
+
+/**
+ * The post a repost was built on. Unipile nests it under `repost_content`;
+ * without it an imported repost is the creator's commentary with no subject.
+ */
+export interface UnipileRepostContent {
+  id?: string;
+  text?: string;
+  date?: string;
+  parsed_datetime?: string;
+  author?: {
+    name?: string;
+    public_identifier?: string;
+    id?: string;
+    is_company?: boolean;
+  };
+  /** Image URLs on the reshared post, fetched separately (the list omits them). */
+  images?: string[];
 }
 
 interface UnipilePostItem {
@@ -27,6 +59,7 @@ interface UnipilePostItem {
     type?: string;
     url?: string;
   }>;
+  repost_content?: UnipileRepostContent;
 }
 
 interface UnipilePostsResponse {
@@ -97,7 +130,7 @@ function normalizedIdentity(value?: string | null): string | null {
   return token.replace(/^@/, '').replace(/\/+$/, '').toLowerCase();
 }
 
-function identityVariants(value?: string | null): string[] {
+export function identityVariants(value?: string | null): string[] {
   return uniq([value, urnTail(value ?? undefined)])
     .map(normalizedIdentity)
     .filter(Boolean) as string[];
@@ -241,6 +274,56 @@ export async function fetchPostsFromUnipile(
   return bestEmptyResult ?? { samples: [], rawItems: [], fetchedCount: 0, filteredCount: 0 };
 }
 
+/**
+ * Fetches one Unipile post by id (or any of its URN flavors) for a URL-based
+ * import. Returns the raw item shaped like a list item, with a repost's
+ * reshared images already enriched. Null when no candidate resolves.
+ */
+export async function fetchSingleUnipilePost(
+  providerPostId: string,
+  unipileAccountId: string,
+): Promise<UnipilePostItem | null> {
+  const acct = encodeURIComponent(unipileAccountId);
+  for (const candidate of postIdCandidates(providerPostId)) {
+    try {
+      const res = await unipoleFetch(
+        `/posts/${encodeURIComponent(candidate)}?account_id=${acct}`,
+        { method: 'GET' },
+      );
+      if (!res.ok) continue;
+      const item = (await res.json()) as UnipilePostItem;
+      if (!item?.id) continue;
+      if (item.is_repost && item.repost_content?.id && !item.repost_content.images) {
+        item.repost_content.images = await fetchPostImageUrls(
+          item.repost_content.id,
+          unipileAccountId,
+        );
+      }
+      return item;
+    } catch {
+      /* try the next id flavor */
+    }
+  }
+  return null;
+}
+
+/** Image attachment URLs on a single Unipile post, best-effort (empty on any error). */
+async function fetchPostImageUrls(postId: string, unipileAccountId: string): Promise<string[]> {
+  try {
+    const res = await unipoleFetch(
+      `/posts/${encodeURIComponent(postId)}?account_id=${encodeURIComponent(unipileAccountId)}`,
+      { method: 'GET' },
+    );
+    if (!res.ok) return [];
+    const json = (await res.json()) as { attachments?: Array<{ type?: string; url?: string }> };
+    return (json.attachments ?? [])
+      .filter((a) => a.type === 'img' && Boolean(a.url))
+      .map((a) => a.url as string);
+  } catch {
+    return [];
+  }
+}
+
 async function fetchPostsForProviderUser(
   providerUserId: string,
   unipileAccountId: string,
@@ -276,7 +359,13 @@ async function fetchPostsForProviderUser(
     fetchedCount += items.length;
 
     for (const item of items) {
-      if (item.is_repost || item.is_reply) {
+      // Reposts are the creator's own commentary on someone else's post, and
+      // that commentary is their voice - dropping them silently lost a large
+      // slice of the account. Unipile puts the commentary in the item's own
+      // text and the reshared body in a nested object we never read, so a bare
+      // no-commentary reshare falls out of the length guard below on its own.
+      // Replies stay excluded: they are conversation, not posts.
+      if (item.is_reply) {
         filteredCount++;
         continue;
       }
@@ -284,6 +373,16 @@ async function fetchPostsForProviderUser(
       if (content.length <= 20) {
         filteredCount++;
         continue;
+      }
+
+      // A repost's images live on the post it reshares, which the list payload
+      // omits - it only carries the original's text and author. Fetch the
+      // original by id once so the reshared card can show its media.
+      if (item.is_repost && item.repost_content?.id && !item.repost_content.images) {
+        item.repost_content.images = await fetchPostImageUrls(
+          item.repost_content.id,
+          unipileAccountId,
+        );
       }
 
       rawItems.push(item);

@@ -63,15 +63,18 @@ describe('Layer 2: RL Intelligence', () => {
     it('skips posts with views < 100', async () => {
       process.env.CRON_SECRET = 'secret123';
 
-      // Build a query chain where .gte('views', 100) can be asserted.
-      // The entire chain eventually resolves to an empty data array (all posts filtered).
+      // Build a query chain where .gte('views', 100) can be asserted. The
+      // chain is order-agnostic (onlyPublished appends eq/not after gte) and
+      // eventually resolves to an empty data array (all posts filtered).
       const limitMock = vi.fn().mockResolvedValue({ data: [], error: null });
-      const orderMock = vi.fn().mockReturnValue({ limit: limitMock });
-      const eqMock = vi.fn().mockReturnValue({ order: orderMock });
-      const gteMock = vi.fn().mockReturnValue({ eq: eqMock });
-      const notMock = vi.fn().mockReturnValue({ gte: gteMock });
-      const isMock = vi.fn().mockReturnValue({ not: notMock });
-      const selectResult = { is: isMock };
+      const selectResult: Record<string, unknown> = {};
+      const gteMock = vi.fn().mockReturnValue(selectResult);
+      selectResult.is = vi.fn().mockReturnValue(selectResult);
+      selectResult.not = vi.fn().mockReturnValue(selectResult);
+      selectResult.eq = vi.fn().mockReturnValue(selectResult);
+      selectResult.order = vi.fn().mockReturnValue(selectResult);
+      selectResult.gte = gteMock;
+      selectResult.limit = limitMock;
 
       const fakeClient = {
         database: {

@@ -16,6 +16,7 @@ import { getInitials } from '@/lib/compose-preview';
 import dynamic from 'next/dynamic';
 import { logEditFeedback } from '@/lib/hooks-intelligence/edit-feedback';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
+import { shortAge } from '@/lib/utils';
 import {
   clearPostEditorDraft,
   formsMatch,
@@ -26,10 +27,13 @@ import {
 const EngagementInbox = dynamic(() => import('@/components/engagement/EngagementInbox'), {
   ssr: false,
   loading: () => (
-    <div className="rounded-lg border border-border bg-bg-secondary p-4 animate-pulse h-24" />
+    // Matches the inbox's own skeleton height so the chunk load and the data
+    // load read as one continuous "loading", not two different placeholders.
+    <div className="rounded-lg border border-border bg-bg-secondary p-4 animate-pulse h-40" />
   ),
 });
 import { useToast } from '@/components/ui/Toast';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { ImageUpload } from '@/components/ui/ImageUpload';
 import { CharCount } from '@/components/ui/CharCount';
 import { PlatformConstraints } from '@/components/ui/PlatformConstraints';
@@ -37,6 +41,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import Link from 'next/link';
 
 const DRAWER_TABS = [
+  { id: 'preview', label: 'Preview' },
   { id: 'write', label: 'Write' },
   { id: 'schedule', label: 'Schedule' },
   { id: 'comments', label: 'Comments' },
@@ -87,7 +92,9 @@ type PostEditorForm = ReturnType<typeof formFromPost>;
 
 export default function PostEditorDrawer({ post, series, onClose, onSave, onDelete }: PostEditorDrawerProps) {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<DrawerTab>('write');
+  // Preview opens first: for a published post the card is the answer to "what
+  // is this?", and the edit fields are the follow-up.
+  const [activeTab, setActiveTab] = useState<DrawerTab>('preview');
   const [form, setForm] = useState<PostEditorForm>(() => formFromPost(post));
   const [savedForm, setSavedForm] = useState<PostEditorForm>(() => formFromPost(post));
   const formRef = useRef(form);
@@ -95,9 +102,44 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   const outsideClickNoticeShown = useRef(false);
   const [showPerfModal, setShowPerfModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   // Bumped after linking a live post URL, to remount EngagementInbox so it
   // re-fetches (its auto-sync fires on an empty, now-linked post).
-  const [inboxKey, setInboxKey] = useState(0);
+  // Footer slot the Comments tab portals its Sync/Draft/Send row into, so those
+  // actions sit beside the status pipeline instead of scrolling with the list.
+  const [commentActionsSlot, setCommentActionsSlot] = useState<HTMLDivElement | null>(null);
+  // Top comments for the Write-tab preview, so the card shows what the post
+  // actually looks like in the feed rather than a version with no discussion.
+  const [previewComments, setPreviewComments] = useState<{
+    top: Array<{ id: string; author: string; headline?: string | null; text: string; age?: string | null }>;
+    total: number;
+  }>({ top: [], total: 0 });
+
+  useEffect(() => {
+    let cancelled = false;
+    fetchWithAuth(`/api/engagement/inbox?postId=${post.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled || !data) return;
+        const group = (data.groups ?? [])[0];
+        if (!group) return;
+        setPreviewComments({
+          total: group.stats?.total ?? group.comments.length,
+          top: group.comments.slice(0, 2).map((c: { comment: { id: string; author_name: string | null; author_handle: string | null; author_headline: string | null; comment_text: string; commented_at: string | null } }) => ({
+            id: c.comment.id,
+            author: c.comment.author_name ?? c.comment.author_handle ?? 'Someone',
+            headline: c.comment.author_headline,
+            text: c.comment.comment_text,
+            age: c.comment.commented_at ? shortAge(c.comment.commented_at) : null,
+          })),
+        });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [post.id]);
   // Author identity for the LinkedIn-style preview (LinkedIn posts only).
   const [author, setAuthor] = useState<{ name: string; headline: string | null }>({ name: 'You', headline: null });
 
@@ -162,9 +204,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
       }
       return;
     }
-    if (confirm('Close the editor? Your unsaved changes will stay in this browser and be restored when you reopen this post.')) {
-      onClose();
-    }
+    setCloseConfirmOpen(true);
   }, [isDirty, onClose, toast]);
 
   useEffect(() => {
@@ -279,7 +319,6 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   const handleDelete = async () => {
     // Deletes ONLY the tool's post row (InsForge). Does NOT touch the live
     // LinkedIn/X post - the DELETE route makes no provider call.
-    if (!confirm('Remove this post from the tool? (Your live LinkedIn/X post is not affected.)')) return;
     setDeleting(true);
     try {
       // fetchWithAuth so an expired access token refreshes+retries instead of
@@ -344,12 +383,18 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
       {/* Centered modal window (was a right-side drawer). Opens as a large
           overlay so a post gets a full editing surface, not a cramped rail. */}
-      <div className="fixed inset-0 z-[65] flex items-start justify-center overflow-y-auto p-4 sm:p-6" onClick={() => requestClose('outside')}>
+      {/* One scroll container, and only one: the shell is capped to the padded
+          viewport (`max-h-full`) so the body pane below is the single thing that
+          scrolls. The old `overflow-y-auto` here plus a `90vh` shell meant the
+          wheel chained between two scrollers and the modal could still outgrow
+          the screen. Outside clicks route through requestClose so unsaved edits
+          are never lost to a stray click. */}
+      <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 sm:p-6" onClick={() => requestClose('outside')}>
         <div
           role="dialog"
           aria-modal="true"
           onClick={(e) => e.stopPropagation()}
-          className="relative my-auto w-full max-w-3xl max-h-[90vh] rounded-2xl bg-bg-primary border border-border shadow-2xl overflow-hidden flex flex-col"
+          className="relative w-full max-w-5xl max-h-full rounded-2xl bg-bg-primary border border-border shadow-2xl overflow-hidden flex flex-col"
         >
         <div className="flex items-center justify-between p-4 border-b border-border shrink-0 bg-bg-secondary">
           <h2 className="font-heading text-lg font-bold text-text-primary truncate pr-2">
@@ -364,8 +409,26 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
           </button>
         </div>
 
-        <div className="shrink-0 px-4 pt-3 bg-bg-secondary border-b border-border">
+        {/* Publish sits in the tab row, not buried in the Schedule tab: it is
+            the action people come here to take, and it used to be a scroll away
+            inside another tab. Hidden once the post is live. */}
+        <div className="shrink-0 flex items-end justify-between gap-3 px-4 pt-3 bg-bg-secondary border-b border-border">
           <Tabs tabs={[...DRAWER_TABS]} activeTab={activeTab} onChange={(id) => setActiveTab(id as DrawerTab)} />
+          {!isPosted && (
+            <div className="pb-2">
+              <PublishPanel
+                compact
+                postId={post.id}
+                content={form.script || form.hook || form.title}
+                caption={form.caption}
+                onPublishSuccess={() => {
+                  setForm((f) => ({ ...f, status: 'posted' }));
+                  toast('Published! Post status updated.');
+                  onSave();
+                }}
+              />
+            </div>
+          )}
         </div>
 
         {/* `min-h-0` is load-bearing: a flex item defaults to `min-height: auto`,
@@ -374,8 +437,27 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
             clipped the excess, and `overflow-y-auto` was left scrolling a sliver
             a couple of lines tall. */}
         <div className="min-h-0 flex-1 overflow-y-auto p-4 space-y-4 bg-bg-primary">
+          {activeTab === 'preview' && (
+            <PostSocialPreview
+              platform={normalizeDashboardPlatform(form.platform)}
+              name={author.name}
+              headline={author.headline}
+              text={form.script || form.caption || form.hook || ''}
+              imageUrl={form.image_url || null}
+              imageUrls={(post.images ?? []).map((i) => i.url)}
+              videoUrl={post.video_url ?? null}
+              reactions={form.likes}
+              comments={form.comments}
+              reposts={form.shares}
+              repost={post.reposted_content ?? null}
+              topComments={previewComments.top}
+              totalComments={previewComments.total}
+            />
+          )}
+
           {activeTab === 'write' && (
             <>
+
               <label className="block">
                 <span className={labelClass}>Title</span>
                 <input
@@ -388,21 +470,30 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </label>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className="block">
+                {/* Where a live post went out is a fact, not a setting. Offering
+                    "X" on a post that was published to LinkedIn invited an edit
+                    that would make the row lie about its own history. */}
+                <div className="block">
                   <span className={labelClass}>Platform</span>
-                  <select
-                    value={form.platform}
-                    onChange={(e) => update('platform', e.target.value)}
-                    onBlur={autoSave}
-                    className={inputClass}
-                  >
-                    {PLATFORMS.map((p) => (
-                      <option key={p} value={p}>
-                        {PLATFORM_LABELS[p]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                  {isPosted ? (
+                    <p className={`${inputClass} flex items-center bg-bg-tertiary text-text-secondary`}>
+                      {PLATFORM_LABELS[normalizeDashboardPlatform(form.platform)]}
+                    </p>
+                  ) : (
+                    <select
+                      value={form.platform}
+                      onChange={(e) => update('platform', e.target.value)}
+                      onBlur={autoSave}
+                      className={inputClass}
+                    >
+                      {PLATFORMS.map((p) => (
+                        <option key={p} value={p}>
+                          {PLATFORM_LABELS[p]}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
                 <label className="block">
                   <span className={labelClass}>Status</span>
                   <select
@@ -419,22 +510,30 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                 </label>
               </div>
 
-              <div>
-                <span className={labelClass}>Image</span>
-                <ImageUpload
-                  imageUrl={form.image_url || null}
-                  onUpload={(url) => {
-                    update('image_url', url);
-                    setTimeout(autoSave, 100);
-                  }}
-                  onRemove={() => {
-                    update('image_url', '');
-                    setTimeout(autoSave, 100);
-                  }}
-                />
-              </div>
+              {/* Media and its limits only matter while the post can still
+                  change. On a live post, swapping the image would update our
+                  row and nothing on LinkedIn, and the media is already visible
+                  in the preview above - so there is nothing to show here. */}
+              {!isPosted && (
+                <>
+                  <div>
+                    <span className={labelClass}>Image</span>
+                    <ImageUpload
+                      imageUrl={form.image_url || null}
+                      onUpload={(url) => {
+                        update('image_url', url);
+                        setTimeout(autoSave, 100);
+                      }}
+                      onRemove={() => {
+                        update('image_url', '');
+                        setTimeout(autoSave, 100);
+                      }}
+                    />
+                  </div>
 
-              <PlatformConstraints platform={form.platform} hasImage={Boolean(form.image_url)} compact />
+                  <PlatformConstraints platform={form.platform} hasImage={Boolean(form.image_url)} compact />
+                </>
+              )}
 
               {(form.voice_match_score != null || form.ai_score != null) && (
                 <div className="rounded-md border border-border bg-bg-secondary p-3 text-[13px]">
@@ -455,21 +554,6 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                 </div>
               )}
 
-              {/* The one preview in the modal. A published post used to also get a
-                  pinned copy above the tab bar, so a posted LinkedIn item rendered
-                  the identical card twice while the pinned copy ate the height the
-                  scrollable pane needed. */}
-              <div>
-                <span className={labelClass}>Preview</span>
-                <PostSocialPreview
-                  platform={normalizeDashboardPlatform(form.platform)}
-                  name={author.name}
-                  headline={author.headline}
-                  text={form.script || form.caption || form.hook || ''}
-                  imageUrl={form.image_url || null}
-                />
-              </div>
-
               {!isLinkedIn && (
                 <label className="block">
                   <span className={labelClass}>Hook</span>
@@ -484,7 +568,20 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               )}
 
               <label className="block">
-                <span className={labelClass}>{isLinkedIn ? 'Post body' : 'Script'}</span>
+                <div className="flex items-center justify-between">
+                  <span className={labelClass}>{isLinkedIn ? 'Post body' : 'Script'}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!form.script) return;
+                      navigator.clipboard.writeText(form.script);
+                      toast('Post body copied');
+                    }}
+                    className="flex cursor-pointer items-center gap-1 text-[11px] font-medium text-text-secondary transition-colors hover:text-text-primary"
+                  >
+                    <Copy size={12} /> Copy
+                  </button>
+                </div>
                 <textarea
                   rows={10}
                   value={form.script}
@@ -534,6 +631,10 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                 />
               </label>
 
+              {/* Teleprompter shares the Series row: with no series selected the
+                  second column was empty, so it sat in a button strip below
+                  wasting a whole row. When a series IS selected, Position takes
+                  the second column and Teleprompter moves under it. */}
               <div className="grid grid-cols-2 gap-3">
                 <label className="block">
                   <span className={labelClass}>Series</span>
@@ -551,7 +652,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                     ))}
                   </select>
                 </label>
-                {form.series_id && (
+                {form.series_id ? (
                   <label className="block">
                     <span className={labelClass}>Position</span>
                     <input
@@ -563,11 +664,30 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                       className={inputClass}
                     />
                   </label>
+                ) : (
+                  <div className="block">
+                    <span className={labelClass}>&nbsp;</span>
+                    <Link
+                      href={`/teleprompter?postId=${post.id}`}
+                      className={`${inputClass} flex items-center justify-center gap-1.5 hover:bg-bg-tertiary transition-colors`}
+                    >
+                      <MonitorPlay size={14} /> Teleprompter
+                    </Link>
+                  </div>
                 )}
               </div>
 
-              <div className="grid grid-cols-2 gap-2 pt-2">
-                {!isLinkedIn && (
+              {form.series_id && (
+                <Link
+                  href={`/teleprompter?postId=${post.id}`}
+                  className={`${inputClass} flex items-center justify-center gap-1.5 hover:bg-bg-tertiary transition-colors`}
+                >
+                  <MonitorPlay size={14} /> Teleprompter
+                </Link>
+              )}
+
+              {!isLinkedIn && (
+                <div className="grid grid-cols-2 gap-2 pt-2">
                   <button
                     type="button"
                     onClick={() => handleRegenerate('caption')}
@@ -575,8 +695,6 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                   >
                     <Wand2 size={14} /> Regenerate Caption
                   </button>
-                )}
-                {!isLinkedIn && (
                   <button
                     type="button"
                     onClick={() => handleRegenerate('hook')}
@@ -584,26 +702,8 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
                   >
                     <Wand2 size={14} /> Regenerate Hook
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (form.script) {
-                      navigator.clipboard.writeText(form.script);
-                      toast('Script copied for repurpose');
-                    }
-                  }}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
-                >
-                  <Copy size={14} /> Repurpose
-                </button>
-                <Link
-                  href={`/teleprompter?postId=${post.id}`}
-                  className="flex items-center justify-center gap-1.5 px-3 py-2 min-h-[44px] text-[13px] text-text-primary bg-bg-secondary border border-border rounded-md hover:bg-bg-tertiary transition-colors"
-                >
-                  <MonitorPlay size={14} /> Teleprompter
-                </Link>
-              </div>
+                </div>
+              )}
 
               <GenerateVariantsSection
                 content={form.script || form.caption || form.hook || form.title}
@@ -617,12 +717,22 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
               <button
                 type="button"
-                onClick={handleDelete}
+                onClick={() => setDeleteOpen(true)}
                 disabled={deleting}
                 className="flex items-center gap-1.5 text-[13px] text-accent-primary hover:text-accent-dark transition-colors mt-2 min-h-[44px]"
               >
                 <Trash2 size={14} /> Delete Post
               </button>
+              <ConfirmModal
+                open={deleteOpen}
+                title="Remove post"
+                message="Remove this post from the tool? Your live LinkedIn/X post is not affected."
+                confirmLabel="Remove"
+                tone="danger"
+                loading={deleting}
+                onConfirm={() => void handleDelete()}
+                onClose={() => setDeleteOpen(false)}
+              />
             </>
           )}
 
@@ -666,6 +776,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </div>
 
               <PublishPanel
+                publishedTo={isPosted ? form.platform : null}
                 postId={post.id}
                 content={form.script || form.hook || form.title}
                 caption={form.caption}
@@ -683,6 +794,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </div>
 
               <BulkPublishPanel
+                publishedTo={isPosted ? form.platform : null}
                 postId={post.id}
                 content={form.script || form.hook || form.title}
                 caption={form.caption}
@@ -697,17 +809,11 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
           {activeTab === 'comments' && (
             <>
-              {isPosted && !post.publish_job_id && (
-                <LinkLivePostBanner
-                  postId={post.id}
-                  platform={normalizeDashboardPlatform(form.platform)}
-                  onLinked={() => {
-                    setInboxKey((k) => k + 1);
-                    onSave();
-                  }}
-                />
-              )}
-              <EngagementInbox key={inboxKey} postId={post.id} compact />
+              <EngagementInbox
+                postId={post.id}
+                compact
+                actionsPortal={commentActionsSlot}
+              />
             </>
           )}
 
@@ -813,7 +919,12 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
               </button>
             </div>
           )}
-          <StatusPipeline current={form.status} onChange={handleStatusChange} />
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 overflow-x-auto">
+              <StatusPipeline current={form.status} onChange={handleStatusChange} />
+            </div>
+            <div ref={setCommentActionsSlot} />
+          </div>
         </div>
         </div>
       </div>
@@ -821,76 +932,19 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
       {showPerfModal && (
         <PerformanceModal post={post} onSave={handlePerfSave} onClose={() => setShowPerfModal(false)} />
       )}
+
+      <ConfirmModal
+        open={closeConfirmOpen}
+        title="Close editor"
+        message="Your unsaved changes will stay in this browser and be restored when you reopen this post."
+        confirmLabel="Close"
+        onConfirm={() => {
+          setCloseConfirmOpen(false);
+          onClose();
+        }}
+        onClose={() => setCloseConfirmOpen(false)}
+      />
     </>
-  );
-}
-
-/**
- * Shown in the Comments tab for a posted post that was never published/linked
- * through the app (an "old" post, so no publish_jobs row and no comments). The
- * user pastes the live post URL; the server resolves the provider post id and
- * links it, unlocking comment + reaction sync.
- */
-function LinkLivePostBanner({
-  postId,
-  platform,
-  onLinked,
-}: {
-  postId: string;
-  platform: DashboardPlatform;
-  onLinked: () => void;
-}) {
-  const { toast } = useToast();
-  const [url, setUrl] = useState('');
-  const [linking, setLinking] = useState(false);
-  const label = platform === 'linkedin' ? 'LinkedIn' : platform === 'twitter' ? 'X' : 'post';
-
-  async function link() {
-    if (!url.trim()) return;
-    setLinking(true);
-    try {
-      const res = await fetchWithAuth(`/api/posts/${postId}/link-live`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error((data as { error?: string }).error ?? 'Could not link the post.');
-      toast('Linked. Hit Sync to pull in the comments.');
-      onLinked();
-    } catch (e) {
-      toast(e instanceof Error ? e.message : 'Could not link the post.', 'error');
-    } finally {
-      setLinking(false);
-    }
-  }
-
-  return (
-    <div className="rounded-lg border border-dashed border-border bg-bg-secondary p-3 space-y-2">
-      <p className="text-[13px] font-medium text-text-primary">Pull in this post&apos;s comments</p>
-      <p className="text-[12px] text-text-secondary">
-        This post was published outside the app, so paste its {label} URL to load the real comments
-        and replies here.
-      </p>
-      <div className="flex gap-2">
-        <input
-          type="url"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') void link(); }}
-          placeholder={platform === 'twitter' ? 'https://x.com/you/status/…' : 'https://www.linkedin.com/feed/update/…'}
-          className="flex-1 rounded-md border border-border bg-bg-primary px-3 py-2 text-[13px] text-text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-accent-primary"
-        />
-        <button
-          type="button"
-          onClick={() => void link()}
-          disabled={linking || !url.trim()}
-          className="shrink-0 rounded-md bg-accent-primary px-4 text-[13px] font-medium text-text-inverse hover:bg-accent-dark disabled:opacity-50"
-        >
-          {linking ? 'Linking…' : 'Link'}
-        </button>
-      </div>
-    </div>
   );
 }
 
@@ -906,15 +960,46 @@ function PostSocialPreview({
   headline,
   text,
   imageUrl,
+  imageUrls,
+  videoUrl,
+  reactions,
+  comments,
+  reposts,
+  repost,
+  topComments,
+  totalComments,
 }: {
   platform: DashboardPlatform;
   name: string;
   headline?: string | null;
   text: string;
   imageUrl?: string | null;
+  imageUrls?: string[];
+  videoUrl?: string | null;
+  reactions?: number;
+  comments?: number;
+  reposts?: number;
+  repost?: Post['reposted_content'];
+  topComments?: Array<{ id: string; author: string; headline?: string | null; text: string; age?: string | null }>;
+  totalComments?: number;
 }) {
   if (platform === 'linkedin') {
-    return <LinkedInPostPreview name={name} headline={headline} text={text} imageUrl={imageUrl} />;
+    return (
+      <LinkedInPostPreview
+        name={name}
+        headline={headline}
+        text={text}
+        imageUrl={imageUrl}
+        imageUrls={imageUrls}
+        videoUrl={videoUrl}
+        reactions={reactions}
+        comments={comments}
+        reposts={reposts}
+        repost={repost}
+        topComments={topComments}
+        totalComments={totalComments}
+      />
+    );
   }
   // X / other: minimal tweet-style card.
   return (

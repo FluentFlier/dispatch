@@ -10,6 +10,7 @@ import type { Status } from "@/lib/constants";
 import SeriesCard from "@/components/series/SeriesCard";
 import SeriesParts from "@/components/series/SeriesParts";
 import { PageHeader } from "@/components/layout/PageHeader";
+import { isPublished } from "@/lib/posts/published";
 
 interface ProgressSummary {
   posted: number;
@@ -90,16 +91,16 @@ export default function SeriesPage() {
       const insforge = getInsforge();
       const { data } = await insforge.database
         .from("posts")
-        .select("series_id, status, caption, scheduled_date, script")
+        .select("series_id, status, posted_date, caption, scheduled_date, script")
         .eq("user_id", userId)
         .in("series_id", seriesList.map((s) => s.id));
 
       const byId: Record<string, { posted: number; inProduction: number }> = {};
-      for (const row of (data ?? []) as Pick<Post, "series_id" | "status" | "caption" | "scheduled_date" | "script">[]) {
+      for (const row of (data ?? []) as Pick<Post, "series_id" | "status" | "posted_date" | "caption" | "scheduled_date" | "script">[]) {
         const sid = row.series_id;
         if (!sid) continue;
         byId[sid] ??= { posted: 0, inProduction: 0 };
-        if (row.status === "posted") byId[sid].posted += 1;
+        if (isPublished(row)) byId[sid].posted += 1;
         else if (row.status !== "idea" || row.caption || row.scheduled_date || row.script) {
           byId[sid].inProduction += 1;
         }

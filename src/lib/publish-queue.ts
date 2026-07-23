@@ -116,6 +116,7 @@ export async function processPublishJob(
     text: content,
     imageUrl: (post.image_url as string) ?? null,
     scheduledAt: job.scheduled_for,
+    mentions: (post.mentions as PublishPayload['mentions']) ?? null,
   };
 
   // Track the incremented attempt count in one place so the failure path

@@ -51,11 +51,12 @@ async function upsertComment(
     author_headline?: string;
     commented_at?: string;
     parent_comment_id?: string | null;
+    is_own?: boolean;
   },
 ): Promise<'inserted' | 'updated' | 'skipped'> {
   const { data: existing } = await client.database
     .from('post_comments')
-    .select('id, comment_text, author_name, author_handle, author_headline, commented_at')
+    .select('id, comment_text, author_name, author_handle, author_headline, commented_at, parent_comment_id, is_own')
     .eq('user_id', userId)
     .eq('provider_comment_id', row.provider_comment_id)
     .limit(1);
@@ -68,6 +69,8 @@ async function upsertComment(
         author_handle: string | null;
         author_headline: string | null;
         commented_at: string | null;
+        parent_comment_id: string | null;
+        is_own: boolean | null;
       }
     | undefined;
 
@@ -79,7 +82,11 @@ async function upsertComment(
     const fillsAuthor =
       !hit.author_name && !hit.author_handle && Boolean(row.author_name || row.author_handle);
     const fillsTime = !hit.commented_at && Boolean(row.commented_at);
-    if (textSame && !fillsAuthor && !fillsTime) return 'skipped';
+    // Rows synced before threads and ownership were understood carry a null
+    // parent and is_own=false; a re-sync now knows better, so let it heal them.
+    const fillsThread = !hit.parent_comment_id && Boolean(row.parent_comment_id);
+    const fillsOwn = !hit.is_own && Boolean(row.is_own);
+    if (textSame && !fillsAuthor && !fillsTime && !fillsThread && !fillsOwn) return 'skipped';
     const { error } = await client.database
       .from('post_comments')
       .update({
@@ -88,6 +95,8 @@ async function upsertComment(
         author_handle: row.author_handle ?? hit.author_handle ?? null,
         author_headline: row.author_headline ?? hit.author_headline ?? null,
         commented_at: row.commented_at ?? hit.commented_at ?? null,
+        parent_comment_id: row.parent_comment_id ?? hit.parent_comment_id ?? null,
+        is_own: row.is_own ?? hit.is_own ?? false,
         synced_at: new Date().toISOString(),
       })
       .eq('id', hit.id)
@@ -108,6 +117,7 @@ async function upsertComment(
       author_headline: row.author_headline ?? null,
       commented_at: row.commented_at ?? null,
       parent_comment_id: row.parent_comment_id ?? null,
+      is_own: row.is_own ?? false,
     },
   ]);
 
@@ -180,7 +190,12 @@ async function ingestProviderComments(
   let skipped = 0;
   const errors: string[] = [];
 
-  for (const c of fetched) {
+  // Parents first, so a reply's parent row exists by the time we resolve it.
+  const ordered = [...fetched].sort(
+    (a, b) => Number(Boolean(a.parent_provider_comment_id)) - Number(Boolean(b.parent_provider_comment_id)),
+  );
+
+  for (const c of ordered) {
     try {
       const result = await upsertComment(client, userId, {
         post_id: postId,
@@ -191,6 +206,14 @@ async function ingestProviderComments(
         author_handle: c.author_handle,
         author_headline: c.author_headline,
         commented_at: c.commented_at,
+        // Thread replies were fetched but never linked, so the inbox could not
+        // tell a reply from a top-level comment - nor see the creator's own.
+        parent_comment_id: await resolveParentCommentId(
+          client,
+          userId,
+          c.parent_provider_comment_id,
+        ),
+        is_own: c.is_own,
       });
       if (result === 'inserted') inserted++;
       else if (result === 'updated') updated++;

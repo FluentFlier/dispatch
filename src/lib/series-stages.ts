@@ -1,5 +1,6 @@
 import type { Post } from '@/lib/types';
 import type { Status } from '@/lib/constants';
+import { isPublished } from '@/lib/posts/published';
 
 /**
  * A part's production journey, deferring publishing to the very end. Creators
@@ -50,7 +51,7 @@ function has(value: string | null | undefined): boolean {
  * a later stage always wins (a posted part is 'posted' even without a caption).
  */
 export function resolveSeriesStage(post: Post): number {
-  if (post.status === 'posted') return 6;
+  if (isPublished(post)) return 6;
   if (has(post.scheduled_date)) return 5;
   if (has(post.caption)) return 4;
   if (post.status === 'edited') return 3;
@@ -70,9 +71,9 @@ export function seriesProgress(posts: Post[], totalParts: number): {
   inProduction: number;
   total: number;
 } {
-  const posted = posts.filter((p) => p.status === 'posted').length;
+  const posted = posts.filter(isPublished).length;
   const inProduction = posts.filter(
-    (p) => p.status !== 'posted' && resolveSeriesStage(p) > 0,
+    (p) => !isPublished(p) && resolveSeriesStage(p) > 0,
   ).length;
   return { posted, inProduction, total: totalParts };
 }
