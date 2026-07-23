@@ -5,6 +5,7 @@ import { Loader2, X } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import type { IcpProfileRow } from '@/lib/signals/types';
+import { MAX_ICP_KEYWORDS, MAX_ICP_VERTICALS } from '@/lib/signals/leads/icp-limits';
 
 const jsonHeaders = { 'Content-Type': 'application/json' } as const;
 
@@ -14,17 +15,20 @@ function ChipInput({
   onChange,
   placeholder,
   ariaLabel,
+  max,
 }: {
   values: string[];
   onChange: (next: string[]) => void;
   placeholder: string;
   ariaLabel: string;
+  max: number;
 }) {
   const [draft, setDraft] = useState('');
 
   const add = (raw: string) => {
     const v = raw.trim().replace(/,$/, '').trim();
     if (!v) return;
+    if (values.length >= max) return;
     if (values.some((x) => x.toLowerCase() === v.toLowerCase())) {
       setDraft('');
       return;
@@ -65,7 +69,8 @@ function ChipInput({
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKeyDown}
         onBlur={() => add(draft)}
-        placeholder={values.length === 0 ? placeholder : ''}
+        placeholder={values.length === 0 ? placeholder : values.length >= max ? `Limit of ${max} reached` : ''}
+        disabled={values.length >= max}
         aria-label={ariaLabel}
         className="min-w-[120px] flex-1 bg-transparent px-1 py-0.5 text-sm text-text-primary placeholder:text-text-tertiary focus:outline-none"
       />
@@ -164,12 +169,14 @@ export function IcpForm({ profile, onSaved, onCancel, toast }: IcpFormProps) {
 
       <div>
         <span className="block text-xs font-medium text-text-secondary">Verticals</span>
-        <ChipInput values={verticals} onChange={setVerticals} placeholder="Add a vertical…" ariaLabel="Verticals" />
+        <ChipInput values={verticals} onChange={setVerticals} placeholder="Add a vertical…" ariaLabel="Verticals" max={MAX_ICP_VERTICALS} />
+        <p className="mt-1 text-xs text-text-tertiary">{verticals.length}/{MAX_ICP_VERTICALS}</p>
       </div>
 
       <div>
         <span className="block text-xs font-medium text-text-secondary">Keywords</span>
-        <ChipInput values={keywords} onChange={setKeywords} placeholder="Add a keyword…" ariaLabel="Keywords" />
+        <ChipInput values={keywords} onChange={setKeywords} placeholder="Add a keyword…" ariaLabel="Keywords" max={MAX_ICP_KEYWORDS} />
+        <p className="mt-1 text-xs text-text-tertiary">{keywords.length}/{MAX_ICP_KEYWORDS} keywords saved</p>
       </div>
 
       <div className="flex items-center gap-2 pt-1">

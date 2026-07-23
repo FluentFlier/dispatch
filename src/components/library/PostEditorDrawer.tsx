@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { X, Wand2, Copy, MonitorPlay, Trash2, Clock, BarChart3 } from 'lucide-react';
 import type { Post, Series } from '@/lib/types';
 import { postPillars, pillarWeights } from '@/lib/pillars';
@@ -17,6 +17,12 @@ import dynamic from 'next/dynamic';
 import { logEditFeedback } from '@/lib/hooks-intelligence/edit-feedback';
 import { fetchWithAuth } from '@/lib/fetch-with-auth';
 import { shortAge } from '@/lib/utils';
+import {
+  clearPostEditorDraft,
+  formsMatch,
+  readPostEditorDraft,
+  writePostEditorDraft,
+} from '@/components/library/post-editor-draft';
 
 const EngagementInbox = dynamic(() => import('@/components/engagement/EngagementInbox'), {
   ssr: false,
@@ -52,12 +58,8 @@ interface PostEditorDrawerProps {
   onDelete: () => void;
 }
 
-export default function PostEditorDrawer({ post, series, onClose, onSave, onDelete }: PostEditorDrawerProps) {
-  const { toast } = useToast();
-  // Preview opens first: for a published post the card is the answer to "what
-  // is this?", and the edit fields are the follow-up.
-  const [activeTab, setActiveTab] = useState<DrawerTab>('preview');
-  const [form, setForm] = useState({
+function formFromPost(post: Post) {
+  return {
     title: post.title,
     pillar: post.pillar,
     pillars: postPillars(post),
@@ -83,10 +85,25 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
     follows_gained: post.follows_gained ?? 0,
     voice_match_score: post.voice_match_score ?? null,
     ai_score: post.ai_score ?? null,
-  });
+  };
+}
+
+type PostEditorForm = ReturnType<typeof formFromPost>;
+
+export default function PostEditorDrawer({ post, series, onClose, onSave, onDelete }: PostEditorDrawerProps) {
+  const { toast } = useToast();
+  // Preview opens first: for a published post the card is the answer to "what
+  // is this?", and the edit fields are the follow-up.
+  const [activeTab, setActiveTab] = useState<DrawerTab>('preview');
+  const [form, setForm] = useState<PostEditorForm>(() => formFromPost(post));
+  const [savedForm, setSavedForm] = useState<PostEditorForm>(() => formFromPost(post));
+  const formRef = useRef(form);
+  formRef.current = form;
+  const outsideClickNoticeShown = useRef(false);
   const [showPerfModal, setShowPerfModal] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
   // Bumped after linking a live post URL, to remount EngagementInbox so it
   // re-fetches (its auto-sync fires on an empty, now-linked post).
   // Footer slot the Comments tab portals its Sync/Draft/Send row into, so those
@@ -141,34 +158,69 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
   }, [isLinkedIn]);
 
   useEffect(() => {
-    setForm({
-      title: post.title,
-      pillar: post.pillar,
-      pillars: postPillars(post),
-      pillar_weights: pillarWeights(post),
-      platform: post.platform,
-      status: post.status,
-      scheduled_date: post.scheduled_date ?? '',
-      scheduled_publish_at: post.scheduled_publish_at ?? '',
-      hook: post.hook ?? '',
-      script: post.script ?? '',
-      caption: post.caption ?? '',
-      hashtags: post.hashtags ?? '',
-      notes: post.notes ?? '',
-      series_id: post.series_id ?? '',
-      series_position: post.series_position ?? 1,
-      image_url: post.image_url ?? '',
-      posted_date: post.posted_date ?? '',
-      views: post.views ?? 0,
-      likes: post.likes ?? 0,
-      saves: post.saves ?? 0,
-      comments: post.comments ?? 0,
-      shares: post.shares ?? 0,
-      follows_gained: post.follows_gained ?? 0,
-      voice_match_score: post.voice_match_score ?? null,
-      ai_score: post.ai_score ?? null,
-    });
-  }, [post]);
+    const serverForm = formFromPost(post);
+    setSavedForm(serverForm);
+    outsideClickNoticeShown.current = false;
+
+    const draft = readPostEditorDraft<PostEditorForm>(window.localStorage, post.id);
+    if (draft && !formsMatch(draft.form, serverForm)) {
+      setForm(draft.form);
+      toast('Recovered your unsaved browser draft');
+    } else {
+      setForm(serverForm);
+      if (draft) clearPostEditorDraft(window.localStorage, post.id);
+    }
+  }, [post, toast]);
+
+  const isDirty = !formsMatch(form, savedForm);
+
+  useEffect(() => {
+    if (isDirty) {
+      writePostEditorDraft(window.localStorage, post.id, form);
+    } else {
+      clearPostEditorDraft(window.localStorage, post.id);
+    }
+  }, [form, isDirty, post.id]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    const warnBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warnBeforeUnload);
+    return () => window.removeEventListener('beforeunload', warnBeforeUnload);
+  }, [isDirty]);
+
+  const requestClose = useCallback((source: 'outside' | 'explicit') => {
+    if (!isDirty) {
+      onClose();
+      return;
+    }
+    if (source === 'outside') {
+      if (!outsideClickNoticeShown.current) {
+        toast('Still editing — your changes are saved in this browser');
+        outsideClickNoticeShown.current = true;
+      }
+      return;
+    }
+    setCloseConfirmOpen(true);
+  }, [isDirty, onClose, toast]);
+
+  useEffect(() => {
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !showPerfModal) requestClose('explicit');
+    };
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [requestClose, showPerfModal]);
+
+  const discardDraft = useCallback(() => {
+    if (!confirm('Discard the changes you made since the last save?')) return;
+    clearPostEditorDraft(window.localStorage, post.id);
+    setForm(savedForm);
+    onClose();
+  }, [onClose, post.id, savedForm]);
 
   const autoSave = useCallback(async () => {
     try {
@@ -188,6 +240,12 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
         }),
       });
       if (res.ok) {
+        setSavedForm(form);
+        // A slower save must not erase newer keystrokes that happened while the
+        // request was in flight. The form effect will retain that newer draft.
+        if (formsMatch(formRef.current, form)) {
+          clearPostEditorDraft(window.localStorage, post.id);
+        }
         toast('Saved');
         onSave();
 
@@ -321,7 +379,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
 
   return (
     <>
-      <div className="fixed inset-0 z-[60] bg-black/40" onClick={onClose} />
+      <div className="fixed inset-0 z-[60] bg-black/40" onClick={() => requestClose('outside')} />
 
       {/* Centered modal window (was a right-side drawer). Opens as a large
           overlay so a post gets a full editing surface, not a cramped rail. */}
@@ -329,8 +387,9 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
           viewport (`max-h-full`) so the body pane below is the single thing that
           scrolls. The old `overflow-y-auto` here plus a `90vh` shell meant the
           wheel chained between two scrollers and the modal could still outgrow
-          the screen. */}
-      <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 sm:p-6" onClick={onClose}>
+          the screen. Outside clicks route through requestClose so unsaved edits
+          are never lost to a stray click. */}
+      <div className="fixed inset-0 z-[65] flex items-center justify-center p-4 sm:p-6" onClick={() => requestClose('outside')}>
         <div
           role="dialog"
           aria-modal="true"
@@ -342,7 +401,7 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
             {form.title || 'Edit post'}
           </h2>
           <button
-            onClick={onClose}
+            onClick={() => requestClose('explicit')}
             className="text-text-secondary hover:text-text-primary transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center shrink-0"
             aria-label="Close"
           >
@@ -847,11 +906,25 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
           )}
         </div>
 
-        <div className="shrink-0 border-t border-border p-4 bg-bg-secondary flex items-center justify-between gap-3">
-          <div className="min-w-0 overflow-x-auto">
-            <StatusPipeline current={form.status} onChange={handleStatusChange} />
+        <div className="shrink-0 border-t border-border p-4 bg-bg-secondary">
+          {isDirty && (
+            <div className="mb-3 flex items-center justify-between gap-3 text-xs">
+              <span className="text-text-secondary">Unsaved changes are backed up in this browser.</span>
+              <button
+                type="button"
+                onClick={discardDraft}
+                className="shrink-0 text-accent-primary hover:text-accent-dark transition-colors"
+              >
+                Discard changes
+              </button>
+            </div>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0 overflow-x-auto">
+              <StatusPipeline current={form.status} onChange={handleStatusChange} />
+            </div>
+            <div ref={setCommentActionsSlot} />
           </div>
-          <div ref={setCommentActionsSlot} />
         </div>
         </div>
       </div>
@@ -859,6 +932,18 @@ export default function PostEditorDrawer({ post, series, onClose, onSave, onDele
       {showPerfModal && (
         <PerformanceModal post={post} onSave={handlePerfSave} onClose={() => setShowPerfModal(false)} />
       )}
+
+      <ConfirmModal
+        open={closeConfirmOpen}
+        title="Close editor"
+        message="Your unsaved changes will stay in this browser and be restored when you reopen this post."
+        confirmLabel="Close"
+        onConfirm={() => {
+          setCloseConfirmOpen(false);
+          onClose();
+        }}
+        onClose={() => setCloseConfirmOpen(false)}
+      />
     </>
   );
 }

@@ -49,9 +49,11 @@ vi.mock('@/lib/llm', () => ({
 import { POST } from '@/app/api/leads/icp/chat/route';
 import { updateDirectorySettings } from '@/lib/signals/leads/store';
 import { chatCompletion } from '@/lib/llm';
+import { putBrainPage } from '@/lib/brain/pages';
 
 const updateMock = updateDirectorySettings as unknown as ReturnType<typeof vi.fn>;
 const chatMock = chatCompletion as unknown as ReturnType<typeof vi.fn>;
+const brainMock = putBrainPage as unknown as ReturnType<typeof vi.fn>;
 
 function req(message: string): NextRequest {
   return new NextRequest('http://localhost/api/leads/icp/chat', {
@@ -62,6 +64,7 @@ function req(message: string): NextRequest {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  brainMock.mockResolvedValue(undefined);
   h.currentIcp = '';
 });
 
@@ -95,6 +98,22 @@ describe('POST /api/leads/icp/chat - ICP actually persists', () => {
     expect(updateMock).toHaveBeenCalledTimes(1);
     expect(updateMock.mock.calls[0][2].icp_description).toBe(msg);
     expect(body.applied).toBe(true);
+  });
+
+  it('reports the core save as successful when Brain enrichment fails afterward', async () => {
+    chatMock.mockResolvedValue(
+      '{"reply":"Set.","icp_description":"Seed fintech founders from YC","run_discovery":false}',
+    );
+    brainMock.mockRejectedValueOnce(new Error('brain unavailable'));
+
+    const res = await POST(req('we sell to seed fintech founders from YC'));
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(body.applied).toBe(true);
+    expect(body.enrichmentWarnings).toContain('brain_sync');
+    expect(body.requestId).toEqual(expect.any(String));
   });
 
   it('does NOT persist a pure "find leads now" command', async () => {

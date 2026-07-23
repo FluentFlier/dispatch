@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2, Link2, Loader2 } from 'lucide-react';
+import { CheckCircle2, Clock3, Link2, Loader2 } from 'lucide-react';
 import { COPY } from '../copy';
 
 export interface ConnectedAccount {
@@ -20,6 +20,11 @@ interface StepConnectProps {
   onConnectGmail: () => void;
   building: boolean;
   buildingLine: string;
+  connectionFeedback:
+    | { status: 'confirming' }
+    | { status: 'connected'; accountName: string | null }
+    | { status: 'pending' }
+    | null;
 }
 
 const PLATFORM_LABEL: Record<string, string> = {
@@ -43,6 +48,7 @@ export function StepConnect({
   onConnectGmail,
   building,
   buildingLine,
+  connectionFeedback,
 }: StepConnectProps) {
   const copy = COPY.steps.connect;
 
@@ -60,6 +66,52 @@ export function StepConnect({
 
   return (
     <div className="space-y-4">
+      {connectionFeedback?.status === 'confirming' && (
+        <div
+          className="flex items-center gap-3 rounded-lg border border-accent-primary/30 bg-accent-primary/5 p-4 text-sm text-ink"
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="h-5 w-5 shrink-0 animate-spin text-accent-primary" />
+          <div>
+            <p className="font-medium">{copy.confirmingTitle}</p>
+            <p className="mt-0.5 text-xs text-ink2">{copy.confirmingHint}</p>
+          </div>
+        </div>
+      )}
+
+      {connectionFeedback?.status === 'connected' && (
+        <div
+          className="flex items-center gap-3 rounded-lg border border-emerald-500/35 bg-emerald-500/10 p-4 text-sm text-ink"
+          role="status"
+          aria-live="polite"
+        >
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600" />
+          <div>
+            <p className="font-semibold">{copy.connectionSuccessTitle}</p>
+            <p className="mt-0.5 text-xs text-ink2">
+              {connectionFeedback.accountName
+                ? copy.connectionSuccessNamed.replace('{name}', connectionFeedback.accountName)
+                : copy.connectionSuccessHint}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {connectionFeedback?.status === 'pending' && (
+        <div
+          className="flex items-center gap-3 rounded-lg border border-hair bg-paper2 p-4 text-sm text-ink"
+          role="status"
+          aria-live="polite"
+        >
+          <Clock3 className="h-5 w-5 shrink-0 text-ink2" />
+          <div>
+            <p className="font-medium">{copy.connectionPendingTitle}</p>
+            <p className="mt-0.5 text-xs text-ink2">{copy.connectionPendingHint}</p>
+          </div>
+        </div>
+      )}
+
       {unipileReady === false && (
         <div className="rounded-lg border border-hair bg-paper2 p-4 text-sm text-ink2">
           {copy.unipileUnavailable}
@@ -72,13 +124,19 @@ export function StepConnect({
           return (
             <li
               key={platform}
-              className="flex items-center justify-between rounded-md border border-hair bg-paper2 px-4 py-3"
+              className={`flex items-center justify-between rounded-md border px-4 py-3 ${
+                connected
+                  ? 'border-emerald-500/35 bg-emerald-500/10'
+                  : 'border-hair bg-paper2'
+              }`}
             >
               <span className="text-sm font-medium text-ink">{PLATFORM_LABEL[platform]}</span>
               {connected ? (
-                <span className="flex items-center gap-1.5 text-xs text-ink">
+                <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-700">
                   <CheckCircle2 className="h-3.5 w-3.5" />
-                  {connected.account_name ?? copy.connectedLabel}
+                  {connected.account_name
+                    ? copy.connectedAs.replace('{name}', connected.account_name)
+                    : copy.connectedLabel}
                 </span>
               ) : (
                 <span className="text-xs text-ink3">{copy.notConnected}</span>

@@ -269,11 +269,10 @@ export async function loadCreatorVoiceContext(
   let voiceSource: 'fallback' | 'imported' | undefined;
 
   try {
-    let profileQuery = client.database
+    const profileQuery = client.database
       .from('creator_profile')
       .select('display_name, bio, bio_facts, content_pillars, voice_description, voice_rules, niche_id')
       .eq('user_id', userId);
-    if (options.workspaceId) profileQuery = profileQuery.eq('workspace_id', options.workspaceId);
 
     let settingsQuery = client.database
       .from('user_settings')

@@ -77,8 +77,19 @@ const SCORE_CHIP_MIN = 0.15;
  * uses the real underlying score.
  */
 export function scoreChip(score: number): string | null {
-  if (score < SCORE_CHIP_MIN) return null;
-  return score.toFixed(2);
+  if (!Number.isFinite(score) || score < SCORE_CHIP_MIN) return null;
+  return `${Math.round(Math.min(1, score) * 100)}%`;
+}
+
+/**
+ * Turns a normalized 0-1 score into a user-facing percentage. A missing,
+ * invalid, or non-positive value means the lead has not been scored yet in
+ * the current data model, so callers can omit the number instead of implying
+ * a measured 0% fit.
+ */
+export function fitPercentage(score: number | null | undefined): string | null {
+  if (typeof score !== 'number' || !Number.isFinite(score) || score <= 0) return null;
+  return `${Math.round(Math.min(1, score) * 100)}%`;
 }
 
 /** Short label for the contact-status pill: resolved vs no-contact. */

@@ -2,7 +2,7 @@
 
 import { FolderOpen, Pin, Radio } from 'lucide-react';
 import type { LeadQualityBreakdown, UnifiedLeadCard } from '@/lib/signals/feed/normalize';
-import { importedLabel, signalTypeLabel, sourceBadge } from './feed-format';
+import { fitPercentage, importedLabel, signalTypeLabel, sourceBadge } from './feed-format';
 
 interface LeadCardProps {
   card: UnifiedLeadCard;
@@ -62,6 +62,7 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown, checke
   const reachabilityScore = card.reachabilityScore ?? (card.contact ? 1 : 0);
   const primaryReason = quality.reasons[0] ?? summary;
   const secondaryReason = quality.reasons.find((r) => r !== primaryReason) ?? null;
+  const fitPercent = fitPercentage(card.fitScore);
 
   return (
     <div className={`flex items-stretch border-b border-border last:border-0 ${followed ? 'bg-sage-light/40' : ''}`}>
@@ -125,6 +126,15 @@ export function LeadCard({ card, selected, followed, onSelect, onKeyDown, checke
           <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${qualityTone(card)}`}>
             {quality.label}
           </span>
+          {fitPercent && (
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded bg-bg-tertiary text-text-secondary tabular-nums"
+              title="How closely this lead matches your saved ideal customer profile"
+              aria-label={`ICP fit: ${fitPercent}`}
+            >
+              ICP fit {fitPercent}
+            </span>
+          )}
           {signal && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-bg-tertiary text-text-secondary">
               {signal}

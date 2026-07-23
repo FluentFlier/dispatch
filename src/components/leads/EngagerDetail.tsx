@@ -13,7 +13,7 @@ import {
 import { Button } from '@/components/ui/Button';
 import type { UnifiedLeadCard } from '@/lib/signals/feed/normalize';
 import type { WarmContactRow } from '@/lib/social-graph/types';
-import { nurtureStageLabel } from './feed-format';
+import { fitPercentage, nurtureStageLabel } from './feed-format';
 import { LINKEDIN_CONNECT_NOTE_LIMIT } from '@/lib/leads/constants';
 
 const CONNECT_LIMIT = LINKEDIN_CONNECT_NOTE_LIMIT;
@@ -66,6 +66,7 @@ export function EngagerDetail({
   const channel = loaded?.outreach_channel ?? (stage === 'dm_ready' ? 'linkedin_dm' : 'linkedin_connect');
   const isDm = channel === 'linkedin_dm';
   const overLimit = !isDm && draft.length > CONNECT_LIMIT;
+  const priorityPercent = fitPercentage(card.score);
 
   const planned = stage != null && stage !== 'discovered';
   const busyPlan = busyAction === 'plan';
@@ -105,9 +106,15 @@ export function EngagerDetail({
             {loaded.category}
           </span>
         )}
-        <span className="text-[11px] px-2 py-0.5 rounded-full bg-bg-tertiary text-text-secondary">
-          Priority {card.score.toFixed(2)}
-        </span>
+        {priorityPercent && (
+          <span
+            className="text-[11px] px-2 py-0.5 rounded-full bg-bg-tertiary text-text-secondary tabular-nums"
+            title="Relative lead priority based on ICP category, engagement, and profile reachability"
+            aria-label={`Lead priority: ${priorityPercent}`}
+          >
+            Lead priority {priorityPercent}
+          </span>
+        )}
       </div>
 
       {/* Research dossier */}

@@ -8,7 +8,7 @@ import { classifyPost } from '@/lib/signals/classifier';
 import { classifyPostHybridWithMeta } from '@/lib/signals/detect/hybrid';
 import { enforceConnectLimit } from '@/lib/signals/outreach/enforce-limit';
 import { DEFAULT_SAFETY_SETTINGS } from '@/lib/signals/safety/limits';
-import { scoreChip, importedLabel } from '@/components/leads/feed-format';
+import { fitPercentage, scoreChip, importedLabel } from '@/components/leads/feed-format';
 import type { IngestedPost } from '@/lib/signals/types';
 
 const post = (content: string): IngestedPost => ({
@@ -130,12 +130,20 @@ describe('Phase: Leads bugfixes', () => {
       expect(scoreChip(0.14)).toBeNull();
     });
 
-    it('shows the chip at the threshold (0.15)', () => {
-      expect(scoreChip(0.15)).toBe('0.15');
+    it('shows the chip as a percentage at the threshold (0.15)', () => {
+      expect(scoreChip(0.15)).toBe('15%');
     });
 
-    it('shows the chip for a high score (0.99)', () => {
-      expect(scoreChip(0.99)).toBe('0.99');
+    it('shows the chip as a percentage for a high score (0.99)', () => {
+      expect(scoreChip(0.99)).toBe('99%');
+    });
+
+    it('formats fit consistently and omits missing or unscored values', () => {
+      expect(fitPercentage(0.836)).toBe('84%');
+      expect(fitPercentage(1.2)).toBe('100%');
+      expect(fitPercentage(0)).toBeNull();
+      expect(fitPercentage(Number.NaN)).toBeNull();
+      expect(fitPercentage(undefined)).toBeNull();
     });
   });
 

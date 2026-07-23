@@ -17,6 +17,10 @@ import {
 } from './actions';
 import type { CreatorBaseline } from '@/lib/onboarding/baseline';
 import type { ContentPillarConfig } from '@/types/database';
+import {
+  findNewConnectedAccount,
+  SOCIAL_ACCOUNT_SNAPSHOT_KEY,
+} from './social-connection';
 
 const DRAFT_KEY = 'onboarding-draft';
 
@@ -32,6 +36,15 @@ interface Draft {
   displayName: string;
   focus: string;
 }
+
+type SocialConnectionFeedback =
+  | { status: 'confirming' }
+  | { status: 'connected'; accountName: string | null }
+  | { status: 'pending' }
+  | null;
+
+const ACCOUNT_CONFIRMATION_ATTEMPTS = 4;
+const ACCOUNT_CONFIRMATION_DELAY_MS = 750;
 
 function readDraft(): Draft {
   if (typeof window === 'undefined') return { displayName: '', focus: '' };
@@ -70,6 +83,8 @@ export default function OnboardingWizard() {
   const [composioReady, setComposioReady] = useState<boolean | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [connectingGmail, setConnectingGmail] = useState(false);
+  const [socialConnectionFeedback, setSocialConnectionFeedback] =
+    useState<SocialConnectionFeedback>(null);
   const [building, setBuilding] = useState(false);
   const [buildingLine, setBuildingLine] = useState<string>(COPY.building.lines[0]);
   const [baseline, setBaseline] = useState<CreatorBaseline | null>(null);
@@ -79,6 +94,7 @@ export default function OnboardingWizard() {
   const [profilePillars, setProfilePillars] = useState<ContentPillarConfig[]>([]);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const resumed = useRef(false);
+  const handledSocialReturn = useRef(false);
 
   // Resume once from server state. An explicit ?step= always wins so Back works.
   useEffect(() => {
@@ -146,7 +162,8 @@ export default function OnboardingWizard() {
 
   const refreshAccounts = useCallback(async (): Promise<ConnectedAccount[]> => {
     try {
-      const res = await fetch('/api/social-accounts');
+      const res = await fetch('/api/social-accounts', { cache: 'no-store' });
+      if (!res.ok) return [];
       const data = await res.json();
       const connected = (data.accounts ?? []).filter(
         (a: ConnectedAccount) =>
@@ -155,15 +172,38 @@ export default function OnboardingWizard() {
       setAccounts(connected);
       return connected;
     } catch {
-      setAccounts([]);
       return [];
     }
   }, []);
 
+  const waitForConnectedAccount = useCallback(async (
+    previousIds: Set<string> | null,
+  ): Promise<ConnectedAccount | null> => {
+    for (let attempt = 0; attempt < ACCOUNT_CONFIRMATION_ATTEMPTS; attempt += 1) {
+      const connected = await refreshAccounts();
+      const newAccount = findNewConnectedAccount(connected, previousIds);
+      if (newAccount) return newAccount;
+      if (attempt < ACCOUNT_CONFIRMATION_ATTEMPTS - 1) {
+        await new Promise<void>((resolve) => {
+          window.setTimeout(resolve, ACCOUNT_CONFIRMATION_DELAY_MS);
+        });
+      }
+    }
+    return null;
+  }, [refreshAccounts]);
+
   const handleConnectSocial = useCallback(() => {
     setConnecting(true);
+    try {
+      const ids = accounts
+        .map((account) => account.unipile_account_id)
+        .filter((id): id is string => Boolean(id));
+      window.sessionStorage.setItem(SOCIAL_ACCOUNT_SNAPSHOT_KEY, JSON.stringify(ids));
+    } catch {
+      // The snapshot only disambiguates reconnects; the server remains authoritative.
+    }
     window.location.href = '/api/social-accounts/connect/unipile?return=onboarding';
-  }, []);
+  }, [accounts]);
 
   const handleConnectGmail = useCallback(async () => {
     setConnectingGmail(true);
@@ -264,18 +304,50 @@ export default function OnboardingWizard() {
 
     if (!connected && !gmailReturn && !failed) return;
 
+    // React strict mode and search-param replacement can both re-run effects.
+    // A hosted-connect return must only launch one sync/poll sequence.
+    if (connected && handledSocialReturn.current) return;
+    if (connected) handledSocialReturn.current = true;
+
     if (failed) setError(COPY.steps.connect.oauthFailed);
     if (gmailReturn) setGmailConnected(true);
+    if (connected) setSocialConnectionFeedback(null);
+
+    setStep('connect');
+    router.replace('/onboarding?step=connect', { scroll: false });
 
     void (async () => {
       if (connected) {
-        await fetch('/api/social-accounts/sync', { method: 'POST' }).catch(() => undefined);
-        await refreshAccounts();
+        setSocialConnectionFeedback({ status: 'confirming' });
+        let previousIds: Set<string> | null = null;
+        try {
+          const raw = window.sessionStorage.getItem(SOCIAL_ACCOUNT_SNAPSHOT_KEY);
+          if (raw) previousIds = new Set(JSON.parse(raw) as string[]);
+        } catch {
+          previousIds = null;
+        }
+        const syncResponse = await fetch('/api/social-accounts/sync', { method: 'POST' }).catch(
+          () => null,
+        );
+        const newAccount = await waitForConnectedAccount(previousIds);
+        try {
+          window.sessionStorage.removeItem(SOCIAL_ACCOUNT_SNAPSHOT_KEY);
+        } catch {
+          // best effort
+        }
+        if (newAccount) {
+          setSocialConnectionFeedback({
+            status: 'connected',
+            accountName: newAccount.account_name ?? null,
+          });
+          setError('');
+        } else {
+          setSocialConnectionFeedback({ status: 'pending' });
+          if (syncResponse && !syncResponse.ok) setError(COPY.steps.connect.oauthFailed);
+        }
       }
-      router.replace('/onboarding?step=connect', { scroll: false });
-      setStep('connect');
     })();
-  }, [ready, searchParams, refreshAccounts, router]);
+  }, [ready, searchParams, waitForConnectedAccount, router]);
 
   // Keep the account list fresh whenever the connect step is shown.
   useEffect(() => {
@@ -472,6 +544,7 @@ export default function OnboardingWizard() {
               onConnectGmail={() => void handleConnectGmail()}
               building={building}
               buildingLine={buildingLine}
+              connectionFeedback={socialConnectionFeedback}
             />
           )}
 

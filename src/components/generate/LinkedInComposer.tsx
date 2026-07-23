@@ -140,7 +140,7 @@ export function LinkedInComposer({ open, onClose, initialText, platform, postId,
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-4 sm:p-8">
-      <div className="w-full max-w-xl rounded-xl border border-hair bg-paper shadow-xl">
+      <div className="w-full max-w-5xl rounded-xl border border-hair bg-paper shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-hair px-5 py-3">
           <h2 className="text-lg text-ink">Post to {label}</h2>
@@ -149,7 +149,9 @@ export function LinkedInComposer({ open, onClose, initialText, platform, postId,
           </button>
         </div>
 
+        <div className="grid lg:grid-cols-[minmax(0,1fr)_minmax(360px,0.9fr)]">
         {/* Editor (drop an image anywhere here to attach) */}
+        <div className="border-b border-hair lg:border-b-0 lg:border-r">
         <div
           className={`px-5 pt-4 ${dragActive ? 'rounded-lg ring-2 ring-accent-primary ring-inset' : ''}`}
           onDragOver={(e) => { e.preventDefault(); setDragActive(true); }}
@@ -185,7 +187,7 @@ export function LinkedInComposer({ open, onClose, initialText, platform, postId,
           {imageUrl && (
             <div className="relative mt-2 overflow-hidden rounded-lg border border-hair">
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={imageUrl} alt="Attachment" className="max-h-72 w-full object-cover" />
+              <img src={imageUrl} alt="Attachment" className="mx-auto block h-auto max-h-72 max-w-full object-contain" />
               <button
                 onClick={() => setImageUrl(null)}
                 className="absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white"
@@ -227,19 +229,29 @@ export function LinkedInComposer({ open, onClose, initialText, platform, postId,
             <AtSign className="h-4 w-4" /> Mention
           </button>
         </div>
+        </div>
 
-        {/* Live preview */}
-        <div className="border-t border-hair bg-paper2 px-5 py-4">
-          <p className="mb-2 text-[11px] font-medium tracking-wide text-ink3">Preview</p>
+        {/* Keep the final preview visible beside the editor and publish action. */}
+        <div className="bg-[#f3f2ef] px-4 py-4 sm:px-5 lg:max-h-[70vh] lg:overflow-y-auto">
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="text-xs font-semibold text-[#666]">LinkedIn feed preview</p>
+            <p className="text-[11px] text-[#666]">Line breaks publish as shown</p>
+          </div>
           <LinkedInPostPreview name={name} headline={headline} text={text} imageUrl={imageUrl} />
+        </div>
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end gap-2 border-t border-hair px-5 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-hair px-5 py-3">
+          <p className="text-xs text-ink3">
+            Preview checked? This exact text{imageUrl ? ' and image' : ''} will be sent to {label}.
+          </p>
+          <div className="flex items-center gap-2">
           <Button variant="ghost" size="sm" onClick={onClose}>Cancel</Button>
           <Button variant="primary" size="sm" onClick={handlePublish} loading={publishing} disabled={!text.trim()}>
             Post to {label}
           </Button>
+          </div>
         </div>
       </div>
     </div>

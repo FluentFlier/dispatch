@@ -22,20 +22,19 @@ vi.mock('@/lib/insforge/server', () => ({
     database: {
       from: (table: string) => {
         if (table === 'posts') {
+          // Order-agnostic query builder: the route composes is/not/gte/eq in
+          // whatever order onlyPublished() dictates, so every filter returns
+          // the same self and only limit() resolves.
+          const builder: Record<string, unknown> = {};
+          builder.select = () => builder;
+          builder.is = () => builder;
+          builder.not = () => builder;
+          builder.gte = () => builder;
+          builder.eq = () => builder;
+          builder.order = () => builder;
+          builder.limit = () => Promise.resolve({ data: posts, error: null });
           return {
-            select: () => ({
-              is: () => ({
-                not: () => ({
-                  gte: () => ({
-                    eq: () => ({
-                      order: () => ({
-                        limit: () => Promise.resolve({ data: posts, error: null }),
-                      }),
-                    }),
-                  }),
-                }),
-              }),
-            }),
+            ...builder,
             update: () => ({
               eq: (_col: string, id: string) => {
                 callLog.push(`marked:${id}`);

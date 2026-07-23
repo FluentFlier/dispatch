@@ -1,6 +1,5 @@
 'use client';
 
-import Image from 'next/image';
 import { useState, useRef, useCallback } from 'react';
 import { Upload, X, Loader2, ImageIcon } from 'lucide-react';
 
@@ -56,14 +55,12 @@ export function ImageUpload({ imageUrl, onUpload, onRemove }: ImageUploadProps) 
   if (imageUrl) {
     return (
       <div className="relative group">
-        <div className="relative h-[200px] w-full overflow-hidden rounded-md border border-border">
-        <Image
+        <div className="flex max-h-[360px] w-full items-center justify-center overflow-hidden rounded-md border border-border bg-bg-tertiary">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
           src={imageUrl}
           alt="Post media"
-          fill
-          sizes="(max-width: 768px) 100vw, 640px"
-          className="object-cover"
-          unoptimized
+          className="block h-auto max-h-[360px] max-w-full object-contain"
         />
         </div>
         <button

@@ -50,12 +50,20 @@ describe('resolveSeriesStage', () => {
     expect(resolveSeriesStage(post({ status: 'edited' }))).toBe(3);
     expect(resolveSeriesStage(post({ caption: 'my caption' }))).toBe(4);
     expect(resolveSeriesStage(post({ scheduled_date: '2026-08-01' }))).toBe(5);
-    expect(resolveSeriesStage(post({ status: 'posted' }))).toBe(6);
+    // "posted" requires proof of publication (posted_date), not just the
+    // user-editable status - see lib/posts/published.ts.
+    expect(resolveSeriesStage(post({ status: 'posted', posted_date: '2026-08-02' }))).toBe(6);
+  });
+
+  it('does not treat a bare posted status as published without posted_date', () => {
+    expect(resolveSeriesStage(post({ status: 'posted' }))).toBe(0);
   });
 
   it('lets a later stage win over an earlier one', () => {
     // Posted beats everything, even with no caption/schedule.
-    expect(resolveSeriesStage(post({ status: 'posted', caption: null, scheduled_date: null }))).toBe(6);
+    expect(
+      resolveSeriesStage(post({ status: 'posted', posted_date: '2026-08-02', caption: null, scheduled_date: null })),
+    ).toBe(6);
     // Scheduled beats captioned.
     expect(resolveSeriesStage(post({ caption: 'x', scheduled_date: '2026-08-01' }))).toBe(5);
   });
@@ -76,7 +84,7 @@ describe('isPublishable', () => {
 describe('seriesProgress', () => {
   it('counts posted and in-production parts against the total', () => {
     const parts = [
-      post({ status: 'posted' }),
+      post({ status: 'posted', posted_date: '2026-08-02' }),
       post({ status: 'edited' }),
       post({ status: 'idea' }), // planned only -> not counted as in production
     ];

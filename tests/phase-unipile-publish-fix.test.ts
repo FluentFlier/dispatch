@@ -40,9 +40,16 @@ beforeEach(() => vi.clearAllMocks());
 describe('Phase: Unipile LinkedIn publish fix', () => {
   it('posts multipart FormData with account_id + text (not JSON)', async () => {
     mockAccountRow('acc_123');
-    const fetchSpy = vi.fn().mockResolvedValue(
-      new Response(JSON.stringify({ id: 'post_1' }), { status: 201, headers: { 'content-type': 'application/json' } }),
-    );
+    const fetchSpy = vi.fn()
+      // Publishing first verifies the cached account id is still live.
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        id: 'acc_123',
+        type: 'LINKEDIN',
+        connection_params: { im: {} },
+      }), { status: 200, headers: { 'content-type': 'application/json' } }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ id: 'post_1' }), { status: 201, headers: { 'content-type': 'application/json' } }),
+      );
     vi.stubGlobal('fetch', fetchSpy);
 
     const res = await unipileProvider.publish('user_1', { platform: 'linkedin', text: 'hello world' });
@@ -50,7 +57,7 @@ describe('Phase: Unipile LinkedIn publish fix', () => {
     expect(res.success).toBe(true);
     expect(res.platformPostId).toBe('post_1');
 
-    const [url, init] = fetchSpy.mock.calls[0];
+    const [url, init] = fetchSpy.mock.calls[1];
     expect(String(url)).toContain('/api/v1/posts');
     expect(init.method).toBe('POST');
     // Body must be FormData, not a JSON string.

@@ -1,5 +1,6 @@
 import { generateContentHF } from '@/lib/huggingface';
 import { checkGlobalLlmBudget } from '@/lib/llm-budget';
+import { getSelectedWriteModel } from '@/lib/write-models';
 
 /**
  * Provider-agnostic LLM client.
@@ -248,6 +249,12 @@ function resolveRoleProvider(role: ProviderRole): Provider | null {
  * by chatCompletion and chatCompletionStream so both route roles identically.
  */
 function resolvePrimary(options: ChatCompletionOptions): Provider | null {
+  const selected = getSelectedWriteModel();
+  // A Write-model choice applies to drafting calls only. Dedicated judge and
+  // small roles must keep their configured providers for scoring/classifying.
+  if ((!options.role || options.role === 'generate') && selected?.baseUrl && selected.apiKey && selected.model) {
+    return { baseUrl: selected.baseUrl, apiKey: selected.apiKey, model: selected.model, label: `write:${selected.id}` };
+  }
   return (options.role ? resolveRoleProvider(options.role) : null) ?? getPrimaryProvider(options.model);
 }
 

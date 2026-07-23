@@ -7,10 +7,13 @@ export interface IcpFitInput {
   tags?: string[];
   verticals: string[];
   keywords: string[];
+  description?: string | null;
+  contacts?: Array<{ role?: string | null }>;
 }
 
 const SYSTEM = [
-  'You score how well a company matches a sales team ideal-customer-profile (ICP).',
+  'You score how well a company AND its available contact match a sales team ideal-customer-profile (ICP).',
+  'Honor person role and seniority constraints. If the ICP explicitly requests individual contributors, a founder/CEO-only contact is a poor fit even when the company topic matches.',
   'Reply with ONLY a decimal number between 0 and 1. No words. 1 = perfect fit, 0 = no fit.',
 ].join(' ');
 
@@ -25,11 +28,13 @@ export async function scoreIcpFit(input: IcpFitInput): Promise<number> {
   if (input.verticals.length === 0 && input.keywords.length === 0) return 0.5;
 
   const user = [
+    `ICP description: ${input.description ?? 'none'}`,
     `ICP verticals: ${input.verticals.join(', ') || 'none'}`,
     `ICP keywords: ${input.keywords.join(', ') || 'none'}`,
     `Company: ${input.companyName}`,
     `Tagline: ${input.tagline ?? 'n/a'}`,
     `Tags: ${(input.tags ?? []).join(', ') || 'n/a'}`,
+    `Available contact roles: ${(input.contacts ?? []).map((c) => c.role).filter(Boolean).join(', ') || 'none'}`,
   ].join('\n');
 
   let raw: string;

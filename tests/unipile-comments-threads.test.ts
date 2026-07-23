@@ -15,14 +15,21 @@ vi.mock('@/lib/insforge/server', () => ({
   getServerClient: vi.fn(),
 }));
 
-vi.mock('@/lib/onboarding/import-posts', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/onboarding/import-posts')>()),
-  // identityVariants stays REAL - the ownership match is exactly what we assert.
-  resolveUnipileTarget: vi.fn(),
+// Mock one level BELOW resolveUnipileTarget instead of partially mocking
+// import-posts: that module sits in an import cycle with the engagement layer,
+// and a factory mock of it silently fails to reach unipile-comments (the real
+// resolveUnipileTarget still ran). Stubbing the Unipile HTTP helpers lets the
+// real target/identity resolution run deterministically - identityVariants and
+// the ownership match stay real, which is exactly what these tests assert.
+vi.mock('@/lib/social/unipile', () => ({
+  unipoleFetch: (path: string, options: RequestInit = {}) =>
+    fetch(`https://api.unipile.com:443/api/v1${path}`, options),
+  fetchUnipileAccountDetails: vi.fn(),
+  listUnipileAccounts: vi.fn(async () => []),
 }));
 
 import { getServerClient } from '@/lib/insforge/server';
-import { resolveUnipileTarget } from '@/lib/onboarding/import-posts';
+import { fetchUnipileAccountDetails } from '@/lib/social/unipile';
 import { fetchUnipilePostComments } from '@/lib/engagement/unipile-comments';
 
 const SOCIAL_ID = 'tweet-abc'; // no digit run => exactly one post-id candidate
@@ -84,12 +91,17 @@ function mockClient() {
   };
 }
 
-/** Sets which provider user ids count as "the account owner". */
+/**
+ * Sets which provider user ids count as "the account owner". Feeds the real
+ * resolveUnipileTarget through the mocked GET /accounts/{id}: the returned
+ * account's im.id becomes the primary provider id, and the stored account_id
+ * ('ACoAAOwner', from mockClient) rides along as a fallback token.
+ */
 function setOwnerIds(providerUserIds: string[]) {
-  (resolveUnipileTarget as ReturnType<typeof vi.fn>).mockResolvedValue({
-    unipileAccountId: 'acc_1',
-    providerUserIds,
-    refreshed: false,
+  (fetchUnipileAccountDetails as ReturnType<typeof vi.fn>).mockResolvedValue({
+    id: 'acc_1',
+    type: 'twitter',
+    connection_params: { im: { id: providerUserIds[0] } },
   });
 }
 

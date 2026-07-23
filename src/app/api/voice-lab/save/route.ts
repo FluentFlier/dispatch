@@ -19,6 +19,67 @@ const SaveSchema = z.object({
   })).optional(),
 });
 
+function parseJsonObject(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'string') return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export async function GET(): Promise<NextResponse> {
+  const user = await getAuthenticatedUser();
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+  const client = getServerClient();
+  const workspaceId = await getActiveWorkspaceId(user.id);
+  let profileQuery = client.database
+    .from('creator_profile')
+    .select('voice_description, voice_rules')
+    .eq('user_id', user.id);
+  let settingsQuery = client.database
+    .from('user_settings')
+    .select('key, value')
+    .eq('user_id', user.id)
+    .in('key', ['vocabulary_fingerprint', 'structural_patterns', 'persona_prompt_export', 'sample_posts']);
+  // creator_profile has one canonical row per user. Do not workspace-scope this
+  // lookup: a user switching workspaces must still load and update that row.
+  // Rich Voice Lab settings remain workspace-specific.
+  if (workspaceId) settingsQuery = settingsQuery.eq('workspace_id', workspaceId);
+
+  const [{ data: profile, error: profileError }, { data: settings, error: settingsError }] = await Promise.all([
+    profileQuery.maybeSingle(),
+    settingsQuery,
+  ]);
+  if (profileError || settingsError) {
+    console.error('Voice Lab load error:', profileError ?? settingsError);
+    return NextResponse.json({ error: 'Failed to load saved voice' }, { status: 500 });
+  }
+  if (!profile?.voice_description && !profile?.voice_rules) {
+    return NextResponse.json({ persona: null, samples: [] });
+  }
+
+  const byKey = new Map((settings ?? []).map((row: { key: string; value: string }) => [row.key, row.value]));
+  let samples: unknown[] = [];
+  try {
+    const parsed = JSON.parse(byKey.get('sample_posts') ?? '[]');
+    if (Array.isArray(parsed)) samples = parsed;
+  } catch { /* malformed legacy setting: keep saved persona editable */ }
+
+  return NextResponse.json({
+    persona: {
+      voice_description: profile?.voice_description ?? '',
+      voice_rules: profile?.voice_rules ?? '',
+      vocabulary_fingerprint: parseJsonObject(byKey.get('vocabulary_fingerprint')),
+      structural_patterns: parseJsonObject(byKey.get('structural_patterns')),
+      exportable_prompt: byKey.get('persona_prompt_export') ?? '',
+    },
+    samples,
+  });
+}
+
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const user = await getAuthenticatedUser();
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -47,11 +108,11 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   // insert a minimal row seeding the required `display_name` from the account
   // (email prefix, falling back to 'Creator'). Onboarding later upserts on the
   // same user_id conflict key and overwrites the placeholder name.
-  const { data: existingProfile, error: lookupError } = await client.database
+  let existingProfileQuery = client.database
     .from('creator_profile')
     .select('id, workspace_id')
-    .eq('user_id', user.id)
-    .maybeSingle();
+    .eq('user_id', user.id);
+  const { data: existingProfile, error: lookupError } = await existingProfileQuery.maybeSingle();
 
   if (lookupError) {
     console.error('Profile lookup error:', lookupError);
@@ -62,7 +123,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
   if (existingProfile) {
     // Row exists - only touch the voice fields so we never clobber display_name.
-    const { error } = await client.database
+    const updateQuery = client.database
       .from('creator_profile')
       .update({
         voice_description: parsed.data.voice_description,
@@ -70,6 +131,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         updated_at: new Date().toISOString(),
       })
       .eq('user_id', user.id);
+    const { error } = await updateQuery;
     profileError = error;
   } else {
     // No row yet (import-before-onboarding) - insert with a seeded display_name.
@@ -89,7 +151,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       .from('creator_profile')
       .insert([{
         user_id: user.id,
-        workspace_id: membership?.workspace_id ?? null,
+        workspace_id: workspaceId ?? membership?.workspace_id ?? null,
         display_name: displayName,
         voice_description: parsed.data.voice_description,
         voice_rules: parsed.data.voice_rules,
@@ -118,7 +180,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
   }
 
   for (const setting of settingsToSave) {
-    await client.database
+    const { error: settingError } = await client.database
       .from('user_settings')
       .upsert({
         user_id: user.id,
@@ -131,6 +193,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         value: setting.value,
         updated_at: new Date().toISOString(),
       }, { onConflict: 'user_id,key' });
+    if (settingError) {
+      console.error('Voice setting save error:', { key: setting.key, error: settingError });
+      return NextResponse.json({ error: 'Failed to save complete voice profile' }, { status: 500 });
+    }
   }
 
   try {

@@ -20,19 +20,20 @@ import {
   updateIcpProfile,
 } from '@/lib/signals/leads/icp-profiles';
 import type { IcpProfileRow } from '@/lib/signals/types';
-import { errorResponse } from '@/lib/api-errors';
 
 /**
  * Friendly, HONEST reply when the AI provider is out of credits / rate-limited.
  * Returned as a normal 200 assistant message so the user sees WHY in the chat and
  * knows it is our provider capacity - not their account or subscription.
  */
-function llmBusyResponse(): NextResponse {
+function llmBusyResponse(requestId: string): NextResponse {
   return NextResponse.json(
     {
       assistantMessage:
         "Our AI is temporarily over capacity on our end - this is a provider-credit issue on our side, not your account or subscription. Please try again in a few minutes.",
       llmUnavailable: true,
+      code: 'ICP_AI_BUSY',
+      requestId,
     },
     { status: 200 },
   );
@@ -193,15 +194,16 @@ function extractJson(raw: string): ChatIntent | null {
  * suggestRun }.
  */
 export async function POST(request: NextRequest): Promise<NextResponse> {
+  const requestId = request.headers.get('x-request-id')?.trim() || crypto.randomUUID();
   const user = await getAuthenticatedUser();
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!user) return NextResponse.json({ error: 'Unauthorized', code: 'UNAUTHORIZED', requestId }, { status: 401 });
 
   const workspaceId = await getActiveWorkspaceId(user.id);
-  if (!workspaceId) return NextResponse.json({ error: 'No active workspace' }, { status: 400 });
+  if (!workspaceId) return NextResponse.json({ error: 'No active workspace', code: 'NO_ACTIVE_WORKSPACE', requestId }, { status: 400 });
 
   const parsed = bodySchema.safeParse(await request.json().catch(() => ({})));
   if (!parsed.success) {
-    return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
+    return NextResponse.json({ error: 'Check your message and try again.', code: 'INVALID_REQUEST', requestId }, { status: 400 });
   }
 
   try {
@@ -303,8 +305,9 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       // "Find leads now" must work even when the ICP classifier LLM is down - it
       // needs no model, only the already-saved ICP.
       if (wantsDiscovery && currentIcp) return discoveryFallback();
-      if (isLlmUnavailable(err)) return llmBusyResponse();
-      return errorResponse('ICP assistant is unavailable right now.', 503, err);
+      if (isLlmUnavailable(err)) return llmBusyResponse(requestId);
+      console.error(`[leads/icp/chat ${requestId}] classifier unavailable`, err);
+      return NextResponse.json({ error: 'The ICP assistant is temporarily unavailable. Your existing ICP was not changed.', code: 'ICP_ASSISTANT_UNAVAILABLE', requestId, retryable: true }, { status: 503 });
     }
     if (!intent) {
       if (wantsDiscovery && currentIcp) return discoveryFallback();
@@ -432,6 +435,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
 
     let applied = false;
     let profiles: IcpProfileRow[] | null = null;
+    const enrichmentWarnings: string[] = [];
     // Persist ICP only when it actually changed (non-empty and different).
     if (icpBrief && icpBrief !== currentIcp) {
       const icp = await parseIcpDescription(icpBrief);
@@ -443,21 +447,30 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         // that web discovery consumes verbatim.
         discovery_goal: icp.discovery_goal || null,
       });
-      const ownerId = (await getWorkspaceOwnerUserId(client, workspaceId)) ?? user.id;
-      await putBrainPage(client, ownerId, {
-        slug: BRAIN_SLUG.gtm,
-        title: 'GTM playbook',
-        tags: ['gtm', 'signals', 'outreach'],
-        body: JSON.stringify({ ...icp.gtm, status: 'ready' }, null, 2),
-        workspaceId,
-      });
+      // The directory settings above are the authoritative ICP save. Brain,
+      // topics and named-profile mirrors enrich that save, but must never turn
+      // a successful core write into a scary generic failure in the chat.
+      try {
+        const ownerId = (await getWorkspaceOwnerUserId(client, workspaceId)) ?? user.id;
+        await putBrainPage(client, ownerId, {
+          slug: BRAIN_SLUG.gtm,
+          title: 'GTM playbook',
+          tags: ['gtm', 'signals', 'outreach'],
+          body: JSON.stringify({ ...icp.gtm, status: 'ready' }, null, 2),
+          workspaceId,
+        });
+      } catch (err) {
+        enrichmentWarnings.push('brain_sync');
+        console.warn(`[leads/icp/chat ${requestId}] ICP saved; Brain sync failed`, err);
+      }
       // Arm the live signal engine too: mirror the ICP's keywords into
       // "Topics to monitor" (additive, capped, never deletes user topics). This
       // is why the assistant can now "write topics". Non-fatal on failure.
       try {
         await syncIcpKeywordsToTopics(client, workspaceId, icp.icp_keywords);
-      } catch {
-        /* topic sync is best-effort; the ICP is already saved */
+      } catch (err) {
+        enrichmentWarnings.push('topic_sync');
+        console.warn(`[leads/icp/chat ${requestId}] ICP saved; topic sync failed`, err);
       }
 
       // Mirror the working ICP into the Saved ICPs list. Without this the
@@ -493,7 +506,8 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
         }
         profiles = await listIcpProfiles(client, workspaceId);
       } catch (err) {
-        console.warn('[leads/icp/chat] could not mirror ICP into saved profiles', err);
+        enrichmentWarnings.push('profile_sync');
+        console.warn(`[leads/icp/chat ${requestId}] could not mirror ICP into saved profiles`, err);
       }
       applied = true;
     }
@@ -566,11 +580,19 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
       hasIcp: hasIcpNow,
       icpUnderstood,
       ...(profiles ? { profiles } : {}),
+      ...(enrichmentWarnings.length ? { enrichmentWarnings } : {}),
+      requestId,
     });
   } catch (err) {
     // A quota/credit failure from the classify or ICP-parse LLM call is our
     // provider being out of credits - surface it honestly instead of a generic 500.
-    if (isLlmUnavailable(err)) return llmBusyResponse();
-    return errorResponse('Could not process ICP chat.', 500, err);
+    if (isLlmUnavailable(err)) return llmBusyResponse(requestId);
+    console.error(`[leads/icp/chat ${requestId}] request failed`, err);
+    return NextResponse.json({
+      error: 'We could not update your ICP. Nothing was reported as saved; please retry.',
+      code: 'ICP_UPDATE_FAILED',
+      requestId,
+      retryable: true,
+    }, { status: 500 });
   }
 }

@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuthenticatedUser, getServerClient } from '@/lib/insforge/server';
 import { getActiveWorkspaceId } from '@/lib/workspace';
-import { getLead } from '@/lib/signals/leads/store';
+import { getDirectorySettings, getLead } from '@/lib/signals/leads/store';
 import { resolveLeadContacts } from '@/lib/signals/leads/resolve-contact';
 import { errorResponse } from '@/lib/api-errors';
+import { inferPersonaTarget } from '@/lib/signals/leads/persona-fit';
 
 /**
  * POST /api/leads/:id/resolve
@@ -27,8 +28,13 @@ export async function POST(
     const client = getServerClient();
     const lead = await getLead(client, workspaceId, params.id);
     if (!lead) return NextResponse.json({ error: 'Lead not found' }, { status: 404 });
+    const settings = await getDirectorySettings(client, workspaceId);
+    const persona = inferPersonaTarget(settings.icp_description);
 
-    const res = await resolveLeadContacts(client, workspaceId, lead, { force: body.force === true });
+    const res = await resolveLeadContacts(client, workspaceId, lead, {
+      force: body.force === true,
+      persona,
+    });
     const updated = await getLead(client, workspaceId, params.id);
     return NextResponse.json({ lead: updated, result: res });
   } catch (err) {
